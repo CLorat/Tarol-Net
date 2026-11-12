@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Strongly-typed, zero-overhead identifiers: Id&lt;TEntity&gt; over a time-ordered Guid (UUIDv7), with System.Text.Json, parsing, formatting and model/configuration binding built in. Native-AOT ready.</Description>
+    <PackageTags>tarol;strongly-typed-id;ddd;uuidv7;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- D-10: the registration generator ships inside this package (analyzers/dotnet/cs). -->
+    <ProjectReference Include="../Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

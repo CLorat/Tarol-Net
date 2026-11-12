@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.StronglyTypedId package (no ProjectReference). Proves that the bundled generator
+    reaches a package consumer and that the package works. Not part of Tarol.slnx: run by
+    eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.StronglyTypedId" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+</Project>

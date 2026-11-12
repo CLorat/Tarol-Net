@@ -9,5 +9,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 ### Added
 
 * Repository foundation: layered build configuration, central package management, packaging conventions
-  (README, licence, agent skills and bundled generators in every runtime package), package verification and
-  AOT smoke scripts, shared generator test harness, CI, agent instructions, migration plan.
+  (README, agent skills and bundled generators in every runtime package), CI.
+* `Tarol.StronglyTypedId`, migrated from CLorat/Tarol with: open generic JSON converter (no reflection fallback),
+  allocation-free JSON reads, `Id<T>.New(TimeProvider)`, `IComparisonOperators`, generator registration of ids
+  inherited from generic bases, diagnostic TSID001, agent skill `tarol-strongly-typed-id`.
+
+### Removed
+
+* `IdJsonConverterFactory` (see docs/migration/stronglytypedid.md).
+* `Tarol.StronlgyTypedId.EntityFrameworkCore` is not carried over: EF Core is not Tarol's persistence provider.
