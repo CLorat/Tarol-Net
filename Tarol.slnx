@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="AGENTS.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="eng/Tarol.Packaging.targets" />
+    <File Path="global.json" />
+    <File Path="LICENSE" />
+    <File Path="nuget.config" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Shared/">
+    <Project Path="tests/Shared/Tarol.Testing.Generators.Tests/Tarol.Testing.Generators.Tests.csproj" />
+    <Project Path="tests/Shared/Tarol.Testing.Generators/Tarol.Testing.Generators.csproj" />
+  </Folder>
+</Solution>
