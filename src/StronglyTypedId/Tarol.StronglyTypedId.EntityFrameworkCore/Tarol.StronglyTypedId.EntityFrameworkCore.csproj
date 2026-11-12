@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Entity Framework Core support for Tarol strongly-typed ids: every Id&lt;TEntity&gt; property maps to a uuid/Guid column with one line of configuration.</Description>
+    <PackageTags>tarol;strongly-typed-id;efcore;entity-framework-core</PackageTags>
+    <!-- Not AOT-compatible: EF Core itself is not, and the convention closes IdValueConverter<> over the
+         property type at model-building time (MakeGenericType). The public entry point is annotated with
+         RequiresDynamicCode/RequiresUnreferencedCode so AOT apps see it; ConfigureStronglyTypedId<T>() is the
+         reflection-free alternative. -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <ProjectReference Include="../Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>
