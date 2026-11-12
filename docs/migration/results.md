@@ -22,6 +22,8 @@ repository's props do not apply). The complete console output is in
 | `xasm/` | `closed` across assemblies; `Result<object>` / `Result<Failure>` runtime semantics | `dotnet run` |
 | `val/` | can a `[Union]` keep a typed `Value`? | `dotnet build` |
 | `web/` | ASP.NET Core minimal API: `TypedResults`, problem details, JSON envelope, `IResult` clash, the four shapes side by side (`Compare.cs`) | `dotnet publish -c Release -r linux-x64`, then `curl` |
+| `show/` | the same use case in A, M1, M2 and D: user code, HTTP output and the result as JSON (§3.9) | `dotnet publish -c Release -r linux-x64`, then `curl` |
+| `m2/` | exhaustiveness and size of `T \| closed Failure { Invalid, Error }` | `dotnet run -c Release` |
 | `bench/` | BenchmarkDotNet 0.16.0-preview.2, `ShortRun` (0.15.8 throws `GetRuntimeVersion not implemented` on net11) | `dotnet run -c Release -- --filter '*'` |
 
 ## 0. Summary
@@ -252,7 +254,105 @@ as a number: the contract must set a string enum converter).
 * **CQRS (10)** needs a non-boxing "no payload" response: the non-generic `Result`; no interface (R-9).
 * **Sagas (9)** need the `Violation` JSON contract (N-3).
 
-### 3.9 Analyzer / generator needs (item 7)
+### 3.9 User code and JSON per shape and failure model **[verified]** (`show/`, `m2/`)
+
+Asked by the owner before deciding Q-1. The owner's model for Q-2: *a failure is either validation errors,
+or one light, non-fatal error* (we use results so we do not throw). Three failure models over the C layout
+were therefore compared with today's A:
+
+| Model | Failure type(s) |
+|---|---|
+| A | today: `Violation` struct; validation = `Aggregate` with `InnerErrors` |
+| **M1** | `Violation` sealed class with today's fields (`Type`, `Code`, `Detail`, `PropertyName`, `InnerErrors`) |
+| **M2** | `closed record Failure` with exactly two leaves: `Invalid(IReadOnlyList<FieldError> Errors)` and `Error(ErrorType Type, string Code, string? Detail)`; union cases are `T` and `Failure` |
+| D | `closed record Failure` with one leaf per kind (`InvalidField`, `NotFound`, `Conflict`, `Forbidden`, `Unexpected`) |
+
+The same use case in each: validate `name` and `email`, load the user, rename; then map to HTTP.
+All compile with warnings as errors and run as one Native-AOT app (0 IL warnings).
+
+```csharp
+// ---- M2: validation errors | one light error ----------------------------------------------------------------
+public Result<User> Rename(Guid id, string? name, string? email)
+{
+    List<FieldError> errors = [];
+    if (string.IsNullOrWhiteSpace(name)) errors.Add(new("Name", "Name.Required"));
+    if (email is not null && !email.Contains('@')) errors.Add(new("Email", "Email.Invalid"));
+    if (errors.Count > 0) return new Invalid(errors);
+
+    return store.TryGetValue(id, out var user)
+        ? user with { Name = name! }
+        : Error.NotFound("User.NotFound", $"No user {id}.");
+}
+
+// endpoint: three arms, exhaustive (a missing Error arm is CS8509)
+Rename(id, name, email) switch
+{
+    User user       => TypedResults.Ok(user),
+    Invalid invalid => TypedResults.ValidationProblem(invalid.Errors.GroupBy(e => e.Field)
+                                                       .ToDictionary(g => g.Key, g => g.Select(e => e.Code).ToArray())),
+    Error error     => TypedResults.Problem(statusCode: error.Type.ToHttpStatusCode(), title: error.Code, detail: error.Detail),
+};
+
+// a handler that only passes failures on: one arm
+static Result<Order> Next(Result<User> r) => r switch { User u => Order.For(u), Failure f => f };
+
+// ---- M1: one Violation type ---------------------------------------------------------------------------------
+    if (errors.Count > 0) return Violation.Aggregate(errors);                      // errors: List<Violation>
+    …
+Rename(id, name, email) switch
+{
+    User user => TypedResults.Ok(user),
+    Violation { Type: ViolationType.Validation } v => TypedResults.ValidationProblem(
+        (v.InnerErrors.Count > 0 ? v.InnerErrors : [v]).GroupBy(e => e.PropertyName ?? "")
+                                                      .ToDictionary(g => g.Key, g => g.Select(e => e.Code).ToArray())),
+    Violation v => TypedResults.Problem(statusCode: v.ToHttpStatusCode(), title: v.Code, detail: v.Detail),
+};
+
+// ---- A: today ------------------------------------------------------------------------------------------------
+var result = Rename(id, name, email);
+if (result.IsSuccess) return TypedResults.Ok(result.Value);
+var v = result.Violation;
+if (v.Type == ViolationType.Validation) return TypedResults.ValidationProblem(/* as M1 */);
+return TypedResults.Problem(statusCode: v.ToHttpStatusCode(), title: v.Code, detail: v.Detail);
+
+// ---- D: one record per kind: the endpoint lists every kind; a validation failure carries one field ------------
+    User user => TypedResults.Ok(user),
+    InvalidField i => TypedResults.ValidationProblem(new Dictionary<string, string[]> { [i.Field] = [i.Code] }),
+    Show.D.NotFound nf => TypedResults.Problem(statusCode: 404, …),   // must be qualified: HttpResults.NotFound (CS0104)
+    Show.D.Conflict c => …, Forbidden f => …, Unexpected u => …,
+```
+
+**HTTP** (the API contract a client sees) is the same for A, M1 and M2. D lists only the first invalid field:
+
+```text
+200 {"id":"00000000-0000-0000-0000-000000000000","name":"Grace"}
+400 {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","title":"One or more validation errors occurred.","status":400,
+     "errors":{"Name":["Name.Required"],"Email":["Email.Invalid"]},"traceId":"…"}
+404 {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.5","title":"User.NotFound","status":404,
+     "detail":"No user 11111111-1111-1111-1111-111111111111.","traceId":"…"}
+```
+
+**The result itself as JSON** (a message, a saga event, a client SDK; envelope converter, web defaults):
+
+| | success | validation failure | light error |
+|---|---|---|---|
+| A (today) | `{"IsSuccess":true,"Value":{…},"Violation":{…}}` | **throws** (R-4) | **throws** |
+| M1 | `{"value":{"id":"…","name":"Grace"}}` | `{"failure":{"type":"Validation","code":"Validation.Multiple","detail":null,"propertyName":null,"innerErrors":[{"type":"Validation","code":"Name.Required","detail":null,"propertyName":"Name","innerErrors":[]},{…"Email.Invalid"…}]}}` | `{"failure":{"type":"NotFound","code":"User.NotFound","detail":"No user …","propertyName":null,"innerErrors":[]}}` |
+| **M2** | `{"value":{"id":"…","name":"Grace"}}` | `{"failure":{"kind":"invalid","errors":[{"field":"Name","code":"Name.Required","detail":null},{"field":"Email","code":"Email.Invalid","detail":null}]}}` | `{"failure":{"kind":"error","type":"NotFound","code":"User.NotFound","detail":"No user …"}}` |
+| D | `{"value":{…}}` | `{"failure":{"kind":"invalidField","field":"Name","code":"Name.Required"}}` (one field) | `{"failure":{"kind":"notFound","detail":"No user …","code":"User.NotFound"}}` |
+
+M2 in numbers: `Result<int>` 16 B, `Result<Guid>` 24 B, 0 B per success + `switch` (`m2/`). `default` reads as
+`Error.Uninitialized` and lands in the `Error` arm. The `kind` discriminator is a fixed, Tarol-owned name
+(`[JsonDerivedType(typeof(Invalid), "invalid")]`), not a CLR name, so it is safe to persist.
+
+Assessment: M2 encodes the owner's rule in the type. Validation is a **list of field errors** (no aggregate
+`Violation` that pretends to be one, so R-6 and R-7 disappear: combining validations concatenates lists, and an
+`Error` stops the pipeline). A "light exception" is one `Error` with a type for the HTTP mapping and a free code.
+The handler has exactly two failure arms, or one `Failure f` arm to pass failures on. Users cannot add a third
+kind (CS9382), and they do not need one: new situations are new codes. M1 keeps today's names, but every
+consumer must remember that `Type == Validation` means "look at `InnerErrors`".
+
+### 3.10 Analyzer / generator needs (item 7)
 
 No generator is needed: the shape is hand-written and the JSON converter is open generic. An **analyzer** would
 catch what the compiler does not:
@@ -361,12 +461,12 @@ mixed → the most severe by a fixed order (5xx before 401, 403, 404, 409, 410, 
 
 ## 6. Decisions for the owner
 
-Open; asked in the session with a recommendation each.
+Asked in the session with a recommendation each. Round 1 (2026-11-12): the owner asked for user code and JSON per shape before choosing (added as §3.9), answered Q-2 with the model "validation errors, or one light, non-fatal error", and deferred Q-3 (after all others) and Q-4.
 
 | # | Decision | Recommendation |
 |---|---|---|
 | Q-1 | `Result<T>` shape | **C (C2 layout)** |
-| Q-2 | failure model | keep `Violation` + `ViolationType`, **`Violation` becomes a sealed class**; no closed hierarchy |
+| Q-2 | failure model | first proposal: keep `Violation` + `ViolationType` as a sealed class (M1). After the owner's answer ("validation errors, or one light non-fatal error"): **M2**, `closed Failure` = `Invalid` (field errors) \| `Error` (type + code), see §3.9 |
 | Q-3 | `default(Result)` | well-defined failure `Violation.Uninitialized` |
 | Q-4 | combinators | keep Map/Bind/Ensure/Tap/TapFailure/Match/GetValueOrDefault; `switch` is the documented primary; drop `Switch`; `ValueTask` only with `CancellationToken`; `Combine` always aggregates |
 | Q-5 | JSON / problem details | `Violation` contract and `Result` envelope in `Tarol.Results`; problem-details mapping in a later web package |
