@@ -1,0 +1,29 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="AGENTS.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="eng/Tarol.Packaging.targets" />
+    <File Path="global.json" />
+    <File Path="LICENSE" />
+    <File Path="nuget.config" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/StronglyTypedId/">
+    <Project Path="src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" />
+    <Project Path="src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Shared/">
+    <Project Path="tests/Shared/Tarol.Testing.Generators.Tests/Tarol.Testing.Generators.Tests.csproj" />
+    <Project Path="tests/Shared/Tarol.Testing.Generators/Tarol.Testing.Generators.csproj" />
+  </Folder>
+  <Folder Name="/tests/StronglyTypedId/">
+    <Project Path="tests/StronglyTypedId/Tarol.StronglyTypedId.AotSmoke/Tarol.StronglyTypedId.AotSmoke.csproj" />
+    <Project Path="tests/StronglyTypedId/Tarol.StronglyTypedId.Generators.Tests/Tarol.StronglyTypedId.Generators.Tests.csproj" />
+    <Project Path="tests/StronglyTypedId/Tarol.StronglyTypedId.Tests.ExternalAssembly/Tarol.StronglyTypedId.Tests.ExternalAssembly.csproj" />
+    <Project Path="tests/StronglyTypedId/Tarol.StronglyTypedId.Tests/Tarol.StronglyTypedId.Tests.csproj" />
+  </Folder>
+</Solution>

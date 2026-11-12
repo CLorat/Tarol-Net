@@ -1,0 +1,10 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Committed generator snapshots are data, never compiled (default Compile items exist only after the SDK props). -->
+  <ItemGroup>
+    <Compile Remove="Snapshots/**" />
+    <None Remove="Snapshots/**" />
+    <None Include="Snapshots/**" />
+  </ItemGroup>
+</Project>

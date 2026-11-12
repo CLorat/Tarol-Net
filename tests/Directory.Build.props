@@ -1,0 +1,26 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <TarolIsTestProject Condition="$(MSBuildProjectName.EndsWith('.Tests')) or $(MSBuildProjectName.EndsWith('.IntegrationTests'))">true</TarolIsTestProject>
+    <IsPackable>false</IsPackable>
+    <!-- XML docs stay on (IDE0005 needs them); CS1591 is off for tests in tests/.editorconfig. -->
+  </PropertyGroup>
+
+  <!-- Unit and integration tests: xUnit v3 on Microsoft.Testing.Platform (global.json selects the MTP runner). -->
+  <PropertyGroup Condition="'$(TarolIsTestProject)' == 'true'">
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TarolIsTestProject)' == 'true'">
+    <PackageReference Include="xunit.v3.mtp-v2" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+    <!-- Snapshot directory for tests/Shared/Tarol.Testing.Generators (read at run time). -->
+    <AssemblyMetadata Include="TarolSnapshotRoot" Value="$(MSBuildProjectDirectory)/Snapshots" />
+  </ItemGroup>
+</Project>
