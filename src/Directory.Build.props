@@ -1,0 +1,42 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <TarolIsGenerator>$(MSBuildProjectName.EndsWith('.Generators'))</TarolIsGenerator>
+  </PropertyGroup>
+
+  <!-- Runtime libraries: packable, AOT-compatible by default, versioned by MinVer from git tags. -->
+  <PropertyGroup Condition="'$(TarolIsGenerator)' != 'true'">
+    <IsPackable>true</IsPackable>
+    <!-- Every runtime package claims AOT compatibility unless its csproj opts out with a justification.
+         This turns on the trim, single-file and AOT analyzers for the project. -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TarolIsGenerator)' != 'true'">
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Source generators and analyzers: netstandard2.0, never packed on their own (D-10: they ship
+       inside their runtime package, see eng/Tarol.Packaging.targets). -->
+  <PropertyGroup Condition="'$(TarolIsGenerator)' == 'true'">
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TarolIsGenerator)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md;AnalyzerReleases.Unshipped.md" Condition="Exists('AnalyzerReleases.Shipped.md')" />
+  </ItemGroup>
+</Project>

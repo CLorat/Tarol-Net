@@ -1,0 +1,4 @@
+<Project>
+  <!-- Packaging conventions (README, skills, bundled generators). Only active for packable projects. -->
+  <Import Project="$(MSBuildThisFileDirectory)eng/Tarol.Packaging.targets" Condition="'$(IsPackable)' == 'true'" />
+</Project>

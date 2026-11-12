@@ -1,0 +1,10 @@
+# Test-only analyzer settings. Each line says why it differs from the root .editorconfig.
+[*.cs]
+# CA1707 (no underscores in identifiers): test names use Method_Should_Result_When_Condition.
+dotnet_diagnostic.CA1707.severity = none
+# CA1515 (make public types internal): xUnit discovers public test classes; fixtures are public on purpose.
+dotnet_diagnostic.CA1515.severity = none
+# CA2007 (ConfigureAwait): xUnit v3 tests run without a SynchronizationContext requirement; ConfigureAwait adds noise.
+dotnet_diagnostic.CA2007.severity = none
+# CS1591 (missing XML comment): tests and fixtures are not public API. Docs stay generated because IDE0005 needs them.
+dotnet_diagnostic.CS1591.severity = none
