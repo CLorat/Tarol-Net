@@ -1,0 +1,29 @@
+<Project>
+  <!--
+    Central package management. Rules (docs/architecture/conventions.md#packages):
+    * every PackageVersion here is used by at least one project (remove it when the last user goes);
+    * no PackageReference to anything the shared framework already provides (NU1510 stays an error);
+    * transitive pinning is on, so a pinned version also fixes a vulnerable transitive dependency.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Build">
+    <PackageVersion Include="MinVer" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Roslyn (generators and generator tests)">
+    <!-- Lowest Roslyn that provides every API the generators use; SDK 11 ships a newer compiler. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.3" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.3" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
+  </ItemGroup>
+</Project>

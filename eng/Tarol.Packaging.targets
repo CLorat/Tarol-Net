@@ -1,0 +1,40 @@
+<Project>
+  <!--
+    Packaging conventions for every packable Tarol project (imported from Directory.Build.targets).
+
+    1. README.md next to the csproj becomes the NuGet readme.
+    2. skills/<name>/SKILL.md next to the csproj is packed under skills/ (agent skills, see
+       docs/architecture/conventions.md#agent-skills). NuGet restore lists these files in the
+       consumer's project.assets.json.
+    3. Every ProjectReference marked TarolGenerator="true" is packed into analyzers/dotnet/cs of
+       THIS package (decision D-10: one package per feature, generator included). The reference
+       itself must also set ReferenceOutputAssembly="false" and PrivateAssets="all" so the
+       generator is neither a lib/ assembly nor a package dependency. No build/*.targets file is
+       packed, so the analyzer is loaded exactly once (NuGet's analyzers/ convention).
+  -->
+  <PropertyGroup Condition="Exists('$(MSBuildProjectDirectory)/README.md')">
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../LICENSE" Pack="true" PackagePath="/" Visible="false" />
+    <None Include="$(MSBuildProjectDirectory)/README.md" Pack="true" PackagePath="/" Visible="false"
+          Condition="Exists('$(MSBuildProjectDirectory)/README.md')" />
+    <None Include="$(MSBuildProjectDirectory)/skills/**/*" Pack="true" PackagePath="skills/" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_TarolPackGenerators</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="_TarolPackGenerators" Condition="'@(ProjectReference->WithMetadataValue('TarolGenerator','true'))' != ''">
+    <MSBuild Projects="@(ProjectReference->WithMetadataValue('TarolGenerator','true'))"
+             Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_TarolGeneratorAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_TarolGeneratorAssembly)" PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
+</Project>
