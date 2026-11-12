@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.StronglyTypedId packages (no ProjectReference). Proves that the bundled generator
+    reaches a package consumer and that the packages work together. Not part of Tarol.slnx: run by
+    eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.StronglyTypedId" VersionOverride="$(TarolPackageVersion)" />
+    <PackageReference Include="Tarol.StronglyTypedId.EntityFrameworkCore" VersionOverride="$(TarolPackageVersion)" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+</Project>
