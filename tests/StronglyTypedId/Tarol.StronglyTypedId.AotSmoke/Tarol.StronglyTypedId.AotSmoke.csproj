@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native-AOT smoke test of Tarol.StronglyTypedId. Publish with
+      dotnet publish tests/StronglyTypedId/Tarol.StronglyTypedId.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- Every JSON call must go through generated metadata. -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Source-generated configuration binder (the AOT-safe one). -->
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- AOT-friendly TypeDescriptor mode: only registered types are described. Proves the generated registration. -->
+    <RuntimeHostConfigurationOption Include="System.ComponentModel.TypeDescriptor.RequireRegisteredTypes" Value="true" Trim="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+    <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+  </ItemGroup>
+</Project>

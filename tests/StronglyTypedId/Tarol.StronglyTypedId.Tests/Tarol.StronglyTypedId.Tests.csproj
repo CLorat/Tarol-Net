@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+    <!-- The generator runs on this test assembly exactly as it would on a consumer of the package. -->
+    <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Tarol.StronglyTypedId.Tests.ExternalAssembly/Tarol.StronglyTypedId.Tests.ExternalAssembly.csproj" />
+  </ItemGroup>
+</Project>
