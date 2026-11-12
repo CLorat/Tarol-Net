@@ -1,0 +1,150 @@
+## probe, JIT (SDK 11.0.100, Release, reflection JSON on)
+== sizes (Unsafe.SizeOf)
+A  Result<int>=48 <Guid>=64 <Id<User>>=64 <string>=56 Result=48 Violation=40
+B  Result<int>=8 <Guid>=8 <Id<User>>=8 <string>=8 Result=8
+C1 Result<int>=16 <Guid>=32 <Id<User>>=32 <string>=24
+C2 Result<int>=16 <Guid>=24 <Id<User>>=24 <string>=16 Result=8
+D  Result<int>=16 <Guid>=24 <Id<User>>=24 <string>=16
+== allocated bytes per 1000 (create success + switch/Match)
+A  success+Match(static)   0
+B  success+switch          24000
+B  Id<User> success+switch 32000
+B  failure+switch          0
+C1 success+switch          0
+C2 success+switch          0
+C2 Id<User> success+switch 0
+C2 failure+switch          0
+C2 success+Match(static)   0
+C2 Match(capturing lambda) 80000
+D  success+switch          0
+A  Map+Bind chain (static) 0
+C2 Map+Bind chain (static) 0
+== default
+A  default: IsSuccess=False Violation.Code is null=True Type=Validation
+B  default: Value is null=True; switch(no null arm) -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+C2 default: IsSuccess=False; switch(no null arm) -> fail Result.Uninitialized
+D  default: switch -> uninit Result.Uninitialized
+C2 default is-pattern: (cdef is int)=False (cdef is Failure)=True (cdef is null)=False
+C2 null success rejected: ArgumentNullException
+== JSON
+A  refl success: {"IsSuccess":true,"Value":1,"Violation":{"Code":"","Type":0,"Detail":null,"PropertyName":null,"InnerErrors":null}}
+A  refl failure: THROWS InvalidOperationException: failed: User.NotFound
+A  refl roundtrip: False
+B<int> ok      refl ser: 5
+B<int> fail    refl ser: {"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}
+B<User> ok     refl ser: {"Name":"Ada"}
+C2<int> ok     refl ser: 5
+C2<int> fail   refl ser: {"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}
+C2<User> ok    refl ser: {"Name":"Ada"}
+C2<int> default refl ser: {"Kind":0,"Code":"Result.Uninitialized","Detail":"default(Result) was used; it was never assigned a success or a failure.","Target":null,"Inner":[]}
+B<int> refl deser 5: 5
+B<int> refl deser fail: Failure { Kind = NotFound, Code = x, Detail = , Target = , Inner = Probe.Failure[] }
+B<User> refl deser: THROWS JsonException: JSON value type 'Object' is ambiguous for union type 'Probe.BResult`1[Probe.User]' because multiple case types can use this value type. Specify a custom type classifier to support deserialization. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+C2<int> refl deser 5: 5
+C2<int> refl deser fail: Failure { Kind = NotFound, Code = x, Detail = , Target = , Inner = Probe.Failure[] }
+C2<User> refl deser: THROWS JsonException: JSON value type 'Object' is ambiguous for union type 'Probe.C2Result`1[Probe.User]' because multiple case types can use this value type. Specify a custom type classifier to support deserialization. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+C2<int> srcgen ser ok: 5
+C2<int> srcgen ser fail: {"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}
+C2<int> srcgen deser 5: 5
+C2<int> srcgen deser fail: Failure { Kind = NotFound, Code = x, Detail = , Target = , Inner = Probe.Failure[] }
+B<int> srcgen ser ok: 5
+B<int> srcgen deser 5: 5
+B<int> srcgen deser fail: Failure { Kind = NotFound, Code = x, Detail = , Target = , Inner = Probe.Failure[] }
+Failure srcgen: {"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}
+E<User> conv ser ok: THROWS NotSupportedException: JsonTypeInfo metadata for type 'Probe.User' was not provided by TypeInfoResolver of type 'Ctx2'. If using source generation, ensure that all root types passed to the serializer have been annotated with 'JsonSerializableAttribute', along with any types that might be serialized polymorphically. The unsupported member type is located on type 'Probe.EResult`1[Probe.User]'. Path: $.
+E<User> conv ser fail: {"failure":{"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}}
+E<int> conv ser default: {"failure":{"Kind":0,"Code":"Result.Uninitialized","Detail":"default(Result) was used; it was never assigned a success or a failure.","Target":null,"Inner":[]}}
+E<User> conv deser ok: THROWS NotSupportedException: JsonTypeInfo metadata for type 'Probe.User' was not provided by TypeInfoResolver of type 'Ctx2'. If using source generation, ensure that all root types passed to the serializer have been annotated with 'JsonSerializableAttribute', along with any types that might be serialized polymorphically. The unsupported member type is located on type 'Probe.EResult`1[Probe.User]'. Path: $ | LineNumber: 0 | BytePositionInLine: 10.
+E<User> conv deser fail: Failure { Kind = Conflict, Code = c, Detail = , Target = , Inner = Probe.Failure[] }
+C2<string> srcgen ser ok: "hi"
+C2<string> srcgen deser: hi
+C2<int> default srcgen ser: {"Kind":0,"Code":"Result.Uninitialized","Detail":"default(Result) was used; it was never assigned a success or a failure.","Target":null,"Inner":[]}
+D<int> srcgen ser fail: {"$type":"NotFound","Code":"x","Detail":null}
+D<int> srcgen deser fail: NotFound { Code = x, Detail =  }
+
+## probe, Native AOT (linux-x64, reflection JSON off, 0 IL warnings): differs from JIT only in the omitted reflection lines and object sizes of closures
+== sizes (Unsafe.SizeOf)
+A  Result<int>=48 <Guid>=64 <Id<User>>=64 <string>=56 Result=48 Violation=40
+B  Result<int>=8 <Guid>=8 <Id<User>>=8 <string>=8 Result=8
+C1 Result<int>=16 <Guid>=32 <Id<User>>=32 <string>=24
+C2 Result<int>=16 <Guid>=24 <Id<User>>=24 <string>=16 Result=8
+D  Result<int>=16 <Guid>=24 <Id<User>>=24 <string>=16
+== allocated bytes per 1000 (create success + switch/Match)
+A  success+Match(static)   0
+B  success+switch          24000
+B  Id<User> success+switch 32000
+B  failure+switch          0
+C1 success+switch          0
+C2 success+switch          0
+C2 Id<User> success+switch 0
+C2 failure+switch          0
+C2 success+Match(static)   0
+C2 Match(capturing lambda) 72000
+D  success+switch          0
+A  Map+Bind chain (static) 0
+C2 Map+Bind chain (static) 0
+== default
+A  default: IsSuccess=False Violation.Code is null=True Type=Validation
+B  default: Value is null=True; switch(no null arm) -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+C2 default: IsSuccess=False; switch(no null arm) -> fail Result.Uninitialized
+D  default: switch -> uninit Result.Uninitialized
+C2 default is-pattern: (cdef is int)=False (cdef is Failure)=True (cdef is null)=False
+C2 null success rejected: ArgumentNullException
+== JSON
+C2<int> srcgen ser ok: 5
+C2<int> srcgen ser fail: {"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}
+C2<int> srcgen deser 5: 5
+C2<int> srcgen deser fail: Failure { Kind = NotFound, Code = x, Detail = , Target = , Inner = Probe.Failure[] }
+B<int> srcgen ser ok: 5
+B<int> srcgen deser 5: 5
+B<int> srcgen deser fail: Failure { Kind = NotFound, Code = x, Detail = , Target = , Inner = Probe.Failure[] }
+Failure srcgen: {"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}
+E<User> conv ser ok: THROWS NotSupportedException: JsonTypeInfo metadata for type 'Probe.User' was not provided by TypeInfoResolver of type 'Ctx2'. If using source generation, ensure that all root types passed to the serializer have been annotated with 'JsonSerializableAttribute', along with any types that might be serialized polymorphically. The unsupported member type is located on type 'Probe.EResult`1[Probe.User]'. Path: $.
+E<User> conv ser fail: {"failure":{"Kind":4,"Code":"User.NotFound","Detail":null,"Target":null,"Inner":[]}}
+E<int> conv ser default: {"failure":{"Kind":0,"Code":"Result.Uninitialized","Detail":"default(Result) was used; it was never assigned a success or a failure.","Target":null,"Inner":[]}}
+E<User> conv deser ok: THROWS NotSupportedException: JsonTypeInfo metadata for type 'Probe.User' was not provided by TypeInfoResolver of type 'Ctx2'. If using source generation, ensure that all root types passed to the serializer have been annotated with 'JsonSerializableAttribute', along with any types that might be serialized polymorphically. The unsupported member type is located on type 'Probe.EResult`1[Probe.User]'. Path: $ | LineNumber: 0 | BytePositionInLine: 10.
+E<User> conv deser fail: Failure { Kind = Conflict, Code = c, Detail = , Target = , Inner = Probe.Failure[] }
+C2<string> srcgen ser ok: "hi"
+C2<string> srcgen deser: hi
+C2<int> default srcgen ser: {"Kind":0,"Code":"Result.Uninitialized","Detail":"default(Result) was used; it was never assigned a success or a failure.","Target":null,"Inner":[]}
+D<int> srcgen ser fail: {"$type":"NotFound","Code":"x","Detail":null}
+D<int> srcgen deser fail: NotFound { Code = x, Detail =  }
+
+## old Tarol.Results (CLorat/Tarol@6a62f81), JIT
+/root/.dotnet/sdk/11.0.100/Microsoft.Common.CurrentVersion.targets(2220,5): warning MSB9008: The referenced project ../generator/Tarol.StronglyTypedId.Generators.csproj does not exist. [/home/user/tarol/src/StronglyTypedId/StronglyTypedId/StronglyTypedId.csproj]
+size Result=48 Result<int>=48 Result<Guid>=64 Result<string>=56 Violation=40
+R-1 default(Result): IsFailure=True Code is null=True Type=Validation; default(Result<int>).IsFailure=True
+R-2 Violation.None.ToHttpStatusCode()=400; Result r=Violation.None -> IsFailure=True
+R-3 Result<string> from null: IsSuccess=True Value is null=True
+R-4 serialize failure: THROWS InvalidOperationException: Cannot access Value on failed Result. Violation: x
+R-4 roundtrip success: False
+R-6 Combine(NotFound, Forbidden) -> Type=Validation http=400
+R-6 equal aggregates Equals=False
+R-7 Combine<T1,T2>(NotFound a, Conflict b) -> Code=a InnerErrors=null
+R-10 NotFound<T>(Guid) allocated 304 B
+R-5 Result<object> = violation -> IsSuccess=False; = (object)violation -> IsSuccess=True
+
+## BenchmarkDotNet
+BenchmarkDotNet v0.16.0-preview.2, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon Processor 2.70GHz, 1 CPU, 4 logical and 4 physical cores
+Memory: 15.71 GB Total, 11.07 GB Available
+.NET SDK 11.0.100
+  [Host]   : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+
+| Method             | Mean         | Error         | StdDev      | Ratio  | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------- |-------------:|--------------:|------------:|-------:|--------:|-------:|----------:|------------:|
+| A_Create_Switch    |    16.054 ns |     8.1350 ns |   0.4459 ns |   1.00 |    0.00 |      - |         - |          NA |
+| B_Create_Switch    |     7.684 ns |     3.3571 ns |   0.1840 ns |   0.48 |    0.02 | 0.0001 |      32 B |          NA |
+| C_Create_Switch    |     1.712 ns |     1.8180 ns |   0.0997 ns |   0.11 |    0.01 |      - |         - |          NA |
+| A_Fail_Match       |     3.837 ns |     2.8140 ns |   0.1542 ns |   0.24 |    0.01 |      - |         - |          NA |
+| C_Fail_Switch      |     1.007 ns |     0.3282 ns |   0.0180 ns |   0.06 |    0.00 |      - |         - |          NA |
+| C_Fail_Match       |     1.693 ns |     0.0400 ns |   0.0022 ns |   0.11 |    0.00 |      - |         - |          NA |
+| A_Chain            |    48.555 ns |     4.4313 ns |   0.2429 ns |   3.03 |    0.08 |      - |         - |          NA |
+| C_Chain            |     5.423 ns |     0.2667 ns |   0.0146 ns |   0.34 |    0.01 |      - |         - |          NA |
+| C_Match_Capturing  |     7.429 ns |     8.1176 ns |   0.4450 ns |   0.46 |    0.03 | 0.0001 |      24 B |          NA |
+| C_Switch_Capturing |     1.389 ns |     0.5186 ns |   0.0284 ns |   0.09 |    0.00 |      - |         - |          NA |
+| A_AsyncPipeline    |   131.013 ns |     1.4334 ns |   0.0786 ns |   8.17 |    0.20 |      - |         - |          NA |
+| C_AsyncPipeline    |    74.648 ns |     4.9697 ns |   0.2724 ns |   4.65 |    0.11 |      - |         - |          NA |
+| A_AsyncYield       | 1,741.326 ns | 2,250.8766 ns | 123.3781 ns | 108.52 |    7.17 | 0.0019 |     718 B |          NA |
+| C_AsyncYield       | 1,412.424 ns | 1,786.0617 ns |  97.9001 ns |  88.03 |    5.71 |      - |     452 B |          NA |
