@@ -14,10 +14,20 @@ time; see the [migration plan](docs/migration/plan.md).
 
 | Package | Description | Status |
 |---|---|---|
-| `Tarol.StronglyTypedId` | `Id<TEntity>` over UUIDv7, JSON/binding/formatting built in, generator included | step 1 (next) |
+| `Tarol.StronglyTypedId` | `Id<TEntity>` over UUIDv7, JSON/binding/formatting built in, generator included | migrated |
 | `Tarol.Results`, `Tarol.Options`, `Tarol.Kernel`, `Tarol.Validations`, `Tarol.Primitives`, … | | planned (see plan) |
 
 Packages are private: they are published only to the owner's GitHub Packages feed, never to nuget.org.
+
+## Quick start
+
+```csharp
+using Tarol.StronglyTypedId;
+
+public sealed class Customer { public Id<Customer> Id { get; } = Id<Customer>.New(); }
+
+app.MapGet("/customers/{id}", (Id<Customer> id) => …);   // binds, serializes, no configuration
+```
 
 ## Build
 

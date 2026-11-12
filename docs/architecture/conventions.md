@@ -203,11 +203,10 @@ artifact, instantiates every template against the local package feed and builds 
 * Generators are packed into their runtime package by `eng/Tarol.Packaging.targets` (target
   `_TarolPackGenerators`, which adds the generator's `GetTargetPath` output as a `TfmSpecificPackageFile`
   under `analyzers/dotnet/cs`).
-  **[verified]** with a prototype on the old repository (same item spec): `Tarol.Primitives.nupkg` contained
-  `analyzers/dotnet/cs/Tarol.Primitives.Generators.dll`, `lib/net11.0/`, `README.md` and `skills/…/SKILL.md`; the
-  generator was not a package dependency; a consumer that referenced only the package got generated code, and
-  the bundled generator of the transitive dependency `Tarol.StronglyTypedId` ran as well. Each family records
-  its own evidence in its migration note.
+  **[verified]** for `Tarol.StronglyTypedId` (output in [docs/migration/stronglytypedid.md](../migration/stronglytypedid.md#4-verification-sdk-1100100-2026-11-12)):
+  the generator is inside the package and not a dependency, there is no `build/` folder, and a consumer that
+  references only the package runs the generator. Earlier, a prototype on the old repository showed that a
+  bundled generator also runs for a *transitive* consumer (`Tarol.Primitives` → `Tarol.StronglyTypedId`).
 * `eng/verify-packages.sh` enforces this for every package on every CI run.
 * Licence: proprietary, owner-only; the root `LICENSE` is packed into every package as `PackageLicenseFile` (plan D-1). Packages are published only to a private feed.
 
@@ -237,7 +236,7 @@ Reference layout **[verified]** by downloading `markout 0.40.0` from nuget.org a
 `README.md`. Tarol does not ship `plugin.json` (no tool needs it; **[unverified]** whether any consumer tool reads it).
 
 How a consumer gets them: `dotnet restore` extracts the files to the NuGet cache and lists them under the
-package's `files` in `obj/project.assets.json` (**[verified]** with the prototype consumer above);
+package's `files` in `obj/project.assets.json` (**[verified]** with `Tarol.StronglyTypedId.PackageTests`);
 `dotnet-package-skills install` copies them to `.agents/skills/` (**[unverified]**, tool not run here).
 
 How they are evaluated: each skill has a checklist in its family's migration note (tasks an agent must
