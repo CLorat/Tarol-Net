@@ -11,11 +11,21 @@
     <File Path="nuget.config" />
   </Folder>
   <Folder Name="/src/" />
+  <Folder Name="/src/Results/">
+    <Project Path="src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj" />
+    <Project Path="src/Results/Tarol.Results/Tarol.Results.csproj" />
+  </Folder>
   <Folder Name="/src/StronglyTypedId/">
     <Project Path="src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" />
     <Project Path="src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/Results/">
+    <Project Path="tests/Results/Tarol.Results.AotSmoke/Tarol.Results.AotSmoke.csproj" />
+    <Project Path="tests/Results/Tarol.Results.Benchmarks/Tarol.Results.Benchmarks.csproj" />
+    <Project Path="tests/Results/Tarol.Results.Generators.Tests/Tarol.Results.Generators.Tests.csproj" />
+    <Project Path="tests/Results/Tarol.Results.Tests/Tarol.Results.Tests.csproj" />
+  </Folder>
   <Folder Name="/tests/Shared/">
     <Project Path="tests/Shared/Tarol.Testing.Generators.Tests/Tarol.Testing.Generators.Tests.csproj" />
     <Project Path="tests/Shared/Tarol.Testing.Generators/Tarol.Testing.Generators.csproj" />

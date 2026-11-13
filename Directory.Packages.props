@@ -28,4 +28,9 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
   </ItemGroup>
+
+  <ItemGroup Label="Benchmarks (tests/*/*.Benchmarks, never run in CI)">
+    <!-- 0.15.x throws "GetRuntimeVersion not implemented" on net11.0; 0.16.0-preview.2 is the first that runs. -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
+  </ItemGroup>
 </Project>

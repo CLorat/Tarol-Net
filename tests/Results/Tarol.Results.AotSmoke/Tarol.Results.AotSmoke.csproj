@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native-AOT smoke test of Tarol.Results. Publish with
+      dotnet publish tests/Results/Tarol.Results.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- Every JSON call must go through generated metadata. -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Results/Tarol.Results/Tarol.Results.csproj" />
+    <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
