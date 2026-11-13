@@ -1,0 +1,341 @@
+# Options probes, SDK 11.0.100, .NET 11.0.0, linux-x64 (2026-11-13)
+
+## diag/ (dotnet build, warnings not errors): file(line,col): id message
+Diag.cs(11,32): warning CS8629: Nullable value type may be null.
+Diag.cs(12,33): warning CS8629: Nullable value type may be null.
+Diag.cs(13,33): warning CS8629: Nullable value type may be null.
+Diag.cs(14,32): warning CS8602: Dereference of a possibly null reference.
+Diag.cs(15,35): warning CS8602: Dereference of a possibly null reference.
+Diag.cs(17,42): warning CS8655: The switch expression does not handle some null inputs (it is not exhaustive). For example, the pattern 'null' is not covered.
+Diag.cs(18,42): warning CS8655: The switch expression does not handle some null inputs (it is not exhaustive). For example, the pattern 'null' is not covered.
+Diag.cs(19,46): warning CS8655: The switch expression does not handle some null inputs (it is not exhaustive). For example, the pattern 'null' is not covered.
+Diag.cs(21,41): error CS1503: Argument 1: cannot convert from 'int?' to 'int'
+Diag.cs(22,40): error CS1503: Argument 1: cannot convert from 'Probe.Id<Probe.User>?' to 'Probe.Id<Probe.User>'
+Diag.cs(23,41): warning CS8604: Possible null reference argument for parameter 'x' in 'void Diag.TakeStr(string x)'.
+Diag.cs(24,42): warning CS8604: Possible null reference argument for parameter 'x' in 'void Diag.TakeUser(User x)'.
+Diag.cs(26,43): warning CS8600: Converting null literal or possible null value to non-nullable type.
+Diag.cs(27,41): warning CS8600: Converting null literal or possible null value to non-nullable type.
+Diag.cs(37,35): warning CS0649: Field 'Diag.Holder.Name' is never assigned to, and will always have its default value null
+Diag.cs(38,31): warning CS8602: Dereference of a possibly null reference.
+Diag.cs(58,39): error CS0029: Cannot implicitly convert type 'Probe.Option<int>' to 'int'
+Diag.cs(59,39): error CS1061: 'Option<string>' does not contain a definition for 'Length' and no accessible extension method 'Length' accepting a first argument of type 'Option<string>' could be found (are you missing a using directive or an assembly reference?)
+Diag.cs(62,74): warning CS8602: Dereference of a possibly null reference.
+Diag.cs(64,39): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Probe.None' is not covered.
+Diag.cs(65,39): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Probe.None' is not covered.
+Diag.cs(66,43): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Probe.None' is not covered.
+Diag.cs(67,41): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Probe.None' is not covered.
+Diag.cs(75,41): error CS1503: Argument 1: cannot convert from 'Probe.Option<int>' to 'int'
+Diag.cs(76,41): error CS1503: Argument 1: cannot convert from 'Probe.Option<string>' to 'string'
+Diag.cs(77,42): error CS1503: Argument 1: cannot convert from 'Probe.Option<Probe.User>' to 'Probe.User'
+Diag.cs(80,43): warning CS8604: Possible null reference argument for parameter 'value' in 'Option<string>.implicit operator Option<string>(string value)'.
+Diag.cs(83,35): warning CS8714: The type 'string?' cannot be used as type parameter 'T' in the generic type or method 'Option<T>'. Nullability of type argument 'string?' doesn't match 'notnull' constraint.
+Diag.cs(84,32): warning CS8714: The type 'int?' cannot be used as type parameter 'T' in the generic type or method 'Option<T>'. Nullability of type argument 'int?' doesn't match 'notnull' constraint.
+Diag.cs(87,71): warning CS8604: Possible null reference argument for parameter 'value' in 'Option<string>.Option(string value)'.
+Diag.cs(88,43): warning CS8619: Nullability of reference types in value of type 'Option<string?>' doesn't match target type 'Option<string>'.
+Diag.cs(88,43): warning CS8714: The type 'string?' cannot be used as type parameter 'T' in the generic type or method 'Option.Some<T>(T)'. Nullability of type argument 'string?' doesn't match 'notnull' constraint.
+Diag.cs(92,39): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Probe.None' is not covered.
+Diag.cs(95,41): error CS1503: Argument 1: cannot convert from 'Probe.DOption<int>' to 'int'
+Diag.cs(99,38): error CS0029: Cannot implicitly convert type 'Tarol.Results.Result<int>' to 'int'
+Diag.cs(100,39): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Tarol.Results.Invalid' is not covered.
+Diag.cs(101,43): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Tarol.Results.Invalid' is not covered.
+Diag.cs(103,41): error CS1503: Argument 1: cannot convert from 'Tarol.Results.Result<Probe.User>' to 'Probe.User'
+Oblivious.cs(11,38): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Probe.None' is not covered.
+Oblivious.cs(12,42): error CS0029: Cannot implicitly convert type 'Probe.Option<string>' to 'string'
+
+## probe/ JIT (dotnet run -c Release)
+runtime .NET 11.0.0, AOT=False
+== sizes (Unsafe.SizeOf)
+A  int? 8  Guid? 20  Id<User>? 20  string? 8  User? 8
+C  Option<int> 8  Option<Guid> 20  Option<Id<User>> 20  Option<string> 16  Option<User> 16
+D  DOption<int> 8  DOption<Guid> 8  DOption<Id<User>> 8  DOption<string> 8  DOption<User> 8
+E  Result<int> 16  Result<Guid> 24  Result<Id<User>> 24  Result<string> 16  Result<User> 16
+== allocations, 1000 iterations after warm-up (bytes)
+A  int? create+check       24
+B  int? create+Or          24
+B  int? create+Match(static) 24
+C  Option<int> create+switch 24
+C  Option<Id> create+switch  24
+C  Option<int> Map->Bind->Filter->GetValueOrDefault (static) 24
+C  Option<int> Match(capturing) 136024
+D  DOption<int> create+switch 24024
+D  DOption<Id> create+switch  28024
+E  Result<int> (NotFound cached? no: new Error each) create+switch 20000
+E  Result<int> with cached Error  0
+C->E  Option<int>.ToResult(cached) 0
+E->C  Result<int>.ToOption         0
+A->E  int?.ToResult(cached)        0
+== default / null
+C default(Option<int>): IsSome=False, switch -> None; Value=None
+C default(Option<string>): switch -> None
+C new Option<string>(null!): THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+C Option.Some<string>(null!): THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+C Option<string> o = (string)null!: THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+C Option.FromNullable((string?)null) -> None; FromNullable((int?)null) -> None
+C Option<string?> default -> None; Option<int?> (int?)5 -> Some 5; Option<int?> (int?)null: IsSome=True -> Some 0
+C `o is var x`: Option`1; `o is { } x`: Option`1; None `is { }`: True; None `is null`: False
+D default(DOption<int>): Value is null=True; switch -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+D default(DOption<string>): switch -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+D new DOption<string>((string)null!): Value is null=True; switch -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+D DOption<int> 5: Value type=Int32 (boxed)
+E default(Result<int>) -> Error { Internal, Result.Uninitialized }
+A generic Find<int>() via T? unconstrained -> 0 (absence lost); Find<string>() -> null
+== JSON reflection
+A ADto some: {"id":1,"nick":"ada","age":36,"ref":"00000000-0000-0000-0000-000000000000"}
+A ADto none: {"id":1,"nick":null,"age":null,"ref":null}
+A read {"id":1} -> ADto { Id = 1, Nick = , Age = , Ref =  }
+C CDto some: {"id":1,"nick":"ada","age":36,"ref":"00000000-0000-0000-0000-000000000000"}
+C CDto none: {"id":1,"nick":null,"age":null,"ref":null}
+C read {"id":1} -> nick=None age=None ref=None
+C read {"id":1,"nick":null,"age":null} -> nick=None age=None ref=None
+C read {"id":1,"nick":"x","age":3} -> nick=x age=3 ref=None
+C CDtoIgnore none (WhenWritingDefault): {"id":1}; some: {"id":1,"nick":"a","age":0}
+C CDto none with DefaultIgnoreCondition=WhenWritingNull: {"id":1,"nick":null,"age":null,"ref":null}
+C Option<User> some: {"name":"Ada"} none: null
+C envelope CDto some: {"id":1,"nick":{"value":"ada"},"age":{"value":36},"ref":{"value":"00000000-0000-0000-0000-000000000000"}}
+C envelope CDto none: {"id":1,"nick":{},"age":{},"ref":{}}
+C envelope read {"id":1,"nick":{},"age":{"value":0}} -> nick=None age=0 ref=None
+C Option<Option<int>> none-inner via null contract: null -> reads back as False (nested none collapses)
+D DDto some: {"id":1,"nick":"ada","age":36}
+D DDto none: {"id":1,"nick":{},"age":{}}
+D DDto default: {"id":1,"nick":null,"age":null}
+D read {"id":1,"nick":"x","age":{}} -> nick=x age=None
+D read {"id":1} -> nick.Value null=True
+D DOption<User> some: {"name":"Ada"}; read back: THROWS JsonException: JSON value type 'Object' is ambiguous for union type 'Probe.DOption`1[Probe.User]' because multiple case types can use this value type. Specify a custom type classifier to support deserialization. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+E Result<User> NotFound: {"failure":{"kind":"error","type":"NotFound","code":"User.NotFound"}}
+== JSON source-generated (ProbeContext, camelCase)
+A ADto none: {"id":1,"nick":null,"age":null,"ref":null}
+C CDto some: {"id":1,"nick":"ada","age":36,"ref":"00000000-0000-0000-0000-000000000000"}
+C CDto none: {"id":1,"nick":null,"age":null,"ref":null}
+C read {"id":1} -> nick=None age=None ref=None
+C read {"id":1,"nick":null,"age":7,"ref":"00000000-0000-0000-0000-000000000001"} -> nick=None age=7 ref=00000000-0000-0000-0000-000000000001
+C CDtoIgnore none: {"id":1}
+C Option<User> some: {"name":"Ada"}; Option<Id<User>> some: THROWS NotSupportedException: JsonTypeInfo metadata for type 'Probe.Id`1[Probe.User]' was not provided by TypeInfoResolver of type 'Probe.ProbeContext'. If using source generation, ensure that all root types passed to the serializer have been annotated with 'JsonSerializableAttribute', along with any types that might be serialized polymorphically. The unsupported member type is located on type 'Probe.Option`1[Probe.Id`1[Probe.User]]'. Path: $.
+D DDto some: {"id":1,"nick":"ada","age":36}; none: {"id":1,"nick":{},"age":{}}
+D read {"id":1,"nick":"x","age":{}} -> nick=x age=None
+
+## probe/ Native AOT (dotnet publish -c Release -r linux-x64 -p:NoReflJson=true): 0 IL warnings
+runtime .NET 11.0.0, AOT=True
+== sizes (Unsafe.SizeOf)
+A  int? 8  Guid? 20  Id<User>? 20  string? 8  User? 8
+C  Option<int> 8  Option<Guid> 20  Option<Id<User>> 20  Option<string> 16  Option<User> 16
+D  DOption<int> 8  DOption<Guid> 8  DOption<Id<User>> 8  DOption<string> 8  DOption<User> 8
+E  Result<int> 16  Result<Guid> 24  Result<Id<User>> 24  Result<string> 16  Result<User> 16
+== allocations, 1000 iterations after warm-up (bytes)
+A  int? create+check       0
+B  int? create+Or          0
+B  int? create+Match(static) 0
+C  Option<int> create+switch 0
+C  Option<Id> create+switch  0
+C  Option<int> Map->Bind->Filter->GetValueOrDefault (static) 0
+C  Option<int> Match(capturing) 120000
+D  DOption<int> create+switch 24000
+D  DOption<Id> create+switch  28000
+E  Result<int> (NotFound cached? no: new Error each) create+switch 20000
+E  Result<int> with cached Error  0
+C->E  Option<int>.ToResult(cached) 0
+E->C  Result<int>.ToOption         0
+A->E  int?.ToResult(cached)        0
+== default / null
+C default(Option<int>): IsSome=False, switch -> None; Value=None
+C default(Option<string>): switch -> None
+C new Option<string>(null!): THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+C Option.Some<string>(null!): THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+C Option<string> o = (string)null!: THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+C Option.FromNullable((string?)null) -> None; FromNullable((int?)null) -> None
+C Option<string?> default -> None; Option<int?> (int?)5 -> Some 5; Option<int?> (int?)null: IsSome=True -> Some 0
+C `o is var x`: Option`1; `o is { } x`: Option`1; None `is { }`: True; None `is null`: False
+D default(DOption<int>): Value is null=True; switch -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+D default(DOption<string>): switch -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+D new DOption<string>((string)null!): Value is null=True; switch -> THROWS SwitchExpressionException: Non-exhaustive switch expression failed to match its input.
+D DOption<int> 5: Value type=Int32 (boxed)
+E default(Result<int>) -> Error { Internal, Result.Uninitialized }
+A generic Find<int>() via T? unconstrained -> 0 (absence lost); Find<string>() -> null
+== JSON reflection
+(reflection disabled)
+== JSON source-generated (ProbeContext, camelCase)
+A ADto none: {"id":1,"nick":null,"age":null,"ref":null}
+C CDto some: {"id":1,"nick":"ada","age":36,"ref":"00000000-0000-0000-0000-000000000000"}
+C CDto none: {"id":1,"nick":null,"age":null,"ref":null}
+C read {"id":1} -> nick=None age=None ref=None
+C read {"id":1,"nick":null,"age":7,"ref":"00000000-0000-0000-0000-000000000001"} -> nick=None age=7 ref=00000000-0000-0000-0000-000000000001
+C CDtoIgnore none: {"id":1}
+C Option<User> some: {"name":"Ada"}; Option<Id<User>> some: THROWS NotSupportedException: JsonTypeInfo metadata for type 'Probe.Id`1[Probe.User]' was not provided by TypeInfoResolver of type 'Probe.ProbeContext'. If using source generation, ensure that all root types passed to the serializer have been annotated with 'JsonSerializableAttribute', along with any types that might be serialized polymorphically. The unsupported member type is located on type 'Probe.Option`1[Probe.Id`1[Probe.User]]'. Path: $.
+D DDto some: {"id":1,"nick":"ada","age":36}; none: {"id":1,"nick":{},"age":{}}
+D read {"id":1,"nick":"x","age":{}} -> nick=x age=None
+
+## probe/ source generator without [JsonConverter] on Option<T> (union contract)
+error SYSLIB1227: Union type 'Option<User>': case types 'User', 'None' all serialize as JSON value type 'Object'.
+error SYSLIB1227: Union type 'Option<Id<User>>': case types 'Id<User>', 'None' all serialize as JSON value type 'Object'.
+
+## web/
+== AOT publish (source-gen binder), int? parameters: 0 IL warnings
+GET /a -> 200 no page
+GET /a?page=3 -> 200 page 3
+GET /c -> 200 no page
+GET /c?page=3 -> 200 page 3
+GET /c2 -> 404 
+GET /c2?page=3 -> 404 
+GET /cfg -> 200 A size=20 max=50 other=null
+GET /json -> 200 {"id":1,"nick":"ada","age":null,"ref":null}
+POST /json {"id":1} -> 200 nick=None age=None
+POST /json {"id":1,"nick":null,"age":4} -> 200 nick=None age=4
+== AOT publish with Option<int> parameter (OptParam=true)
+GET /c2 -> 400 
+GET /c2?page=3 -> 400 
+== JIT, reflection binder, OptCfg=true (Option<int> in options class; config has Paging:Size=20)
+GET /cfg -> 200 A size=20 max=50 other=null
+GET /cfgc -> 200 C size=None other=None
+== source-gen binder with Option<int> in options class (OptCfg=true)
+BindingExtensions.g.cs(190,50): error CS1503: Argument 1: cannot convert from 'object' to 'int'
+
+## side/ (TreatWarningsAsErrors): Build succeeded, 0 warnings (after replacing unchecked int?.Value: CS8629 x3)
+
+## bench/ (dotnet run -c Release -- --filter '*', ShortRun)
+BenchmarkDotNet v0.16.0-preview.2, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon Processor 2.10GHz, 1 CPU, 4 logical and 4 physical cores
+  [Host]   : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+| Method             | Mean      | Error     | StdDev    | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------- |----------:|----------:|----------:|------:|--------:|-------:|----------:|------------:|
+| A_Int_Pattern      |  2.641 ns | 0.4980 ns | 0.0273 ns |  1.00 |    0.00 |      - |         - |          NA |
+| B_Int_Or           |  2.967 ns | 1.1440 ns | 0.0627 ns |  1.12 |    0.02 |      - |         - |          NA |
+| C_Int_Switch       |  2.744 ns | 0.7867 ns | 0.0431 ns |  1.04 |    0.02 |      - |         - |          NA |
+| D_Int_Switch       |  8.241 ns | 5.4477 ns | 0.2986 ns |  3.12 |    0.10 | 0.0002 |      24 B |          NA |
+| E_Int_Switch       |  3.029 ns | 0.7707 ns | 0.0422 ns |  1.15 |    0.02 |      - |         - |          NA |
+| C_Id_Switch        |  3.003 ns | 1.4334 ns | 0.0786 ns |  1.14 |    0.03 |      - |         - |          NA |
+| D_Id_Switch        | 16.296 ns | 4.2356 ns | 0.2322 ns |  6.17 |    0.09 | 0.0002 |      32 B |          NA |
+| A_User_Pattern     |  3.125 ns | 1.9765 ns | 0.1083 ns |  1.18 |    0.04 |      - |         - |          NA |
+| C_User_Switch      |  3.258 ns | 1.2266 ns | 0.0672 ns |  1.23 |    0.02 |      - |         - |          NA |
+| A_Chain            |  2.794 ns | 2.0229 ns | 0.1109 ns |  1.06 |    0.04 |      - |         - |          NA |
+| B_Chain            |  4.019 ns | 6.6863 ns | 0.3665 ns |  1.52 |    0.12 |      - |         - |          NA |
+| C_Chain            |  4.052 ns | 2.9537 ns | 0.1619 ns |  1.53 |    0.05 |      - |         - |          NA |
+| C_Match_Capturing  |  9.459 ns | 4.0880 ns | 0.2241 ns |  3.58 |    0.08 | 0.0002 |      24 B |          NA |
+| C_Switch_SameLogic |  3.411 ns | 1.5508 ns | 0.0850 ns |  1.29 |    0.03 |      - |         - |          NA |
+| C_ToResult         |  3.061 ns | 1.2290 ns | 0.0674 ns |  1.16 |    0.02 |      - |         - |          NA |
+| E_ToOption         |  3.380 ns | 2.4174 ns | 0.1325 ns |  1.28 |    0.04 |      - |         - |          NA |
+| A_ToResult         |  3.138 ns | 2.3199 ns | 0.1272 ns |  1.19 |    0.04 |      - |         - |          NA |
+
+## old/ (the real OptionCombinedNullableExtensions.cs from CLorat/Tarol@6a62f81; dotnet run -p:TarolOldRepo=<clone>)
+O-2 int? x=null; x.Or(5): static type Nullable<Int32>, value 5
+O-2 int.Some(42): static type Int32
+O-2 int? y=3; y.Match(v => typeof v): Nullable<Int32>
+O-3 int? null .Value: InvalidOperationException: Cannot read the Value property of a Nullable object that has no value. Check HasValue before reading Value.
+O-3 string? null .Value (extension): InvalidOperationException: Option value was null.
+O-4 members on every type: 42.IsSome=True, "a".Or("b")=a, DateTime.Now.IsNone=False
+
+O-1: ls src/Options/Options.Persistence.Relational in CLorat/Tarol@6a62f81 -> ls: cannot access '/home/user/Tarol/src/Options/Options.Persistence.Relational': No such file or directory
+
+## repo/ (PostgreSQL 16.15 local, Npgsql 10 via Npgsql.EntityFrameworkCore.PostgreSQL 10.0.0; dotnet run)
+== raw Npgsql: Option<T> as a parameter value
+AddWithValue("nick", Option<string>) -> THROWS InvalidCastException: Writing values of 'Probe.Option`1[[System.String, System.Private.CoreLib, Version=11.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]' is not supported for parameters having no Npgsq
+NpgsqlParameter<Option<int>> -> THROWS InvalidCastException: Writing values of 'Probe.Option`1[[System.Int32, System.Private.CoreLib, Version=11.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]' is not supported for parameters having no NpgsqlDbType o
+helper: Value = o.TryGetValue(out v) ? v : DBNull.Value -> 1
+== raw Npgsql: reading
+reader.GetFieldValue<Option<int>>(i) -> THROWS InvalidCastException: Reading as 'Probe.Option`1[[System.Int32, System.Private.CoreLib, Version=11.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]' is not supported for fields having DataTypeName 'intege
+helper: IsDBNull(i) ? None : GetFieldValue<T>(i) -> nick=Some(ada) age=None
+== event payloads in jsonb (source-generated context, the step-8 shape)
+v1 stored {"id": "00000000-0000-0000-0000-000000000000", "age": null, "nick": "ada"} -> as Option: nick=Some(ada) age=None manager=None | as T?: nick=ada age=null
+v2 stored {"id": "00000000-0000-0000-0000-000000000000", "age": null, "nick": "ada", "manager": null} -> as Option: nick=Some(ada) age=None manager=None | as T?: nick=ada age=null
+v0 stored {"id": "00000000-0000-0000-0000-000000000000"} -> as Option: nick=None age=None manager=None | as T?: nick=null age=null
+== EF Core 10 (Npgsql provider): EF maps private T? fields, the entity exposes Option<T>
+read back: 1: nick=Some(ada) age=Some(36); 2: nick=None age=None
+raw columns: 1: nick=ada age=36; 2: nick=NULL age=NULL
+Where(p => p.Age == Option.Some(36)) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => p.Age == none) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => p.Age.IsSome) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => p.Age.GetValueOrDefault(0) > 30) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => EF.Property<int?>(p, "_age") > 30) -> 1
+SQL for == none: THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+
+### earlier EF variants of repo/ (ValueConverter Option<T> <-> T? via ConfigureConventions)
+SaveChanges with None: DbUpdateException -> PostgresException 23502: null value in column "Nick" of relation "People" violates not-null constraint
+with .Property(p => p.Nick).IsRequired(false): InvalidOperationException: The property 'Person.Nick' cannot be marked as nullable/optional because the type of the property is 'Option<string>' which is not a nullable type. Any property can be marked as non-nullable/required, but only properties of nullable types can be marked as nullable/optional.
+
+## probe/ conditional with default (Trap.cs)
+== conditional with default (natural type T)
+Option<int> F(bool b, int v) => b ? v : default;  F(false, 5) -> Some 0
+Option<int> F(bool b, int v) => b ? v : Option.None;  F(false, 5) -> None
+Option<string> F(bool b, string v) => b ? v : default;  F(false, "a") -> THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+Result<int> F(bool b, int v) => b ? v : default;  F(false, 5) -> Success 0
+Option<int> F(int? v) => v ?? default;  F(null) -> Some 0
+diag/Trap.cs: only T3 (reference type) has a diagnostic: CS8604; T1, T4, T5 are silent
+
+## query/ (PostgreSQL 16, EF Core 10; dotnet run)
+Select(r => new PersonView(r.Id, r.Nick.ToOption(), r.Age.ToOption())) -> 1: Some(ada) Some(36); 2: None None
+SQL: SELECT p."Id", p."Nick", p."Age" FROM "People" AS p
+filter on the T? column, project to Option: Where(r => r.Age > 30) -> 1: Some(ada)
+FirstOrDefaultAsync(...) then ToOption() for a single lookup -> None
+
+## openapi/ with -p:Fix=true (JIT; Native AOT: 0 IL warnings, identical output)
+{
+  "Address": {
+    "required": [
+      "city"
+    ],
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string"
+      }
+    }
+  },
+  "OptionOfAddress": {
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/Address"
+      },
+      {
+        "type": "null"
+      }
+    ]
+  },
+  "OptionOfint": {
+    "oneOf": [
+      {
+        "pattern": "^-?(?:0|[1-9]\\d*)$",
+        "type": [
+          "integer",
+          "string"
+        ],
+        "format": "int32"
+      },
+      {
+        "type": "null"
+      }
+    ]
+  },
+  "OptionOfstring": {
+    "oneOf": [
+      {
+        "type": "string"
+      },
+      {
+        "type": "null"
+      }
+    ]
+  },
+  "Profile": {
+    "required": [
+      "id"
+    ],
+    "type": "object",
+    "properties": {
+      "id": {
+        "pattern": "^-?(?:0|[1-9]\\d*)$",
+        "type": [
+          "integer",
+          "string"
+        ],
+        "format": "int32"
+      },
+      "nickname": {
+        "$ref": "#/components/schemas/OptionOfstring"
+      },
+      "age": {
+        "$ref": "#/components/schemas/OptionOfint"
+      },
+      "address": {
+        "$ref": "#/components/schemas/OptionOfAddress"
+      }
+    }
+  }
+}

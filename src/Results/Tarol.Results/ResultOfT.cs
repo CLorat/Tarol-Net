@@ -148,6 +148,10 @@ public readonly struct Result<T> : IUnion, IEquatable<Result<T>>
     /// <returns>The non-generic result.</returns>
     public Result ToResult() => IsSuccess ? Result.Success() : new Result(State);
 
+    /// <summary>Drops the violation: a success is <c>Some</c>, every failure is <see cref="None"/>.</summary>
+    /// <returns>The option.</returns>
+    public Option<T> ToOption() => IsSuccess ? new Option<T>(_value) : default;
+
     /// <summary>Transforms the value; a failure is passed on unchanged.</summary>
     /// <typeparam name="TNew">The new value type.</typeparam>
     /// <param name="map">The transformation.</param>
