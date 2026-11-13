@@ -24,6 +24,12 @@ var json = JsonSerializer.Serialize(Place(0), ConsumerJson.Default.ResultOrder);
 Check("JSON contract", json == """{"failure":{"kind":"invalid","errors":[{"field":"Quantity","code":"Quantity.Positive"}]}}""");
 Check("JSON round-trip", JsonSerializer.Deserialize(json, ConsumerJson.Default.ResultOrder) == Place(0));
 
+// Option<T> from the package: same code for value and reference types, one call to and from Result.
+static Option<Order> Find(int quantity) => quantity > 0 ? new Order(quantity) : Option.None;
+Check("Option switch over T | None", Find(1) switch { Order => true, None => false } && Find(0) switch { Order => false, None => true });
+Check("Option to Result and back", Find(0).ToResult(Error.NotFound("Order.NotFound")) is Error { Code: "Order.NotFound" } && Place(3).ToOption() == Find(3));
+Check("Option JSON is the value or null", JsonSerializer.Serialize(new Line(Find(2), default), ConsumerJson.Default.Line) == """{"Order":{"Quantity":2},"Note":null}""");
+
 // TRES002 would fire on `Place(1);` (warnings are errors here); the explicit discard is the accepted form.
 _ = Place(1);
 
@@ -34,7 +40,10 @@ namespace Tarol.Results.PackageTests
 {
     public sealed record Order(int Quantity);
 
+    public sealed record Line(Option<Order> Order, Option<string> Note);
+
     [JsonSerializable(typeof(Result<Order>))]
     [JsonSerializable(typeof(Order))]
+    [JsonSerializable(typeof(Line))]
     internal sealed partial class ConsumerJson : JsonSerializerContext;
 }

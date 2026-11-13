@@ -127,7 +127,7 @@ public class ResultAnalyzerTests
     public async Task Analyzer_Should_DoNothing_WithoutTarolResults()
     {
         var analyzer = new ResultAnalyzer();
-        analyzer.SupportedDiagnostics.Select(static d => d.Id).ShouldBe(["TRES001", "TRES002", "TRES003"]);
+        analyzer.SupportedDiagnostics.Select(static d => d.Id).ShouldBe(["TRES001", "TRES002", "TRES003", "TRES004", "TRES005", "TRES006"]);
         (await AnalyzerTestHost.Analyze("class Plain { void M() { } }")).ShouldBeEmpty();
     }
 }
