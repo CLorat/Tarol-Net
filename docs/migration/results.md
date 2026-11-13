@@ -4,9 +4,9 @@ Origin: `CLorat/Tarol@6a62f81`: `src/Results/Results`, `tests/Results/Results.Un
 Old review: `docs/review/ids-results-options.md` (findings R-1 … R-11, §7 `[Union]` sketch),
 `docs/review/net11-event-generation.md` (§1 rows 1, 2, 3, 5, 6; §2.5; D-9), `docs/review/ROADMAP.md` (D-9).
 
-**Status: evaluation stage.** This note gives the review, the union experiments with numbers, and the proposed
-API. The design decisions in [§6](#6-decisions-for-the-owner) are open until the owner answers them. The
-implementation stage then fills in §7 (changes against Tarol), §8 (suppressions), §9 (verification) and §10 (skill checklist).
+**Status: implemented.** §0–§5 are the evaluation (review, union experiments with numbers, proposal), §6 the
+owner's decisions, §7–§10 the implementation: changes against Tarol, suppressions, verification and the skill
+checklist. Where §4 (the first proposal) and §6/§7 differ, §6/§7 are what shipped.
 
 Evidence labels follow [conventions](../architecture/conventions.md): **[verified]** = reproduced here (probe
 and command given), **[unverified]** = not tried here. Every probe is in [`probes/results/`](probes/results/)
@@ -366,7 +366,7 @@ catch what the compiler does not:
 Recommendation: build it, **bundled in `Tarol.Results`** (D-10), as its **own PR after this one** (one feature per
 PR); this PR documents the three pitfalls in the README and the skill instead.
 
-## 4. Proposed API (pending §6)
+## 4. Proposed API (first proposal; what shipped is §6 and §7)
 
 ```csharp
 namespace Tarol.Results;
@@ -481,16 +481,160 @@ contract) and not chosen.
 
 ## 7. Changes against Tarol
 
-*Filled in during the implementation stage.*
+Projects:
+
+| Tarol-Net project | From |
+|---|---|
+| `src/Results/Tarol.Results` | `src/Results/Results` (rewritten on the agreed shape; old files used as the specification) |
+| `src/Results/Tarol.Results.Generators` | new: analyzers TRES001–TRES003, bundled into `Tarol.Results` (D-10) |
+| `tests/Results/Tarol.Results.Tests` | `tests/Results/Results.UnitTests`: all 80 test cases ported (old name in a comment on each), plus findings, union and JSON tests |
+| `tests/Results/Tarol.Results.Generators.Tests` | new: one or more tests per diagnostic, plus negative cases |
+| `tests/Results/Tarol.Results.AotSmoke` | new |
+| `tests/Results/Tarol.Results.PackageTests` | new (not in `Tarol.slnx`; run by `eng/verify-packages.sh`) |
+| `tests/Results/Tarol.Results.Benchmarks` | new, from `probes/results/bench`; built with the solution, not run in CI |
+
+Public API and behaviour changes (every one deliberate):
+
+| Tarol | Tarol-Net | Why |
+|---|---|---|
+| `readonly record struct Result` / `Result<TValue>` (flag + `Violation` struct) | `[Union] readonly struct Result` / `Result<T>` (one state reference), `IUnion`, `IEquatable` | Q-1; 16/24/8 B, no boxing, exhaustive `switch` |
+| `Result<TValue>` with any `TValue` | `where T : notnull`; `null` success throws `ArgumentNullException` | R-3 |
+| `default(Result…)`: failure with `Code == null` | failure `Error.Uninitialized` (Internal, 500) | R-1, Q-3 |
+| `Violation` (struct: `Code`, `Type`, `Detail`, `PropertyName`, `InnerErrors`) | `closed record Violation` = `Invalid(IReadOnlyList<FieldError> Errors)` \| `Error(ErrorType Type, string Code, string? Detail)`; `FieldError(Field, Code, Detail?)` | Q-2 |
+| `ViolationType` (`Validation` … `Custom = 255`) | `ErrorType` (`Internal = 0`, `NotFound`, `Conflict`, `Forbidden`, `Unauthorized`, `Gone`, `UnprocessableEntity`, `TooManyRequests`, `Unavailable`, `Timeout`); validation is `Invalid`; `Custom` removed (use a code) | Q-2, R-2 |
+| `Violation.None` | removed | R-2 |
+| `Violation.Validation(code, propertyName)` | `Invalid.Field(field, code, detail?)`, `new Invalid(params FieldError[])` | Q-2 |
+| `Violation.Aggregate(code, inner)` | `Invalid` with several field errors; `invalid.Combine(other)` | R-6 |
+| `Violation.NotFound<TEntity>(object id)` (boxes) | `Error.NotFound<TEntity, TId>(TId id)` (no box; detail `"{TEntity} '{id}' was not found."`) | R-10 |
+| `Violation.NotFound/Conflict/Unauthorized/Forbidden/Internal` | `Error.NotFound/Conflict/Unauthorized/Forbidden/Internal` plus `Gone`, `UnprocessableEntity`, `TooManyRequests`, `Unavailable`, `Timeout`; every factory takes an optional `detail` | Q-2 |
+| `Violation.ToHttpStatusCode()` | `Violation.ToHttpStatusCode()` (400 for `Invalid`), `ErrorType.ToHttpStatusCode()` | Q-5 |
+| record-struct equality (`InnerErrors` by reference) | value equality; `Invalid` compares field errors element by element | R-6 |
+| `Result<T>.Value` (typed, throws) | `GetValueOrThrow()`; `Value` is now the union's `object` (TRES003) | N-1 (CS9386) |
+| `Result.Violation` / `Result<T>.Violation` (returns `None` on success) | patterns (`r is Violation v`), `TryGetValue(out Violation?)` | Q-4 |
+| `TryGetError(out Violation)` | `TryGetValue(out Violation?)` (union protocol) | union protocol |
+| `IsSuccess` with `[MemberNotNullWhen(true, nameof(Value))]` | `IsSuccess` without it (no typed `Value`) | N-1 |
+| `TapError` | `TapFailure` | name says what it taps |
+| `Switch(Action, Action)` | removed: statement `switch` | Q-4 |
+| `MatchAsync` | removed: `await`, then `switch`, or `ValueTask<Result<T>>.Match` | Q-4 |
+| `Result.MapAsync/BindAsync(Func<Task<…>>)`, `Result<T>.*Async(Func<T, ValueTask<…>>)` | `ValueTask` only, delegates receive a `CancellationToken`, plus a `cancellationToken` parameter; `ConfigureAwait(false)` everywhere | R-8 |
+| — | new: `Result<T>.Bind(Func<T, Result>)`, `BindAsync` to `Result`, `TapAsync`; `Result.Map<T>`, `Bind<T>`, `Ensure`, `BindAsync<T>`, `TapAsync`; `Result.Success<T>(value)`; `ValueTask<Result>.Bind/Match` | Persistence and Changes need them (§1.2) |
+| `Result.Combine(params Result[])`, `Combine(IEnumerable<Result>)`: aggregate as `Validation` | `Combine(params ReadOnlySpan<Result>)` (no array), `Combine(IEnumerable<Result>)`: field errors concatenate, the first `Error` wins | R-6, N-6, Q-4 |
+| `ResultExtensions.Combine<T1,T2>`, `<T1,T2,T3>`: first failure | `Result.Combine<T1,T2>`, `<T1,T2,T3>`: same rule as above | R-7 |
+| `Sequence`: aggregates as `Validation` | same rule as above | R-6 |
+| `IResult`, `IResult<out TValue>` | removed | R-9, Q-6 |
+| no JSON contract (failure throws, nothing deserializes) | `[JsonConverter]` envelope `{"value":…}` / `{"success":true}` / `{"failure":{"kind":"invalid"\|"error",…}}`, fixed property names, `ErrorType` as a string; `Violation` metadata bundled | R-4, Q-5 |
+| `Result` / `Result<T>` implicit from `Violation` / `TValue` | unchanged (plus `Result` from `Success`); `Result<Violation>` is still CS0457 and now also TRES001 | R-5 |
+| project reference to StronglyTypedId | none | R-11 |
+| — | analyzers TRES001 (Error), TRES002 (Warning), TRES003 (Warning) | Q-7 |
+| `[DebuggerDisplay]` with string interpolation | `[DebuggerDisplay("{ToString(),nq}")]`; `ToString()` = `Success(…)` / `Failure(…)` | — |
+
+Not migrated: nothing else exists in the old project. No consumer in Tarol is ported in this step; the later steps
+adapt to this API (§1.2 lists what they use).
 
 ## 8. Suppressions and analyzer configuration
 
-*Filled in during the implementation stage.*
+| Where | Rule | Reason |
+|---|---|---|
+| `Error` (type) | `[SuppressMessage]` CA1716 "Identifiers should not match keywords" | the owner chose the name `Error` (Q-2); `Error` is a VB keyword only, and Tarol targets C# |
+| `Result.HasValue` | `[SuppressMessage]` CA1822 "Mark members as static" | the C# union protocol needs an instance `HasValue` |
+| `UnionTests.Value_Should_ExposeTheActiveCaseAsObject` | `#pragma warning disable TRES003` | the test checks the very member TRES003 warns about |
+| `Tarol.Results.Generators.Tests` | `LanguageVersion.Preview` in the test compilation | the newest Roslyn package (5.9.0) still reports unions as preview (CS8652); the SDK 11 compiler (5.12) ships them. Not a suppression of a warning |
 
-## 9. Verification
+No `NoWarn`, no `.editorconfig` change. Directory.Packages.props gains `BenchmarkDotNet 0.16.0-preview.2`
+(benchmarks only; 0.15.8 cannot run on net11.0).
 
-*Filled in during the implementation stage.*
+## 9. Verification (SDK 11.0.100, 2026-11-13)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | clean (exit 0) |
+| `dotnet build Tarol.slnx` and `-c Release --no-incremental` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` | **223 passed**, 0 failed: Results 134, Results analyzers 7, StronglyTypedId 62 + 17, shared harness 3 |
+| `eng/aot-smoke.sh` | `Tarol.Results.AotSmoke`: 0 IL warnings, 15/15 native checks (sizes, switch, `default`, no allocation, combinators, JSON contract with and without `Violation` in the context) |
+| `eng/verify-packages.sh` | OK, see below |
+| analyzer reaches a package consumer | a temporary file in `Tarol.Results.PackageTests` with `M();` and `.Value` → `error TRES002`, `error TRES003` (warnings as errors), then removed |
+| README and skill samples | compiled in a Web SDK project with warnings as errors: 0 warnings (the README's async sample had a `static` lambda that captured; fixed) |
+| `tests/Results/Tarol.Results.Benchmarks` | see below (`dotnet run -c Release --project tests/Results/Tarol.Results.Benchmarks -- --filter '*'`) |
+
+`eng/verify-packages.sh` (package contents, then the consumer run):
+
+```
+Tarol.Results 0.0.0-alpha.0.5
+    LICENSE
+    README.md
+    Tarol.Results.nuspec
+    analyzers/dotnet/cs/Tarol.Results.Generators.dll
+    lib/net11.0/Tarol.Results.dll
+    lib/net11.0/Tarol.Results.xml
+    skills/tarol-results/SKILL.md
+== tests/Results/Tarol.Results.PackageTests/Tarol.Results.PackageTests.csproj (Tarol packages 0.0.0-alpha.0.5)
+ok   switch over the package's union
+ok   Invalid case
+ok   default is Error.Uninitialized
+ok   JSON contract
+ok   JSON round-trip
+ALL CHECKS PASSED
+   skill files listed in artifacts/obj/Tarol.Results.PackageTests/project.assets.json:
+     "skills/tarol-results/SKILL.md"
+verify-packages: OK
+```
+
+The analyzer ships inside the package and is not a dependency; there is no `Tarol.Results.Generators` package and no
+`build/` folder **[verified]**. The consumer's csproj also fails the build if `Tarol.Results.Generators.dll` is not among
+the compiler's analyzers.
+
+BenchmarkDotNet on the shipped package (`ShortRun`, same machine as §3.3; `Baseline_*` = the Tarol 6a62f81 layout):
+
+| Method | Mean | Allocated |
+|---|---:|---:|
+| Baseline_Create_Success | 16.82 ns | – |
+| Create_Success_Switch | 1.63 ns | – |
+| Baseline_Create_Failure_Match | 2.83 ns | – |
+| Create_Failure_Switch | 1.68 ns | – |
+| Create_Failure_Match | 2.65 ns | – |
+| Baseline_Chain | 49.26 ns | – |
+| Chain | 5.32 ns | – |
+| Match_CapturingLambda | 7.09 ns | 24 B |
+| Switch_SameLogic | 1.46 ns | – |
+| Baseline_AsyncPipeline | 176.72 ns | – |
+| AsyncPipeline | 70.04 ns | – |
+| Baseline_AsyncYield | 1,146.7 ns | 738 B |
+| AsyncYield | 1,188.3 ns | 460 B |
+
+Found during implementation and fixed: `value is null` on an unconstrained `T` in the `Result<T>` constructor boxed
+value types when the JIT does not optimize (Debug test run: 24 B per success); the check now runs for reference
+types only. `UnionTests.Switch_Should_NotAllocate` covers it in Debug.
 
 ## 10. Skill evaluation checklist
 
-*Filled in during the implementation stage.*
+Run each task with a frontier model in a fresh console project that references the packed package, once with the
+skill copied to `.agents/skills/` and once without. Record correctness and token cost. Keep the skill only if it is
+at least as correct and not more expensive.
+
+`tarol-results`:
+
+1. "Write `Rename(id, name)` that validates `name` and loads the user, without exceptions" → returns
+   `Result<User>`; `Invalid.Field("Name", "Name.Required")`; `Error.NotFound(…)` or `Error.NotFound<User, TId>(id)`;
+   implicit conversions, no `Result<User>.Failure` noise required.
+2. "Map it to HTTP in a minimal API" → a `switch` with `User` / `Invalid` / `Error` arms, `ValidationProblem` from
+   `invalid.Errors`, `Problem(statusCode: error.ToHttpStatusCode())`; no `Match` with capturing lambdas.
+3. "Validate three fields and report all problems at once" → `Result.Combine(…)` (or `new Invalid(…)` with several
+   field errors); expects concatenated field errors.
+4. "Chain load → check → save asynchronously with cancellation" → `ValueTask<Result<T>>`, `Ensure`, `BindAsync((v, ct) => …, ct)`.
+5. "Return a result from a Native-AOT web API as JSON data" → a `JsonSerializerContext` listing `Result<T>` and `T`;
+   expects the `{"value":…}` / `{"failure":…}` envelope.
+6. "Why TRES002?" → a discarded result; handle it or write `_ = …`.
+7. Must not: read `result.Value`, use `Violation.None`, `ViolationType`, `IResult`, `TapError`, `Switch`, `Task`
+   overloads, derive from `Violation`, use `Result<object>`, decompile the assembly or search the web.
+
+Status: checklist written; **not yet run** (needs a model-evaluation harness outside this repository).
+
+## 11. Open items
+
+* **Problem-details mapping** (`ToProblem()`, `ValidationProblem` from `Invalid`) goes into a web package in a later
+  step (Q-5); the call-site `switch` shown in the README works today.
+* **Roslyn package 5.9** treats unions as preview; drop `LanguageVersion.Preview` from the analyzer tests once a
+  newer `Microsoft.CodeAnalysis.CSharp` ships.
+* **Consumers** (Persistence, Sagas, Changes, CQRS) adopt the new API in their own steps; Sagas' persisted
+  `Violation` uses the JSON contract of §7.
+* **Skill evaluation** (§10) is not run yet.

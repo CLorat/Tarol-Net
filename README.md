@@ -15,7 +15,8 @@ time; see the [migration plan](docs/migration/plan.md).
 | Package | Description | Status |
 |---|---|---|
 | `Tarol.StronglyTypedId` | `Id<TEntity>` over UUIDv7, JSON/binding/formatting built in, generator included | migrated |
-| `Tarol.Results`, `Tarol.Options`, `Tarol.Kernel`, `Tarol.Validations`, `Tarol.Primitives`, … | | planned (see plan) |
+| `Tarol.Results` | `Result<T>` / `Result` as non-boxing C# 15 unions of a value and a `Violation` (`Invalid` field errors or one `Error`), AOT-safe JSON, analyzers included | migrated |
+| `Tarol.Options`, `Tarol.Kernel`, `Tarol.Validations`, `Tarol.Primitives`, … | | planned (see plan) |
 
 Packages are private: they are published only to the owner's GitHub Packages feed, never to nuget.org.
 
@@ -27,6 +28,19 @@ using Tarol.StronglyTypedId;
 public sealed class Customer { public Id<Customer> Id { get; } = Id<Customer>.New(); }
 
 app.MapGet("/customers/{id}", (Id<Customer> id) => …);   // binds, serializes, no configuration
+```
+
+```csharp
+using Tarol.Results;
+
+Result<Customer> Find(Id<Customer> id) => store.TryGet(id, out var c) ? c : Error.NotFound<Customer, Id<Customer>>(id);
+
+var response = Find(id) switch
+{
+    Customer c => TypedResults.Ok(c),
+    Invalid i  => TypedResults.ValidationProblem(…),
+    Error e    => TypedResults.Problem(statusCode: e.ToHttpStatusCode(), title: e.Code),
+};
 ```
 
 ## Build

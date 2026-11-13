@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!-- The analyzer as a normal assembly reference, so the tests can run it; the runtime library as the metadata it analyzes. -->
+    <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj" />
+    <ProjectReference Include="../../../src/Results/Tarol.Results/Tarol.Results.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+</Project>

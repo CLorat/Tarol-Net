@@ -13,8 +13,8 @@ Review material that stays authoritative until a family is migrated: `CLorat/Tar
 |---|---|---|---|
 | 0 | Foundation | — | done: layout, layered props, CPM, `.editorconfig`, `global.json`, slnx, packaging targets and scripts, shared generator test harness, agent files, CI, Dependabot |
 | 1 | StronglyTypedId | `Tarol.StronglyTypedId` (+ generator) | done: 79 tests, AOT smoke 0 IL warnings, package verified; see [stronglytypedid.md](stronglytypedid.md) |
-| 2 | Results | `Tarol.Results` | next: drop the StronglyTypedId dependency (doc `cref` only), fix `default(Result)` (R-1), evaluate the non-boxing union shape (ROADMAP D-9) with C# 15 |
-| 3 | Options | `Tarol.Options` | |
+| 2 | Results | `Tarol.Results` (+ analyzers) | done: non-boxing C# 15 `[Union]` shape (D-9 measured), `Invalid` \| `Error` violations, 141 tests, AOT smoke 0 IL warnings, package verified; see [results.md](results.md) |
+| 3 | Options | `Tarol.Options` | next |
 | 4 | Kernel | `Tarol.Kernel` (Kernel, Clock, Contexts, Security grouped where it makes sense or eases testing; D-7) | |
 | 5 | Validations | `Tarol.Validations` (+ Value and Invariant generators), Prerequisites | |
 | 6 | Domain core | `Tarol.Primitives` (+ generator) | |

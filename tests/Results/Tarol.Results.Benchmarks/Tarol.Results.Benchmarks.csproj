@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    BenchmarkDotNet comparison of Tarol.Results against the Tarol 6a62f81 record-struct shape (TarolBaseline.cs).
+    Built with the solution, never run in CI. Run:
+      dotnet run -c Release -project tests/Results/Tarol.Results.Benchmarks - -filter '*'
+    (double the dashes). Results for SDK 11.0.100: docs/migration/results.md §3.3 and §9.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Results/Tarol.Results/Tarol.Results.csproj" />
+    <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+</Project>

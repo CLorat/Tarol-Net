@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Results package (no ProjectReference). Proves that the package works and that
+    its bundled analyzer reaches a package consumer. Not part of Tarol.slnx: run by eng/verify-packages.sh, which
+    passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Results" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <!-- The analyzer must be handed to the compiler from analyzers/dotnet/cs of the package. -->
+  <Target Name="TarolCheckResultsAnalyzer" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolResultsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Results.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolResultsAnalyzer)' == ''" Text="The Tarol.Results analyzer (Tarol.Results.Generators.dll) did not reach the compiler." />
+    <Message Importance="high" Text="Tarol.Results analyzer: @(_TarolResultsAnalyzer)" />
+  </Target>
+</Project>
