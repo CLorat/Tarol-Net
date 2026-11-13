@@ -11,6 +11,10 @@
     <File Path="nuget.config" />
   </Folder>
   <Folder Name="/src/" />
+  <Folder Name="/src/Kernel/">
+    <Project Path="src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj" />
+    <Project Path="src/Kernel/Tarol.Kernel/Tarol.Kernel.csproj" />
+  </Folder>
   <Folder Name="/src/Options/">
     <Project Path="src/Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj" />
     <Project Path="src/Options/Tarol.Options/Tarol.Options.csproj" />
@@ -24,6 +28,11 @@
     <Project Path="src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/Kernel/">
+    <Project Path="tests/Kernel/Tarol.Kernel.AotSmoke/Tarol.Kernel.AotSmoke.csproj" />
+    <Project Path="tests/Kernel/Tarol.Kernel.Generators.Tests/Tarol.Kernel.Generators.Tests.csproj" />
+    <Project Path="tests/Kernel/Tarol.Kernel.Tests/Tarol.Kernel.Tests.csproj" />
+  </Folder>
   <Folder Name="/tests/Options/">
     <Project Path="tests/Options/Tarol.Options.AotSmoke/Tarol.Options.AotSmoke.csproj" />
     <Project Path="tests/Options/Tarol.Options.Benchmarks/Tarol.Options.Benchmarks.csproj" />

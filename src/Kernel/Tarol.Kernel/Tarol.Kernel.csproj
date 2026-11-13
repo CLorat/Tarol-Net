@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The origin of every operation and event: Actor (user, service, system on behalf of a user, anonymous), tenant, correlation and causation ids as Id&lt;T&gt;, in an immutable OperationContext with AOT-safe JSON; an analyzer that keeps the system clock out of domain code (inject TimeProvider). Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;audit;multi-tenancy;correlation;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Options/Tarol.Options/Tarol.Options.csproj" />
+    <ProjectReference Include="../../StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+    <!-- D-10: the time analyzer (TKRN001) ships inside this package (analyzers/dotnet/cs). -->
+    <ProjectReference Include="../Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <!-- The Options analyzer on the Kernel's own code (analyzer references do not flow from Tarol.Options): it caught a
+         `null ? default : id` that became Some(Empty) while the converters were written (TOPT004). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>
