@@ -22,6 +22,7 @@ command given), **[unverified]** means not tried here. The probes are in [`probe
 | `probe/` | candidates B, C and D (`Shapes.cs`) and two JSON contracts for C (`Json.cs`): sizes, allocations, `default`/`null`, JSON with reflection and with source generation | `dotnet run -c Release`; AOT: `dotnet publish -c Release -r linux-x64 -p:NoReflJson=true` |
 | `diag/` | "must be handled": compiler diagnostics for A–E, struct and class, nullable enabled and disabled | `dotnet build` (warnings not errors) |
 | `side/` | the same code for `int`, `Guid`, `Id<User>`, `string`, `User` in A, C and E, compiled with warnings as errors; candidate B with one name per operation (`BSame.cs`) | `dotnet build` |
+| `repo/` | raw Npgsql parameters and readers, event payloads in `jsonb` (old `T?` events read as `Option<T>` and back), EF Core 10 converters and LINQ; needs a PostgreSQL on port 55432 | `dotnet run` |
 | `web/` | Minimal API binding (`int?` vs `Option<int>`), configuration binding (reflection and source-generated binder), JSON in a web app; JIT and Native AOT | `dotnet run`, `dotnet publish -c Release -r linux-x64`; switches `-p:OptParam=true`, `-p:OptCfg=true`, `-p:EnableConfigurationBindingGenerator=false` |
 | `bench/` | BenchmarkDotNet 0.16.0-preview.2, `ShortRun` | `dotnet run -c Release -- --filter '*'` |
 
@@ -289,7 +290,50 @@ candidate uses reflection. The probe's `JsonConverterFactory` (`MakeGenericType`
 | `Tarol.Results` | `x.ToResult(violation)` exists; reverse: `r is T v ? v : null` | `o.ToResult(violation)`, `r.ToOption()`: one call each, 0 B (§3.3) | — |
 | ASP.NET Core and other names | — | `None` and `Option<T>` compile next to the Web SDK implicit usings and `Microsoft.Extensions.Options` (`web/`). `System.CommandLine` has its own `Option<T>`: CS0104 in a file that imports both **[unverified]** | alias in such files |
 
-### 3.9 Fit with the plan
+### 3.9 Repository and serialization (the owner's question after round 1)
+
+The owner liked C, but noted that the old `Option<T>` failed most often at the repository and in serialization. This
+section covers why it failed then, and what C does at each edge, measured against a real PostgreSQL 16 (`repo/`).
+
+**Why the old `Option<T>` failed** (by reading `e4722c4^`):
+
+* It was a `sealed record` **class**. An absent JSON property or a non-initialized field was a `null` *Option*, which
+  crashes at `opt.IsSome`: the absence moved one level up.
+* It was `where T : struct`, so `Option<string>`/`Option<User>` had no JSON or EF support at all (the EF converter for
+  classes is commented out).
+* JSON was an envelope `{"Value":…}`. The reader expected exactly that shape and order and threw
+  `JsonException("Invalid JSON for Option<T>")` for `null` or any other shape. It had to be registered as a
+  **reflection** factory (`MakeGenericType` + `Activator.CreateInstance`), which is not AOT-safe and is easy to forget.
+* EF: `OptionTValueConverter<T>` (structs only) per property; its test project was orphaned (O-1).
+
+**C at each edge** (**[verified]** `repo/`, `probe/`, `web/` unless marked):
+
+| Edge | Result | Consequence for the design |
+|---|---|---|
+| JSON, every serializer setup | the converter sits on the type (`[JsonConverter(typeof(…<>))]`): nothing to register, no reflection; reflection, source generator and AOT give the same JSON (§3.6) | keep the converter on the type |
+| JSON wire format | `null` / bare value, **identical to `T?`**; absent property → `None`; a struct is never `null`, so the "null Option" crash cannot happen | null contract |
+| event payloads in `jsonb` (step 8 shape: source-generated context, `NpgsqlDbType.Jsonb`) | **an old event written with `T?`** (`{"nick":"ada","age":null}`), a new event written with `Option<T>`, and an even older event **without the properties** (`{"id":…}`) all read as `Option<T>` (`Some(ada)`, `None`, `None`); the reverse (new event read by a `T?` record) also works | switching an event field between `T?` and `Option<T>` is wire-compatible in both directions: no upcaster needed |
+| JSON with the source generator | the context must list `T` (`string`, `int`, `Id<User>` …): `NotSupportedException` otherwise (`web/`) | package-owned fallback metadata for primitives, plus a clear README rule |
+| Npgsql parameter `Value = option` / `NpgsqlParameter<Option<int>>` | `InvalidCastException: Writing values of 'Option`1' is not supported` | the store never passes an Option to Npgsql: `Value = option.TryGetValue(out var v) ? v : DBNull.Value` works (or `(object?)option.ToNullable() ?? DBNull.Value`) |
+| Npgsql `reader.GetFieldValue<Option<int>>(i)` | `InvalidCastException: Reading as 'Option`1' is not supported` | `reader.IsDBNull(i) ? Option.None : reader.GetFieldValue<T>(i)` works; a `GetOption<T>(i)` helper belongs in the Npgsql package (step 8) |
+| EF Core 10 `ValueConverter<Option<T>, T?>` (the old approach) | `None` → **`23502 null value in column … violates not-null constraint`**: a struct property is required by convention; `IsRequired(false)` → **`InvalidOperationException: … cannot be marked as nullable/optional because the type … is not a nullable type`** | a struct Option cannot become a `NULL` column through a converter. EF is not in the plan (Npgsql thin store); for an EF read model, map a private `T?` field and expose `Option<T>` (verified: Some/None and `NULL` columns round-trip) |
+| EF LINQ over an Option property | `p.Age == Option.Some(36)`, `p.Age.IsSome`, `p.Age.GetValueOrDefault(0) > 30`: all untranslatable; `EF.Property<int?>(p, "_age") > 30` works | queries use the `T?` field |
+| Minimal API parameters, configuration binding | see §3.8: 400 / silently `None` / non-compiling generated binder | `T?` at those edges |
+| AOT of the Npgsql parts | — | **[unverified]** here; Npgsql itself supports AOT with the slim builder; nothing Option-specific is involved because only `T`/`DBNull` reach Npgsql |
+
+**Rule that follows:** *`Option<T>` in the domain, in handlers and in messages/events (JSON); `T?` at the storage and
+transport edges that bind by reflection or by column type (SQL parameters and columns, ORM entities, query strings,
+configuration).* The conversion at the edge is one call (`ToOption()` / `ToNullable()`), and the README and skill
+state this rule. The edges in Tarol's plan are the Npgsql store and JSON, and both work.
+
+**One more trap found here** (`probe/Trap.cs`, **[verified]**): `Option<int> F(bool b, int v) => b ? v : default;`
+returns **`Some(0)`** for `b == false`. The conditional has the natural type `int`, so `default` is `0`, and only then is
+it converted to `Option<int>`. `v ?? default` does the same. **`Result<int>` has the same trap** (`Success(0)`). For
+reference types it is CS8604 plus an `ArgumentNullException`; for value types there is no diagnostic.
+`b ? v : Option.None` is target-typed and correct. An analyzer rule can flag a `default` literal (or `default(T)`)
+that reaches an implicit `T → Option<T>` / `T → Result<T>` conversion.
+
+### 3.10 Fit with the plan
 
 | Home | For | Against |
 |---|---|---|
@@ -413,13 +457,18 @@ Old tests: the 8 class tests and the 9 struct tests translate to `Option<T>` (cr
 
 ## 7. Decisions for the owner
 
-To be asked one by one (question tool), each with a recommendation:
+Asked in the session (2026-11-13), one question per decision with a recommendation.
 
-| # | Decision | Recommendation |
-|---|---|---|
-| Q-1 | candidate | **C** |
-| Q-2 | how "must be handled" is enforced | compiler (CS0029/CS1503/CS8509) **plus** three analyzer rules as Warnings: `Value` read, null/property pattern on an Option, discarded `TryGetValue` |
-| Q-3 | `default` / `null` | `default` = `None`; `Some(null)` throws `ArgumentNullException` (CS8604 at compile time); `ToOption()` maps `null` to `None`; `Option<T?>` stays CS8714 and throws at run time |
-| Q-4 | API surface | `switch` first; `IsSome`/`IsNone`, `TryGetValue`, `GetValueOrThrow`, `GetValueOrDefault`, `Map`, `Bind`, `Filter`, `Match`, `ToResult`, `ToOption`, `ToNullable`; **no async** in the first version |
-| Q-5 | JSON contract | null contract (wire = `T?`), absent property = `None`, `WhenWritingDefault` omits; fallback metadata for primitives |
-| Q-6 | where it lives | **inside `Tarol.Results`** |
+Round 1: Q-2, Q-3 and Q-6 were answered as recommended. On Q-1 the owner liked C, but asked what happens at the
+repository and in serialization, where the old `Option<T>` failed most. The answer is §3.9 (new probe `repo/` against
+PostgreSQL 16). It also found the `? : default` trap, which affects `Result<T>` as well.
+
+| # | Decision | Recommendation | Owner's answer |
+|---|---|---|---|
+| Q-1 | candidate | **C** | likes C; asked about repository and serialization → §3.9; re-asked |
+| Q-2 | how "must be handled" is enforced | compiler (CS0029/CS1503/CS8509) **plus** three analyzer rules as Warnings: `Value` read, null/property pattern on an Option, discarded `TryGetValue` | **compiler + 3 analyzer rules** |
+| Q-2b | the `? : default` trap (§3.9) | a fourth rule, for `Option<T>` and `Result<T>` | asked in round 2 |
+| Q-3 | `default` / `null` | `default` = `None`; `Some(null)` throws `ArgumentNullException` (CS8604 at compile time); `ToOption()` maps `null` to `None`; `Option<T?>` stays CS8714 and throws at run time | **as recommended** |
+| Q-4 | API surface | `switch` first; `IsSome`/`IsNone`, `TryGetValue`, `GetValueOrThrow`, `GetValueOrDefault`, `Map`, `Bind`, `Filter`, `Match`, `ToResult`, `ToOption`, `ToNullable`; **no async** in the first version | asked in round 2 |
+| Q-5 | JSON contract | null contract (wire = `T?`), absent property = `None`, `WhenWritingDefault` omits; fallback metadata for primitives | asked in round 2 |
+| Q-6 | where it lives | **inside `Tarol.Results`** | **inside `Tarol.Results`** |

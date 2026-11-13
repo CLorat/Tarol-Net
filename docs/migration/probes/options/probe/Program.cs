@@ -109,6 +109,12 @@ P($"C Option<User> some: {JsonSerializer.Serialize(Option.Some(user), ctx.Option
 P($"D DDto some: {Try(() => JsonSerializer.Serialize(new DDto(1, "ada", 36), ctx.DDto))}; none: {Try(() => JsonSerializer.Serialize(new DDto(1, new None(), new None()), ctx.DDto))}");
 P($"D read {{\"id\":1,\"nick\":\"x\",\"age\":{{}}}} -> {Try(() => { var d = JsonSerializer.Deserialize("{\"id\":1,\"nick\":\"x\",\"age\":{}}", ctx.DDto)!; return $"nick={d.Nick.Value} age={d.Age.Value?.GetType().Name}"; })}");
 
+P("== conditional with default (natural type T)");
+P($"Option<int> F(bool b, int v) => b ? v : default;  F(false, 5) -> {(Trap.T1(false, 5) switch { int v => "Some " + v, None => "None" })}");
+P($"Option<int> F(bool b, int v) => b ? v : Option.None;  F(false, 5) -> {(Trap.T2(false, 5) switch { int v => "Some " + v, None => "None" })}");
+P($"Option<string> F(bool b, string v) => b ? v : default;  F(false, \"a\") -> {Try(() => Trap.T3(false, "a") switch { string v => "Some " + v, None => "None" })}");
+P($"Result<int> F(bool b, int v) => b ? v : default;  F(false, 5) -> {(Trap.T4(false, 5) switch { int v => "Success " + v, Violation x => x.ToString() })}");
+P($"Option<int> F(int? v) => v ?? default;  F(null) -> {(Trap.T5(null) switch { int v => "Some " + v, None => "None" })}");
 #pragma warning restore CS8714, CS8655
 static string Show(CDto d) => $"nick={(d.Nick switch { string s => s, None => "None" })} age={(d.Age switch { int a => a.ToString(), None => "None" })} ref={(d.Ref switch { Guid g => g.ToString(), None => "None" })}";
 

@@ -53,8 +53,13 @@ public static class Option
 
 [Union]
 [System.Text.Json.Serialization.JsonConverter(typeof(OptionNullConverter<>))]
-public readonly struct Option<T> : IUnion where T : notnull
+public readonly struct Option<T> : IUnion, IEquatable<Option<T>> where T : notnull
 {
+    public bool Equals(Option<T> other) => _isSome ? other._isSome && EqualityComparer<T>.Default.Equals(_value, other._value) : !other._isSome;
+    public override bool Equals(object? obj) => obj is Option<T> o && Equals(o);
+    public override int GetHashCode() => _isSome ? HashCode.Combine(_value) : 0;
+    public static bool operator ==(Option<T> a, Option<T> b) => a.Equals(b);
+    public static bool operator !=(Option<T> a, Option<T> b) => !a.Equals(b);
     private readonly T _value;
     private readonly bool _isSome;
     public Option(T value)

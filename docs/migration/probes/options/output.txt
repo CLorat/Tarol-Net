@@ -223,3 +223,38 @@ O-3 string? null .Value (extension): InvalidOperationException: Option value was
 O-4 members on every type: 42.IsSome=True, "a".Or("b")=a, DateTime.Now.IsNone=False
 
 O-1: ls src/Options/Options.Persistence.Relational in CLorat/Tarol@6a62f81 -> ls: cannot access '/home/user/Tarol/src/Options/Options.Persistence.Relational': No such file or directory
+
+## repo/ (PostgreSQL 16.15 local, Npgsql 10 via Npgsql.EntityFrameworkCore.PostgreSQL 10.0.0; dotnet run)
+== raw Npgsql: Option<T> as a parameter value
+AddWithValue("nick", Option<string>) -> THROWS InvalidCastException: Writing values of 'Probe.Option`1[[System.String, System.Private.CoreLib, Version=11.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]' is not supported for parameters having no Npgsq
+NpgsqlParameter<Option<int>> -> THROWS InvalidCastException: Writing values of 'Probe.Option`1[[System.Int32, System.Private.CoreLib, Version=11.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]' is not supported for parameters having no NpgsqlDbType o
+helper: Value = o.TryGetValue(out v) ? v : DBNull.Value -> 1
+== raw Npgsql: reading
+reader.GetFieldValue<Option<int>>(i) -> THROWS InvalidCastException: Reading as 'Probe.Option`1[[System.Int32, System.Private.CoreLib, Version=11.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]' is not supported for fields having DataTypeName 'intege
+helper: IsDBNull(i) ? None : GetFieldValue<T>(i) -> nick=Some(ada) age=None
+== event payloads in jsonb (source-generated context, the step-8 shape)
+v1 stored {"id": "00000000-0000-0000-0000-000000000000", "age": null, "nick": "ada"} -> as Option: nick=Some(ada) age=None manager=None | as T?: nick=ada age=null
+v2 stored {"id": "00000000-0000-0000-0000-000000000000", "age": null, "nick": "ada", "manager": null} -> as Option: nick=Some(ada) age=None manager=None | as T?: nick=ada age=null
+v0 stored {"id": "00000000-0000-0000-0000-000000000000"} -> as Option: nick=None age=None manager=None | as T?: nick=null age=null
+== EF Core 10 (Npgsql provider): EF maps private T? fields, the entity exposes Option<T>
+read back: 1: nick=Some(ada) age=Some(36); 2: nick=None age=None
+raw columns: 1: nick=ada age=36; 2: nick=NULL age=NULL
+Where(p => p.Age == Option.Some(36)) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => p.Age == none) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => p.Age.IsSome) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => p.Age.GetValueOrDefault(0) > 30) -> THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+Where(p => EF.Property<int?>(p, "_age") > 30) -> 1
+SQL for == none: THROWS InvalidOperationException: The LINQ expression 'DbSet<Person>()
+
+### earlier EF variants of repo/ (ValueConverter Option<T> <-> T? via ConfigureConventions)
+SaveChanges with None: DbUpdateException -> PostgresException 23502: null value in column "Nick" of relation "People" violates not-null constraint
+with .Property(p => p.Nick).IsRequired(false): InvalidOperationException: The property 'Person.Nick' cannot be marked as nullable/optional because the type of the property is 'Option<string>' which is not a nullable type. Any property can be marked as non-nullable/required, but only properties of nullable types can be marked as nullable/optional.
+
+## probe/ conditional with default (Trap.cs)
+== conditional with default (natural type T)
+Option<int> F(bool b, int v) => b ? v : default;  F(false, 5) -> Some 0
+Option<int> F(bool b, int v) => b ? v : Option.None;  F(false, 5) -> None
+Option<string> F(bool b, string v) => b ? v : default;  F(false, "a") -> THROWS ArgumentNullException: Value cannot be null. (Parameter 'value')
+Result<int> F(bool b, int v) => b ? v : default;  F(false, 5) -> Success 0
+Option<int> F(int? v) => v ?? default;  F(null) -> Some 0
+diag/Trap.cs: only T3 (reference type) has a diagnostic: CS8604; T1, T4, T5 are silent
