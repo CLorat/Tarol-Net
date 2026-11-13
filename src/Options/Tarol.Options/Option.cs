@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Tarol.Results;
+namespace Tarol.Options;
 
 /// <summary>Creates <see cref="Option{T}"/> values.</summary>
 [SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "The owner chose the name Option (docs/migration/options.md Q-1); it clashes with a VB keyword only, and Tarol targets C#.")]
@@ -9,7 +9,7 @@ public static class Option
     /// <summary>
     /// The absent case; converts to any <see cref="Option{T}"/>: <c>return Option.None;</c>. In a conditional write
     /// <c>found ? value : Option.None</c>, never <c>found ? value : default</c> (that is <c>Some(0)</c> for an
-    /// <c>int</c>; TRES006).
+    /// <c>int</c>; TOPT004).
     /// </summary>
     public static None None => default;
 

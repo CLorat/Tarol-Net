@@ -12,6 +12,7 @@ internal static class AnalyzerTestHost
         .Split(Path.PathSeparator)
         .Where(static path => Path.GetFileName(path).StartsWith("System.", StringComparison.Ordinal) || Path.GetFileName(path) == "netstandard.dll")
         .Append(typeof(Result).Assembly.Location)
+        .Append(typeof(Tarol.Options.Option).Assembly.Location)
         .Distinct()
         .Select(static path => (MetadataReference)MetadataReference.CreateFromFile(path))
         .ToArray();

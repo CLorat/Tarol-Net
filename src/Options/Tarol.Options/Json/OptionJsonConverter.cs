@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
-namespace Tarol.Results.Json;
+namespace Tarol.Options.Json;
 
 /// <summary>
 /// JSON for <see cref="Option{T}"/>: the value itself, or <c>null</c> for <see cref="None"/>: the same wire format as

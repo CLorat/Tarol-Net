@@ -4,7 +4,7 @@ description: >-
   Use when writing or consuming Tarol.Results: returning Result<T> or Result instead of throwing, creating
   Invalid (field errors) or Error (NotFound, Conflict, …) violations, switching over results, ValueTask pipelines,
   combining validations, or serializing results as JSON. Covers Result<T>, Result, Success, Violation, Invalid,
-  FieldError, Error, ErrorType, Combine, Sequence and the TRES001-TRES006 analyzers (for a value that may be absent, load tarol-options). Do not decompile the assembly
+  FieldError, Error, ErrorType, Combine, Sequence and the TRES001-TRES003, TRES005 and TRES006 analyzers (for a value that may be absent, load tarol-options from Tarol.Options). Do not decompile the assembly
   or search the web for an older Tarol.Results API: the typed Value, Violation.None, ViolationType and IResult no longer exist.
 ---
 # Tarol.Results
@@ -29,7 +29,7 @@ description: >-
 9. `Combine` / `Sequence`: when all failures are `Invalid`, the field errors are concatenated. Otherwise the first `Error` is returned.
 10. Never `return ok ? value : default;` for a `Result<T>`: `default` is `default(T)`, so it becomes `Success(0)` (TRES006).
     Return a violation in the other branch.
-11. A value that may be absent is an `Option<T>` (skill `tarol-options`). Turn it into a failure with
+11. A value that may be absent is an `Option<T>` (`using Tarol.Options;`, skill `tarol-options`). Turn it into a failure with
     `option.ToResult(Error.NotFound("…"))`; `result.ToOption()` drops the violation.
 
 ## Minimal correct example

@@ -1,10 +1,10 @@
-namespace Tarol.Results.Generators.Tests;
+namespace Tarol.Options.Generators.Tests;
 
 // Line numbers are 1-based relative to the test source (the host prepends one line of usings).
 public class OptionAnalyzerTests
 {
     [Fact]
-    public async Task TRES003_Should_Report_OptionValue()
+    public async Task TOPT001_Should_Report_OptionValue()
     {
         var diagnostics = await AnalyzerTestHost.Analyze("""
             class C
@@ -14,11 +14,11 @@ public class OptionAnalyzerTests
             }
             """);
 
-        diagnostics.ShouldBe(["TRES003 3"]);
+        diagnostics.ShouldBe(["TOPT001 3"]);
     }
 
     [Fact]
-    public async Task TRES004_Should_Report_NullAndEmptyPropertyPatterns()
+    public async Task TOPT002_Should_Report_NullAndEmptyPropertyPatterns()
     {
         var diagnostics = await AnalyzerTestHost.Analyze("""
             record User(string Name);
@@ -33,11 +33,11 @@ public class OptionAnalyzerTests
             }
             """);
 
-        diagnostics.ShouldBe(["TRES004 4", "TRES004 5", "TRES004 6", "TRES004 7", "TRES004 8", "TRES004 9"]);
+        diagnostics.ShouldBe(["TOPT002 4", "TOPT002 5", "TOPT002 6", "TOPT002 7", "TOPT002 8", "TOPT002 9"]);
     }
 
     [Fact]
-    public async Task TRES004_Should_NotReport_CasePatternsOrNullablePatterns()
+    public async Task TOPT002_Should_NotReport_CasePatternsOrNullablePatterns()
     {
         var diagnostics = await AnalyzerTestHost.Analyze("""
             record User(string Name);
@@ -57,40 +57,40 @@ public class OptionAnalyzerTests
     }
 
     [Fact]
-    public async Task TRES005_Should_Report_IgnoredTryGetValue()
+    public async Task TOPT003_Should_Report_IgnoredTryGetValue()
     {
         var diagnostics = await AnalyzerTestHost.Analyze("""
             class C
             {
                 int A(Option<int> o) { o.TryGetValue(out int v); return v; }
-                int B(Result<int> r) { r.TryGetValue(out int v); return v; }
+                int B(Option<string> o) { o.TryGetValue(out string? v); return v?.Length ?? 0; }
                 int D(Option<int> o) => o.TryGetValue(out int v) ? v : 0;
                 int E(Option<int> o) { _ = o.TryGetValue(out int v); return v; }
             }
             """);
 
-        diagnostics.ShouldBe(["TRES005 3", "TRES005 4"]);
+        diagnostics.ShouldBe(["TOPT003 3", "TOPT003 4"]);
     }
 
     [Fact]
-    public async Task TRES006_Should_Report_DefaultThatBecomesAValue()
+    public async Task TOPT004_Should_Report_DefaultThatBecomesAValue()
     {
         var diagnostics = await AnalyzerTestHost.Analyze("""
             class C
             {
                 Option<int> A(bool b, int v) => b ? v : default;
-                Result<int> B(bool b, int v) => b ? v : default;
+                Option<long> B(bool b, long v) => b ? v : default;
                 Option<int> D(int? v) => v ?? default;
                 Option<int> E() => default(int);
                 Option<int> F(bool b, int v) => b ? default : v;
             }
             """);
 
-        diagnostics.ShouldBe(["TRES006 3", "TRES006 4", "TRES006 5", "TRES006 6", "TRES006 7"]);
+        diagnostics.ShouldBe(["TOPT004 3", "TOPT004 4", "TOPT004 5", "TOPT004 6", "TOPT004 7"]);
     }
 
     [Fact]
-    public async Task TRES006_Should_NotReport_TargetTypedAbsenceOrDefaultOption()
+    public async Task TOPT004_Should_NotReport_TargetTypedAbsenceOrDefaultOption()
     {
         var diagnostics = await AnalyzerTestHost.Analyze("""
             class C
@@ -98,12 +98,19 @@ public class OptionAnalyzerTests
                 Option<int> A(bool b, int v) => b ? v : Option.None;
                 Option<int> B() => default;
                 Option<int> D(bool b, Option<int> v) => b ? v : default;
-                Result<int> E(bool b, int v) => b ? v : Error.NotFound("x");
+                Option<int> E(bool b, int v) => b ? Option.Some(v) : Option.None;
                 Option<int> F(int v) => v;
                 int G(bool b, int v) => b ? v : default;
             }
             """);
 
         diagnostics.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Analyzer_Should_DeclareExactlyTheOptionRules()
+    {
+        var analyzer = new OptionAnalyzer();
+        analyzer.SupportedDiagnostics.Select(static d => d.Id).ShouldBe(["TOPT001", "TOPT002", "TOPT003", "TOPT004"]);
     }
 }

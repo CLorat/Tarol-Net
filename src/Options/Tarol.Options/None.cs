@@ -1,4 +1,4 @@
-namespace Tarol.Results;
+namespace Tarol.Options;
 
 /// <summary>
 /// The "absent" case of <see cref="Option{T}"/>. It carries nothing; every <see cref="None"/> is equal.

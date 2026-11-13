@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
+using Tarol.Options;
 using Tarol.Results.Json;
 
 namespace Tarol.Results;
@@ -148,7 +149,7 @@ public readonly struct Result<T> : IUnion, IEquatable<Result<T>>
     /// <returns>The non-generic result.</returns>
     public Result ToResult() => IsSuccess ? Result.Success() : new Result(State);
 
-    /// <summary>Drops the violation: a success is <c>Some</c>, every failure is <see cref="None"/>.</summary>
+    /// <summary>Drops the violation: a success is <c>Some</c>, every failure is <see cref="None"/> (Tarol.Options).</summary>
     /// <returns>The option.</returns>
     public Option<T> ToOption() => IsSuccess ? new Option<T>(_value) : default;
 

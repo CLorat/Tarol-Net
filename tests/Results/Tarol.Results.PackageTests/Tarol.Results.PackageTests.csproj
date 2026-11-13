@@ -13,12 +13,15 @@
     <PackageReference Include="Tarol.Results" VersionOverride="$(TarolPackageVersion)" />
   </ItemGroup>
 
-  <!-- The analyzer must be handed to the compiler from analyzers/dotnet/cs of the package. -->
+  <!-- Both analyzers must be handed to the compiler from analyzers/dotnet/cs: Results' own, and Options' through the
+       package dependency (transitive analyzer flow, D-10). -->
   <Target Name="TarolCheckResultsAnalyzer" BeforeTargets="CoreCompile">
     <ItemGroup>
       <_TarolResultsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Results.Generators'" />
+      <_TarolOptionsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Options.Generators'" />
     </ItemGroup>
     <Error Condition="'@(_TarolResultsAnalyzer)' == ''" Text="The Tarol.Results analyzer (Tarol.Results.Generators.dll) did not reach the compiler." />
-    <Message Importance="high" Text="Tarol.Results analyzer: @(_TarolResultsAnalyzer)" />
+    <Error Condition="'@(_TarolOptionsAnalyzer)' == ''" Text="The Tarol.Options analyzer (Tarol.Options.Generators.dll) did not flow from the Tarol.Options dependency." />
+    <Message Importance="high" Text="Tarol.Results analyzers: @(_TarolResultsAnalyzer);@(_TarolOptionsAnalyzer)" />
   </Target>
 </Project>

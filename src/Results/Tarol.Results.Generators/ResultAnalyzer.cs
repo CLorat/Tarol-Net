@@ -8,14 +8,14 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace Tarol.Results.Generators;
 
-/// <summary>Reports the Result and Option pitfalls the compiler does not: TRES001 … TRES006.</summary>
+/// <summary>Reports the Result pitfalls the compiler does not: TRES001, TRES002, TRES003, TRES005, TRES006. The Option rules are in Tarol.Options (TOPT001 … TOPT004).</summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class ResultAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
         ImmutableArray.Create(Diagnostics.AmbiguousValueType, Diagnostics.DiscardedResult, Diagnostics.ObjectValue,
-            Diagnostics.OptionNullTest, Diagnostics.IgnoredTryGetValue, Diagnostics.DefaultBecomesValue);
+            Diagnostics.IgnoredTryGetValue, Diagnostics.DefaultBecomesValue);
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -34,8 +34,6 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
             start.RegisterOperationAction(c => AnalyzeInvocation(c, types), OperationKind.Invocation);
             start.RegisterOperationAction(c => AnalyzeExpressionStatement(c, types), OperationKind.ExpressionStatement);
             start.RegisterOperationAction(c => AnalyzePropertyReference(c, types), OperationKind.PropertyReference);
-            start.RegisterOperationAction(c => AnalyzePattern(c, types), OperationKind.ConstantPattern, OperationKind.NegatedPattern, OperationKind.RecursivePattern);
-            start.RegisterOperationAction(c => AnalyzeNullComparison(c, types), OperationKind.Binary);
             start.RegisterOperationAction(c => AnalyzeConversion(c, types), OperationKind.Conversion);
         });
     }
@@ -81,9 +79,9 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
             called = inner;
         }
 
-        // TRES005: `option.TryGetValue(out var v);`
+        // TRES005: `result.TryGetValue(out var v);`
         if (called is IInvocationOperation { TargetMethod.Name: "TryGetValue", Instance: { Type: INamedTypeSymbol receiver } } tryGet
-            && types.IsUnion(receiver))
+            && types.IsResult(receiver))
         {
             var outType = tryGet.TargetMethod.Parameters.Length == 1 ? tryGet.TargetMethod.Parameters[0].Type : null;
             context.ReportDiagnostic(Diagnostic.Create(Diagnostics.IgnoredTryGetValue, statement.Syntax.GetLocation(),
@@ -111,7 +109,7 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
     private static void AnalyzePropertyReference(OperationAnalysisContext context, KnownTypes types)
     {
         var reference = (IPropertyReferenceOperation)context.Operation;
-        if (reference.Property.Name == "Value" && types.IsUnion(reference.Property.ContainingType)
+        if (reference.Property.Name == "Value" && types.IsResult(reference.Property.ContainingType)
             && reference.Syntax is MemberAccessExpressionSyntax access)
         {
             context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ObjectValue, access.Name.GetLocation(),
@@ -119,55 +117,13 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    // TRES004: `o is { } x`, `o is not null`, `o is null` on an Option.
-    private static void AnalyzePattern(OperationAnalysisContext context, KnownTypes types)
-    {
-        var pattern = (IPatternOperation)context.Operation;
-        if (!types.IsOption(pattern.InputType) || pattern.Parent is IPatternOperation)
-        {
-            return; // nested patterns are checked through their parent
-        }
-
-        bool? always = pattern switch
-        {
-            IConstantPatternOperation constant when IsNullLiteral(constant.Value) => false,
-            INegatedPatternOperation { Pattern: IConstantPatternOperation constant } when IsNullLiteral(constant.Value) => true,
-            IRecursivePatternOperation { DeconstructionSubpatterns.Length: 0, PropertySubpatterns.Length: 0 } recursive
-                when SymbolEqualityComparer.Default.Equals(recursive.MatchedType, pattern.InputType) => true,
-            _ => null,
-        };
-
-        if (always is { } value)
-        {
-            ReportNullTest(context, pattern.Syntax, pattern.InputType, value);
-        }
-    }
-
-    // TRES004: `o == null`, `o != null` on an Option.
-    private static void AnalyzeNullComparison(OperationAnalysisContext context, KnownTypes types)
-    {
-        var binary = (IBinaryOperation)context.Operation;
-        if (binary.OperatorKind is not (BinaryOperatorKind.Equals or BinaryOperatorKind.NotEquals))
-        {
-            return;
-        }
-
-        var left = Unwrap(binary.LeftOperand);
-        var right = Unwrap(binary.RightOperand);
-        var option = IsNullLiteral(right) ? left : IsNullLiteral(left) ? right : null;
-        if (option is not null && types.IsOption(option.Type))
-        {
-            ReportNullTest(context, binary.Syntax, option.Type!, binary.OperatorKind == BinaryOperatorKind.NotEquals);
-        }
-    }
-
-    // TRES006: `found ? value : default`, `value ?? default`, `return default(int);` converted to Option<T> / Result<T>.
+    // TRES006: `found ? value : default`, `value ?? default`, `return default(int);` converted to Result<T>.
     private static void AnalyzeConversion(OperationAnalysisContext context, KnownTypes types)
     {
         var conversion = (IConversionOperation)context.Operation;
         if (conversion.IsImplicit is false && conversion.Syntax is CastExpressionSyntax
             || conversion.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } target
-            || !(types.IsOption(target) || types.IsGenericResult(target))
+            || !types.IsGenericResult(target)
             || !SymbolEqualityComparer.Default.Equals(conversion.Operand.Type, target.TypeArguments[0]))
         {
             return;
@@ -175,12 +131,9 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
 
         foreach (var found in Defaults(conversion.Operand))
         {
-            var isOption = types.IsOption(target);
             context.ReportDiagnostic(Diagnostic.Create(Diagnostics.DefaultBecomesValue, found.Syntax.GetLocation(),
                 target.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                target.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                isOption ? "present value (Some)" : "success",
-                isOption ? "Option.None" : "a Violation"));
+                target.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)));
         }
     }
 
@@ -224,19 +177,11 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
         return operation;
     }
 
-    private static bool IsNullLiteral(IOperation operation)
-        => Unwrap(operation) is ILiteralOperation { ConstantValue: { HasValue: true, Value: null } };
-
-    private static void ReportNullTest(OperationAnalysisContext context, SyntaxNode syntax, ITypeSymbol option, bool always)
-        => context.ReportDiagnostic(Diagnostic.Create(Diagnostics.OptionNullTest, syntax.GetLocation(),
-            syntax.ToString(), option.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), always ? "true" : "false"));
-
     private sealed class KnownTypes
     {
         private readonly INamedTypeSymbol _resultOfT;
         private readonly INamedTypeSymbol _result;
         private readonly INamedTypeSymbol _violation;
-        private readonly INamedTypeSymbol? _option;
         private readonly INamedTypeSymbol? _task;
         private readonly INamedTypeSymbol? _valueTask;
 
@@ -245,7 +190,6 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
             _resultOfT = resultOfT;
             _result = result;
             _violation = violation;
-            _option = compilation.GetTypeByMetadataName("Tarol.Results.Option`1");
             _task = compilation.GetTypeByMetadataName("System.Threading.Tasks.Task`1");
             _valueTask = compilation.GetTypeByMetadataName("System.Threading.Tasks.ValueTask`1");
         }
@@ -262,11 +206,6 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
             => type is not null && (SymbolEqualityComparer.Default.Equals(type, _result) || SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, _resultOfT));
 
         public bool IsGenericResult(INamedTypeSymbol type) => SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, _resultOfT);
-
-        public bool IsOption(ITypeSymbol? type)
-            => _option is not null && type is INamedTypeSymbol named && SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, _option);
-
-        public bool IsUnion(INamedTypeSymbol? type) => IsResult(type) || IsOption(type);
 
         public bool IsResultLike(ITypeSymbol? type)
         {

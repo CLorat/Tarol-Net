@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Tarol.Options;
 using Tarol.Results;
 using Tarol.Results.PackageTests;
 
@@ -24,7 +25,7 @@ var json = JsonSerializer.Serialize(Place(0), ConsumerJson.Default.ResultOrder);
 Check("JSON contract", json == """{"failure":{"kind":"invalid","errors":[{"field":"Quantity","code":"Quantity.Positive"}]}}""");
 Check("JSON round-trip", JsonSerializer.Deserialize(json, ConsumerJson.Default.ResultOrder) == Place(0));
 
-// Option<T> from the package: same code for value and reference types, one call to and from Result.
+// Option<T> comes with Tarol.Results through its dependency on Tarol.Options: one call to and from Result.
 static Option<Order> Find(int quantity) => quantity > 0 ? new Order(quantity) : Option.None;
 Check("Option switch over T | None", Find(1) switch { Order => true, None => false } && Find(0) switch { Order => false, None => true });
 Check("Option to Result and back", Find(0).ToResult(Error.NotFound("Order.NotFound")) is Error { Code: "Order.NotFound" } && Place(3).ToOption() == Find(3));

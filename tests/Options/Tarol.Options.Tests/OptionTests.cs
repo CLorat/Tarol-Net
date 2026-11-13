@@ -1,4 +1,4 @@
-namespace Tarol.Results.Tests;
+namespace Tarol.Options.Tests;
 
 // Option<T> API. Tests ported from CLorat/Tarol@6a62f81 tests/Options/Options carry the old name in a comment.
 public class OptionTests
@@ -207,27 +207,6 @@ public class OptionTests
         Should.Throw<ArgumentNullException>(() => option.Filter(null!));
         Should.Throw<ArgumentNullException>(() => option.Match(null!, static () => 0));
         Should.Throw<ArgumentNullException>(() => option.GetValueOrDefault((Func<int>)null!));
-    }
-
-    // ---- Results (one call each way)
-
-    [Fact]
-    public void ToResult_Should_TurnNoneIntoTheViolation()
-    {
-        var notFound = Error.NotFound("User.NotFound");
-
-        Option.Some(new User("Ada", 1)).ToResult(notFound).IsSuccess.ShouldBeTrue();
-        default(Option<User>).ToResult(notFound).ShouldBe(Result<User>.Failure(notFound));
-        (default(Option<int>).ToResult(static () => Error.NotFound("Int.NotFound")) is Error { Code: "Int.NotFound" }).ShouldBeTrue();
-        Option.Some(1).ToResult(static () => throw new InvalidOperationException("not called")).ShouldBe(Result.Success(1));
-    }
-
-    [Fact]
-    public void ToOption_Should_DropTheViolation()
-    {
-        Result.Success(3).ToOption().ShouldBe(Option.Some(3));
-        Result<int>.Failure(Invalid.Field("A", "A.X")).ToOption().IsNone.ShouldBeTrue();
-        default(Result<int>).ToOption().IsNone.ShouldBeTrue();
     }
 
     // ---- equality and text

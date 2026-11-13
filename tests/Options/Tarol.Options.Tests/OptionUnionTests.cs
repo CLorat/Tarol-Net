@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace Tarol.Results.Tests;
+namespace Tarol.Options.Tests;
 
 // The C# 15 union behaviours Option<T> relies on (docs/migration/options.md §3).
 public class OptionUnionTests
@@ -51,29 +51,29 @@ public class OptionUnionTests
         (option switch { User u => u.Name, None => "none" }).ShouldBe("none");
     }
 
-    [Fact] // N-4: a property or null pattern tests the struct itself (TRES004 warns)
+    [Fact] // N-4: a property or null pattern tests the struct itself (TOPT002 warns)
     public void NullPatterns_Should_TestTheStruct()
     {
         Option<User> none = default;
-#pragma warning disable TRES004 // the test checks the very behaviour TRES004 warns about
+#pragma warning disable TOPT002 // the test checks the very behaviour TOPT002 warns about
         (none is { }).ShouldBeTrue();
         (none is null).ShouldBeFalse();
-#pragma warning restore TRES004
+#pragma warning restore TOPT002
         (none is User).ShouldBeFalse();
     }
 
     [Fact] // N-3: the union protocol member
     public void Value_Should_ExposeTheActiveCaseAsObject()
     {
-#pragma warning disable TRES003 // the test checks the very member TRES003 warns about
+#pragma warning disable TOPT001 // the test checks the very member TOPT001 warns about
         Option.Some(5).Value.ShouldBe(5);
         default(Option<int>).Value.ShouldBe(default(None));
         Option.Some(5).HasValue.ShouldBeTrue();
         default(Option<int>).HasValue.ShouldBeTrue();
-#pragma warning restore TRES003
+#pragma warning restore TOPT001
     }
 
-    [Fact] // §3.9: the trap TRES006 reports; written as Option.None it is target-typed
+    [Fact] // §3.9: the trap TOPT004 reports; written as Option.None it is target-typed
     public void ConditionalWithNone_Should_BeTargetTyped()
     {
         static Option<int> Find(bool found, int value) => found ? value : Option.None;

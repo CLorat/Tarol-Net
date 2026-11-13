@@ -29,22 +29,12 @@ internal static class Diagnostics
     /// <summary>TRES003: the union protocol's object Value is read in user code.</summary>
     public static readonly DiagnosticDescriptor ObjectValue = new(
         id: "TRES003",
-        title: "Value of a Result or Option is the untyped union member",
+        title: "Value of a Result is the untyped union member",
         messageFormat: "'{0}.Value' is the union protocol member: it is typed object and boxes value types. Use a pattern ('x is T value'), TryGetValue or GetValueOrThrow().",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "C# requires a union type to expose 'object? Value'. It is not the typed value Tarol.Results 0.x returned.");
-
-    /// <summary>TRES004: a null or property pattern tests the Option struct itself, not its value.</summary>
-    public static readonly DiagnosticDescriptor OptionNullTest = new(
-        id: "TRES004",
-        title: "Null test on an Option is constant",
-        messageFormat: "'{0}' tests the {1} itself, which is never null, so it is always {2}. Use 'is T value', 'is None', IsSome or IsNone.",
-        category: Category,
-        defaultSeverity: DiagnosticSeverity.Warning,
-        isEnabledByDefault: true,
-        description: "An Option<T> is a struct whose absent case is None, not null. 'o is { } x', 'o is not null' and 'o != null' are always true (x is the Option, not the value); 'o is null' and 'o == null' are always false. Code written for T? keeps compiling after a change to Option<T>, but no longer checks anything.");
 
     /// <summary>TRES005: TryGetValue is called as a statement, so its result is ignored.</summary>
     public static readonly DiagnosticDescriptor IgnoredTryGetValue = new(
@@ -54,15 +44,15 @@ internal static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "TryGetValue sets the out value to default when the case is not active. For a value type such as int that is 0, with no nullable warning.");
+        description: "Result.TryGetValue sets the out value to default when the case is not active. For a value type such as int that is 0, with no nullable warning.");
 
-    /// <summary>TRES006: a default literal of T is converted to an Option or Result.</summary>
+    /// <summary>TRES006: a default literal of T is converted to a Result.</summary>
     public static readonly DiagnosticDescriptor DefaultBecomesValue = new(
         id: "TRES006",
-        title: "'default' becomes a value, not absence or failure",
-        messageFormat: "This 'default' is default({0}) and converts to {1}, a {2}. Write {3} instead.",
+        title: "'default' becomes a success, not a failure",
+        messageFormat: "This 'default' is default({0}) and converts to {1}, a success. Return a Violation instead.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "In 'found ? value : default' and 'value ?? default' the conditional has the natural type T, so 'default' is default(T) (0 for an int) and is then wrapped: Some(0) or Success(0). For reference types it throws ArgumentNullException. 'found ? value : Option.None' is target-typed and correct.");
+        description: "In 'found ? value : default' and 'value ?? default' the conditional has the natural type T, so 'default' is default(T) (0 for an int) and is then wrapped: Success(0). For reference types it throws ArgumentNullException. 'found ? value : Error.NotFound(...)' is target-typed and correct. The Option counterpart is TOPT004 in Tarol.Options.");
 }

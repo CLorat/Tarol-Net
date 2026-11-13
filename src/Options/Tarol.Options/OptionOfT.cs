@@ -3,9 +3,9 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
-using Tarol.Results.Json;
+using Tarol.Options.Json;
 
-namespace Tarol.Results;
+namespace Tarol.Options;
 
 /// <summary>
 /// A value that may be absent: either a <typeparamref name="T"/> or <see cref="None"/>. The same type and the same
@@ -84,7 +84,7 @@ public readonly struct Option<T> : IUnion, IEquatable<Option<T>>
 
     /// <summary>
     /// The active case as <see cref="object"/>: the value (boxed if it is a value type) or <see cref="None"/>.
-    /// Required by the C# union protocol; use a pattern, <see cref="TryGetValue(out T)"/> or <see cref="GetValueOrThrow"/> instead (TRES003).
+    /// Required by the C# union protocol; use a pattern, <see cref="TryGetValue(out T)"/> or <see cref="GetValueOrThrow"/> instead (TOPT001).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public object Value => _isSome ? _value : default(None);
@@ -94,7 +94,7 @@ public readonly struct Option<T> : IUnion, IEquatable<Option<T>>
     [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "The C# union protocol requires an instance HasValue.")]
     public bool HasValue => true;
 
-    /// <summary>Gets the value when the option holds one. Used by pattern matching; check the result (TRES005).</summary>
+    /// <summary>Gets the value when the option holds one. Used by pattern matching; check the result (TOPT003).</summary>
     /// <param name="value">The value, or <see langword="default"/> when the option is <see cref="None"/>.</param>
     /// <returns><see langword="true"/> when the option holds a value.</returns>
     public bool TryGetValue([MaybeNullWhen(false)] out T value)
@@ -183,24 +183,6 @@ public readonly struct Option<T> : IUnion, IEquatable<Option<T>>
         ArgumentNullException.ThrowIfNull(some);
         ArgumentNullException.ThrowIfNull(none);
         return _isSome ? some(_value) : none();
-    }
-
-    /// <summary>Turns absence into a failure: the value, or <paramref name="whenNone"/>.</summary>
-    /// <param name="whenNone">The violation when the option is <see cref="None"/>, typically <c>Error.NotFound(…)</c>.</param>
-    /// <returns>The result.</returns>
-    public Result<T> ToResult(Violation whenNone)
-    {
-        ArgumentNullException.ThrowIfNull(whenNone);
-        return _isSome ? new Result<T>(_value) : new Result<T>(whenNone);
-    }
-
-    /// <summary>Turns absence into a failure computed only when the option is <see cref="None"/>.</summary>
-    /// <param name="whenNone">Creates the violation.</param>
-    /// <returns>The result.</returns>
-    public Result<T> ToResult(Func<Violation> whenNone)
-    {
-        ArgumentNullException.ThrowIfNull(whenNone);
-        return _isSome ? new Result<T>(_value) : new Result<T>(whenNone());
     }
 
     /// <summary>Two options are equal when both are <see cref="None"/>, or both hold equal values. <c>default</c> equals <see cref="Option.None"/>.</summary>

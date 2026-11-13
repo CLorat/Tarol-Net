@@ -1,4 +1,4 @@
-namespace Tarol.Results.Generators.Tests;
+namespace Tarol.Options.Generators.Tests;
 
 // The compiler behaviour Option<T> relies on for "absence must be handled" (docs/migration/options.md §3.1).
 // Line numbers are 1-based relative to the test source.

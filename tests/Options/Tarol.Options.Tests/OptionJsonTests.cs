@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Tarol.Results.Tests;
+namespace Tarol.Options.Tests;
 
 // The JSON contract (Q-5): the value or null, the same as T?. Reflection and source generation.
 public partial class OptionJsonTests
