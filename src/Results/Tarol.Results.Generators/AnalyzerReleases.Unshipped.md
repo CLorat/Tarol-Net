@@ -8,3 +8,6 @@ Rule ID | Category | Severity | Notes
 TRES001 | Tarol.Results | Error | Diagnostics
 TRES002 | Tarol.Results | Warning | Diagnostics
 TRES003 | Tarol.Results | Warning | Diagnostics
+TRES004 | Tarol.Results | Warning | Diagnostics
+TRES005 | Tarol.Results | Warning | Diagnostics
+TRES006 | Tarol.Results | Warning | Diagnostics
