@@ -461,17 +461,23 @@ mixed → the most severe by a fixed order (5xx before 401, 403, 404, 409, 410, 
 
 ## 6. Decisions for the owner
 
-Asked in the session with a recommendation each. Round 1 (2026-11-12): the owner asked for user code and JSON per shape before choosing (added as §3.9), answered Q-2 with the model "validation errors, or one light, non-fatal error", and deferred Q-3 (after all others) and Q-4.
+Asked in the session (2026-11-12/13), one question per decision with a recommendation. Round 1: the owner asked
+for user code and JSON per shape (added as §3.9), described failures as "validation errors, or one light,
+non-fatal error", and deferred `default` to the end. Round 2 asked whether a union of the outcomes themselves
+(success | validation error | …) would make more sense than a `Result`: that is what the agreed shape is at the
+call site (`switch { T, Invalid, Error }`), while per-operation `union` declarations were measured
+(`probes/results/outcome`: boxing of value-type successes, `default` throws, SYSLIB1227, no generic framework
+contract) and not chosen.
 
-| # | Decision | Recommendation |
+| # | Decision | Owner's answer |
 |---|---|---|
-| Q-1 | `Result<T>` shape | **C (C2 layout)** |
-| Q-2 | failure model | first proposal: keep `Violation` + `ViolationType` as a sealed class (M1). After the owner's answer ("validation errors, or one light non-fatal error"): **M2**, `closed Failure` = `Invalid` (field errors) \| `Error` (type + code), see §3.9 |
-| Q-3 | `default(Result)` | well-defined failure `Violation.Uninitialized` |
-| Q-4 | combinators | keep Map/Bind/Ensure/Tap/TapFailure/Match/GetValueOrDefault; `switch` is the documented primary; drop `Switch`; `ValueTask` only with `CancellationToken`; `Combine` always aggregates |
-| Q-5 | JSON / problem details | `Violation` contract and `Result` envelope in `Tarol.Results`; problem-details mapping in a later web package |
-| Q-6 | `IResult` | remove |
-| Q-7 | analyzer | yes, bundled, separate PR after this one |
+| Q-1 | `Result<T>` shape | **C**: hand-written `[Union]` struct, `T` + one state reference |
+| Q-2 | failure model | **`closed record Violation`** with exactly two kinds: **`Invalid`** (list of **`FieldError`**) and **`Error`** (**`ErrorType`** + code + detail). Union cases: `T` and `Violation` |
+| Q-3 | `default(Result)` | **`Error.Uninitialized`** (type `Internal`, code `Result.Uninitialized`) for both `Result<T>` and `Result` |
+| Q-4 | combinators | no preference → the proposal: Map, Bind, Ensure, Tap, TapFailure, Match, GetValueOrDefault, GetValueOrThrow, ToResult, Combine, Sequence; `switch` documented first; no `Switch`, no `Task` overloads; `*Async` are `ValueTask` only with `CancellationToken`. Combining: `Invalid` + `Invalid` concatenates field errors, the first `Error` wins |
+| Q-5 | JSON / problem details | as proposed: AOT-safe envelope `{"value":…}` / `{"failure":{"kind":…}}` and `ErrorType` as string in `Tarol.Results`; pure `ToHttpStatusCode()`; problem-details mapping in a later web package (no ASP.NET Core dependency) |
+| Q-6 | `IResult` | **removed** |
+| Q-7 | analyzer | **yes, in this PR**, bundled in `Tarol.Results` |
 
 ## 7. Changes against Tarol
 
