@@ -27,6 +27,8 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
+    <!-- FakeTimeProvider: the test clock Tarol recommends instead of an ambient clock (docs/architecture/time.md). -->
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Benchmarks (tests/*/*.Benchmarks, never run in CI)">

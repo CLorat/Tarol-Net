@@ -15,20 +15,20 @@ Review material that stays authoritative until a family is migrated: `CLorat/Tar
 | 1 | StronglyTypedId | `Tarol.StronglyTypedId` (+ generator) | done: 79 tests, AOT smoke 0 IL warnings, package verified; see [stronglytypedid.md](stronglytypedid.md) |
 | 2 | Results | `Tarol.Results` (+ analyzers) | done: non-boxing C# 15 `[Union]` shape (D-9 measured), `Invalid` \| `Error` violations, 141 tests, AOT smoke 0 IL warnings, package verified; see [results.md](results.md) |
 | 3 | Options | `Tarol.Options` (+ analyzer); `Tarol.Results` depends on it (owner revised Q-6 after PR #5) | done: `[Union]` struct `T` \| `None` (candidates A–E measured), analyzer TOPT001–TOPT004, AOT smoke 0 IL warnings, both packages verified with their own skill; see [options.md](options.md) |
-| 4 | Kernel | `Tarol.Kernel` (Kernel, Clock, Contexts, Security grouped where it makes sense or eases testing; D-7) | next |
-| 5 | Validations | `Tarol.Validations` (+ Value and Invariant generators), Prerequisites | |
-| 6 | Domain core | `Tarol.Primitives` (+ generator) | |
+| 4 | Kernel | `Tarol.Kernel` (+ analyzer): `Actor`, `OperationContext`, `Id<ITenant/ICorrelation/ICausation>`; no clock (inject `TimeProvider`); Security designed, built in step 10 (D-7) | done: concept notes `docs/architecture/{time,identity-context,tracing,security}.md`, clock isolation proved, TKRN001, 47 tests, AOT smoke 0 IL warnings, package verified; see [kernel.md](kernel.md) |
+| 5 | Validations | `Tarol.Validations` (+ Value and Invariant generators), Prerequisites; time-dependent prerequisites take `now` (kernel.md §12) | next |
+| 6 | Domain core | `Tarol.Primitives` (+ generator); delete `DomainClock` and the `Timestamp` initializer, metadata slots typed with Kernel types, no `global using` (kernel.md §12) | |
 | 7 | Changes | `Tarol.Changes` (+ generator, ROADMAP Phase 3) | |
-| 8 | Persistence | `Tarol.Persistence`, `Tarol.Persistence.Npgsql` (ROADMAP Phase 2; Marten is not migrated) | |
-| 9 | Sagas | `Tarol.Sagas` (+ generator), `.Engine`, `.Testing`, `.Persistence.InMemory`; Npgsql store after step 8 | |
-| 10 | CQRS | after decision ROADMAP D-3 | |
-| 11 | Messaging | after decision ROADMAP D-6 | |
-| 12 | Paginations, Contexts, Security | small API seeds; decide per package | |
+| 8 | Persistence | `Tarol.Persistence`, `Tarol.Persistence.Npgsql` (ROADMAP Phase 2; Marten is not migrated); `RecordedAt` per commit, actor/tenant/correlation/causation per event, tenant in stream keys and filters (kernel.md §12) | |
+| 9 | Sagas | `Tarol.Sagas` (+ generator), `.Engine`, `.Testing`, `.Persistence.InMemory`; Npgsql store after step 8; injected `TimeProvider` instead of `SagaOptions.UtcNow`, `OperationContext` in outbox rows and messages (kernel.md §12) | |
+| 10 | CQRS | after decision ROADMAP D-3; context per command; **`Tarol.Security`** built here (security.md) | |
+| 11 | Messaging | after decision ROADMAP D-6; envelope from `OperationContext`, injected `TimeProvider`, tenant-scoped topic authorization (kernel.md §12) | |
+| 12 | Paginations | small API seed; decide then (Contexts went into Kernel in step 4; Security is built in step 10) | |
 | 13 | Samples | ArtFlow rebuilt on the migrated API | |
 | 14 | Templates | new template pack built and instantiated in CI | |
 
 Order follows the dependency graph of the old repository: StronglyTypedId has no Tarol dependency;
-Results, Kernel and Validations depend only on StronglyTypedId (Results only for a doc `cref`, which goes);
+Options and Results (which depends on Options), and Kernel (Options and StronglyTypedId) sit at the bottom; Validations depends only on StronglyTypedId;
 Primitives needs all of them; everything else needs Primitives.
 
 ## What is not migrated
@@ -110,7 +110,7 @@ Recommendations are applied in the foundation unless marked *open*.
 | D-4 | Versioning | MinVer 8 from `v*` tags (no version file); AssemblyVersion = major.0.0.0 |
 | D-5 | `TreatWarningsAsErrors` | always (local and CI) |
 | D-6 | PublicAPI analyzers | not yet; adopt (`PublicAPI.Shipped/Unshipped.txt`) before 1.0 so the first release is the baseline |
-| D-7 | Kernel / Clock / Contexts / Security | **decided by the owner:** group them into one `Tarol.Kernel` where that makes sense or makes testing easier; the split is settled in step 4 (e.g. an ambient clock that tests replace belongs with the markers) |
+| D-7 | Kernel / Clock / Contexts / Security | **decided by the owner:** group them into one `Tarol.Kernel` where that makes sense or makes testing easier; the split is settled in step 4 (e.g. an ambient clock that tests replace belongs with the markers). **Settled in step 4:** Contexts → `Tarol.Kernel` (`OperationContext`, `Actor`); Clock dropped (inject `TimeProvider`, TKRN001); Security designed, built as `Tarol.Security` in step 10; see [kernel.md](kernel.md) |
 | D-8 | Meta-package `Tarol` | not now; reconsider when step 9 is done. A meta-package must reference its dependencies so that analyzers flow (verify then) |
 | D-9 | Snapshot tests | keep the in-repo harness from Tarol PR #24; Verify needs a licence/sponsorship MSBuild claim (SC021) that only the owner can make |
 | D-10 | Generator packaging | inside the runtime package (ROADMAP D-10), verified per family |

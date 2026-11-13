@@ -1,0 +1,75 @@
+Probes for step 4 (Kernel), SDK 11.0.100, .NET 11.0.0, linux-x64, 4 cores, 2026-11-13.
+Copy a probe folder outside the repository, rename <name>.csproj.txt to <name>.csproj and run the command.
+
+== isolation (xUnit v3 4.0.3 on MTP, default parallelism; `dotnet run`, 3 runs)
+RESULT events=279083 staticPolluted=279083 ambientPolluted=0
+RESULT events=214217 staticPolluted=214217 ambientPolluted=0
+RESULT events=238585 staticPolluted=238585 ambientPolluted=0
+RESULT set-in-constructor: ctor=2000 test=2000
+RESULT set-in-InitializeAsync(sync): test=2000
+RESULT set-in-InitializeAsync(async): test=2026
+RESULT leak T1 sets: 2000
+RESULT leak T2 reads: 2026
+RESULT leak T3 reads: 2026
+
+== flow (`dotnet run`; identical under `dotnet publish -c Release -r linux-x64 -p:Aot=true`: 0 IL warnings, native=True, 15/15 ok)
+ok   same method after await                                        fake
+ok   Task.Run                                                       fake
+ok   ConfigureAwait(false) continuation                             fake
+ok   Task.Factory.StartNew(LongRunning)                             fake
+ok   Parallel.For body                                              fake
+ok   Timer created inside the scope                                 fake
+ok   Timer created BEFORE the scope                                 system
+ok   loop started BEFORE the scope (Task.Run)                       system
+ok   ThreadPool.UnsafeQueueUserWorkItem                             system
+ok   Task.Run under ExecutionContext.SuppressFlow                   system
+ok   FakeTimeProvider timer callback (Advance)                      fake
+ok   BackgroundService started inside the scope                     fake
+ok   after the scope is disposed                                    system
+ok   set inside an awaited async helper, read by the caller         system
+ok   set inside a sync helper, read by the caller                   fake
+
+== bench (BenchmarkDotNet 0.16.0-preview.2, ShortRun: compare ratios, not nanoseconds)
+| Method                          | Mean      | Ratio | Allocated |
+| DateTimeOffset_UtcNow           | 31.079 ns |  1.00 |         - |
+| TimeProvider_System             | 33.312 ns |  1.07 |         - |
+| Injected_System                 | 31.499 ns |  1.01 |         - |
+| Static_Field_DomainClock        | 31.812 ns |  1.02 |         - |
+| Ambient_Unset_FallsBackToSystem | 41.341 ns |  1.33 |         - |
+| Ambient_Set_Fake                | 57.411 ns |  1.85 |         - |
+| Injected_Fake                   | 55.297 ns |  1.78 |         - |
+| AsyncLocal_Read_Only            |  4.602 ns |  0.15 |         - |
+| AsyncLocal_SetAndReset_Scope    | 38.726 ns |  1.25 |      72 B |
+
+== authz (`dotnet publish -c Release -r linux-x64 -p:Aot=true`: 0 IL warnings; then ./out/authz)
+ok   native
+ok   seller may cancel
+ok   other user: Error.Forbidden
+ok   anonymous: Error.Unauthorized
+ok   other tenant: Error.NotFound (no existence leak)
+ok   invariant after permission: Error.Conflict
+ok   saga system actor on behalf of alice may cancel
+ok   IAuthorizationService (no web host): seller succeeds
+ok   IAuthorizationService (no web host): bob -> Forbidden
+ok   IAuthorizationService: unauthenticated -> Unauthorized
+     {"eventId":"01a1d4c7-6600-7dda-b205-36372f316a9a","recordedAt":"2026-11-13T12:00:00+00:00","actor":{"kind":"System","id":"Sagas.AuctionTimeout","onBehalfOf":"alice"},"tenant":{"value":"t1"},"correlationId":"01a1d5f3-cbf2-7326-8da3-48a67232fffb","causationId":"01a1d5f3-cbf2-7da4-ba7a-c16a86a9a20a","traceParent":"00-0f1c292a0b5dce5b383fc3bb9c7a62e4-698734cecb680cf9-03"}
+ok   metadata JSON round-trips (actor, Option tenant, traceparent)
+ok   traceparent is W3C (00-<32 hex>-<16 hex>-<flags>)
+ok   absent tenant/trace are null in JSON
+ok   ActivitySource without listener returns null (no trace id)
+ALL CHECKS PASSED
+First run without [JsonSerializable(typeof(TenantId))]: NotSupportedException "JSON metadata for 'TenantId' (the value of an
+Option) was not found. Add [JsonSerializable(typeof(TenantId))] to your JsonSerializerContext." (the documented Option rule).
+
+== web (Minimal API, CreateSlimBuilder, no OpenTelemetry; `dotnet run -- <log level>`)
+[Information] seller                       204 actor=user:alice; activity=ed4f67134c2434cd24cbe595938a2f64 (parent=-)
+[Information] other user                   403 actor=user:bob; activity=3df885ba8aa3f2dd8cbe8deb6b05995d (parent=-)
+[Information] anonymous                    401 actor=anonymous; activity=a597f5082b98f99474bdc0786022b200 (parent=-)
+[Information] incoming traceparent         204 actor=user:alice; activity=4bf92f3577b34da6a3ce929d0e0e4736 (parent=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01)
+[Warning] seller                           204 actor=user:alice; activity=0cf951a8c4d26a68622aba869b1ee94d (parent=-)
+[Warning] incoming traceparent             204 actor=user:alice; activity=4bf92f3577b34da6a3ce929d0e0e4736 (parent=00-4bf92f…-01)
+[None] seller                              204 actor=user:alice; activity=NO ACTIVITY
+[None] incoming traceparent                204 actor=user:alice; activity=NO ACTIVITY
+Native AOT (`-p:Aot=true`): 0 IL warnings. Without AddProblemDetails() the first Results.Problem(...) throws at run time:
+  System.NotSupportedException: JsonTypeInfo metadata for type 'Microsoft.AspNetCore.Mvc.ProblemDetails' was not provided by TypeInfoResolver of type '[]'.
+With PROBE_PROBLEMDETAILS=1 (builder.Services.AddProblemDetails()): 204 / 403 / 401 / 204 as under JIT.
