@@ -23,6 +23,8 @@ command given), **[unverified]** means not tried here. The probes are in [`probe
 | `diag/` | "must be handled": compiler diagnostics for A–E, struct and class, nullable enabled and disabled | `dotnet build` (warnings not errors) |
 | `side/` | the same code for `int`, `Guid`, `Id<User>`, `string`, `User` in A, C and E, compiled with warnings as errors; candidate B with one name per operation (`BSame.cs`) | `dotnet build` |
 | `repo/` | raw Npgsql parameters and readers, event payloads in `jsonb` (old `T?` events read as `Option<T>` and back), EF Core 10 converters and LINQ; needs a PostgreSQL on port 55432 | `dotnet run` |
+| `query/` | query results: EF Core projection of `T?` columns into an `Option<T>` DTO; needs a PostgreSQL on port 55432 | `dotnet run` |
+| `openapi/` | OpenAPI schema of `Option<T>` properties with and without a schema transformer, JIT and Native AOT | `dotnet run [-p:Fix=true]`; `dotnet publish -c Release -r linux-x64 -p:Aot=true -p:Fix=true` |
 | `web/` | Minimal API binding (`int?` vs `Option<int>`), configuration binding (reflection and source-generated binder), JSON in a web app; JIT and Native AOT | `dotnet run`, `dotnet publish -c Release -r linux-x64`; switches `-p:OptParam=true`, `-p:OptCfg=true`, `-p:EnableConfigurationBindingGenerator=false` |
 | `bench/` | BenchmarkDotNet 0.16.0-preview.2, `ShortRun` | `dotnet run -c Release -- --filter '*'` |
 
@@ -321,10 +323,16 @@ section covers why it failed then, and what C does at each edge, measured agains
 | Minimal API parameters, configuration binding | see §3.8: 400 / silently `None` / non-compiling generated binder | `T?` at those edges |
 | AOT of the Npgsql parts | — | **[unverified]** here; Npgsql itself supports AOT with the slim builder; nothing Option-specific is involved because only `T`/`DBNull` reach Npgsql |
 
-**Rule that follows:** *`Option<T>` in the domain, in handlers and in messages/events (JSON); `T?` at the storage and
-transport edges that bind by reflection or by column type (SQL parameters and columns, ORM entities, query strings,
-configuration).* The conversion at the edge is one call (`ToOption()` / `ToNullable()`), and the README and skill
-state this rule. The edges in Tarol's plan are the Npgsql store and JSON, and both work.
+**Rule that follows** (revised in round 3, §7): *`Option<T>` everywhere user code is written: aggregate and entity
+properties, events, DTOs, query results. Tarol's own Npgsql store (step 8) maps `Option<T>` properties to nullable
+columns, generated, so the aggregate defines the database without `T?`. `T?` stays only at framework edges that cannot
+read an option: Minimal API query/route parameters, configuration classes, and raw Npgsql outside Tarol's store.*
+EF Core is not used (owner, round 3), so its limits above do not apply.
+
+**Query results** (`query/`, **[verified]**, PostgreSQL 16, EF Core 10 as the example of a mapper that only knows `T?`):
+`Select(r => new PersonView(r.Id, r.Nick.ToOption(), r.Age.ToOption()))` generates plain
+`SELECT "Id", "Nick", "Age"` and converts after reading (`Some(ada) Some(36)`, `None None`); filtering on the `T?`
+column (`Where(r => r.Age > 30)`) is translated; `(await q.FirstOrDefaultAsync()).ToOption()` gives `None` for no row.
 
 **One more trap found here** (`probe/Trap.cs`, **[verified]**): `Option<int> F(bool b, int v) => b ? v : default;`
 returns **`Some(0)`** for `b == false`. The conditional has the natural type `int`, so `default` is `0`, and only then is
@@ -345,6 +353,23 @@ that reaches an implicit `T → Option<T>` / `T → Result<T>` conversion.
 **The Primitives `global using`** is not replaced. A library does not export global usings: `global using` in
 Primitives only affected Primitives. When Primitives is migrated (step 6), it imports `Tarol.Results` where it uses
 `Result` or `Option`.
+
+### 3.11 OpenAPI (round 3) **[verified]** (`openapi/`, `Microsoft.AspNetCore.OpenApi` 11.0.0, JIT and Native AOT)
+
+ASP.NET Core builds schemas from the JSON contract, but it cannot see through a custom converter:
+
+| | Without a transformer | With `OptionSchema : IOpenApiSchemaTransformer` |
+|---|---|---|
+| `Option<string>` | `OptionOfstring`: an empty schema (any value) that only carries the XML doc text | `oneOf: [{"type":"string"}, {"type":"null"}]` |
+| `Option<int>` | empty | `oneOf: [{integer, int32}, {"type":"null"}]` |
+| `Option<Address>` | empty; `Address` itself is **missing** from `components` | `oneOf: [{"$ref":"#/components/schemas/Address"}, {"type":"null"}]`, `Address` listed |
+| `required` of the DTO | `id`, `nickname`, `age`, `address` (positional record parameters) | `id` only: a missing property is `None` |
+| Native AOT | — | 0 IL warnings, output identical to JIT |
+
+The transformer is about 25 lines (`openapi/Program.cs`): for `Option<T>` it sets `oneOf` to `T`'s schema
+(`context.GetOrCreateSchemaAsync(typeof(T))`) and `null`; for any object it removes `Option` properties from
+`required`. It needs `Microsoft.AspNetCore.OpenApi`, so it cannot ship in `Tarol.Results` (no dependencies). It belongs
+in the later web package (with problem details and `Option<T>` parameter binding); until then the README points here.
 
 ## 4. Proposed API (candidate C)
 
@@ -472,6 +497,11 @@ PostgreSQL 16). It also found the `? : default` trap, which affects `Result<T>` 
 | Q-4 | API surface | `switch` first; `IsSome`/`IsNone`, `TryGetValue`, `GetValueOrThrow`, `GetValueOrDefault`, `Map`, `Bind`, `Filter`, `Match`, `ToResult`, `ToOption`, `ToNullable`; **no async** in the first version | **as recommended** |
 | Q-5 | JSON contract | null contract (wire = `T?`), absent property = `None`, `WhenWritingDefault` omits; fallback metadata for primitives | **as recommended** |
 | Q-6 | where it lives | **inside `Tarol.Results`** | **inside `Tarol.Results`** |
+
+Round 3: the owner's main use is aggregate/entity properties and query results, and aggregates should define the
+database, so "`T?` at the edges" for storage was the wrong rule. Owner: **no EF Core**; **keep `Option<T>`**. The rule
+in §3.9 is revised: Tarol's Npgsql store (step 8) must map `Option<T>` properties to nullable columns itself. OpenAPI
+was measured (§3.11): it needs a schema transformer, which goes into the later web package.
 
 Round 2 also recorded the rule that follows from Q-1: `Option<T>` in the domain, handlers, DTOs and events; `T?` at
 SQL parameters and columns, ORM entities, query strings and configuration, converted with `ToOption()` / `ToNullable()`.
@@ -607,8 +637,9 @@ Status: checklist written; **not yet run** (needs a model-evaluation harness out
 
 ## 12. Open items
 
-* **Npgsql helpers** (`GetOption<T>(ordinal)`, a parameter helper) belong in the Npgsql package (step 8), with
-  `Option<T>` fields in events covered by its integration tests.
+* **Step 8 requirement:** the Npgsql store maps `Option<T>` aggregate properties to nullable columns (generated, AOT), with
+  `GetOption<T>(ordinal)` / parameter helpers, and integration tests for `Option<T>` in rows and in events.
+* **OpenAPI schema transformer** for `Option<T>` (§3.11): the later web package.
 * **Minimal API binding** of `Option<T>` parameters (a `TryParse`/`BindAsync` story) and problem details: a later web package.
 * **Statement `switch`** without the `None` case stays silent (also for `Result`); documented, no rule (§3.1).
 * **`Option<T>?` / `Option<Option<T>>`**: no rule (Q-2 chose three rules plus Q-2b); the JSON collapse is documented.

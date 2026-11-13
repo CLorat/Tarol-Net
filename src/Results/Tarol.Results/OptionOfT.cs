@@ -30,8 +30,8 @@ namespace Tarol.Results;
 /// <c>default(Option&lt;T&gt;)</c> is <see cref="None"/>. Size: the value plus a flag (8 bytes for
 /// <c>Option&lt;int&gt;</c>, 16 for <c>Option&lt;string&gt;</c>). JSON: the value, or <c>null</c> for
 /// <see cref="None"/>, the same as <c>T?</c> (see <see cref="OptionJsonConverter{T}"/>).
-/// Keep <c>T?</c> at edges that bind by reflection or by column type (SQL parameters and columns, ORM entities,
-/// query strings, configuration) and convert with <see cref="OptionExtensions.ToOption{T}(T)"/> and
+/// Bind <c>T?</c> only where a framework cannot read an option (Minimal API query/route parameters, configuration
+/// classes, raw Npgsql parameters) and convert with <see cref="OptionExtensions.ToOption{T}(T)"/> and
 /// <see cref="OptionExtensions.ToNullable{T}(Option{T})"/>.
 /// </para>
 /// </remarks>

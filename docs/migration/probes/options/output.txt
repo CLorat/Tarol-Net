@@ -258,3 +258,84 @@ Option<string> F(bool b, string v) => b ? v : default;  F(false, "a") -> THROWS 
 Result<int> F(bool b, int v) => b ? v : default;  F(false, 5) -> Success 0
 Option<int> F(int? v) => v ?? default;  F(null) -> Some 0
 diag/Trap.cs: only T3 (reference type) has a diagnostic: CS8604; T1, T4, T5 are silent
+
+## query/ (PostgreSQL 16, EF Core 10; dotnet run)
+Select(r => new PersonView(r.Id, r.Nick.ToOption(), r.Age.ToOption())) -> 1: Some(ada) Some(36); 2: None None
+SQL: SELECT p."Id", p."Nick", p."Age" FROM "People" AS p
+filter on the T? column, project to Option: Where(r => r.Age > 30) -> 1: Some(ada)
+FirstOrDefaultAsync(...) then ToOption() for a single lookup -> None
+
+## openapi/ with -p:Fix=true (JIT; Native AOT: 0 IL warnings, identical output)
+{
+  "Address": {
+    "required": [
+      "city"
+    ],
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string"
+      }
+    }
+  },
+  "OptionOfAddress": {
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/Address"
+      },
+      {
+        "type": "null"
+      }
+    ]
+  },
+  "OptionOfint": {
+    "oneOf": [
+      {
+        "pattern": "^-?(?:0|[1-9]\\d*)$",
+        "type": [
+          "integer",
+          "string"
+        ],
+        "format": "int32"
+      },
+      {
+        "type": "null"
+      }
+    ]
+  },
+  "OptionOfstring": {
+    "oneOf": [
+      {
+        "type": "string"
+      },
+      {
+        "type": "null"
+      }
+    ]
+  },
+  "Profile": {
+    "required": [
+      "id"
+    ],
+    "type": "object",
+    "properties": {
+      "id": {
+        "pattern": "^-?(?:0|[1-9]\\d*)$",
+        "type": [
+          "integer",
+          "string"
+        ],
+        "format": "int32"
+      },
+      "nickname": {
+        "$ref": "#/components/schemas/OptionOfstring"
+      },
+      "age": {
+        "$ref": "#/components/schemas/OptionOfint"
+      },
+      "address": {
+        "$ref": "#/components/schemas/OptionOfAddress"
+      }
+    }
+  }
+}

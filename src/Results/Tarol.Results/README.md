@@ -93,10 +93,16 @@ Rules:
 * `Option.Some(null)` and `Option<string> o = (string?)null` throw `ArgumentNullException` (CS8604 warns first);
   `T?.ToOption()` maps `null` to `None`. `Option<string?>` and `Option<int?>` are CS8714.
 * Test the case, not null: `o is User u`, `o is None`, `o.IsSome`. `o is { }` and `o != null` are always true (TRES004).
-* **Keep `T?` at the edges that bind by reflection or by column type**, and convert there with `ToOption()` /
-  `ToNullable()`. A Minimal API `Option<int>` parameter is inferred as the body (400 on GET). The configuration binder
-  leaves an `Option<int>` property `None`, and the source-generated binder does not compile. Npgsql does not accept an
-  `Option` as a parameter or a column type, and EF Core cannot map a struct `Option` to a `NULL` column.
+* Use `Option<T>` for aggregate and entity properties, events, DTOs and query results. Tarol's own store maps it to a
+  nullable column (the planned Npgsql store, step 8); events and DTOs use the JSON contract below.
+* Three framework edges do not understand `Option<T>`. Bind `T?` there and convert with `ToOption()` / `ToNullable()`:
+  * a Minimal API query or route parameter: an `Option<int>` parameter is inferred as the body (400 on GET);
+  * an `IOptions<T>` configuration class: the binder leaves an `Option<int>` property `None`, and the source-generated
+    binder does not compile;
+  * raw Npgsql parameters and readers outside Tarol's store: Npgsql does not accept an `Option` as a parameter or a
+    column type.
+* OpenAPI: ASP.NET Core describes `Option<T>` as an empty, required schema. Register a schema transformer that
+  describes it as `T` or `null` and not required (see `docs/migration/options.md` §3.11).
 
 ```csharp
 app.MapGet("/users", (int? page) => List(page.ToOption()));

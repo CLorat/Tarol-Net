@@ -41,7 +41,7 @@ public static class OptionExtensions
     public static Option<T> ToOption<T>(this T? value)
         where T : struct => value.HasValue ? new Option<T>(value.Value) : default;
 
-    /// <summary>The option as a reference that may be <see langword="null"/>, for edges that bind <c>T?</c> (SQL parameters, ORM fields, configuration).</summary>
+    /// <summary>The option as a reference that may be <see langword="null"/>, for edges that bind <c>T?</c> (raw SQL parameters, configuration).</summary>
     /// <typeparam name="T">The reference type.</typeparam>
     /// <param name="option">The option.</param>
     /// <returns>The value, or <see langword="null"/> for <see cref="None"/>.</returns>
@@ -56,7 +56,7 @@ public static class OptionExtensions
 /// </summary>
 public static class OptionValueTypeExtensions
 {
-    /// <summary>The option as a nullable value type, for edges that bind <c>T?</c> (SQL parameters, ORM fields, configuration).</summary>
+    /// <summary>The option as a nullable value type, for edges that bind <c>T?</c> (raw SQL parameters, configuration).</summary>
     /// <typeparam name="T">The value type.</typeparam>
     /// <param name="option">The option.</param>
     /// <returns>The value, or <see langword="null"/> for <see cref="None"/>.</returns>

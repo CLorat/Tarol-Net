@@ -3,7 +3,7 @@ name: tarol-options
 description: >-
   Use when a value may be absent in code that uses Tarol.Results: returning or consuming Option<T> instead of T? or null,
   creating Some/None, switching over T | None, Map/Bind/Filter/GetValueOrDefault, converting to and from Result<T> or T?,
-  Option fields in DTOs and events (JSON), and the edges where T? stays (SQL, EF, Minimal API, configuration).
+  Option properties in aggregates, DTOs, events and query results (JSON), and the few edges where T? stays (Minimal API parameters, configuration, raw Npgsql).
   Covers Option<T>, Option, None, OptionExtensions, OptionValueTypeExtensions and TRES003-TRES006. Do not decompile
   the assembly or search the web for Tarol.Options: that package and its T?-extensions (IsSome on every type, int.Some,
   User.None, Or) no longer exist; Option<T> lives in Tarol.Results.
@@ -27,9 +27,9 @@ description: >-
    `Option<string?>` and `Option<int?>` are CS8714: use `Option<string>` / `Option<int>`.
 7. Absence that is a failure (`GetById`) is a `Result<T>`: `option.ToResult(Error.NotFound("User.NotFound"))`.
    `result.ToOption()` goes back and drops the violation.
-8. **Keep `T?` at edges that bind by reflection or by column type** and convert there with `ToOption()` / `ToNullable()`:
-   SQL parameters and readers, EF Core entities, Minimal API query/route parameters, configuration (`IOptions<T>`)
-   classes. Use `Option<T>` in the domain, handlers, DTOs and events.
+8. Use `Option<T>` for aggregate and entity properties, events, DTOs and query results. Bind `T?` only where a
+   framework cannot read `Option<T>`, and convert there with `ToOption()` / `ToNullable()`: Minimal API query/route
+   parameters, configuration (`IOptions<T>`) classes, and raw Npgsql parameters/readers outside Tarol's store.
 9. Prefer `switch` to `Match`: a capturing lambda allocates on every call. No async combinators: `await`, then switch.
 
 ## Minimal correct example
@@ -77,7 +77,7 @@ Option<int> age = reader.IsDBNull(3) ? Option.None : reader.GetFieldValue<int>(3
 | `(Option<int> page)` as a Minimal API parameter | inferred as the body: 400 on GET; bind `int?` and call `ToOption()` |
 | `Option<int>` property in an `IOptions<T>` class | reflection binder leaves it `None`; source-generated binder does not compile; use `int?` |
 | `Value = option` on a `DbParameter`, `GetFieldValue<Option<int>>` | `InvalidCastException` from Npgsql; use `ToNullable()` / `IsDBNull` |
-| EF Core `ValueConverter<Option<T>, T?>` | `None` violates the NOT NULL column; EF cannot make a struct property optional. Map a private `T?` field |
+| OpenAPI document for a DTO with `Option<T>` | an empty, required schema; register the Option schema transformer (`T` or `null`, not required) |
 
 ## JSON
 
