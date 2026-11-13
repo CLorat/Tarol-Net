@@ -124,10 +124,55 @@ public class ResultAnalyzerTests
     }
 
     [Fact]
+    public async Task TRES003_Should_NotReport_OptionValue()
+    {
+        // Option<T>.Value is TOPT001 in Tarol.Options; the Result analyzer must not report it twice.
+        var diagnostics = await AnalyzerTestHost.Analyze("""
+            class C
+            {
+                object A(Tarol.Options.Option<int> o) => o.Value;
+            }
+            """);
+
+        diagnostics.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task TRES005_Should_Report_IgnoredTryGetValue()
+    {
+        var diagnostics = await AnalyzerTestHost.Analyze("""
+            class C
+            {
+                int A(Result<int> r) { r.TryGetValue(out int v); return v; }
+                int B(Result<int> r) => r.TryGetValue(out int v) ? v : 0;
+                int D(Tarol.Options.Option<int> o) { o.TryGetValue(out int v); return v; }
+            }
+            """);
+
+        diagnostics.ShouldBe(["TRES005 3"]);
+    }
+
+    [Fact]
+    public async Task TRES006_Should_Report_DefaultThatBecomesASuccess()
+    {
+        var diagnostics = await AnalyzerTestHost.Analyze("""
+            class C
+            {
+                Result<int> A(bool b, int v) => b ? v : default;
+                Result<int> B(int? v) => v ?? default;
+                Result<int> D(bool b, int v) => b ? v : Error.NotFound("x");
+                Tarol.Options.Option<int> E(bool b, int v) => b ? v : default;
+            }
+            """);
+
+        diagnostics.ShouldBe(["TRES006 3", "TRES006 4"]);
+    }
+
+    [Fact]
     public async Task Analyzer_Should_DoNothing_WithoutTarolResults()
     {
         var analyzer = new ResultAnalyzer();
-        analyzer.SupportedDiagnostics.Select(static d => d.Id).ShouldBe(["TRES001", "TRES002", "TRES003"]);
+        analyzer.SupportedDiagnostics.Select(static d => d.Id).ShouldBe(["TRES001", "TRES002", "TRES003", "TRES005", "TRES006"]);
         (await AnalyzerTestHost.Analyze("class Plain { void M() { } }")).ShouldBeEmpty();
     }
 }

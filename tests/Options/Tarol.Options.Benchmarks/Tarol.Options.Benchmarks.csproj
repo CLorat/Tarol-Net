@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    BenchmarkDotNet comparison of Option<T> against T?. Built with the solution, never run in CI. Run:
+      dotnet run -c Release -project tests/Options/Tarol.Options.Benchmarks - -filter '*'
+    (double the dashes). Results for SDK 11.0.100: docs/migration/options.md §3.4.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Options/Tarol.Options/Tarol.Options.csproj" />
+    <ProjectReference Include="../../../src/Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+</Project>

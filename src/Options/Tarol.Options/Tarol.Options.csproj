@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Option&lt;T&gt;: a value that may be absent, as a non-boxing C# 15 union of T and None with the same API for value and reference types, exhaustive pattern matching, conversions to and from T? and an AOT-safe JSON contract (the value or null). No dependencies. Native-AOT ready.</Description>
+    <PackageTags>tarol;option;maybe;union;ddd;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- D-10: the Option analyzer (TOPT001-TOPT004) ships inside this package (analyzers/dotnet/cs). -->
+    <ProjectReference Include="../Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

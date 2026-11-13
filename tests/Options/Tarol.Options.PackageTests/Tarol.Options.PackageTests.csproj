@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Options package alone (no ProjectReference, no Tarol.Results). Proves that the package
+    works without Results and that its bundled analyzer reaches a package consumer. Not part of Tarol.slnx: run by
+    eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Options" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <!-- The Option analyzer must reach the compiler from analyzers/dotnet/cs of the package; Results must not come along. -->
+  <Target Name="TarolCheckOptionsAnalyzer" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolOptionsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Options.Generators'" />
+      <_TarolResultsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Results.Generators'" />
+      <_TarolResultsAssembly Include="@(ReferencePath)" Condition="'%(Filename)' == 'Tarol.Results'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolOptionsAnalyzer)' == ''" Text="The Tarol.Options analyzer (Tarol.Options.Generators.dll) did not reach the compiler." />
+    <Error Condition="'@(_TarolResultsAnalyzer)@(_TarolResultsAssembly)' != ''" Text="Tarol.Options must not bring Tarol.Results along." />
+    <Message Importance="high" Text="Tarol.Options analyzer: @(_TarolOptionsAnalyzer)" />
+  </Target>
+</Project>

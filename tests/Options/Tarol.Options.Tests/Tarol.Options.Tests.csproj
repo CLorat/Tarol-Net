@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Options/Tarol.Options/Tarol.Options.csproj" />
+    <!-- Analyzer project references do not flow: reference the bundled analyzer like a package consumer gets it. -->
+    <ProjectReference Include="../../../src/Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

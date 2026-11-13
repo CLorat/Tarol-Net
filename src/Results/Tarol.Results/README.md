@@ -9,7 +9,7 @@ Results without exceptions. `Result<T>` is either the value or a `Violation`, an
 
 Both result types are C# 15 unions written by hand. They hold the value plus one reference (`Result<int>` is 16 B,
 `Result<Guid>` 24 B, `Result` 8 B). Pattern matching does not box, and a `switch` is exhaustive: a missing arm is CS8509.
-Native-AOT ready. The package has no dependencies.
+Native-AOT ready. The only dependency is `Tarol.Options` (`Option<T>`).
 
 ## Install
 
@@ -58,6 +58,19 @@ Result<Receipt> receipt = await repository.GetById(id, ct)
   `GetValueOrThrow()` (TRES003).
 * Prefer a `switch` to `Match`: a capturing lambda allocates on every call.
 
+## Option&lt;T&gt;
+
+`Option<T>` (a value that may be absent) is in its own package, `Tarol.Options`, which this package depends on.
+`Tarol.Results` adds the two conversions:
+
+```csharp
+using Tarol.Options;
+using Tarol.Results;
+
+Result<User> found = FindByEmail(email).ToResult(Error.NotFound("User.NotFound"));   // absence as a failure
+Option<User> back = found.ToOption();                                                // and back (drops the violation)
+```
+
 ## JSON
 
 The contract is fixed and works with the source generator and Native AOT:
@@ -84,10 +97,14 @@ partial class AppJson : JsonSerializerContext;
 | TRES001 | Error | `Result<Violation>`, `Result<Error>`, `Result<object>`, `Result<Result<…>>`: value and failure cannot be told apart |
 | TRES002 | Warning | a discarded `Result` / `Task<Result…>` / `ValueTask<Result…>` (`repository.Save(x);`); use `_ =` to discard on purpose |
 | TRES003 | Warning | reading the untyped `result.Value` |
+| TRES005 | Warning | `result.TryGetValue(out var v);` as a statement: the result is ignored, `v` may be `default` |
+| TRES006 | Warning | `found ? value : default` / `value ?? default` converted to `Result<T>`: becomes `Success(0)` |
+
+The Option rules (TOPT001-TOPT004) come with `Tarol.Options`. There is no TRES004 (it became TOPT002).
 
 ## More
 
-* Agent skill: `skills/tarol-results/SKILL.md` (in the package)
-* Design, measurements and migration from Tarol: `docs/migration/results.md` in the repository
+* Agent skill: `skills/tarol-results/SKILL.md` (in the package); `tarol-options` ships with `Tarol.Options`
+* Design, measurements and migration from Tarol: `docs/migration/results.md` and `docs/migration/options.md` in the repository
 
 Licence: proprietary, see `LICENSE`.

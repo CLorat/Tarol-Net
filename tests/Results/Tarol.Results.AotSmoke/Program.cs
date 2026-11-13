@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Tarol.Options;
 using Tarol.Results;
 using Tarol.Results.AotSmoke;
 
@@ -55,6 +56,10 @@ Check("JSON round-trips all three", RoundTrip(user) == user && RoundTrip(invalid
 Check("JSON non-generic Result", JsonSerializer.Serialize(Result.Success(), SmokeJson.Default.Result) == """{"success":true}"""
     && JsonSerializer.Deserialize(JsonSerializer.Serialize((Result)Error.Gone("g"), SmokeJson.Default.Result), SmokeJson.Default.Result) == Result.Failure(Error.Gone("g")));
 Check("JSON without Violation in the context (package metadata)", JsonSerializer.Serialize(Result<int>.Failure(Error.Timeout("t")), IntOnlyJson.Default.ResultInt32) == """{"failure":{"kind":"error","type":"Timeout","code":"t"}}""");
+
+// ---- Option<T> conversions (Option<T> itself is smoke-tested in Tarol.Options.AotSmoke)
+Check("Option to Result and back", default(Option<User>).ToResult(Error.NotFound("User.NotFound")) is Error { Code: "User.NotFound" }
+    && Option.Some(new User("Ada")).ToResult(static () => Error.NotFound("x")) is User { Name: "Ada" } && Result.Success(3).ToOption() == Option.Some(3));
 
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;

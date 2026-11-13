@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Analyzer for Tarol.Options (TOPT001-TOPT004). Settings inherited from src/Directory.Build.props
+       (TarolIsGenerator): netstandard2.0, Roslyn component, packed into Tarol.Options, never on its own. -->
+</Project>
