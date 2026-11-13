@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion><TreatWarningsAsErrors>false</TreatWarningsAsErrors><NoWarn>IL2026</NoWarn>
+    
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../vo/Runtime.cs;../vo/Domain.cs" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
+    <PackageReference Include="Microsoft.Extensions.Validation" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+    <ProjectReference Include="$(TarolNetRepo)/src/Options/Tarol.Options/Tarol.Options.csproj" />
+    <ProjectReference Include="$(TarolNetRepo)/src/Results/Tarol.Results/Tarol.Results.csproj" />
+    <ProjectReference Include="$(TarolNetRepo)/src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+  </ItemGroup>
+</Project>

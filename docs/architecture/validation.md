@@ -216,9 +216,18 @@ of `Tarol.Primitives` (step 6) to know what an apply method is **[unverified]**.
     the pipeline is willing to throw away. Whether invariants are the *primary* check ("apply, then check") or an
     assertion behind guards decides whether a violation is a 409 for the user or a 500 for the developer.
 
+## Scope decisions (owner, round 1, 2026-11-13)
+
+| # | Question | Answer |
+|---|---|---|
+| S-1 | What is built in step 5 | **Value validation now** (rules, path composition, `Option`/`Id`/collection rules). Invariants and prerequisites are designed here and built in steps 6–7; prerequisites become guards in behaviour methods, reads live in handlers |
+| S-2 | Generator | the point of the old generator was to **protect the domain and declare each rule once, not repeat it in every input**. Asked again: the single declaration lives **on the value object**; for native types (`int`, `decimal`, `string`) the owner chose **struct value objects** (`readonly record struct Quantity([Range(1, 100)] int Value)`), **on condition** that repository serialization works and that arithmetic still works. Stage 2 verifies both conditions |
+| S-3 | Replay proof | a **minimal hand-written event-sourced aggregate** in the step 5 tests; step 6 repeats it on the real `AggregateRoot` and decides the analyzer |
+| S-4 | Pipeline order | **parse before load**: authenticate → coarse policy → parse input to value objects (400) → load (404) → permission (403) → behaviour guards (409) → apply → invariants → commit |
+
 ## Open questions
 
-These change the scope of step 5; they are asked before stage 2.
+Questions 1, 2, 3 and 7 below were answered in round 1 (table above); 4–6 are asked in stage 2.
 
 1. **What is built in step 5?** Only value validation (rule helpers, path composition, maybe a value-object factory
    generator), with invariants and prerequisites *designed* here and built where the aggregate is (steps 6–7)? Or all
