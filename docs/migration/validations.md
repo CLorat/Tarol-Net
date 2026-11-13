@@ -5,7 +5,7 @@ Origin: `CLorat/Tarol@6a62f81`: `src/Validations/{Validations,Validations.Value,
 `Validations.Prerequisite/` (repository root), `tests/Validations/*`. Old review: `docs/review/validations-and-changes.md`
 (findings 1–32, §2.3, §4, §7) and `docs/review/ROADMAP.md` Phase 3.
 
-**Status: evaluation (stage 2) done; the design decisions (§9) wait for the owner.**
+**Status: decisions taken (§9); implementation in progress.**
 
 The concept review is in [validation.md](../architecture/validation.md) (kinds of rules, where they run, what .NET 11
 provides, `Invalid` vs `Error`, paths, replay safety, new insights, the owner's scope answers S-1–S-4). This note does
@@ -225,6 +225,86 @@ Old event data that today's rules reject deserializes and keeps its values. The 
 call rules; `FromSnapshot` likewise) is proved in the implementation with a minimal hand-written event-sourced aggregate
 in the tests (S-3) and repeated on the real `AggregateRoot` in step 6.
 
+### 3.7 How it reads: one bounded context (owner's question in round 2)
+
+The concern: "I have to define value objects again and again." A value object is defined **once per concept per
+bounded context**, in one line, and then reused by every command, event and aggregate. ArtFlow's auction context:
+
+```csharp
+// ArtFlow.Domain/Values.cs: every rule of the context, one line per concept
+namespace ArtFlow;
+
+public readonly partial record struct Title([Length(3, 80)] string Value);
+public readonly partial record struct Description([Length(10, 1000)] string Value);
+public readonly partial record struct PersonName([Length(3, 60)] string Value);
+public readonly partial record struct Email([Email] string Value);
+public readonly partial record struct Money([Range(Min = 0)] decimal Amount, Currency Currency);
+```
+
+```csharp
+// commands: no rule repeated, the types say it
+public sealed partial record CreateArtwork(Id<ArtWork> Id, Title Title, Description Description, Id<Expert> Expert) : IValidatable;
+public sealed partial record RenameArtwork(Id<ArtWork> Id, Title Title) : IValidatable;
+public sealed partial record RegisterBidder(Id<Bidder> Id, PersonName Name, Email Contact) : IValidatable;
+public sealed partial record RegisterExpert(Id<Expert> Id, PersonName Name, Email Contact) : IValidatable;
+public sealed partial record PlaceBid(Id<Auction> Auction, Id<Bidder> Bidder, Money Amount) : IValidatable;
+
+// events: the same types; old data always loads (trusting converter)
+public sealed record ArtworkCreated(Title Title, Description Description, Id<Expert> Expert);
+public sealed record BidPlaced(Id<Bidder> Bidder, Money Amount, DateTimeOffset At);
+
+// aggregate: state in value objects, so it cannot hold an unparsed string
+public partial class ArtWork : AggregateRoot<ArtWork>
+{
+    public Title Title { get; private set; }
+    public Result Rename(Title title) => title == Title ? Error.Conflict("Artwork.SameTitle") : Raise(new ArtworkRenamed(title));
+}
+
+// using it: strings appear only at the edge
+var title = Title.Create(request.Title);                    // Result<Title>
+if (title.Value.Length > 40) …                              // implicit to string: reads like a string
+string shown = artwork.Title;                               // no .Value needed
+```
+
+Counted for this context: **5 rule declarations** serve 5 commands, 2 events and 3 aggregates. With rules on DTOs
+(candidate a) the same rules appear **9 times** (`Title` twice, `PersonName` and `Email` twice each, …), and a change from
+80 to 100 characters must be found in every copy. What remains per concept is one line; the generator writes `Create`,
+the converter, the comparisons and the conversion.
+
+**Incidental limits** that are not a domain concept (page size, a search text) would need a value object each. An escape
+hatch is a rule on a primitive parameter of an `IValidatable` command (decision 1 asks):
+
+```csharp
+public sealed partial record SearchAuctions([Length(Max = 100)] string Text, [Range(1, 100)] int PageSize) : IValidatable;
+```
+
+### 3.8 Naming: the same kind of value with different rules (owner's question in round 2) **[verified]** (`naming/`)
+
+"A name for bidders, experts, artworks …; page sizes and search texts that differ per query: how do we name them?"
+
+1. **A different rule is a different concept; the namespace names it.** Put each value object next to its aggregate and
+   give it the plain name. `ArtFlow.Bidders.Name` (max 60) and `ArtFlow.Experts.Name` (max 120) coexist; inside
+   `Bidder`, a property `Name Name` and `Name.Create(…)` both resolve (C# "Color Color" rule), with warnings as errors.
+   Code that uses both writes `Experts.Name` through a namespace alias. No `BidderName`/`ExpertName` prefixes.
+2. **The same rule is one shared type**, in the context's root namespace: `Email`, `Money`, `PersonName` when bidders
+   and experts really share the limit.
+3. **A limit that belongs to one request, not to the domain** (page size per query, a search text per endpoint) is not a
+   value object: it is a rule attribute on the primitive parameter of that `IValidatable` input. Queries are the read
+   side (step 10); their limits change with the screen, not with the model.
+
+```csharp
+namespace ArtFlow.Bidders;
+public readonly partial record struct Name([Length(3, 60)] string Value);
+public sealed partial record RegisterBidder(Id<Bidder> Id, Name Name, Email Contact) : IValidatable;
+
+namespace ArtFlow.Experts;
+public readonly partial record struct Name([Length(3, 120)] string Value);
+
+namespace ArtFlow.Auctions.Queries;
+public sealed partial record SearchAuctions([Length(Max = 100)] string Text, [Range(1, 50)] int PageSize) : IValidatable;
+public sealed partial record ListBids(Id<Auction> Auction, [Range(1, 500)] int PageSize) : IValidatable;   // other limit, no new type
+```
+
 ## 4. Invariants (designed here, built in step 6)
 
 | Shape | User code | Notes |
@@ -396,12 +476,19 @@ validation and its `[GenerateValidation]` goes. Step 6 decides whether `Value` s
 
 ## 9. Decisions for the owner
 
-Asked one per question with a recommendation; answers are recorded here and in validation.md.
+Asked in the session (2026-11-13), one question per decision with a recommendation. Round 1 (scope) is in
+[validation.md](../architecture/validation.md#scope-decisions-owner-round-1-2026-11-13). Round 2:
 
-1. Value validation mechanism and where it runs.
-2. Value-object declaration shape and custom rules.
-3. Invariants: shape, failure type.
-4. `Option`/`Id`/collections: required vs optional, missing `int`, path casing.
-5. Generator diagnostics and severities.
-6. Package layout, attribute names vs DataAnnotations.
-7. Replay enforcement: S-3 answered it (test now, analyzer decided in step 6); not asked again.
+| # | Decision | Owner's answer |
+|---|---|---|
+| V-1 | value validation mechanism | **(c)**: rules once on (struct) value objects, generated `Validate` on `IValidatable` inputs, run before load. Asked again after "I have to define value objects again and again": §3.7 example accepted; plus the **escape hatch** of rules on primitive parameters of an `IValidatable` input for per-request limits (§3.8) |
+| V-2 | value-object shape | **`readonly partial record struct X([Rule] T Value)`**, public constructor (JSON, replay, tests), **TVAL006** warns on `new X(…)` outside the type; custom rules in a user `static void Validate(T value, ref ValidationErrors errors)` that the generator calls after the attribute rules |
+| V-3 | invariants (built in step 6) | **I-3**: `[Invariant]` methods returning `Result`, aggregated into a generated `CheckInvariants()`; a violation is the rule's `Error` (usually `Error.Conflict`); the pipeline discards the instance |
+| V-4 | `Option`/`Id`/collections/paths | **the type decides**: `Option<T>` optional (rules on `Some`); every non-`Option` member required (`Id.Empty`, `null`/`default` string VO, `null` list or element → `Required`); a missing `int` VO reports its own rule; indexed paths; **C# member names**, the web package converts per segment with the JSON naming policy |
+| V-5 | diagnostics | **as proposed**: TVAL001–TVAL005 Error, TVAL006–TVAL008 Warning |
+| V-6 | package and names | **one `Tarol.Validations`** (bundled generator; depends on Results, Options, StronglyTypedId); attribute names **`Range`, `Length`, `Pattern`, `Email`, `NotEmpty`, `Count`** |
+| V-7 | naming convention | **value objects next to their aggregate with plain names** (`Bidders.Name`, `Experts.Name`), shared ones in the context root, per-request limits on primitive input parameters (§3.8) |
+| V-8 | replay enforcement | S-3: test with a minimal aggregate now; step 6 repeats it and decides the analyzer |
+
+Consequence of V-1/V-7 for TVAL003: a rule attribute is allowed on a primary-constructor parameter of a value object
+**or** of an `IValidatable` record; anywhere else it is TVAL003.
