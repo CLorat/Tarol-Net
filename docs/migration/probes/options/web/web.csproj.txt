@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <PublishAot>true</PublishAot><TrimmerSingleWarn>false</TrimmerSingleWarn><TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <DefineConstants Condition="'$(OptCfg)'=='true'">$(DefineConstants);OPTCFG</DefineConstants>
+    <DefineConstants Condition="'$(OptParam)'=='true'">$(DefineConstants);OPTPARAM</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup><Compile Include="../probe/Shapes.cs" /><Compile Include="../probe/Json.cs" /><ProjectReference Include="$(TarolNetRepo)/src/Results/Tarol.Results/Tarol.Results.csproj" /></ItemGroup>
+</Project>

@@ -1,0 +1,2 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Library</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><TreatWarningsAsErrors>false</TreatWarningsAsErrors><NoWarn>CS0168;CS0219;CS8321</NoWarn></PropertyGroup>
+<ItemGroup><Compile Include="../probe/Shapes.cs" /><Compile Include="../probe/Json.cs" /><ProjectReference Include="$(TarolNetRepo)/src/Results/Tarol.Results/Tarol.Results.csproj" /></ItemGroup></Project>
