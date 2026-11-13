@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Railway-style results without exceptions: Result&lt;T&gt; and Result as non-boxing C# 15 unions of a success and a Violation (Invalid field errors or one Error), with exhaustive pattern matching, ValueTask pipelines and an AOT-safe JSON contract. Native-AOT ready.</Description>
+    <PackageTags>tarol;result;railway;union;ddd;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- D-10: the Result analyzers (TRES001-TRES003) ship inside this package (analyzers/dotnet/cs). -->
+    <ProjectReference Include="../Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

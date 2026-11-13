@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Analyzers for Tarol.Results (TRES001-TRES003). Settings inherited from src/Directory.Build.props
+       (TarolIsGenerator): netstandard2.0, Roslyn component, packed into Tarol.Results, never on its own. -->
+</Project>
