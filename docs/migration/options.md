@@ -7,8 +7,8 @@ Origin: `CLorat/Tarol@6a62f81`: `src/Options/Options` (one file, `OptionCombined
 Old review: `docs/review/ids-results-options.md` (§1.4, O-1 … O-5, §7 "Design 5: Option stays as is"),
 `docs/review/net11-event-generation.md` (§1 rows 1, 2, 5, 6).
 
-**Status: evaluation.** §0–§6 are the review, the experiments and the proposal. §7 lists the decisions to make.
-The implementation sections follow after the owner has answered.
+**Status: implemented.** §0–§6 are the review, the experiments and the proposal; §7 the owner's
+decisions; §8 onwards the implementation.
 
 Evidence labels follow [conventions](../architecture/conventions.md): **[verified]** means reproduced here (probe and
 command given), **[unverified]** means not tried here. The probes are in [`probes/options/`](probes/options/). Their
@@ -465,10 +465,151 @@ PostgreSQL 16). It also found the `? : default` trap, which affects `Result<T>` 
 
 | # | Decision | Recommendation | Owner's answer |
 |---|---|---|---|
-| Q-1 | candidate | **C** | likes C; asked about repository and serialization → §3.9; re-asked |
+| Q-1 | candidate | **C** | round 1: asked about repository and serialization (→ §3.9); round 2: **C with the rule "`T?` at the edges"** (SQL parameters/columns, ORM entities, query strings, configuration); Npgsql helpers come with step 8 |
 | Q-2 | how "must be handled" is enforced | compiler (CS0029/CS1503/CS8509) **plus** three analyzer rules as Warnings: `Value` read, null/property pattern on an Option, discarded `TryGetValue` | **compiler + 3 analyzer rules** |
-| Q-2b | the `? : default` trap (§3.9) | a fourth rule, for `Option<T>` and `Result<T>` | asked in round 2 |
+| Q-2b | the `? : default` trap (§3.9) | a fourth rule, for `Option<T>` and `Result<T>` | **yes, for both** |
 | Q-3 | `default` / `null` | `default` = `None`; `Some(null)` throws `ArgumentNullException` (CS8604 at compile time); `ToOption()` maps `null` to `None`; `Option<T?>` stays CS8714 and throws at run time | **as recommended** |
-| Q-4 | API surface | `switch` first; `IsSome`/`IsNone`, `TryGetValue`, `GetValueOrThrow`, `GetValueOrDefault`, `Map`, `Bind`, `Filter`, `Match`, `ToResult`, `ToOption`, `ToNullable`; **no async** in the first version | asked in round 2 |
-| Q-5 | JSON contract | null contract (wire = `T?`), absent property = `None`, `WhenWritingDefault` omits; fallback metadata for primitives | asked in round 2 |
+| Q-4 | API surface | `switch` first; `IsSome`/`IsNone`, `TryGetValue`, `GetValueOrThrow`, `GetValueOrDefault`, `Map`, `Bind`, `Filter`, `Match`, `ToResult`, `ToOption`, `ToNullable`; **no async** in the first version | **as recommended** |
+| Q-5 | JSON contract | null contract (wire = `T?`), absent property = `None`, `WhenWritingDefault` omits; fallback metadata for primitives | **as recommended** |
 | Q-6 | where it lives | **inside `Tarol.Results`** | **inside `Tarol.Results`** |
+
+Round 2 also recorded the rule that follows from Q-1: `Option<T>` in the domain, handlers, DTOs and events; `T?` at
+SQL parameters and columns, ORM entities, query strings and configuration, converted with `ToOption()` / `ToNullable()`.
+
+## 8. Changes against Tarol
+
+Projects (Q-6: no `Tarol.Options` package; nothing under `src/Options` or `tests/Options`):
+
+| Tarol-Net | Change | From |
+|---|---|---|
+| `src/Results/Tarol.Results` | + `None.cs`, `Option.cs` (`Option`, `OptionExtensions`, `OptionValueTypeExtensions`), `OptionOfT.cs`, `Json/OptionJsonConverter.cs`; `Result<T>.ToOption()`; README section; skill `skills/tarol-options/SKILL.md`; `tarol-results` skill rules 10–11 | `src/Options/Options` (rewritten on the agreed shape) |
+| `src/Results/Tarol.Results.Generators` | TRES003 extended to `Option<T>`; new TRES004, TRES005, TRES006 | new |
+| `tests/Results/Tarol.Results.Tests` | + `OptionTests` (the old tests ported, old name in a comment), `OptionUnionTests`, `OptionJsonTests`: 50 tests | `tests/Options/Options` (17) |
+| `tests/Results/Tarol.Results.Generators.Tests` | + `OptionAnalyzerTests` (6), `OptionCompilerTests` (4: the compiler behaviour the design relies on) | new |
+| `tests/Results/Tarol.Results.AotSmoke`, `.PackageTests` | + 7 and 3 Option checks | new |
+| `tests/Results/Tarol.Results.Benchmarks` | + `OptionBenchmarks` (not run in CI) | `probes/options/bench` |
+
+Old tests: 15 of the 17 are ported. The two struct tests `ValueOrThrow_Should_Throw_When_None` and
+`Value_Property_Should_Throw_Custom_Exception_On_None` tested the BCL's `Nullable<T>.Value` (O-3). They are dropped and
+replaced by `GetValueOrThrow_Should_Throw_OnNone`, which covers both kinds of type. `tests/Options/Options.Persistence.Relational`
+(8 active tests, 4 commented out) is not ported: it does not compile (O-1), and EF Core is not in the plan (§3.9).
+
+Public API and behaviour (every change is deliberate):
+
+| Tarol (6a62f81) | Tarol-Net | Why |
+|---|---|---|
+| no option type; extension members on unconstrained `T?` in five static classes | `[Union] readonly struct Option<T> : IUnion, IEquatable<Option<T>> where T : notnull` with the cases `T` and `None` | Q-1; must-handle (§3.1), the same API for both kinds (§3.2) |
+| `IsSome`, `IsNone` on every type, `[NotNullWhen]` on the receiver | `Option<T>.IsSome`, `IsNone` | O-4 |
+| `Value` (extension; shadowed by `Nullable<T>.Value`) | `GetValueOrThrow()`; `Value` is the union's `object` (TRES003) | O-3, N-3 (CS9386) |
+| `T.Some(v)` (returns `T` for structs), `T.FromNullable(v)`, `T.None` | `Option.Some(v)`, `Option.None`, implicit from `T` and `None`, `T?.ToOption()` | O-2 |
+| `Or(fallback)` (does not unwrap structs) | `GetValueOrDefault(T)`, `GetValueOrDefault(Func<T>)` | O-2; Results' names |
+| `Match(some, none)` (struct `v` is `T?`) | `Match` (documented after `switch`) | O-2 |
+| `Map`, `Bind` in four constraint-split classes; `Filter` | `Map`, `Bind`, `Filter` on `Option<T>` for every `T` | O-5 |
+| — | `TryGetValue(out T)` / `TryGetValue(out None)`, `ToResult(Violation)`, `ToResult(Func<Violation>)`, `Result<T>.ToOption()`, `ToNullable()`, `==`, `ToString()` = `Some(x)` / `None` | Q-4 |
+| `null` = absent | `default` = `None`; `null` as a value throws `ArgumentNullException`, also for `Nullable<T>` (N-6) | Q-3 |
+| no JSON | `[JsonConverter(typeof(OptionJsonConverter<>))]` on the type: the value or `null`; package metadata for primitives | Q-5 |
+| `global using Tarol.Options;` in Primitives | nothing: libraries do not export global usings | §3.10 |
+| — | TRES004 (null test on an Option), TRES005 (ignored `TryGetValue`, also `Result`), TRES006 (`default` becomes `Some`/`Success`, also `Result`), TRES003 for `Option<T>.Value` | Q-2, Q-2b |
+| no `IsAotCompatible`, no docs | part of `Tarol.Results` (AOT, XML docs, skill) | O-5 |
+
+`TRES005` and `TRES006` also report `Result<T>` code. That is a new warning for code that compiled warning-free with
+Step 2: `r.TryGetValue(out int v);` as a statement, and `ok ? value : default` assigned to a `Result<T>`.
+
+## 9. Suppressions and analyzer configuration
+
+| Where | Rule | Reason |
+|---|---|---|
+| `Option` (static class), `Option<T>` | `[SuppressMessage]` CA1716 "Identifiers should not match keywords" | the owner chose the name (Q-1); `Option` is a VB keyword only, and Tarol targets C# (as for `Error`, results.md §8) |
+| `Option<T>.HasValue` | `[SuppressMessage]` CA1822 "Mark members as static" | the C# union protocol needs an instance `HasValue` |
+| `OptionUnionTests` | `#pragma warning disable TRES003`, `TRES004` | the tests check the very behaviour these rules warn about |
+| `OptionTests.NullableValueType_Should_Throw_WhenNull` | `#pragma warning disable CS8714` | the test checks the run-time guard behind the compiler warning (N-6) |
+| `Tarol.Results.Generators.Tests` | `LanguageVersion.Preview` | unchanged from Step 2 (Roslyn 5.9 calls unions preview) |
+
+No `NoWarn` and no `.editorconfig` change. No new package versions.
+
+`OptionValueTypeExtensions` is a second static class only because C# cannot overload `ToNullable(this Option<T>)` on the
+`class`/`struct` constraint alone (CS0111); the call site is the same for both kinds of type.
+
+## 10. Verification (SDK 11.0.100, 2026-11-13)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | clean (exit 0) |
+| `dotnet build Tarol.slnx -c Release --no-incremental` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` | **283 passed**, 0 failed: Results 184 (+50 Option), Results analyzers 17 (+10), StronglyTypedId 62 + 17, shared harness 3 |
+| `eng/aot-smoke.sh` | `Tarol.Results.AotSmoke`: 0 IL warnings, 22/22 native checks (7 new: sizes, switch, `default`, no allocation, Result conversions, JSON value-or-null, missing property, primitives without a context entry) |
+| `eng/verify-packages.sh` | OK; the package contains `skills/tarol-options/SKILL.md` next to `skills/tarol-results/SKILL.md`, and the consumer lists both in `project.assets.json` |
+| analyzers reach a package consumer | a temporary file in `Tarol.Results.PackageTests` with the four traps → `error TRES003`, `TRES004`, `TRES005`, `TRES006` (warnings as errors), then removed |
+| README and skill samples | compiled in a Web SDK project with warnings as errors and the bundled analyzer: 0 warnings |
+
+```
+Tarol.Results 0.0.0-alpha.0.8
+    LICENSE
+    README.md
+    Tarol.Results.nuspec
+    analyzers/dotnet/cs/Tarol.Results.Generators.dll
+    lib/net11.0/Tarol.Results.dll
+    lib/net11.0/Tarol.Results.xml
+    skills/tarol-options/SKILL.md
+    skills/tarol-results/SKILL.md
+== tests/Results/Tarol.Results.PackageTests/Tarol.Results.PackageTests.csproj
+ok   switch over the package's union
+…
+ok   Option switch over T | None
+ok   Option to Result and back
+ok   Option JSON is the value or null
+ALL CHECKS PASSED
+```
+
+BenchmarkDotNet on the shipped package (`dotnet run -c Release --project tests/Results/Tarol.Results.Benchmarks -- --filter '*OptionBenchmarks*'`,
+`ShortRun`, same machine as §3.4; compare ratios):
+
+| Method | Mean | Ratio | Allocated |
+|---|---:|---:|---:|
+| Nullable_Int_Pattern (`int?`, baseline) | 4.02 ns | 1.00 | – |
+| Option_Int_Switch | 3.89 ns | 0.98 | – |
+| Option_Guid_Switch | 3.83 ns | 0.96 | – |
+| Nullable_String_Pattern | 3.18 ns | 0.80 | – |
+| Option_String_Switch | 3.21 ns | 0.81 | – |
+| Option_Chain (`Map → Bind → Filter → GetValueOrDefault`) | 4.50 ns | 1.13 | – |
+| Option_Match_Capturing | 9.30 ns | 2.34 | 24 B |
+| Option_Switch_SameLogic | 4.11 ns | 1.03 | – |
+| Option_ToResult | 3.56 ns | 0.90 | – |
+| Result_ToOption | 3.57 ns | 0.90 | – |
+
+Found during implementation: the AOT smoke loop first reported 136 B. These were the one-time delegate allocations of
+its static lambdas (they are cached on first use), not per-call costs; the loop now runs once before it is measured,
+like the unit test.
+
+## 11. Skill evaluation checklist
+
+Run each task with a frontier model in a fresh console project that references the packed package, once with the
+skills copied to `.agents/skills/` and once without. Record correctness and token cost. Keep the skill only if it is at
+least as correct and not more expensive.
+
+`tarol-options`:
+
+1. "Add `FindByEmail` that may not find a user, and a greeting that handles the missing case" → returns `Option<User>`,
+   `? user : Option.None`, a `switch` with `User` / `None` arms; no `User?`, no `null` checks.
+2. "Make the user's age optional" (a value type) → `Option<int> Age`; the same API as for a reference type;
+   `GetValueOrDefault(0)` or `switch`.
+3. "Return 404 when it is missing" → `ToResult(Error.NotFound("User.NotFound"))`, then the Results `switch`.
+4. "Add an optional `page` query parameter to the endpoint" → binds `int? page` and calls `page.ToOption()`; does not
+   declare `Option<int> page`.
+5. "Save and load the optional age with Npgsql" → `ToNullable()` / `DBNull.Value` and `IsDBNull`; no `Option` handed to Npgsql.
+6. "Serialize the profile in a Native-AOT app" → a context listing the DTO; expects `"age":null`; adds non-primitive `T`s.
+7. "Why TRES006?" → `ok ? v : default` becomes `Some(0)`; write `Option.None`.
+8. Must not: use `is { }`/`!= null` on an Option, read `.Value`, ignore `TryGetValue`, write `Option<string?>`, reference a
+   `Tarol.Options` package or the old `T?` extensions (`int.Some`, `User.None`, `Or`), put `Option<T>` in an `IOptions<T>`
+   class or an EF entity column, decompile the assembly or search the web.
+
+Status: checklist written; **not yet run** (needs a model-evaluation harness outside this repository).
+
+## 12. Open items
+
+* **Npgsql helpers** (`GetOption<T>(ordinal)`, a parameter helper) belong in the Npgsql package (step 8), with
+  `Option<T>` fields in events covered by its integration tests.
+* **Minimal API binding** of `Option<T>` parameters (a `TryParse`/`BindAsync` story) and problem details: a later web package.
+* **Statement `switch`** without the `None` case stays silent (also for `Result`); documented, no rule (§3.1).
+* **`Option<T>?` / `Option<Option<T>>`**: no rule (Q-2 chose three rules plus Q-2b); the JSON collapse is documented.
+* **Skill evaluation** (§11) is not run yet.

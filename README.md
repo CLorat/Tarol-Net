@@ -15,8 +15,8 @@ time; see the [migration plan](docs/migration/plan.md).
 | Package | Description | Status |
 |---|---|---|
 | `Tarol.StronglyTypedId` | `Id<TEntity>` over UUIDv7, JSON/binding/formatting built in, generator included | migrated |
-| `Tarol.Results` | `Result<T>` / `Result` as non-boxing C# 15 unions of a value and a `Violation` (`Invalid` field errors or one `Error`), AOT-safe JSON, analyzers included | migrated |
-| `Tarol.Options`, `Tarol.Kernel`, `Tarol.Validations`, `Tarol.Primitives`, … | | planned (see plan) |
+| `Tarol.Results` | `Result<T>` / `Result` as non-boxing C# 15 unions of a value and a `Violation` (`Invalid` field errors or one `Error`), and `Option<T>` (`T` \| `None`, the same for value and reference types); AOT-safe JSON, analyzers included | migrated |
+| `Tarol.Kernel`, `Tarol.Validations`, `Tarol.Primitives`, … | | planned (see plan) |
 
 Packages are private: they are published only to the owner's GitHub Packages feed, never to nuget.org.
 

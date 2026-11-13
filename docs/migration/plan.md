@@ -14,8 +14,8 @@ Review material that stays authoritative until a family is migrated: `CLorat/Tar
 | 0 | Foundation | — | done: layout, layered props, CPM, `.editorconfig`, `global.json`, slnx, packaging targets and scripts, shared generator test harness, agent files, CI, Dependabot |
 | 1 | StronglyTypedId | `Tarol.StronglyTypedId` (+ generator) | done: 79 tests, AOT smoke 0 IL warnings, package verified; see [stronglytypedid.md](stronglytypedid.md) |
 | 2 | Results | `Tarol.Results` (+ analyzers) | done: non-boxing C# 15 `[Union]` shape (D-9 measured), `Invalid` \| `Error` violations, 141 tests, AOT smoke 0 IL warnings, package verified; see [results.md](results.md) |
-| 3 | Options | `Tarol.Options` | next |
-| 4 | Kernel | `Tarol.Kernel` (Kernel, Clock, Contexts, Security grouped where it makes sense or eases testing; D-7) | |
+| 3 | Options | `Option<T>` inside `Tarol.Results` (owner decision Q-6; no `Tarol.Options` package) | done: `[Union]` struct `T` \| `None` (candidates A–E measured), analyzers TRES004–TRES006, AOT smoke 0 IL warnings, package verified; see [options.md](options.md) |
+| 4 | Kernel | `Tarol.Kernel` (Kernel, Clock, Contexts, Security grouped where it makes sense or eases testing; D-7) | next |
 | 5 | Validations | `Tarol.Validations` (+ Value and Invariant generators), Prerequisites | |
 | 6 | Domain core | `Tarol.Primitives` (+ generator) | |
 | 7 | Changes | `Tarol.Changes` (+ generator, ROADMAP Phase 3) | |
