@@ -73,6 +73,13 @@ Labels and probes as in [time.md](time.md).
 4. **The saga engine already has the right model** (message id, correlation defaulting to the saga id, causation = the
    handled message id). Step 4 lifts it into the shared context so events and commands use the same three ids.
 
+## Decisions taken (owner, 2026-11-13; kernel.md §7)
+
+* `Id<ITrace>` is dropped; correlation and causation are `Id<ICorrelation>` / `Id<ICausation>` in `OperationContext`.
+* **The Kernel carries no trace field** (decision 2, against the recommendation in §4.3): tracing stays entirely in
+  `Activity`. Whether events or outbox rows store a `traceparent` link for `ActivityLink`s is decided by steps 8 and 9
+  in their own metadata.
+
 ## Open questions
 
 * Store `traceparent` as text (55 chars) or as the 16-byte trace id + 8-byte span id? Step 8 (text is simpler and

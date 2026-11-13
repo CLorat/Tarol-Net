@@ -39,6 +39,7 @@ Labels and probes as in [time.md](time.md). Authorization is in [security.md](se
 1. **An immutable value captured once per operation**, not a live accessor. Proposed shape (names in kernel.md):
 
    ```csharp
+   // as proposed in the review; shipped with Id<T> ids and without TraceParent (see "Decisions taken")
    public sealed record OperationContext(
        Actor Actor,                 // who: kind + subject id (+ on behalf of)
        Option<TenantId> Tenant,     // None = no tenant (single-tenant app, or a host-level operation)
@@ -95,10 +96,21 @@ process) and `System` (Tarol itself acting later), because audit and policy trea
 5. **`Option<TenantId>` makes "no tenant" explicit** (`None` = single-tenant or host-level) and separates it from "tenant
    required but missing", which is an authentication error at the edge, not a value.
 
+## Decisions taken (owner, 2026-11-13; kernel.md §7)
+
+* **Shape** (decision 3): all ids are `Id<T>`: `OperationContext(Actor Actor, Option<Id<ITenant>> Tenant,
+  Id<ICorrelation> CorrelationId, Option<Id<ICausation>> CausationId)`. The tenant is therefore a `Guid`; an app that
+  routes by slug or subdomain maps it to its `Id<ITenant>` at the edge. The phantom types are interfaces, so they do not
+  clash with an app's `Tenant` aggregate.
+* **No trace field** (decision 2): the context holds no `traceparent`; tracing stays in `Activity` (tracing.md).
+* **Package** (S-3, decision 5): `Tarol.Kernel`, depending on `Tarol.Options` and `Tarol.StronglyTypedId`.
+* **Provision**: built at the edge and passed on; how handlers receive it (parameter or scoped service) is step 10.
+* JSON: fixed camelCase contract through converters on `Actor` and `OperationContext`, so an app context needs no
+  extra entries (found during implementation, kernel.md §8).
+
 ## Open questions
 
-* `TenantId` over `string` (any key: slug, GUID text) or over `Guid`? Recommendation: `string`, because tenants arrive as
-  claim values, subdomains and route segments; see kernel.md decision 3.
+* ~~`TenantId` over `string` or over `Guid`?~~ Decided: `Id<ITenant>` (a `Guid`).
 * Should `OperationContext` be a parameter of handlers (explicit) or a scoped service (`IOperationContext`)? Step 10
   decides with the pipeline; the Kernel type works for both.
 * Accept a client-provided correlation id (e.g. `X-Correlation-Id`)? Off by default (tracing.md insight 2).

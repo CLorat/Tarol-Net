@@ -23,6 +23,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `GetValueOrDefault`, `GetValueOrThrow`; `T?.ToOption()`, `ToNullable()`; JSON = the value or `null` (the `T?` wire
   format); bundled analyzer TOPT001–TOPT004; agent skill `tarol-options`. `Tarol.Results` depends on it and adds
   `option.ToResult(violation)` and `Result<T>.ToOption()`.
+* `Tarol.Kernel` (step 4): `Actor` (`Anonymous`, `User`, `Service`, `System` on behalf of a user; no personal data),
+  `OperationContext` (actor, `Option<Id<ITenant>>`, `Id<ICorrelation>`, `Option<Id<ICausation>>`; `Start`, `CausedBy`,
+  `AsSystem`) with a fixed AOT-safe JSON contract; bundled analyzer TKRN001 (system clock read, inject `TimeProvider`);
+  agent skill `tarol-kernel`. Concept notes on time, identity, tracing and security in `docs/architecture/`.
 
 ### Changed
 
@@ -39,6 +43,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   Mapping: docs/migration/options.md §7.1.
 
 ### Removed
+
+* Kernel (step 4): the ambient `Tarol.Clock`, the markers `IUser` and `ITrace`, `IUserContext`/`ContextUserType`
+  and `Security.IAuthorizer` are not carried over (docs/migration/kernel.md §8). `ITenant` stays as a phantom type.
 
 * `IdJsonConverterFactory` (see docs/migration/stronglytypedid.md).
 * `Tarol.StronlgyTypedId.EntityFrameworkCore` is not carried over: EF Core is not Tarol's persistence provider.

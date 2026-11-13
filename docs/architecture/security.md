@@ -146,8 +146,16 @@ it would be an unused abstraction, which is what the old `IAuthorizer` was.
    `NotSupportedException` (no `ProblemDetails` metadata) at run time, with **0 IL warnings at publish**;
    `AddProblemDetails()` fixes it. The later web package must register it when it maps `Error` to problem details.
 
+## Decisions taken (owner, 2026-11-13; kernel.md §7)
+
+* **`Tarol.Security` is designed here and built in step 10** with the command pipeline (S-1).
+* **Permissions are ASP.NET Core authorization handlers** (`AuthorizationHandler<TRequirement, TAggregate>` evaluated with
+  `IAuthorizationService`), mapped by `Tarol.Security` to `Error.Unauthorized` / `Error.Forbidden`; cross-tenant access is
+  `Error.NotFound` because the store filters by tenant (decision 4).
+* The recorded data (`Actor`, `OperationContext`) ships now in `Tarol.Kernel`; `IAuthorizer` is dropped.
+
 ## Open questions
 
-* Does the owner want explicit error codes per permission rule (style (b)), or the ASP.NET Core mechanism (a)?
+* ~~Style (a) or (b)?~~ Decided: (a).
 * Should denials be audited (log/metric), and where? Not as events (nothing changed). Step 10.
 * Field-level authorization of query results (e.g. hide `ReservePrice`)? A read-model concern, step 10 or the web package.

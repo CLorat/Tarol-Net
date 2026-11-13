@@ -115,6 +115,16 @@ Consequences:
 5. **UUIDv7 ids are time too.** Event ids and outbox ids generated from the same injected `TimeProvider`
    (`Id<T>.New(timeProvider)`, `Guid.CreateVersion7(now)`) make ids deterministic in tests and sortable by the same clock.
 
+## Decisions taken (owner, 2026-11-13; kernel.md §7)
+
+* **No Tarol clock** (S-2): inject `TimeProvider` everywhere; `FakeTimeProvider` in tests; TKRN001 (Warning) reports
+  `DateTime.Now/UtcNow/Today` and `DateTimeOffset.Now/UtcNow`.
+* **Event time** (decision 1): one `RecordedAt` per commit from the store's injected `TimeProvider`; business time is a
+  payload field, passed into the behaviour as `now`.
+* Later steps: 5 (prerequisites take `now`), 6 (delete `DomainClock` and the initializer), 8 (stamp per commit),
+  9 (`TimeProvider` instead of `SagaOptions.UtcNow`, `FakeTimeProvider` in `Sagas.Testing`), 11 (inject into the
+  backplane runner). See plan.md.
+
 ## Open questions
 
 * Should `RecordedAt` be the database's `now()` (single source across nodes) or the application's `TimeProvider`
