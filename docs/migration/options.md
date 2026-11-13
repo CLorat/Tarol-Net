@@ -8,7 +8,9 @@ Old review: `docs/review/ids-results-options.md` (§1.4, O-1 … O-5, §7 "Desig
 `docs/review/net11-event-generation.md` (§1 rows 1, 2, 5, 6).
 
 **Status: implemented.** §0–§6 are the review, the experiments and the proposal; §7 the owner's
-decisions; §8 onwards the implementation.
+decisions; §8 onwards the implementation. **Revised after PR #5:** `Option<T>` is its own package `Tarol.Options` (no
+dependencies), and `Tarol.Results` depends on it (Q-6, §7.1). §8–§10 describe the split state; §0–§6 keep the text of
+the evaluation, so where they say "inside `Tarol.Results`" or name TRES ids for Option rules, §7.1 has the current answer.
 
 Evidence labels follow [conventions](../architecture/conventions.md): **[verified]** means reproduced here (probe and
 command given), **[unverified]** means not tried here. The probes are in [`probes/options/`](probes/options/). Their
@@ -496,7 +498,7 @@ PostgreSQL 16). It also found the `? : default` trap, which affects `Result<T>` 
 | Q-3 | `default` / `null` | `default` = `None`; `Some(null)` throws `ArgumentNullException` (CS8604 at compile time); `ToOption()` maps `null` to `None`; `Option<T?>` stays CS8714 and throws at run time | **as recommended** |
 | Q-4 | API surface | `switch` first; `IsSome`/`IsNone`, `TryGetValue`, `GetValueOrThrow`, `GetValueOrDefault`, `Map`, `Bind`, `Filter`, `Match`, `ToResult`, `ToOption`, `ToNullable`; **no async** in the first version | **as recommended** |
 | Q-5 | JSON contract | null contract (wire = `T?`), absent property = `None`, `WhenWritingDefault` omits; fallback metadata for primitives | **as recommended** |
-| Q-6 | where it lives | **inside `Tarol.Results`** | **inside `Tarol.Results`** |
+| Q-6 | where it lives | **inside `Tarol.Results`** | round 1: inside `Tarol.Results`; **revised after PR #5: own package `Tarol.Options`, and `Tarol.Results` depends on it** (§7.1) |
 
 Round 3: the owner's main use is aggregate/entity properties and query results, and aggregates should define the
 database, so "`T?` at the edges" for storage was the wrong rule. Owner: **no EF Core**; **keep `Option<T>`**. The rule
@@ -506,18 +508,56 @@ was measured (§3.11): it needs a schema transformer, which goes into the later 
 Round 2 also recorded the rule that follows from Q-1: `Option<T>` in the domain, handlers, DTOs and events; `T?` at
 SQL parameters and columns, ORM entities, query strings and configuration, converted with `ToOption()` / `ToNullable()`.
 
+### 7.1 Q-6 revised: own package `Tarol.Options`
+
+After PR #5 the owner moved `Option<T>` into its own package. Reasons: `Option<T>` is used far beyond results
+(aggregates, events, DTOs, query results, the Npgsql store), so code that needs absence should not have to take a
+dependency on the failure model; and each package then ships one skill and one analyzer about one thing.
+
+| | Before (PR #5) | Now |
+|---|---|---|
+| Package | `Tarol.Results` | **`Tarol.Options`**, no dependencies; `Tarol.Results` → `Tarol.Options` |
+| Namespace | `Tarol.Results` (`Tarol.Results.Json` for the converter) | `Tarol.Options` (`Tarol.Options.Json`) |
+| `option.ToResult(…)` | instance method of `Option<T>` | extension method `OptionResultExtensions.ToResult` in `Tarol.Results` (same call site; needs `using Tarol.Results;`) |
+| `result.ToOption()` | instance method of `Result<T>` | unchanged (Results references Options) |
+| Skill | `skills/tarol-options` in `Tarol.Results` | `skills/tarol-options` in `Tarol.Options`; `tarol-results` points to it |
+| Analyzer | `Tarol.Results.Generators` | `Tarol.Options.Generators`, bundled into `Tarol.Options` (D-10) |
+
+Analyzer id mapping (nothing was published, so the ids could change):
+
+| PR #5 id | Covered | Now |
+|---|---|---|
+| TRES003 | `Value` of `Result` and `Option` | **TRES003** for `Result` / `Result<T>`; **TOPT001** for `Option<T>` |
+| TRES004 | null/property pattern on an `Option` | **TOPT002** (TRES004 is retired, not reused) |
+| TRES005 | ignored `TryGetValue` on `Result` and `Option` | **TRES005** for `Result<T>`; **TOPT003** for `Option<T>` |
+| TRES006 | `default` becomes `Some` / `Success` | **TRES006** for `Result<T>` (`Success(0)`); **TOPT004** for `Option<T>` (`Some(0)`) |
+
+Each rule now lives in exactly one analyzer, so a consumer of `Tarol.Results` (which gets both analyzers) never sees
+the same trap reported twice; a test in each analyzer proves that the other type is left alone.
+
+Transitive analyzer flow **[verified]**: `dotnet pack` writes the Results → Options dependency as
+`exclude="Build,Analyzers"` (the SDK default for a `ProjectReference`). The `Tarol.Results.PackageTests` consumer
+still hands both `Tarol.Results.Generators.dll` and `Tarol.Options.Generators.dll` to the compiler (checked by an MSBuild
+target in that project), and a temporary traps file reports TOPT001–TOPT004 and TRES006 there. The exclude
+applies to the direct dependency's consumer (Results itself), not to a package consumer further down the graph.
+
 ## 8. Changes against Tarol
 
-Projects (Q-6: no `Tarol.Options` package; nothing under `src/Options` or `tests/Options`):
+Projects (Q-6 revised, §7.1):
 
 | Tarol-Net | Change | From |
 |---|---|---|
-| `src/Results/Tarol.Results` | + `None.cs`, `Option.cs` (`Option`, `OptionExtensions`, `OptionValueTypeExtensions`), `OptionOfT.cs`, `Json/OptionJsonConverter.cs`; `Result<T>.ToOption()`; README section; skill `skills/tarol-options/SKILL.md`; `tarol-results` skill rules 10–11 | `src/Options/Options` (rewritten on the agreed shape) |
-| `src/Results/Tarol.Results.Generators` | TRES003 extended to `Option<T>`; new TRES004, TRES005, TRES006 | new |
-| `tests/Results/Tarol.Results.Tests` | + `OptionTests` (the old tests ported, old name in a comment), `OptionUnionTests`, `OptionJsonTests`: 50 tests | `tests/Options/Options` (17) |
-| `tests/Results/Tarol.Results.Generators.Tests` | + `OptionAnalyzerTests` (6), `OptionCompilerTests` (4: the compiler behaviour the design relies on) | new |
-| `tests/Results/Tarol.Results.AotSmoke`, `.PackageTests` | + 7 and 3 Option checks | new |
-| `tests/Results/Tarol.Results.Benchmarks` | + `OptionBenchmarks` (not run in CI) | `probes/options/bench` |
+| `src/Options/Tarol.Options` | `None.cs`, `Option.cs` (`Option`, `OptionExtensions`, `OptionValueTypeExtensions`), `OptionOfT.cs`, `Json/OptionJsonConverter.cs` (+ fallback `OptionsJsonContext`); README; skill `skills/tarol-options/SKILL.md`; no dependencies | `src/Options/Options` (rewritten on the agreed shape) |
+| `src/Options/Tarol.Options.Generators` | `OptionAnalyzer`: TOPT001–TOPT004, bundled (D-10) | new |
+| `src/Results/Tarol.Results` | references `Tarol.Options`; `OptionResultExtensions.ToResult(Violation)` / `ToResult(Func<Violation>)`; `Result<T>.ToOption()`; README section; `tarol-results` skill rules 10–11 | new |
+| `src/Results/Tarol.Results.Generators` | TRES003, TRES005, TRES006 for `Result` only | new |
+| `tests/Options/Tarol.Options.Tests` | `OptionTests` (the old tests ported, old name in a comment), `OptionUnionTests`, `OptionJsonTests`: 48 tests | `tests/Options/Options` (17) |
+| `tests/Options/Tarol.Options.Generators.Tests` | `OptionAnalyzerTests` (7), `OptionCompilerTests` (4: the compiler behaviour the design relies on) | new |
+| `tests/Options/Tarol.Options.AotSmoke`, `.PackageTests` | 8 and 4 native/consumer checks; the consumer references only `Tarol.Options` and fails if Results comes along | new |
+| `tests/Options/Tarol.Options.Benchmarks` | `OptionBenchmarks` (not run in CI) | `probes/options/bench` |
+| `tests/Results/Tarol.Results.Tests` | `OptionConversionTests` (2: `ToResult`, `ToOption`) | new |
+| `tests/Results/Tarol.Results.Generators.Tests` | + 3 tests: TRES003/TRES005/TRES006 report `Result` and leave `Option` to TOPT | new |
+| `tests/Results/Tarol.Results.AotSmoke`, `.PackageTests`, `.Benchmarks` | the Option-to-Result checks and `OptionConversionBenchmarks`; the consumer checks that both analyzers reach the compiler | new |
 
 Old tests: 15 of the 17 are ported. The two struct tests `ValueOrThrow_Should_Throw_When_None` and
 `Value_Property_Should_Throw_Custom_Exception_On_None` tested the BCL's `Nullable<T>.Value` (O-3). They are dropped and
@@ -530,20 +570,26 @@ Public API and behaviour (every change is deliberate):
 |---|---|---|
 | no option type; extension members on unconstrained `T?` in five static classes | `[Union] readonly struct Option<T> : IUnion, IEquatable<Option<T>> where T : notnull` with the cases `T` and `None` | Q-1; must-handle (§3.1), the same API for both kinds (§3.2) |
 | `IsSome`, `IsNone` on every type, `[NotNullWhen]` on the receiver | `Option<T>.IsSome`, `IsNone` | O-4 |
-| `Value` (extension; shadowed by `Nullable<T>.Value`) | `GetValueOrThrow()`; `Value` is the union's `object` (TRES003) | O-3, N-3 (CS9386) |
+| `Value` (extension; shadowed by `Nullable<T>.Value`) | `GetValueOrThrow()`; `Value` is the union's `object` (TOPT001) | O-3, N-3 (CS9386) |
 | `T.Some(v)` (returns `T` for structs), `T.FromNullable(v)`, `T.None` | `Option.Some(v)`, `Option.None`, implicit from `T` and `None`, `T?.ToOption()` | O-2 |
 | `Or(fallback)` (does not unwrap structs) | `GetValueOrDefault(T)`, `GetValueOrDefault(Func<T>)` | O-2; Results' names |
 | `Match(some, none)` (struct `v` is `T?`) | `Match` (documented after `switch`) | O-2 |
 | `Map`, `Bind` in four constraint-split classes; `Filter` | `Map`, `Bind`, `Filter` on `Option<T>` for every `T` | O-5 |
-| — | `TryGetValue(out T)` / `TryGetValue(out None)`, `ToResult(Violation)`, `ToResult(Func<Violation>)`, `Result<T>.ToOption()`, `ToNullable()`, `==`, `ToString()` = `Some(x)` / `None` | Q-4 |
+| — | `TryGetValue(out T)` / `TryGetValue(out None)`, `ToNullable()`, `==`, `ToString()` = `Some(x)` / `None`; in `Tarol.Results`: `option.ToResult(Violation)`, `option.ToResult(Func<Violation>)` (extensions), `Result<T>.ToOption()` | Q-4, Q-6 |
 | `null` = absent | `default` = `None`; `null` as a value throws `ArgumentNullException`, also for `Nullable<T>` (N-6) | Q-3 |
 | no JSON | `[JsonConverter(typeof(OptionJsonConverter<>))]` on the type: the value or `null`; package metadata for primitives | Q-5 |
-| `global using Tarol.Options;` in Primitives | nothing: libraries do not export global usings | §3.10 |
-| — | TRES004 (null test on an Option), TRES005 (ignored `TryGetValue`, also `Result`), TRES006 (`default` becomes `Some`/`Success`, also `Result`), TRES003 for `Option<T>.Value` | Q-2, Q-2b |
-| no `IsAotCompatible`, no docs | part of `Tarol.Results` (AOT, XML docs, skill) | O-5 |
+| `global using Tarol.Options;` in Primitives | nothing: libraries do not export global usings; Primitives (step 6) writes `using Tarol.Options;` where it needs an option | §3.10 |
+| namespace `Tarol.Options` (the old extensions) | namespace `Tarol.Options` (`Option<T>`, `None`, `Option`, extensions) and `Tarol.Options.Json` (converter) | Q-6 revised |
+| — | TOPT001 (`Option<T>.Value`), TOPT002 (null test on an Option), TOPT003 (ignored `TryGetValue`), TOPT004 (`default` becomes `Some`) in `Tarol.Options`; TRES005 (ignored `TryGetValue`) and TRES006 (`default` becomes `Success`) for `Result<T>` in `Tarol.Results` | Q-2, Q-2b, §7.1 |
+| no `IsAotCompatible`, no docs | own package, `IsAotCompatible`, XML docs, README, skill | O-5 |
 
-`TRES005` and `TRES006` also report `Result<T>` code. That is a new warning for code that compiled warning-free with
+`TRES005` and `TRES006` report `Result<T>` code. That is a new warning for code that compiled warning-free with
 Step 2: `r.TryGetValue(out int v);` as a statement, and `ok ? value : default` assigned to a `Result<T>`.
+
+Changes against PR #5 (the split): the namespace of `Option<T>`, `None`, `Option`, `OptionExtensions`,
+`OptionValueTypeExtensions` and `OptionJsonConverter<T>` moves from `Tarol.Results[.Json]` to `Tarol.Options[.Json]`;
+`Option<T>.ToResult` becomes an extension method in `Tarol.Results` (same call site with both `using`s); the Option
+analyzer ids change as in §7.1. No behaviour change.
 
 ## 9. Suppressions and analyzer configuration
 
@@ -551,9 +597,9 @@ Step 2: `r.TryGetValue(out int v);` as a statement, and `ok ? value : default` a
 |---|---|---|
 | `Option` (static class), `Option<T>` | `[SuppressMessage]` CA1716 "Identifiers should not match keywords" | the owner chose the name (Q-1); `Option` is a VB keyword only, and Tarol targets C# (as for `Error`, results.md §8) |
 | `Option<T>.HasValue` | `[SuppressMessage]` CA1822 "Mark members as static" | the C# union protocol needs an instance `HasValue` |
-| `OptionUnionTests` | `#pragma warning disable TRES003`, `TRES004` | the tests check the very behaviour these rules warn about |
+| `OptionUnionTests` | `#pragma warning disable TOPT001`, `TOPT002` | the tests check the very behaviour these rules warn about |
 | `OptionTests.NullableValueType_Should_Throw_WhenNull` | `#pragma warning disable CS8714` | the test checks the run-time guard behind the compiler warning (N-6) |
-| `Tarol.Results.Generators.Tests` | `LanguageVersion.Preview` | unchanged from Step 2 (Roslyn 5.9 calls unions preview) |
+| `Tarol.Results.Generators.Tests`, `Tarol.Options.Generators.Tests` | `LanguageVersion.Preview` | unchanged from Step 2 (Roslyn 5.9 calls unions preview) |
 
 No `NoWarn` and no `.editorconfig` change. No new package versions.
 
@@ -562,37 +608,43 @@ No `NoWarn` and no `.editorconfig` change. No new package versions.
 
 ## 10. Verification (SDK 11.0.100, 2026-11-13)
 
+After the split (§7.1):
+
 | Command | Result |
 |---|---|
 | `dotnet format Tarol.slnx --verify-no-changes` | clean (exit 0) |
-| `dotnet build Tarol.slnx -c Release --no-incremental` | 0 warnings, 0 errors |
-| `dotnet test --solution Tarol.slnx` | **283 passed**, 0 failed: Results 184 (+50 Option), Results analyzers 17 (+10), StronglyTypedId 62 + 17, shared harness 3 |
-| `eng/aot-smoke.sh` | `Tarol.Results.AotSmoke`: 0 IL warnings, 22/22 native checks (7 new: sizes, switch, `default`, no allocation, Result conversions, JSON value-or-null, missing property, primitives without a context entry) |
-| `eng/verify-packages.sh` | OK; the package contains `skills/tarol-options/SKILL.md` next to `skills/tarol-results/SKILL.md`, and the consumer lists both in `project.assets.json` |
-| analyzers reach a package consumer | a temporary file in `Tarol.Results.PackageTests` with the four traps → `error TRES003`, `TRES004`, `TRES005`, `TRES006` (warnings as errors), then removed |
-| README and skill samples | compiled in a Web SDK project with warnings as errors and the bundled analyzer: 0 warnings |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` | **287 passed**, 0 failed: Options 48, Options analyzer 11, Results 136, Results analyzers 10, StronglyTypedId 62 + 17, shared harness 3 |
+| `eng/aot-smoke.sh` | `Tarol.Options.AotSmoke`: 0 IL warnings, 8/8 native checks; `Tarol.Results.AotSmoke`: 0 IL warnings, all checks (the Option-to-Result check stays) |
+| `eng/verify-packages.sh` | OK; `Tarol.Options` contains `analyzers/dotnet/cs/Tarol.Options.Generators.dll` and `skills/tarol-options/SKILL.md`; `Tarol.Results` contains its own analyzer and `skills/tarol-results/SKILL.md` and depends on `Tarol.Options`; the Results consumer lists both skills in `project.assets.json`, the Options consumer lists `tarol-options` |
+| analyzer reaches a consumer of `Tarol.Options` alone | a temporary traps file in `Tarol.Options.PackageTests` → `error TOPT001`, `TOPT002`, `TOPT003`, `TOPT004`; in `Tarol.Results.PackageTests` the same file plus a `Result<int>` trap → TOPT001–TOPT004 and `TRES006`, no double report; then removed |
 
 ```
-Tarol.Results 0.0.0-alpha.0.8
+Tarol.Options 0.0.0-alpha.0.7
     LICENSE
     README.md
-    Tarol.Results.nuspec
-    analyzers/dotnet/cs/Tarol.Results.Generators.dll
-    lib/net11.0/Tarol.Results.dll
-    lib/net11.0/Tarol.Results.xml
+    Tarol.Options.nuspec
+    analyzers/dotnet/cs/Tarol.Options.Generators.dll
+    lib/net11.0/Tarol.Options.dll
+    lib/net11.0/Tarol.Options.xml
     skills/tarol-options/SKILL.md
+Tarol.Results 0.0.0-alpha.0.7
+    …
+    analyzers/dotnet/cs/Tarol.Results.Generators.dll
     skills/tarol-results/SKILL.md
-== tests/Results/Tarol.Results.PackageTests/Tarol.Results.PackageTests.csproj
-ok   switch over the package's union
-…
+    (dependency: Tarol.Options 0.0.0-alpha.0.7)
+== tests/Options/Tarol.Options.PackageTests/Tarol.Options.PackageTests.csproj
 ok   Option switch over T | None
-ok   Option to Result and back
+ok   Option to and from T?
 ok   Option JSON is the value or null
+ok   Option JSON reads null and a missing property as None
 ALL CHECKS PASSED
 ```
 
-BenchmarkDotNet on the shipped package (`dotnet run -c Release --project tests/Results/Tarol.Results.Benchmarks -- --filter '*OptionBenchmarks*'`,
-`ShortRun`, same machine as §3.4; compare ratios):
+BenchmarkDotNet on the PR #5 package (before the split; `ShortRun`, same machine as §3.4; compare ratios). The split
+moves code between assemblies and does not change it; `Option_ToResult` is now an extension method. Now run with
+`dotnet run -c Release --project tests/Options/Tarol.Options.Benchmarks -- --filter '*'` and, for the two conversions,
+`tests/Results/Tarol.Results.Benchmarks -- --filter '*OptionConversion*'`:
 
 | Method | Mean | Ratio | Allocated |
 |---|---:|---:|---:|
@@ -628,10 +680,12 @@ least as correct and not more expensive.
    declare `Option<int> page`.
 5. "Save and load the optional age with Npgsql" → `ToNullable()` / `DBNull.Value` and `IsDBNull`; no `Option` handed to Npgsql.
 6. "Serialize the profile in a Native-AOT app" → a context listing the DTO; expects `"age":null`; adds non-primitive `T`s.
-7. "Why TRES006?" → `ok ? v : default` becomes `Some(0)`; write `Option.None`.
-8. Must not: use `is { }`/`!= null` on an Option, read `.Value`, ignore `TryGetValue`, write `Option<string?>`, reference a
-   `Tarol.Options` package or the old `T?` extensions (`int.Some`, `User.None`, `Or`), put `Option<T>` in an `IOptions<T>`
-   class or an EF entity column, decompile the assembly or search the web.
+7. "Why TOPT004?" → `ok ? v : default` becomes `Some(0)`; write `Option.None`.
+8. "Use an optional value in a library that must not depend on Results" → references only `Tarol.Options`,
+   `using Tarol.Options;`; no `ToResult` there.
+9. Must not: use `is { }`/`!= null` on an Option, read `.Value`, ignore `TryGetValue`, write `Option<string?>`, use the
+   old `T?` extensions (`int.Some`, `User.None`, `Or`), `using Tarol.Results;` just to get `Option<T>`, put `Option<T>`
+   in an `IOptions<T>` class or an EF entity column, decompile the assembly or search the web.
 
 Status: checklist written; **not yet run** (needs a model-evaluation harness outside this repository).
 
