@@ -17,7 +17,7 @@ SDK 11.0.x (pinned by `global.json`; test runner is Microsoft.Testing.Platform).
 ```bash
 dotnet build Tarol.slnx
 dotnet test --solution Tarol.slnx
-dotnet format Tarol.slnx --verify-no-changes
+dotnet format Tarol.slnx --verify-no-changes   # after a build: format needs the generator assemblies (Tarol.Validations)
 dotnet pack Tarol.slnx -c Release          # -> artifacts/package/release
 eng/verify-packages.sh                     # inspects the .nupkg files and runs the package consumer tests
 eng/aot-smoke.sh                           # publishes every *.AotSmoke app with Native AOT, 0 IL warnings

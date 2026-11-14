@@ -563,6 +563,12 @@ None in `src/`. No `NoWarn`, no `.editorconfig` change. In tests and samples, by
 comment: `TVAL006` where a fixture builds an invalid value object on purpose (`InputTests`, `AotSmoke`, `Benchmarks`),
 `TVAL009` in the one test that measures the hazard it reports (`JsonTests.V9_…`).
 
+CI (`.github/workflows/ci.yml`): a step **Build generators** runs before **Format**. `dotnet format` loads the solution
+without building it, and this is the first family whose consumers compile only with generated members, so on a clean
+runner the format step reported CS0535 for every `IValidatable` record (PR #8, first run). The step builds
+`src/*/*.Generators` in Debug, the configuration format loads; verified from a clean tree (`rm -rf artifacts`, restore,
+build generators, format: exit 0).
+
 ## 12. Verification (SDK 11.0.100, 2026-11-14)
 
 | Command | Result |
