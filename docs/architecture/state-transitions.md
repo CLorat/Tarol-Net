@@ -11,7 +11,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/state-transitions/`](../migration/probes/state-transitions/)); **[verified by reading]** means read in the named
 code, not run; **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: stage 2 (evaluation)**: scope decided (D-1 … D-4 below); proposed API and measurements in
+**Status: decided** (D-1 … D-4 below, L-1 … L-8 in the evaluation note); implementation in step 6 part C. API and measurements in
 [migration/state-transitions.md](../migration/state-transitions.md).
 
 ## 1. What a user needs it for

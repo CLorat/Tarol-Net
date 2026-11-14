@@ -307,6 +307,36 @@ Asked with the question tool, one per decision, recommendation first:
 5. Edges labelled by events: derive the labels from the `On` assignments, or a second declaration on events.
 6. Diagnostic severities (TPRM021 unreachable, TPRM022 redundant, "never assigned") and the CS8524 suppressor.
 
-### Owner answers
+### Owner answers (round 2, 2026-11-14)
 
-(recorded here after the questions)
+| # | Decision | Answer |
+|---|---|---|
+| L-1 | Syntax and names | **as prototyped**: `[Lifecycle]` (+ `Initial`), `[To(...)]` on members; generated `<Enum>Lifecycle` with `Initial`, `Diagram`, `IsEdge`, `IsTerminal`, `Edges`, extension members `CanTransitionTo(to) : bool`, `RequireTransitionTo(to) : Result` |
+| L-2 | Forbidden step found at commit | **`Error.Internal("Lifecycle.ForbiddenStep", "<Type>.<Field>: <From> -> <To> by <Event>")`**: a missing guard is a bug; callers get 409 only from guards |
+| L-3 | Generated guard failure | **`Error.Conflict("<Enum>.NotAllowed", "<From> -> <To>")`**; a behaviour that wants its own code uses `CanTransitionTo` |
+| L-4 | Creation | **a created root or entity must be in the initial state** after its creation event; otherwise the step `(new) -> <State>` is reported like any forbidden step |
+| L-5 | Edge labels | asked twice (the first answer conflicted with L-1): **`[To]` stays the graph; `[Transition<TEnum>(from, to)]` on an event is optional** and labels that edge in the diagram (`Open --> Closed : Closed`); a `[Transition]` that is not a declared `[To]` edge is an **Error** |
+| L-6 | `On` analysis | **yes, all three**: report a declared state no `On` assigns; check that an event's `On` assigns the `To` of its `[Transition]` (Warning on mismatch); emit step-check cases only for events whose `On` assigns a lifecycle field (§4: removes the cost for every other event) |
+| L-7 | Severities | **Warnings** for unreachable (TPRM021), redundant (TPRM022) and never-assigned states; Errors for bad targets (TPRM020), unusable enums (TPRM023), `[To]` without `[Lifecycle]` (TPRM024) and a `[Transition]` that is not an edge |
+| L-8 | CS8524 | **ship the suppressor** (`TPRMSPR01`) for switches over `[Lifecycle]` enums only |
+| — | Package and step | unchanged (D-4): `Tarol.Primitives`, step 6 part C, after part B |
+
+Diagnostic ids for part C (continuing after TPRM015 in `Tarol.Primitives.Generators`): TPRM016 bad target, TPRM017
+unreachable, TPRM018 redundant edge, TPRM019 unusable enum, TPRM020 `[To]` without `[Lifecycle]`, TPRM021 `[Transition]`
+not an edge, TPRM022 state never assigned in `On`, TPRM023 `[Transition]`/`On` mismatch. The prototype's TPRM020–024 are
+renumbered accordingly.
+
+## 8. What part C must do
+
+* Runtime: `LifecycleAttribute`, `ToAttribute`, `TransitionAttribute<TEnum>`, `LifecycleViolation`, the `ApplyLive`/
+  `ApplyRaised`/`ForbiddenStep` hook in `AggregateRoot<T>` (Core patch), `Prepare` returning the violation before the
+  invariants; the three hook members on the TPRM015 list.
+* Generator: per-enum lifecycle class (§2) and diagnostics; in the aggregate generator, the step check inside the
+  generated dispatch cases (entity already resolved, live flag from `Publish`), only for events whose `On` assigns a
+  lifecycle field, plus the creation check (L-4) and labelled edges in the diagram (L-5).
+* Suppressor for CS8524 (L-8).
+* Stored state (part B) captures the lifecycle field as a bare string; the violation field is not captured.
+* Tests: the probe's scenarios on the real package (guards, forgotten guard, two steps in one commit, entity lifecycle,
+  creation, replay of a forbidden historical step, stored state), generator snapshots and incrementality with
+  `tests/Shared/Tarol.Testing.Generators`, an AOT smoke step, a 0-allocation test; skill section in `tarol-primitives`
+  and its evaluation checklist; README; migration-note rows; conventions §8 in full.
