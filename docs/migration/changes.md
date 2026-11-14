@@ -13,6 +13,8 @@ the plan impact. **Design only**: this PR changes no package code. Probes and ou
 * **Decided shape** (C-4, C-5): an input record implements `IChange<T>` or `ICreation<T>` and calls one behaviour in
   `Execute`; entries are attributes on the record (`[Endpoint]`) or on a static `From` factory (`[OnEvent<T>]`,
   `[Webhook]`, `[Consumes]`). A change without an attribute has the typed in-process entry.
+* **Loading is automatic** (C-16): the pipeline loads the target named by the record's `Id<T>`; special changes load it
+  themselves (`ILoads<T>`), and read-only other aggregates are `[Read] Id<X>` members **[verified]**.
 * **The pipeline is library code** (generic, no reflection); the generator adds `Target`, a typed `Dispatch(object)`, the
   reaction table and the entries. Under Native AOT: **0 IL warnings**, all scenarios pass natively **[verified]**.
 * **Cost**: 260 ns / 920 B hand-written vs 415 ns / 976 B through the pipeline (+≈ 150 ns, +56 B per change, both
@@ -252,6 +254,20 @@ From `output.txt` (App: JIT and native; Web: native self-test):
 | webhook | signed delivery 200; redelivery 200, nothing written; actor `Service:webhook:payments`; wrong signature, tampered body, stale timestamp → 401; unknown type → 202; guard rejection → 200 (the probe's pre-C-9 policy) |
 | REST extras | anonymous → 401 (policy); `Idempotency-Key` retry → 200 with the same id; non-JSON body → 415 (routing, from `AcceptsMetadata`); bad route id → 400 `auction` |
 
+### 3.1 Loading (C-16) **[verified]** (`App/`, section "C-16")
+
+| Scenario | Result |
+|---|---|
+| default `CloseAuction(Id<Auction>)` | loaded by the pipeline; the change has no load code |
+| `[Read] Id<Artwork>` of an unverified artwork | the artwork is loaded read-only and passed to `Auction.CreateFor`: `Error.Conflict("Artwork.NotVerified")` |
+| `[Read]` of a missing artwork | `Error.UnprocessableEntity("Artwork.NotFound")` (422), before the factory runs |
+| verified artwork | auction created; no event is written to the artwork's stream |
+| `ILoads<Auction>` by lot number | found through `IAggregateReader.Find`, then permission, `Close`, `Prepare`, append as usual; unknown lot → its own `NotFound` |
+| `ILoads<Payout>` load-or-create | first call: created and approved in one commit (2 events, expected version 0); second call loads it: `Payout.AlreadyApproved` |
+
+Generated for `[Read]` (prototype): `partial record X : IHasReads` with `LoadReads`, one `reader.Load` per member.
+Under Native AOT the App still publishes with 0 IL warnings (`output.txt`).
+
 ## 4. Measurements
 
 ### 4.1 Native AOT **[verified]**
@@ -302,16 +318,23 @@ load. A key whose append would commit twice is refused (`Change.Duplicate`).
 | TCHG005 | Error | an entry factory (`[OnEvent<T>]`, `[Webhook]`, `[Consumes]`) that is not `static TChange From(TPayload[, RecordedEvent])` |
 | TCHG006 | Warning | an `IChange`/`ICreation` input that is not `IValidatable` but has value-object members with rules |
 | TCHG007 | Error | `Execute` assigns aggregate state or calls something other than one public behaviour (best effort) |
+| TCHG008 | Error | `[Read]` on a member that is not an `Id<X>` of an aggregate, or on the change's own target |
 
-Step 7's generator emits only `Target`, `Dispatch` and TCHG001–002, 006–007; the others come with their entries.
+TCHG001 does not apply to `ILoads<T>` changes (C-16).
+
+Step 7's generator emits only `Target`, `LoadReads`, `Dispatch` and TCHG001–002, 006–008; the others come with their entries.
 
 ## 6. Decided API (step 7 part)
 
 ```csharp
 namespace Tarol.Persistence;          // C-6
-public interface IAggregateStore
+public interface IAggregateReader                       // C-16: what special changes and [Read] use
 {
     ValueTask<Option<T>> Load<T>(Id<T> id, OperationContext context, CancellationToken ct) where T : AggregateRoot<T>, IAggregateRoot<T>;
+    ValueTask<Option<Id<T>>> Find<T>(string lookup, string key, OperationContext context, CancellationToken ct) where …;
+}
+public interface IAggregateStore : IAggregateReader
+{
     ValueTask<Result> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key, CancellationToken ct) where …;
     ValueTask<Option<StoredOutcome>> Seen(IdempotencyKey key, CancellationToken ct);
 }
@@ -321,7 +344,11 @@ public sealed class InMemoryAggregateStore(TimeProvider time) : IAggregateStore 
 namespace Tarol.Changes;
 public interface IChange<T> where T : AggregateRoot<T>, IAggregateRoot<T> { Id<T> Target { get; } Result Execute(T aggregate, ChangeContext context); }
 public interface ICreation<T> where T : AggregateRoot<T>, IAggregateRoot<T> { Result<T> Execute(ChangeContext context); }   // C-10: no Target
-public readonly record struct ChangeContext(OperationContext Operation, DateTimeOffset Now);
+public readonly record struct ChangeContext(OperationContext Operation, DateTimeOffset Now, Reads? Reads = null) { public T Read<T>() …; }
+public interface ILoads<T> : IChange<T> where …     // C-16: the special change loads its target itself
+{ ValueTask<Result<T>> Load(IAggregateReader reader, ChangeContext context, CancellationToken ct); }
+[AttributeUsage(Parameter | Property)] public sealed class ReadAttribute : Attribute;   // read-only aggregate for the decision
+public interface IHasReads { ValueTask<Result<Reads>> LoadReads(IAggregateReader reader, OperationContext context, CancellationToken ct); }   // generated
 public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Events, bool Replayed = false);
 public readonly record struct ChangeOptions(Option<IdempotencyKey> Key = default, Option<long> ExpectedVersion = default, ClaimsPrincipal? Principal = null);
 public sealed class ChangePipeline(IAggregateStore store, TimeProvider time, IChangePermission? permission = null)
@@ -347,7 +374,7 @@ public interface IChangePermission { ValueTask<Result> Check<T>(object change, T
 ## 8. Decisions asked
 
 Round 1 (scope, before probing): C-1, C-2, C-3. Round 2 (after the measurements): C-4 … C-7. Round 3: C-8 … C-11.
-Round 4: C-12 … C-15. Questions already answered elsewhere were not asked again: parse before load (validation.md
+Round 4: C-12 … C-15. Round 5 (the owner's loading requirement): C-16, probed afterwards (§3.1). Questions already answered elsewhere were not asked again: parse before load (validation.md
 S-4), permissions as ASP.NET Core authorization handlers (security.md), behaviour methods as the contract (domain-core.md
 §9), discard on failure (primitives.md), the context shape (kernel.md).
 
@@ -370,6 +397,7 @@ S-4), permissions as ASP.NET Core authorization handlers (security.md), behaviou
 | C-13 | TVAL006 in entry factories | **Exempt** `new` inside a static entry factory of an `IValidatable` change (Validations analyzer change, step 9) |
 | C-14 | Test support | **`ChangeTest` helper** on `InMemoryAggregateStore` with a fake `TimeProvider` |
 | C-15 | PR split of step 7 | **Two PRs**: (A) `Tarol.Persistence`; (B) `Tarol.Changes` |
+| C-16 | Loading (owner requirement after round 4: "Changes autoload the aggregate; only special changes load it themselves") | **Auto-load + escape hatch**: the pipeline loads the target by `Target` (unchanged default); a special change implements `ILoads<T>.Load(IAggregateReader, ChangeContext, ct)` (another key, conditional, load-or-create); read-only other aggregates are `[Read] Id<X>` members, loaded by generated code and read with `context.Read<X>()`; the pipeline keeps validation, permission, `Prepare`, append and discard |
 
 Consequences of the three answers against the recommendation:
 
@@ -387,7 +415,7 @@ Consequences of the three answers against the recommendation:
 ### PR 7A `persistence: the aggregate store port and an in-memory store`
 
 1. `src/Persistence/Tarol.Persistence` (depends on Primitives, Kernel, Results, Options, StronglyTypedId):
-   `IAggregateStore` (§6), `IdempotencyKey`, `StoredOutcome(Guid StreamId, long Version, int Events)`,
+   `IAggregateReader` (`Load`, `Find` over unique lookups) and `IAggregateStore` (§6), `IdempotencyKey`, `StoredOutcome(Guid StreamId, long Version, int Events)`,
    `InMemoryAggregateStore(TimeProvider)`: tenant-scoped streams (another tenant → `None`), expected version (0 = must
    not exist) → `Error.Conflict("Stream.VersionConflict")`, key stored with the append atomically, `RecordedEvent` log
    with event id (UUIDv7 from the clock), `RecordedAt` per commit and the `OperationContext`; loads via `T.ReadState`
@@ -399,11 +427,13 @@ Consequences of the three answers against the recommendation:
 ### PR 7B `changes: the change pipeline, typed entry and generator`
 
 1. `src/Changes/Tarol.Changes` (+ `Tarol.Changes.Generators`), depends on Persistence and Validations: the API of §6;
-   `Run` = `Validated()` → `Seen(key)` → load → `IChangePermission` (if registered) → `Execute` with `now` read once →
-   `Prepare` → append(expected = loaded version, key) → `Committed`; no retry (C-7); creation appends with expected 0.
+   `Run` = `Validated()` → `Seen(key)` → `[Read]` aggregates (422 when missing) → load: automatic by `Target`, or the
+   change's own `ILoads<T>.Load` (C-16) → `IChangePermission` (if registered) → `Execute` with `now` read once →
+   `Prepare` → append(expected = loaded version − uncommitted events, key) → `Committed`; no retry (C-7); creation
+   appends with expected 0.
    Entry attributes as data only (no ASP.NET Core reference).
-2. Generator: `Target` for `IChange<T>` records with one `Id<T>` member; `GeneratedChanges.Dispatch(object)`;
-   TCHG001, 002, 006, 007; equatable models without locations or bodies; deterministic names; `AnalyzerReleases`.
+2. Generator: `Target` for `IChange<T>` records with one `Id<T>` member (none for `ILoads<T>`); `IHasReads.LoadReads`
+   for `[Read]` members; `GeneratedChanges.Dispatch(object)`; TCHG001, 002, 006, 007, 008; equatable models without locations or bodies; deterministic names; `AnalyzerReleases`.
 3. `ChangeTest` (C-14).
 4. Tests: every row of §3 that belongs to the internal entry (invalid before load, 404, tenant 404, 409, system actor,
    `now`, version conflict returned, key replay, discard on guard / `Prepare` / exception failure, creation twice with a
@@ -431,6 +461,8 @@ Consequences of the three answers against the recommendation:
 | "run it from a background job" | `pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.X"), tenant, time), ct: ct)` | an ambient context; `Actor.User` for a job |
 | "handle a version conflict" | `Error { Code: "Stream.VersionConflict" }` returned; the caller retries | a retry loop inside `Execute` |
 | "a change with two `Id<Auction>` members" | implement `Id<Auction> IChange<Auction>.Target => …` | ignoring TCHG001 |
+| "close an auction found by its lot number" | `ILoads<Auction>` with `Load` using `reader.Find<Auction>("lot", …)` | loading in `Execute`; injecting the store into the record |
+| "only auction verified artworks" | `[Read] Id<Artwork> Artwork` + `context.Read<Artwork>()` passed to the factory | changing the artwork in the same change (a saga); loading it by hand when `[Read]` suffices |
 | "test the change" | `ChangeTest.Given(…).At(…).When(change, actor)` | a hand-rolled store fake |
 
 ## 12. Verification of this PR (SDK 11.0.100, 2026-11-14) **[verified]**

@@ -35,6 +35,10 @@ public partial class Auction : AggregateRoot<Auction>
         return auction;
     }
 
+    // needs another aggregate read-only: only a verified artwork can be auctioned (old ArtFlow prerequisite ArtworkVerified)
+    public static Result<Auction> CreateFor(Artwork artwork, string seller, Title title, Amount reserve, DateTimeOffset endsAt, DateTimeOffset now)
+        => artwork.IsVerified ? Create(Id<Auction>.New(now), seller, title, reserve, endsAt, now) : Error.Conflict("Artwork.NotVerified");
+
     public Result<Bid> PlaceBid(string bidder, Amount amount, DateTimeOffset now)
         => Status != AuctionStatus.Open || now >= EndsAt ? Error.Conflict("Auction.NotOpen")
          : amount.Value <= Bids.Select(b => b.Amount).DefaultIfEmpty(Reserve - 1).Max() ? Error.Conflict("Bid.TooLow")
@@ -105,6 +109,12 @@ public partial class Payout : AggregateRoot<Payout>
     public decimal Amount { get; private set; }
     public PayoutStatus Status { get; private set; }
 
+    public bool Approved { get; private set; }
+
+    public Result Approve(DateTimeOffset now) => Approved ? Error.Conflict("Payout.AlreadyApproved") : Raise(new WasApproved(now));
+    public sealed record WasApproved(DateTimeOffset At) : Event;
+    private void On(WasApproved e) => Approved = true;
+
     public static Result<Payout> MarkDue(Id<Payout> id, Guid auction, decimal amount, DateTimeOffset now)
     {
         var payout = new Payout(id);
@@ -114,4 +124,24 @@ public partial class Payout : AggregateRoot<Payout>
 
     public sealed record BecameDue(Guid Auction, decimal Amount, DateTimeOffset At) : Event;
     private void On(BecameDue e) => (Auction, Amount) = (e.Auction, e.Amount);
+}
+
+public partial class Artwork : AggregateRoot<Artwork>
+{
+    public string Title { get; private set; } = "";
+    public bool IsVerified { get; private set; }
+
+    public static Artwork Register(string title, DateTimeOffset now)
+    {
+        var artwork = new Artwork(Id<Artwork>.New(now));
+        artwork.Raise(new Registered(title));
+        return artwork;
+    }
+
+    public Result Verify() => IsVerified ? Error.Conflict("Artwork.AlreadyVerified") : Raise(new Verified());
+
+    public sealed record Registered(string Title) : Event;
+    public sealed record Verified : Event;
+    private void On(Registered e) => Title = e.Title;
+    private void On(Verified e) => IsVerified = true;
 }

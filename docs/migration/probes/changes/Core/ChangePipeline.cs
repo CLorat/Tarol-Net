@@ -36,9 +36,27 @@ public sealed class ChangePipeline(IAggregateStore store, TimeProvider time, ICh
         var attempts = options.ExpectedVersion.IsSome ? 1 : Math.Max(1, options.Attempts == 0 ? 3 : options.Attempts);
         for (var attempt = 1; ; attempt++)
         {
-            if (!(await store.Load(change.Target, context, cancellationToken)).TryGetValue(out TAggregate? aggregate))
+            var now = time.GetUtcNow();
+            Reads? reads = null;
+            if (change is IHasReads hasReads)                                          // [Read] members (C-16)
+            {
+                var loadedReads = await hasReads.LoadReads(store, context, cancellationToken);
+                if (loadedReads.TryGetValue(out Violation? missing))
+                    return missing;
+                loadedReads.TryGetValue(out reads);
+            }
+            var changeContext = new ChangeContext(context, now, reads);
+            TAggregate? aggregate;
+            if (change is ILoads<TAggregate> loads)                                    // special change: its own load (C-16)
+            {
+                var own = await loads.Load(store, changeContext, cancellationToken);
+                if (own.TryGetValue(out Violation? refused))
+                    return refused;
+                own.TryGetValue(out aggregate);
+            }
+            else if (!(await store.Load(change.Target, context, cancellationToken)).TryGetValue(out aggregate))   // default: auto-load
                 return Error.NotFound($"{typeof(TAggregate).Name}.NotFound");         // also another tenant's stream
-            var expected = aggregate.Version;
+            var expected = aggregate!.Version - aggregate.UncommittedChanges.Length;    // a load-or-create returns a new one: 0
             if (options.ExpectedVersion.TryGetValue(out long ifMatch) && ifMatch != expected)
                 return Error.Conflict("Stream.VersionConflict", $"expected {ifMatch}, found {expected}");
 
@@ -46,8 +64,7 @@ public sealed class ChangePipeline(IAggregateStore store, TimeProvider time, ICh
             if (!allowed.IsSuccess)
                 return Fail(allowed);
 
-            var now = time.GetUtcNow();
-            var decided = change.Execute(aggregate, new ChangeContext(context, now)); // a throw drops the instance with the frame
+            var decided = change.Execute(aggregate, changeContext);                    // a throw drops the instance with the frame
             if (!decided.IsSuccess)
                 return Fail(decided);                                                // discard: the instance goes out of scope
             var ready = AggregateChanges.Prepare(aggregate);
@@ -80,11 +97,20 @@ public sealed class ChangePipeline(IAggregateStore store, TimeProvider time, ICh
         if (options.Key.TryGetValue(out IdempotencyKey key) && (await store.Seen(key, cancellationToken)).TryGetValue(out ChangeOutcome seen))
             return seen with { Replayed = true };
 
-        var created = creation.Execute(new ChangeContext(context, time.GetUtcNow()));
+        Reads? reads = null;
+        if (creation is IHasReads hasReads)
+        {
+            var loadedReads = await hasReads.LoadReads(store, context, cancellationToken);
+            if (loadedReads.TryGetValue(out Violation? missing))
+                return missing;
+            loadedReads.TryGetValue(out reads);
+        }
+        var created = creation.Execute(new ChangeContext(context, time.GetUtcNow(), reads));
         if (created.TryGetValue(out Violation? refused))
             return refused;
         created.TryGetValue(out TAggregate? aggregate);
-        if (aggregate!.Id != creation.Target)
+        ArgumentNullException.ThrowIfNull(aggregate);
+        if (creation.Target != default && aggregate.Id != creation.Target)   // C-10 shape: no target, the factory chose
             return Error.Internal("Change.TargetMismatch", $"{typeof(TAggregate).Name} factory returned another id");
         var ready = AggregateChanges.Prepare(aggregate);
         if (!ready.IsSuccess)

@@ -7,11 +7,20 @@ using Tarol.StronglyTypedId;
 
 namespace Tarol.Changes;
 
-/// <summary>The store port (step 8 implements it with Npgsql). Tenant-scoped: another tenant's stream is <c>None</c>.</summary>
-public interface IAggregateStore
+/// <summary>The read side of the store port, which special changes (<see cref="ILoads{TAggregate}"/>) and <c>[Read]</c> use.</summary>
+public interface IAggregateReader
 {
     ValueTask<Option<T>> Load<T>(Id<T> id, OperationContext context, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>;
+
+    /// <summary>The id of the <typeparamref name="T"/> with <paramref name="key"/> in a unique lookup (step 8: a column or an index on the stored state).</summary>
+    ValueTask<Option<Id<T>>> Find<T>(string lookup, string key, OperationContext context, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>;
+}
+
+/// <summary>The store port (step 8 implements it with Npgsql). Tenant-scoped: another tenant's stream is <c>None</c>.</summary>
+public interface IAggregateStore : IAggregateReader
+{
 
     /// <summary>
     /// Appends <see cref="AggregateRoot{TSelf}.UncommittedChanges"/> if the stream is still at <paramref name="expectedVersion"/>

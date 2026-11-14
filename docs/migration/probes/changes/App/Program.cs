@@ -128,6 +128,32 @@ Check(d.TryGetValue(out Violation? v11) && v11 is Error { Code: "Auction.NotEnde
 try { await pipeline.Dispatch("not a change", job); Check(false, "unknown type throws"); }
 catch (ArgumentException e) { Check(true, "unknown type throws", e.Message); }
 
+Console.WriteLine("\n== C-16: auto-load by default, special changes load themselves ==");
+Check(loadsBefore >= 0 && closed.IsSuccess, "default: CloseAuction(Id) is loaded by the pipeline (no load code in the change)");
+var art = Artwork.Register("Starry Night", time.GetUtcNow());
+store.CommitBehindTheBack(art, User("alice"));
+var notVerified = await pipeline.Run(new CreateAuctionOfArtwork(art.Id, new Title("Starry"), new Amount(10), time.GetUtcNow().AddDays(3)), User("alice"));
+Check(notVerified.TryGetValue(out Violation? v12) && v12 is Error { Code: "Artwork.NotVerified" }, "[Read] Artwork loaded read-only and handed to the factory: unverified → 409", v12);
+var noArt = await pipeline.Run(new CreateAuctionOfArtwork(Id<Artwork>.New(time), new Title("Starry"), new Amount(10), time.GetUtcNow().AddDays(3)), User("alice"));
+Check(noArt.TryGetValue(out Violation? v13) && v13 is Error { Type: ErrorType.UnprocessableEntity, Code: "Artwork.NotFound" }, "[Read] of a missing aggregate: 422 Artwork.NotFound", v13);
+var artNow = Artwork.Rehydrate(art.Id, [.. store.Log.Where(e => e.StreamId == art.Id.Value).Select(e => e.Event)]);
+artNow.Verify();
+store.CommitBehindTheBack(artNow, User("expert"));
+var artLog = store.Log.Count;
+var ofArt = await pipeline.Run(new CreateAuctionOfArtwork(art.Id, new Title("Starry"), new Amount(10), time.GetUtcNow().AddDays(3)), User("alice"));
+Check(ofArt.IsSuccess && store.Log.Skip(artLog).All(e => e.StreamId != art.Id.Value), "verified → created; the read aggregate gets no events", ofArt);
+ofArt.TryGetValue(out ChangeOutcome lotAuction);
+store.Index("lot", "L-42", (Id<Auction>)lotAuction.StreamId, User("alice"));
+var byLot = await pipeline.Run(new CloseByLot("L-42"), User("alice"));
+Check(byLot.TryGetValue(out ChangeOutcome o5) && o5.StreamId == lotAuction.StreamId && o5.Version == 2, "ILoads: target found by lot number, then the normal pipeline", byLot);
+var noLot = await pipeline.Run(new CloseByLot("L-0"), User("alice"));
+Check(noLot.TryGetValue(out Violation? v14) && v14 is Error { Type: ErrorType.NotFound }, "ILoads: its own NotFound", v14);
+var payoutId = Id<Payout>.New(time);
+var ap1 = await pipeline.Run(new ApprovePayout(payoutId, auctionId.Value, 150), job);
+Check(ap1.TryGetValue(out ChangeOutcome o6) && o6.Version == 2 && o6.Events == 2, "ILoads load-or-create: created and approved in one commit (expected version 0)", ap1);
+var ap2 = await pipeline.Run(new ApprovePayout(payoutId, auctionId.Value, 150), job);
+Check(ap2.TryGetValue(out Violation? v15) && v15 is Error { Code: "Payout.AlreadyApproved" }, "second call loads the existing payout: guard 409", v15);
+
 Console.WriteLine("\n== allocations per change (in process, warm) ==");
 var benchStore = new InMemoryAggregateStore(time);
 var benchPipeline = new ChangePipeline(benchStore, time);

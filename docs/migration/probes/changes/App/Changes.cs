@@ -60,3 +60,39 @@ public sealed partial record RecordPayment(Id<Auction> Auction, Amount Amount, s
 
     public Result Execute(Auction auction, ChangeContext context) => auction.RecordPayment(Amount, PaymentId);
 }
+
+// ── C-16: the default is auto-load (all changes above); special changes ──────────────────────────────────────────
+
+// (2) another aggregate read-only: [Read] makes the pipeline load it (422 when missing) and hand it over
+public sealed partial record CreateAuctionOfArtwork([Read] Id<Artwork> Artwork, Title Title, Amount Reserve, DateTimeOffset EndsAt)
+    : ICreation<Auction>, IValidatable
+{
+    Id<Auction> ICreation<Auction>.Target => Id<Auction>.Empty;   // probe only: before C-10 ICreation still has a Target
+    public Result<Auction> Execute(ChangeContext context)
+        => Auction.CreateFor(context.Read<Artwork>(), context.Operation.Actor.Id, Title, Reserve, EndsAt, context.Now);
+}
+
+// (1) the target is found by another key: its own Load
+public sealed partial record CloseByLot(string Lot) : ILoads<Auction>
+{
+    public async ValueTask<Result<Auction>> Load(IAggregateReader reader, ChangeContext context, CancellationToken cancellationToken)
+    {
+        if (!(await reader.Find<Auction>("lot", Lot, context.Operation, cancellationToken)).TryGetValue(out Id<Auction> id)
+            || !(await reader.Load(id, context.Operation, cancellationToken)).TryGetValue(out Auction? auction))
+            return Error.NotFound("Auction.NotFound", $"lot {Lot}");
+        return auction;
+    }
+
+    public Result Execute(Auction auction, ChangeContext context) => auction.Close(context.Now);
+}
+
+// (3) load or create: the first call creates the payout, later ones load it
+public sealed partial record ApprovePayout(Id<Payout> Payout, Guid Auction, decimal Amount) : ILoads<Payout>
+{
+    public async ValueTask<Result<Payout>> Load(IAggregateReader reader, ChangeContext context, CancellationToken cancellationToken)
+        => (await reader.Load(Payout, context.Operation, cancellationToken)).TryGetValue(out Payout? existing)
+            ? existing
+            : ArtFlow.Payout.MarkDue(Payout, Auction, Amount, context.Now);
+
+    public Result Execute(Payout payout, ChangeContext context) => payout.Approve(context.Now);
+}

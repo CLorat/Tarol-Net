@@ -11,7 +11,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/changes/`](../migration/probes/changes/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions C-1 … C-15, [migration/changes.md](../migration/changes.md) §9). Step 7 builds the
+**Status: designed** (owner decisions C-1 … C-16, [migration/changes.md](../migration/changes.md) §9). Step 7 builds the
 core and the internal entry; the other entries are built in steps 9, 10 and 11 (C-1, C-2).
 
 ## 1. What a user of Tarol needs from a change
@@ -34,7 +34,9 @@ The ArtFlow use cases ([migration/changes.md](../migration/changes.md) §3): **c
 ```text
 input ─► Validated()            400 Invalid, all fields, before any read            library   (validation.md S-4)
       ─► key seen?              redelivery → the stored outcome, nothing runs         library + store
-      ─► load (tenant-scoped)   404, also for another tenant's stream                 store port (step 8)
+      ─► [Read] aggregates      422 X.NotFound when a referenced one is missing        generated LoadReads (C-16)
+      ─► load (tenant-scoped)   automatic by Target: 404, also for another tenant;    store port (step 8)
+                                special changes: their own ILoads<T>.Load (C-16)
       ─► permission             401/403 (404 for another tenant: never reaches here)  hook (step 10)
       ─► Execute(aggregate, context with now)   guards → 409 / 400                    user code: one behaviour call
       ─► Prepare                invariants, forbidden lifecycle step                  Primitives
@@ -57,6 +59,9 @@ input ─► Validated()            400 Invalid, all fields, before any read    
   the owner chose the explicit answer.
 * **Creation** (`ICreation<T>`): the factory runs without a load, generates the id (C-10), and the store appends with
   expected version 0.
+
+**Loading is automatic** (C-16) **[verified]**: a change names its target by its `Id<T>` member and the pipeline loads
+it; the user writes no load code. Only special changes load themselves (§3.1).
 
 **No dependency on ASP.NET Core in the core**: the principal is a BCL `ClaimsPrincipal` in `ChangeOptions`, the
 permission hook is an interface, the store is a port in `Tarol.Persistence` (C-6) **[verified]** (Core has only
@@ -82,6 +87,41 @@ outbox row stores it, and a test builds it. The generator implements `IChange<T>
 `Id<T>` member (TCHG001 otherwise) **[verified]**. Why not `[Change]` on the behaviour method: a record emitted by the
 Changes generator is invisible to the Validations and JSON source generators (CS0535, SYSLIB1030) **[verified]**, so
 the generator would have to re-implement both.
+
+### 3.1 Special changes: their own load, extra reads (C-16) **[verified]**
+
+```csharp
+// another aggregate, read-only: [Read] → loaded before Execute, 422 "Artwork.NotFound" when missing, never written
+public sealed partial record CreateAuctionOfArtwork([Read] Id<Artwork> Artwork, Title Title, Amount Reserve, DateTimeOffset EndsAt)
+    : ICreation<Auction>, IValidatable
+{
+    public Result<Auction> Execute(ChangeContext context)
+        => Auction.CreateFor(context.Read<Artwork>(), context.Operation.Actor.Id, Title, Reserve, EndsAt, context.Now);
+}
+
+// the target is found by another key: ILoads<T>
+public sealed partial record CloseByLot(string Lot) : ILoads<Auction>
+{
+    public async ValueTask<Result<Auction>> Load(IAggregateReader reader, ChangeContext context, CancellationToken ct)
+        => (await reader.Find<Auction>("lot", Lot, context.Operation, ct)).TryGetValue(out Id<Auction> id)
+           && (await reader.Load(id, context.Operation, ct)).TryGetValue(out Auction? auction)
+            ? auction : Error.NotFound("Auction.NotFound", $"lot {Lot}");
+    public Result Execute(Auction auction, ChangeContext context) => auction.Close(context.Now);
+}
+
+// load or create: Load may return a new aggregate with uncommitted events; the pipeline appends with expected version 0
+public sealed partial record ApprovePayout(Id<Payout> Payout, Guid Auction, decimal Amount) : ILoads<Payout> { … }
+```
+
+* `ILoads<T> : IChange<T>`; its `Target` is not used, so the generator writes none and TCHG001 does not apply.
+* Everything else stays the pipeline's: validation before any read, permission after the load, `Execute`, `Prepare`,
+  append with expected version = loaded version − uncommitted events, discard on failure.
+* `[Read]` aggregates are for the decision only: they are never appended, and their version is not checked (the read
+  is as fresh as the load; a rule that must hold across both aggregates is a saga, not a change).
+* `IAggregateReader` = `Load<T>(id)` + `Find<T>(lookup, key)` for unique lookups; how the Npgsql store backs a lookup
+  (a column or an index on the stored state JSON) is step 8 **[unverified]**.
+* A special change that needs a *service* (not an aggregate) still gets no injection: the edge resolves the data and
+  puts it in the input, or the check becomes a guard parameter (validation.md §2).
 
 ## 4. Entries (C-5: attributes on the change)
 
@@ -236,7 +276,8 @@ only write model, old CQRS not migrated; C-4 input record; C-5 attributes on the
 in 7; C-7 never retry a version conflict in the pipeline; C-8 keys store successes with the append; C-9 any Conflict
 in a reaction retries, then dead-letters; C-10 factories generate ids; C-11 context as a parameter, no permission
 checks until step 10, REST fails closed; C-12 generated `RequestDelegate` endpoints; C-13 TVAL006 exempt in entry
-factories; C-14 `ChangeTest`; C-15 two PRs.
+factories; C-14 `ChangeTest`; C-15 two PRs; C-16 the pipeline loads the target automatically, special changes use
+`ILoads<T>` (own load) and `[Read]` (read-only aggregates).
 
 ## Open questions
 

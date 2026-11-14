@@ -16,6 +16,23 @@ public sealed class InMemoryAggregateStore(TimeProvider time) : IAggregateStore
     private readonly Dictionary<(Guid Tenant, string Type, Guid Id), List<StreamEvent>> _streams = [];
     private readonly Dictionary<IdempotencyKey, ChangeOutcome> _keys = [];
     private readonly List<RecordedEvent> _log = [];
+    private readonly Dictionary<(Guid Tenant, string Type, string Lookup, string Key), Guid> _lookups = [];
+
+    /// <summary>Test helper: a unique lookup entry (the Npgsql store derives these from the stored state).</summary>
+    public void Index<T>(string lookup, string key, Id<T> id, OperationContext context)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        lock (_gate) _lookups[(context.Tenant.TryGetValue(out Id<ITenant> t) ? t.Value : Guid.Empty, typeof(T).Name, lookup, key)] = id.Value;
+    }
+
+    public ValueTask<Option<Id<T>>> Find<T>(string lookup, string key, OperationContext context, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        lock (_gate)
+            return ValueTask.FromResult<Option<Id<T>>>(
+                _lookups.TryGetValue((context.Tenant.TryGetValue(out Id<ITenant> t) ? t.Value : Guid.Empty, typeof(T).Name, lookup, key), out var id)
+                    ? (Id<T>)id : Option.None);
+    }
 
     /// <summary>Runs once before the next append: simulates a concurrent writer.</summary>
     public Action? BeforeNextAppend { get; set; }
