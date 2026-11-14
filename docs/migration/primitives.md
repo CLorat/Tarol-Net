@@ -757,7 +757,7 @@ No `NoWarn`, no `.editorconfig` change.
 | `eng/verify-packages.sh` | `Tarol.Primitives` contains `lib/net11.0`, README, LICENSE, `skills/tarol-primitives/SKILL.md`, the generator under `analyzers/dotnet/cs/`; the consumer runs 5 checks (2 new: stored state from the package, state == replay) and lists the skills of Primitives, Kernel, Results, Options, StronglyTypedId; OK |
 | diagnostics reach a package consumer | temporary traps files in `Tarol.Primitives.PackageTests`: `error TPRM024`, `TPRM025`, `TPRM026` (generator), then a second file with `error TPRM027` (analyzer); both removed |
 
-New tests: `StoredStateTests` (29: a round trip per model (Gallery, Orders, nested Station, Board, Showroom), the agreed
+New tests: `StoredStateTests` (28: a round trip per model (Gallery, Orders, nested Station, Board, Showroom), the agreed
 JSON shape, `null`/`None`/empty ref, enums and `[StateName]`, jsonb key order, an old schema → `None` → replay → current
 schema on the next write, a mismatch skips the object, no rule and no `On` handler runs on read, continuing on a
 restored tree, malformed states, a missing JSON type, a broken aggregate, `[LoadByReplay]`, the helper);
