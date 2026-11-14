@@ -9,7 +9,7 @@ Labels as in the [conventions](../architecture/conventions.md): **[verified]** =
 build from a scratch copy with `-p:TarolNetRepo=<clone>`); **[verified by reading]**; **[unverified]**.
 
 **Status: part A implemented** (events, routing, children, invariants, failure rules, analyzers, test helper; §10–§13). Part B
-(stored state, round 3 of §9) is the next pull request.
+(stored state, round 3 of §9): stage 1 evaluation in §16, waiting for the owner's answers.
 
 ## 0. Summary
 
@@ -413,3 +413,249 @@ See [domain-core.md](../architecture/domain-core.md#what-later-steps-must-do) an
   `IOwnedBy` for both) and fails at run time with `OrphanChild`; a narrower constraint needs a second generic overload.
 * The analyzer's known false positive (pure `Result`-returning arithmetic inside `On`) and false negative (a write
   through another instance) from §7 remain; the replay test covers the second.
+
+## 16. Part B: stored state (stage 1 evaluation, 2026-11-14)
+
+Decided before this evaluation (round 3, §9): every commit stores the current state with its events; a normal load reads
+the state and never replays; queryable JSON; capture every instance field; an old shape is replayed in memory and
+rewritten on the next change. This section evaluates **how**. Probe: [`probes/primitives/stored-state/`](probes/primitives/stored-state/)
+(output in `output.txt`). The prototype is the real generator on this branch (`src/Primitives`), not a copy; names and
+diagnostic ids below are **provisional** until the owner answers (§16.9).
+
+**Found at the start:** `main` was at `a46b359`, not `8ead467`: PR #10 (state lifecycles, docs only) merged in between.
+It **reserves TPRM016–TPRM023 for part C** and states that stored state captures a lifecycle enum "as a bare string"
+([state-transitions.md](state-transitions.md) §7, §8). The prototype therefore numbers part B's diagnostics TPRM024–027
+and writes enums as names; both are questions below.
+
+### 16.1 API shape candidates
+
+| | (A) static members on `IAggregateRoot<TSelf>` (**proposed**) | (B) separate `IStoredState<TSelf>` | (C) codec object |
+|---|---|---|---|
+| contract | `static abstract int StateSchema`, `WriteState(Utf8JsonWriter, TSelf, JsonSerializerOptions)`, `ReadState(Id<TSelf>, ref Utf8JsonReader, JsonSerializerOptions) : Option<TSelf>` | the same three members, only on stored aggregates | `static abstract AggregateState<TSelf>? State { get; }` with instance `Schema`, `Write`, `Read` |
+| `[LoadByReplay]` aggregate | `StateSchema == 0`, `WriteState` throws, `ReadState` skips the object and returns `None` | does not implement it | `State` is `null` |
+| generic store, no reflection | one constraint, one branch on `T.StateSchema` | **two** store entry points: a generic method cannot test for the interface and then call its static members without `MakeGenericMethod` | one constraint, `if (T.State is { } s)` |
+| new public types | none | one interface | one abstract class |
+
+Store (step 8), with (A):
+
+```csharp
+// commit, same transaction as the events
+if (T.StateSchema != 0)
+{
+    buffer.ResetWrittenCount(); writer.Reset(buffer);
+    T.WriteState(writer, aggregate, options);           // options: ValueObjectJson.Resolver first, then the user's context
+    writer.Flush();
+    await UpsertState(aggregate.Id, aggregate.Version, T.StateSchema, buffer.WrittenMemory, ct);
+}
+
+// load
+if (row is { Schema: var s } && s == T.StateSchema && s != 0)
+{
+    var reader = new Utf8JsonReader(row.Json);
+    if (T.ReadState(id, ref reader, options).TryGetValue(out T? loaded))
+        return loaded;                                   // no replay
+}
+var aggregate = T.Rehydrate(id, await ReadEvents(id, ct));   // old or missing shape: replay in memory,
+return aggregate;                                            // the next commit rewrites the row (lazy)
+```
+
+Test, with (A) and the proposed helper (`AggregateState.Write/Read` are thin wrappers over the static members):
+
+```csharp
+var json = AggregateState.Write(order, options);                       // byte[]
+var loaded = AggregateState.Read(order.Id, json, options).GetValueOrThrow();
+AggregateState.Write(loaded, options).ShouldBe(json);
+AggregateTest.StoredStateMatchesReplay(order, options);                // state == replay of order's events (§16.8)
+```
+
+`ReadState` takes the id like `Rehydrate(id, history)`: the store has it, the reader can construct the root before its
+members (jsonb reorders keys, §16.2), and a state of another aggregate throws (like a foreign event).
+
+### 16.2 JSON without reflection: writer/reader against `JsonMetadataServices`
+
+**Generated writer/reader (proposed).** Per aggregate the generator emits `StateSchema`, `WriteState`, `ReadState`, one
+`__WriteState{i}`/`__ReadState{i}` per entity type, one `ref` field accessor per captured field
+(`[UnsafeAccessor(Field, Name = "<Price>k__BackingField")]`, also for `readonly` fields), `JsonEncodedText` names and a
+name/number switch per enum type. Abridged output for an entity (probe, `Room`):
+
+```csharp
+private static void __WriteState3(Utf8JsonWriter writer, Room entity, JsonSerializerOptions options)
+{
+    writer.WriteStartObject();
+    writer.WriteString(__sn0, entity.Id.Value);                                   // "id"
+    writer.WritePropertyName(__sn22);                                             // "capacity": Option<int>
+    if (__S3_3(entity).IsSome) writer.WriteNumberValue(__S3_3(entity).GetValueOrThrow()); else writer.WriteNullValue();
+    writer.WritePropertyName(__sn21); __WriteEnum0(writer, __S3_2(entity));      // "lighting": "Dim"
+    ...
+    writer.WriteStartArray(__sn23);                                               // "artworks": [ … ]
+    foreach (var child0 in __Member3_Artworks(entity)) __WriteState0(writer, child0, options);
+    writer.WriteEndArray();
+    writer.WriteEndObject();
+}
+
+private Room __ReadState3(ref Utf8JsonReader reader, JsonSerializerOptions options)
+{
+    var id = (Id<Room>)StateJson.FindId(reader, "Room");                          // a copy of the reader scans for "id"
+    if (__map3.ContainsKey(id)) ThrowHelper.DuplicateEntity("Room", id.Value);
+    var entity = __New3(id, this);                                                // the existing constructor accessor
+    __map3.Add(id, entity);
+    while (StateJson.Next(ref reader, "Room"))
+    {
+        if (reader.ValueTextEquals("title"u8)) { StateJson.Value(ref reader, "Room"); __S3_0(entity) = reader.GetString()!; found++; }
+        ...
+        else if (reader.ValueTextEquals("artworks"u8))
+        {
+            StateJson.StartArray(ref reader, "Room");
+            while (StateJson.NextItem(ref reader, "Room"))
+            {
+                var child = __ReadState0(ref reader, options);
+                __TarolSet<Artwork>.Add(__Member3_Artworks(entity), child);       // the existing set accessor
+                __Parent0(child) = entity;                                        // the existing __Parent accessor
+            }
+            found++;
+        }
+        else StateJson.Unknown(ref reader, "Room");
+    }
+    ...
+}
+```
+
+Member values:
+
+| Member type | Written | Read | Through the options? |
+|---|---|---|---|
+| `string`, `bool`, integers, `decimal`, `Guid`, `DateTime`, `DateTimeOffset` | `Utf8JsonWriter` directly (the format System.Text.Json writes) | `reader.GetX()` | no |
+| `Id<T>` | the Guid string (`IdJsonConverter`'s format) | `(Id<T>)reader.GetGuid()` | no |
+| enum | its **member name** (`"Dim"`); an undefined value as its number | name or number; an unknown name throws | no |
+| `T?` and `Option<T>` of the above | the value, or `null` | `null` → `null`/`None` | no |
+| anything else (`List<T>`, records, value objects, `double`, `DateOnly`, …) | `JsonSerializer.Serialize(writer, v, StateJson.Info<T>(options, "Gallery.Tags"))` | `Deserialize(ref reader, info)` | **yes**: the options' resolver chain (value objects need `ValueObjectJson.Resolver` first; the type must be in the user's context). The `JsonTypeInfo` is cached per options instance; a missing one throws `NotSupportedException` naming the member and the `[JsonSerializable]` to add |
+
+The probe's JSON (one room, two artworks, ids shortened):
+
+```json
+{"id":"…","version":21,"schema":635019038,"address":{"street":"Millbank","city":"London"},"artworkCount":2,
+ "budget":250000.50,"label":"Modern","log":["tag:art","tag:london"],"motto":"Look closer","name":"Tate",
+ "openedAt":"2026-11-14T09:30:00+01:00","tags":["art","london"],"visitors":1200,
+ "curator":{"id":"…","name":"Frances"},
+ "rooms":[{"id":"…","capacity":400,"lighting":"Dim","title":"Turbine Hall","totalValue":1150000,
+   "artworks":[{"id":"…","firstRoom":"…","name":"Weather","preferred":"Warm","price":1100000,"reserve":null,"notes":[…]}, …],
+   "notes":[{"id":"…","text":"busy on Sundays"}]}]}
+```
+
+Order: `id`, `version`, `schema`, then fields by name, then child collections by name. **jsonb does not keep it**
+(shorter keys first, then bytewise), so the reader is order-independent: `schema` is found by a scan on a copy of the
+reader, the root id is a parameter, an entity's `id` by a scan that usually stops at the first key. Strict reading: a
+missing or unknown member throws `JsonException` (with the schema hash equal, either means a corrupt row); a duplicated
+entity id throws.
+
+**`JsonMetadataServices` type infos.** Written by hand as the generator would emit them (`MetadataVariant.cs`): it
+produces the same JSON (checked), but only for writing. Reading cannot be expressed: an entity's creator needs the
+root and the identity maps, and STJ offers no way to hand them to nested object creation except ambient (thread-static)
+state; the root needs its id before its children, and jsonb's key order defeats a parameterized constructor that needs
+`id` first. It also needed a hand converter for `Lighting?` (the nullable converter resolves the enum from the options
+again). Not proposed.
+
+Results **[verified]**: 28/28 checks pass on JIT and as a **Native AOT publish with 0 IL warnings** (`output.txt`):
+state of live == state of full replay; `ReadState(WriteState(x))` writes the same JSON; jsonb key order reads back;
+the same commands on the live and the loaded instance give the same versions and the same state (cascade, `EntityRef`
+delete, create with a given id); the closed room's artworks leave the registry of the loaded tree; another or no
+`schema` → `None` and the object is skipped; foreign id, unknown member, missing member, unknown enum name, duplicated
+entity → exceptions; the `[Transient]` cache is not stored; the value object's rule does not run on read;
+`[LoadByReplay]` → schema 0, `WriteState` throws, `ReadState` is `None`.
+
+### 16.3 Measurements **[verified]** (BenchmarkDotNet 0.16.0-preview.2, ShortRun, in process; error bars are wide)
+
+Probe Gallery with N entities (rooms = max(1, N/10), the rest artworks, each hung and repriced once). "Replay" is
+`Rehydrate` from events already in memory; "replay + JSON" also deserializes each event payload, which is what a load
+by replay costs a store.
+
+| N | events | state | event JSON | write state | metadata write | **read state** | replay | replay + JSON |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2 | 400 B | 67 B | 0.48 µs, **0 B** | 0.91 µs, 432 B | 1.67 µs, 1.6 KB | 0.43 µs, 1.5 KB | 0.97 µs, 1.9 KB |
+| 10 | 20 | 1.9 KB | 0.9 KB | 1.70 µs, **0 B** | 3.71 µs, 1.4 KB | 6.56 µs, 6.9 KB | 2.90 µs, 6.4 KB | 11.1 µs, 10.6 KB |
+| 100 | 191 | 17 KB | 8.5 KB | 13.1 µs, **0 B** | 26.9 µs, 5.2 KB | 54.1 µs, 62 KB | 29.4 µs, 57 KB | 98.7 µs, 98 KB |
+
+* **Write cost per commit**: about 0.13 µs per entity, allocation-free, half of `JsonMetadataServices`.
+* **Read** is 1.8× faster than replay + JSON at 10 and 100 entities, although this model has only ~2 events per
+  entity; read cost grows with the state, replay with the history, so the gap widens with every event. A brand-new
+  aggregate (1 entity, 2 events) reads slower than it replays; 1.7 µs either way.
+* Read allocates what the aggregate itself allocates (+8 % over in-memory replay).
+* The state is about 2× the event JSON here (every member is written, `null`s included, and the history is short). In
+  step 8 the real gain is one row instead of N rows.
+
+### 16.4 Schema hash **[verified]**
+
+`StateSchema` = FNV-1a (32 bit) over the UTF-8 bytes of a canonical shape string, masked positive, never 0. No
+`string.GetHashCode`; the string is built from symbol names only, so the value is the same on every build and machine
+(the snapshot files pin it). Example (`StateSchemaTests`):
+
+```
+tarol-state/1:{id:id,version:long,schema:int,address:global::Shop.Address{City:string,Street:string}?,name:string,
+status:global::Shop.Status{Open,Closed},tags:global::System.Collections.Generic.List<string>,lines:{id:id,quantity:int,via:id}[],shipping:{id:id}?}
+```
+
+Covers: JSON names, member shapes (framework types by name; enums with their member names; other types with their
+public members, `[JsonPropertyName]` and types, recursively, depth ≤ 6), nesting (`[]` set, `?` ref, recursive owners
+as `#Type`), and a format prefix (`tarol-state/1`) so a change of Tarol's own format changes every schema. Not covered,
+by design: field and file order (sorted), CLR names of the root and entities, `[Transient]` and computed members,
+nullable annotations, `T?` against `Option<T>` (the same JSON). Tests: stable across compilations and both orders of
+a partial split over two files; unchanged for 5 non-shape edits; changed for 9 shape edits (member type, renamed
+property, pinned name, new field, nested record member, enum member, renamed collection, set ↔ ref, `Option<T>` → `T`).
+Known limit: a change inside a type behind a custom `JsonConverter` (the JSON is the converter's) is not seen.
+
+### 16.5 Restoring without events **[verified]**
+
+`ReadState` builds the tree with the pieces `Rehydrate` already uses: the root's constructor (the user's `(Id<T>)` one
+if declared), `__New{i}` for entities (the user's `(Id<T>, TRoot)` one if declared), the identity maps,
+`EntitySet.AddInternal`, `EntityRef.SetInternal`, `__Parent`; fields are written through `ref` accessors (no setter
+runs), and the version through a new internal `AggregateRoot.RestoreVersion(long)` reached by `[UnsafeAccessor]` (it
+throws on an instance that already has a version or changes). **No `On` handler, invariant, guard or rule runs**: the
+probe's value object counts its `Validate` calls and the count does not move on read (S-3 repeated on state); a loaded
+aggregate then continues with the same versions and passes `Prepare`.
+
+Caveat found: the identity maps are filled in tree order on read and in creation order on replay, so
+`CheckInvariants` may visit entities in another order; when **two** entities break invariants, `Prepare` can report the
+other one first. Both failures discard the instance; the order was never specified.
+
+### 16.6 Diagnostics (provisional ids; tested in `StateDiagnosticTests`, 32 cases)
+
+| Id | Severity | Trigger |
+|---|---|---|
+| TPRM024 | Error | a captured field holds an entity, a root, a collection or map of them, an `EntitySet`/`EntityRef` inside another type, a delegate (field-like events included), `object`/`dynamic` or a pointer; not reported for `[Transient]`, static, computed members, `Id<T>` of an entity, or a `[LoadByReplay]` aggregate |
+| TPRM025 | Error | two stored members get the same JSON name (`_name` and `Name`; a `[StateName]` equal to a child collection's name), or a reserved name (`id` everywhere; `version`, `schema` on the root) |
+| TPRM026 | Error | `[StateName]` on a member that is not stored (computed, `[Transient]`, static, any member of a `[LoadByReplay]` aggregate); `[LoadByReplay]` on an entity |
+| TPRM027 | Error (analyzer) | an `On` handler assigns a `[Transient]` member anything but `null`/`default` (incl. `++`, `+=`, `??=`): it is then state, lost on a load from the stored state. Resetting a cache in `On` is allowed |
+
+### 16.7 Capture rule as built
+
+Every instance field of the root and of each entity type, declared in that type: plain fields under their name without
+leading `_`, auto-property backing fields (also `field`-keyword properties) under the property name, both in camelCase
+by System.Text.Json's own algorithm (reimplemented, so names are fixed at compile time and part of the schema).
+Excluded: static and `const` fields, generated `__` fields, `[Transient]` (on the field, the property, or `[field: ]`),
+`EntitySet`/`EntityRef` members (nested as children instead), implicitly declared fields that are not backing fields.
+`readonly` fields are restored through their `ref` accessor (verified on JIT and Native AOT).
+
+### 16.8 Property-based test
+
+`Directory.Packages.props` has no property-based testing library. Proposal: a **hand-written seeded random walk**, no
+new package. Per test model a small driver lists its behaviours (each picks a random valid target from the current
+aggregate: an existing room, line, note…). For each seed (fixed list, e.g. 200 seeds × 40 steps per model): run a random
+behaviour; after **every** step compare `WriteState(live)`, `WriteState(Rehydrate(id, all events))` and
+`WriteState(ReadState(WriteState(live)))` as JSON strings; at random steps **replace the live instance with the loaded
+one** and continue, so later behaviours (creates, cascades, `EntityRef` deletes, multi-owner children) run on a
+restored tree. A failure reports the model, seed, step, the behaviour log and both JSON strings. Models: Gallery,
+Orders (EntityRef, `CreatedIn`, a user constructor), the nested shape (Station), Board (value object), and the probe's
+rich model moved into the tests (every member kind). The same check ships as
+`AggregateTest.StoredStateMatchesReplay(aggregate, options)` (proposed) for users' own aggregates. A library (FsCheck,
+CsCheck) would add shrinking; with fixed seeds and a step log the failures are reproducible without it.
+
+### 16.9 Questions for the owner
+
+1. API names and shape (§16.1).
+2. The replay-only attribute (`[SnapshotIgnore]` → ?) and `[StateName]`.
+3. JSON by generated writer/reader or `JsonMetadataServices` (§16.2, §16.3).
+4. `null`, `None` and an empty `EntityRef`: written as `null` or left out.
+5. Naming policy: fixed camelCase at compile time, or the options' `PropertyNamingPolicy`.
+6. Enums: member names or numbers.
+7. Diagnostic ids: TPRM024–027 (keep part C's reservation) or TPRM016–019 (renumber part C).
+8. The test helper and the property-based test approach (§16.8).
