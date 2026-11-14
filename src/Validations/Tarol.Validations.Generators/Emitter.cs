@@ -255,7 +255,7 @@ internal sealed class Emitter
         var rules = parameter.GetAttributes().Where(Symbols.IsRule).ToImmutableArray();
         var location = parameter.Locations.FirstOrDefault();
         var body = new StringBuilder();
-        EmitValue(body, indent + (enter ? "    " : string.Empty), expression, parameter.Type, parameter.NullableAnnotation, rules,
+        EmitValue(body, indent, expression, parameter.Type, parameter.NullableAnnotation, rules,
             parameter.Name, location, isInput, depth: 0, singleField: !enter && !isInput);
 
         if (body.Length == 0)
