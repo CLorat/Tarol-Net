@@ -72,6 +72,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `ChangeOptions`, `ChangeOutcome`, `ChangeTest`; bundled generator (target, `[Read]` loads, typed
   `GeneratedChanges.Dispatch`) with diagnostics TCHG001–TCHG005; agent skill `tarol-changes`.
 
+* Persistence step 8A: generated `T.StreamType` (`[StreamType]`, TPRM028 duplicate, TPRM029 empty) and
+  `T.EventTypes` (`EventCatalog`) on every aggregate; `EventCodec` with `IEventUpcaster` chains in `Tarol.Persistence`;
+  `IEventFeed.ReadAll(GlobalPosition, limit)`; `StoreLookups` shared by stores; `InMemoryStoreOptions` (state options,
+  codec round trip, lookups). Design: docs/architecture/persistence.md, docs/migration/persistence.md §20.
+
 ### Changed
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and
@@ -95,6 +100,8 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   it), `DomainClock` is gone, deletes are raised by the entity itself, the old generic event bases
   (`DomainEvent<R, X>`, `CreateDomainEvent`, `DeleteDomainEvent`) and the generated `closed` bases are replaced by the
   library's nested bases with the same user syntax. Full list: docs/migration/primitives.md §10.
+* `InMemoryAggregateStore` keys streams by `T.StreamType` instead of the CLR name, copies the history only to replay,
+  and falls back to a replay when a stored state does not parse (it threw `JsonException`); docs/migration/persistence.md §20.
 
 ### Removed
 

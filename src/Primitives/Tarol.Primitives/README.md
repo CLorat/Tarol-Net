@@ -62,7 +62,9 @@ var loaded = AggregateState.Read(gallery.Id, state, options);   // Option<Galler
 * **Events** derive from the base of the type they target, written unqualified inside it: `Event`, `Created`,
   `CreatedIn<TParent>` (a child with two owner types), `Deleted`. They are plain records: value equality, no envelope,
   any JSON context (also in the same assembly) can serialize them. `[EventType("alias", version)]` pins the stored name.
-* **Generated** in your partial classes: `Rehydrate(id, history)`, `EventTypeOf(event)`, the dispatch (target, then
+* **Generated** in your partial classes: `Rehydrate(id, history)`, `EventTypeOf(event)`, `StreamType` (the stored
+  name of the aggregate's streams: `[StreamType("…")]` or the snake-cased name, unique per compilation, TPRM028),
+  `EventTypes` (alias, version and type of every event, for an event codec), the dispatch (target, then
   owners bottom-up, then the root), the identity maps (`IRegistry<T>.TryFind`), cascade on delete, the invariant check.
 * **Strict replay**: a gap, a foreign event, an unknown or duplicate entity or an unknown event type throws.
 * **Failure means discard**: a failed behaviour, a broken invariant or an exception; after an `On` handler threw the

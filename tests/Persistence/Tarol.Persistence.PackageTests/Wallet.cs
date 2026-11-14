@@ -20,4 +20,6 @@ public partial class Wallet : AggregateRoot<Wallet>
 }
 
 [JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(Wallet.Opened))]
+[JsonSerializable(typeof(Wallet.Added))]
 internal sealed partial class SmokeJson : JsonSerializerContext;
