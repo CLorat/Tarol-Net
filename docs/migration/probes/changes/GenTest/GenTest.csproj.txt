@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Probe.Changes.GenTest</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <ProjectReference Include="../Gen/Gen.csproj" />
+    <ProjectReference Include="../Core/Core.csproj" />
+    <None Include="../App/Changes.cs;../App/Domain.cs" CopyToOutputDirectory="PreserveNewest" LinkBase="input" />
+  </ItemGroup>
+</Project>

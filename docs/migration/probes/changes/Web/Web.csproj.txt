@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- ProbeEndpointStyle: request-delegate (default) | delegate. Warnings are reported, not errors, so both styles publish. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors><EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <PublishAot>true</PublishAot><TrimmerSingleWarn>false</TrimmerSingleWarn><InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <AssemblyName>Probe.Changes.Web</AssemblyName>
+    <ProbeEndpointStyle Condition="'$(ProbeEndpointStyle)' == ''">request-delegate</ProbeEndpointStyle>
+    <NoWarn>TVAL006</NoWarn><!-- probe: the self-test builds inputs as JSON would -->
+    <DefineConstants Condition="'$(ProbeEndpointStyle)' == 'delegate'">$(DefineConstants);NAIVE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ProbeEndpointStyle" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
+    <Compile Include="../App/Domain.cs;../App/Changes.cs" />
+    <ProjectReference Include="../Core/Core.csproj" />
+    <ProjectReference Include="../Gen/Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
