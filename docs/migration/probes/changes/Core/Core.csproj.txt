@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Prototype of the Tarol.Changes core (candidate A). No ASP.NET Core dependency. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><IsAotCompatible>true</IsAotCompatible>
+    <RootNamespace>Tarol.Changes</RootNamespace><AssemblyName>Probe.Changes.Core</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
+  </ItemGroup>
+</Project>

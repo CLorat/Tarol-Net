@@ -1,0 +1,191 @@
+# SDK 11.0.100, 2026-11-14, x86_64
+
+## App (JIT): pipeline, retry, idempotency, reactions, delivery policy
+== create, close (user over REST, here in process) ==
+PASS create auction: Success(ChangeOutcome { StreamId = 01a196fb-1600-7a78-aafc-de6ae2aece8b, Version = 1, Events = 1, Replayed = False })
+PASS creation guard on an input field is Invalid (400): Invalid { EndsAt: TooSoon }
+PASS invalid input: all fields at once, before any load: Invalid { Title: Length; Reserve: Range }
+PASS Id<T>.Empty rejected before load: Invalid { Auction: Required }
+PASS same id twice: Conflict: Error { Conflict, Auction.AlreadyExists }
+PASS bid: Success(ChangeOutcome { StreamId = 01a196fb-1600-7a78-aafc-de6ae2aece8b, Version = 2, Events = 1, Replayed = False })
+PASS close: Success(ChangeOutcome { StreamId = 01a196fb-1600-7a78-aafc-de6ae2aece8b, Version = 3, Events = 1, Replayed = False })
+PASS close twice: 409 from the lifecycle guard: Error { Conflict, AuctionStatus.NotAllowed }
+PASS missing: 404: Error { NotFound, Auction.NotFound }
+PASS another tenant: 404, not 403: Error { NotFound, Auction.NotFound }
+== settle (background job, system actor, TimeProvider) ==
+PASS before the end time: guard with now from the pipeline's TimeProvider: Error { Conflict, Auction.NotEnded }
+PASS after the end time: Success(ChangeOutcome { StreamId = 01a196fb-1600-7a78-aafc-de6ae2aece8b, Version = 5, Events = 2, Replayed = False })
+PASS events record the system actor: System:Jobs.AuctionSettlement
+PASS RecordedAt from the injected TimeProvider: 11/09/2026 12:00:00 +00:00
+== reaction to Bid.Won (after commit, outbox, at least once) ==
+PASS generated reaction table: MarkPayoutDue
+PASS no reaction to Bid.Lost
+PASS first delivery commits, ack: Success(ChangeOutcome { StreamId = 01a196fb-1600-7a78-aafc-de6ae2aece8b, Version = 1, Events = 1, Replayed = False })
+PASS causation = the triggering event id: 01a1c02d-f600-71b4-a43f-ba6fe7534b26
+PASS correlation carried over: 01a196fb-1600-7b1d-9c0d-71dcc172855e
+PASS reaction acts as System (on behalf of the job's original actor: none): System:Reactions.MarkPayoutDue
+PASS redelivery: same outcome, nothing written (key = event id): Success(ChangeOutcome { StreamId = 01a196fb-1600-7a78-aafc-de6ae2aece8b, Version = 1, Events = 1, Replayed = True })
+PASS redelivery is acknowledged: duplicate delivery
+== optimistic concurrency: retry with a fresh load ==
+PASS lost the race once, reloaded, decided again on the new state: Success(ChangeOutcome { StreamId = 01a1c02d-f600-7911-8f4c-7b5d9349ffd3, Version = 3, Events = 1, Replayed = False })
+PASS the retry re-runs the guards: the new state rejects it (409 Bid.TooLow, not a version conflict): Error { Conflict, Bid.TooLow }
+PASS If-Match with a stale version: 409, no retry: Error { Conflict, Stream.VersionConflict }
+== idempotency key (REST Idempotency-Key, webhook delivery id) ==
+PASS second delivery of evt_1 returns the stored outcome: Success(ChangeOutcome { StreamId = 01a196fb-1600-7a78-aafc-de6ae2aece8b, Version = 6, Events = 1, Replayed = True })
+PASS a new delivery after the auction is paid: guard says no: Error { Conflict, Auction.NotSettled }
+PASS guard Conflict in a reaction/webhook: acknowledge (recorded, not retried): rejected by a guard (Auction.NotSettled): the state moved on; recorded, not retried
+== delivery policy table ==
+     Invalid           -> (DeadLetter, input built from the event is invalid: mapping bug or contract change)
+     VersionConflict   -> (Retry, still contended after the pipeline's retries)
+     NotFound own      -> (DeadLetter, own event points at a missing aggregate)
+     NotFound foreign  -> (Retry, target not there yet (ordering))
+     Forbidden         -> (DeadLetter, the system actor is not allowed)
+     Unavailable       -> (Retry, transient)
+     Internal          -> (DeadLetter, internal)
+== typed dispatcher (saga outbox row -> change, no reflection) ==
+PASS object -> generated switch -> Run: Error { Conflict, Auction.NotEnded }
+PASS unknown type throws: String is not a change of Probe.Changes.App. (Parameter 'change')
+== C-16: auto-load by default, special changes load themselves ==
+PASS default: CloseAuction(Id) is loaded by the pipeline (no load code in the change)
+PASS [Read] Artwork loaded read-only and handed to the factory: unverified → 409: Error { Conflict, Artwork.NotVerified }
+PASS [Read] of a missing aggregate: 422 Artwork.NotFound: Error { UnprocessableEntity, Artwork.NotFound }
+PASS verified → created; the read aggregate gets no events: Success(ChangeOutcome { StreamId = 01a1c02d-f600-75bf-aa47-e76cf0472a28, Version = 1, Events = 1, Replayed = False })
+PASS ILoads: target found by lot number, then the normal pipeline: Success(ChangeOutcome { StreamId = 01a1c02d-f600-75bf-aa47-e76cf0472a28, Version = 2, Events = 1, Replayed = False })
+PASS ILoads: its own NotFound: Error { NotFound, Auction.NotFound }
+PASS ILoads load-or-create: created and approved in one commit (expected version 0): Success(ChangeOutcome { StreamId = 01a1c02d-f600-7862-9cd7-9bdaf757980f, Version = 2, Events = 2, Replayed = False })
+PASS second call loads the existing payout: guard 409: Error { Conflict, Payout.AlreadyApproved }
+== allocations per change (in process, warm) ==
+     close via pipeline: 2024 B/op, hand-written: 1545 B/op (both include the in-memory store's replay)
+     pipeline overhead: 479 B/op (broken down in Bench/)
+ALL PASS
+
+## App (Native AOT): publish warnings, then the native run
+IL warnings: 0
+     close via pipeline: 1240 B/op, hand-written: 1305 B/op (both include the in-memory store's replay)
+     pipeline overhead: -65 B/op (broken down in Bench/)
+
+ALL PASS
+
+## Web, generated RequestDelegate entries (candidate A): Native AOT publish, then the native self-test
+IL/RDG warnings: 0
+native binary: 17215040 bytes
+PASS anonymous create: 401 from the endpoint policy: Unauthorized
+PASS create: 201 with the server-assigned id: 201 {"id":"01a196fb-1600-7082-87a1-9d2764b426bc","version":1}
+PASS invalid body: 400 problem details, all fields, JSON-cased paths: {"type":"https://tarol.dev/problems/400","status":400,"title":"One or more fields are invalid.","errors":{"title":["Length"],"reserve":["Range"]}}
+PASS factory guard on an input field: 400 endsAt: {"type":"https://tarol.dev/problems/400","status":400,"title":"One or more fields are invalid.","errors":{"endsAt":["TooSoon"]}}
+PASS malformed JSON: 400: {"type":"https://tarol.dev/problems/400","status":400,"title":"One or more fields are invalid.","errors":{"reserve":["Json"]}}
+PASS not JSON: 415 from routing (generated AcceptsMetadata): UnsupportedMediaType
+PASS Idempotency-Key: the retry returns the first outcome (200, same id): 201 {"id":"01a196fb-1600-7936-a774-2f392c650d44","version":1} / 200 {"id":"01a196fb-1600-7936-a774-2f392c650d44","version":1}
+PASS bid: 204 with ETag = version: 204 "2"
+PASS low bid: 409 with the guard's code: {"type":"https://tarol.dev/problems/409","status":409,"title":"Bid.TooLow","code":"Bid.TooLow"}
+PASS If-Match stale: 409: {"type":"https://tarol.dev/problems/409","status":409,"title":"Stream.VersionConflict","code":"Stream.VersionConflict","detail":"expected 1, found 2"}
+PASS close: 204 (no body needed: all members from the route): NoContent
+PASS close twice: 409: {"type":"https://tarol.dev/problems/409","status":409,"title":"AuctionStatus.NotAllowed","code":"AuctionStatus.NotAllowed","detail":"Closed -\u003E Closed"}
+PASS bad route id: 400 auction: {"type":"https://tarol.dev/problems/400","status":400,"title":"One or more fields are invalid.","errors":{"auction":["Format"]}}
+PASS missing: 404: NotFound
+PASS another tenant: 404: NotFound
+PASS baseline (RDG) and candidate C endpoints answer the same: Conflict/Conflict
+PASS settled by the job: Success(ChangeOutcome { StreamId = 01a196fb-1600-7082-87a1-9d2764b426bc, Version = 5, Events = 2, Replayed = False })
+PASS signed webhook: 200; redelivery of evt_1: 200, nothing written: OK/OK
+PASS webhook acts as Service(webhook:payments): Service:webhook:payments
+PASS wrong signature: 401: Unauthorized
+PASS timestamp outside 5 minutes: 401: Unauthorized
+PASS body changed after signing: 401: Unauthorized
+PASS unhandled type: 202 (ack, no retry storm): Accepted
+PASS a new delivery the guard rejects (already paid): 200 ack: OK
+ALL PASS
+
+## Web, naive entries: generated MapPost(pattern, lambda) and a generic MapPost(Delegate) (-p:ProbeEndpointStyle=delegate)
+Web/Program.cs(82): AOT analysis warning IL3050: CentralMap.MapChangeNaive<TChange>(IEndpointRouteBuilder,String): Using member 'Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapPost(IEndpointRouteBuilder,String,Delegate)' whi
+Web/Program.cs(82): Trim analysis warning IL2026: CentralMap.MapChangeNaive<TChange>(IEndpointRouteBuilder,String): Using member 'Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapPost(IEndpointRouteBuilder,String,Delegate)' wh
+Web/Program.cs(82,12): warning IL2026: Using member 'Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapPost(IEndpointRouteBuilder, String, Delegate)' which has 'RequiresUnreferencedCodeAttribute' can break functionality when tr
+Web/Program.cs(82,12): warning IL3050: Using member 'Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapPost(IEndpointRouteBuilder, String, Delegate)' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT com
+Web/Program.cs(82,12): warning RDG011: Endpoints with generic type parameters are not supported. Compile-time endpoint generation will skip this endpoint and the endpoint will be generated at runtime. For more information, please see https:
+Web/obj/Release/net11.0/linux-x64/generated/Probe.Changes.Gen/Probe.Changes.Gen.ChangesGenerator/Changes.Endpoints.g.cs(14): AOT analysis warning IL3050: Tarol.Changes.Generated.GeneratedChangeEndpoints.MapChanges(IEndpointRouteBuilder): Us
+Web/obj/Release/net11.0/linux-x64/generated/Probe.Changes.Gen/Probe.Changes.Gen.ChangesGenerator/Changes.Endpoints.g.cs(14): Trim analysis warning IL2026: Tarol.Changes.Generated.GeneratedChangeEndpoints.MapChanges(IEndpointRouteBuilder): U
+Web/obj/Release/net11.0/linux-x64/generated/Probe.Changes.Gen/Probe.Changes.Gen.ChangesGenerator/Changes.Endpoints.g.cs(15): AOT analysis warning IL3050: Tarol.Changes.Generated.GeneratedChangeEndpoints.MapChanges(IEndpointRouteBuilder): Us
+Web/obj/Release/net11.0/linux-x64/generated/Probe.Changes.Gen/Probe.Changes.Gen.ChangesGenerator/Changes.Endpoints.g.cs(15): Trim analysis warning IL2026: Tarol.Changes.Generated.GeneratedChangeEndpoints.MapChanges(IEndpointRouteBuilder): U
+Web/obj/Release/net11.0/linux-x64/generated/Probe.Changes.Gen/Probe.Changes.Gen.ChangesGenerator/Changes.Endpoints.g.cs(16): AOT analysis warning IL3050: Tarol.Changes.Generated.GeneratedChangeEndpoints.MapChanges(IEndpointRouteBuilder): Us
+Web/obj/Release/net11.0/linux-x64/generated/Probe.Changes.Gen/Probe.Changes.Gen.ChangesGenerator/Changes.Endpoints.g.cs(16): Trim analysis warning IL2026: Tarol.Changes.Generated.GeneratedChangeEndpoints.MapChanges(IEndpointRouteBuilder): U
+Unhandled exception. System.NotSupportedException: JsonTypeInfo metadata for type 'System.Threading.Tasks.Task' was not provided by TypeInfoResolver of type '[Tarol.Validations.ValueObjectJson+ValueObjectResolver, AppJson]'. If using source
+(the native process aborted at startup: exit 134)
+
+## GenVisibility: candidate B's generated input record (source output) seen by the Validations and JSON generators
+GenVisibility/App/Program.cs(11,2): warning SYSLIB1030: Did not generate serialization metadata for type 'RenameAuction'. (https://learn.microsoft.com/dotnet/fundamentals/syslib-diagnostics/syslib1030) [GenVisibility/App/App.csproj]
+GenVisibility/App/obj/Debug/net11.0/generated/Probe.Changes.CandidateB.Gen/Probe.Changes.CandidateB.CandidateBGenerator/RenameAuction.g.cs(3,7): error CS0535: 'RenameAuction' does not implement interface member 'IValidatable.Validate(ref Va
+
+## GenTest: generator output, incrementality, TCHG001
+     run 1: 8 files: CreateAuction.Change.g.cs, CloseAuction.Change.g.cs, PlaceBid.Change.g.cs, SettleAuction.Change.g.cs, MarkPayoutDue.Change.g.cs, RecordPayment.Change.g.cs, CreateAuctionOfArtwork.Change.g.cs, Changes.Dispatch.g.cs
+PASS no diagnostics: 
+PASS Target generated per change
+     run 2 (unrelated file): models Cachedx7; outputs Cachedx9
+PASS an unrelated file changes no output
+     run 3 (edit a method body in Changes.cs): models Cachedx7; outputs Cachedx9
+PASS editing Execute's body changes no output (the model holds no bodies)
+     run 4 (two Id<Auction> members): 'SettleAuction' needs exactly one Id<Auction> member to be its Target, found 2; implement Target explicitly
+PASS TCHG001 when the target is ambiguous
+
+----- Changes.Dispatch.g.cs (run 1) -----
+// <auto-generated/>
+#nullable enable
+namespace Tarol.Changes.Generated;
+
+/// <summary>Typed entries of this assembly's changes: no reflection, no object dispatch at run time.</summary>
+public static class GeneratedChanges
+{
+    public static global::System.Threading.Tasks.ValueTask<global::Tarol.Results.Result<global::Tarol.Changes.ChangeOutcome>> Dispatch(this global::Tarol.Changes.ChangePipeline pipeline, object change, global::Tarol.Kernel.OperationContext 
+        => change switch
+        {
+            global::ArtFlow.CloseAuction c => pipeline.Run(c, context, options, cancellationToken),
+            global::ArtFlow.CreateAuction c => pipeline.Run(c, context, options, cancellationToken),
+            global::ArtFlow.CreateAuctionOfArtwork c => pipeline.Run(c, context, options, cancellationToken),
+            global::ArtFlow.MarkPayoutDue c => pipeline.Run(c, context, options, cancellationToken),
+            global::ArtFlow.PlaceBid c => pipeline.Run(c, context, options, cancellationToken),
+            global::ArtFlow.RecordPayment c => pipeline.Run(c, context, options, cancellationToken),
+            global::ArtFlow.SettleAuction c => pipeline.Run(c, context, options, cancellationToken),
+            _ => throw new global::System.ArgumentException($"{change.GetType().Name} is not a change of Gen.", nameof(change)),
+        };
+
+    /// <summary>The reactions to an own event: one outbox row each, written in the commit's transaction.</summary>
+    public static global::System.Collections.Generic.IReadOnlyList<string> ReactionsTo(global::Tarol.Primitives.DomainEvent domainEvent) => domainEvent switch
+    {
+        global::ArtFlow.Bid.Won => __reactions0,
+        _ => [],
+    };
+
+    private static readonly string[] __reactions0 = ["MarkPayoutDue"];
+    /// <summary>Runs one reaction to a committed event: system actor, caused by the event, keyed by event id + reaction.</summary>
+    public static global::System.Threading.Tasks.ValueTask<global::Tarol.Results.Result<global::Tarol.Changes.ChangeOutcome>> React(this global::Tarol.Changes.ChangePipeline pipeline, string reaction, global::Tarol.Primitives.RecordedEvent 
+    {
+        var context = recorded.Context.AsSystem("Reactions." + reaction).CausedBy((global::Tarol.StronglyTypedId.Id<global::Tarol.Kernel.ICausation>)recorded.EventId);
+        var key = new global::Tarol.Changes.IdempotencyKey(recorded.Context.Tenant, reaction, recorded.EventId.ToString("N"));
+        var options = new global::Tarol.Changes.ChangeOptions(Key: key);
+        return (reaction, recorded.Event.Event) switch
+        {
+            ("MarkPayoutDue", global::ArtFlow.Bid.Won e) => pipeline.Run(global::ArtFlow.MarkPayoutDue.From(e, recorded), context, options, cancellationToken),
+            _ => throw new global::System.ArgumentException($"No reaction {reaction} to {recorded.Event.Event.GetType().Name}.", nameof(reaction)),
+        };
+    }
+}
+
+----- CloseAuction.Change.g.cs -----
+// <auto-generated/>
+#nullable enable
+namespace ArtFlow;
+partial record CloseAuction
+{
+    global::Tarol.StronglyTypedId.Id<global::ArtFlow.Auction> global::Tarol.Changes.IChange<global::ArtFlow.Auction>.Target => Auction;
+}
+
+ALL PASS
+
+## Bench: BenchmarkDotNet --job short --inProcess
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+BenchmarkDotNet v0.16.0-preview.2, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+| Method            | Mean     | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------ |---------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
+| HandWritten       | 251.5 ns | 163.3 ns |  8.95 ns |  1.00 |    0.00 | 0.0067 |     920 B |        1.00 |
+| Pipeline          | 395.4 ns | 348.3 ns | 19.09 ns |  1.57 |    0.08 | 0.0072 |     976 B |        1.06 |
+| GeneratedDispatch | 374.2 ns | 170.1 ns |  9.32 ns |  1.49 |    0.06 | 0.0072 |     976 B |        1.06 |

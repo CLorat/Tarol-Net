@@ -111,6 +111,6 @@ process) and `System` (Tarol itself acting later), because audit and policy trea
 ## Open questions
 
 * ~~`TenantId` over `string` or over `Guid`?~~ Decided: `Id<ITenant>` (a `Guid`).
-* Should `OperationContext` be a parameter of handlers (explicit) or a scoped service (`IOperationContext`)? Step 10
+* ~~Should `OperationContext` be a parameter of handlers (explicit) or a scoped service (`IOperationContext`)?~~ Decided in step 7 (changes.md C-11): a parameter of `ChangePipeline.Run`. Was: Step 10
   decides with the pipeline; the Kernel type works for both.
 * Accept a client-provided correlation id (e.g. `X-Correlation-Id`)? Off by default (tracing.md insight 2).
