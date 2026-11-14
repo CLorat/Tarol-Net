@@ -1,0 +1,11 @@
+# SDK 11.0.100, 2026-11-14. Candidate a = CLorat/Tarol@6a62f81 runtime + generator (copy of the repo, project under tests/Primitives/Eval.A).
+## dotnet run
+equality ignores envelope? False; raised vs fresh: False
+bypass: live Price=7, replay Price=1000
+user STJ context: {"Price":5} back=False
+## Bench (same shapes as candidate c)
+| Method          | Mean          | Error         | StdDev       | Gen0   | Gen1   | Allocated |
+|---------------- |--------------:|--------------:|-------------:|-------:|-------:|----------:|
+| RaiseChildEvent |      63.88 ns |      16.61 ns |     0.910 ns | 0.0002 |      - |      88 B |
+| RaiseCreate     |     442.34 ns |     558.90 ns |    30.635 ns | 0.0015 | 0.0010 |     464 B |
+| Replay10k       | 605,076.88 ns | 101,700.07 ns | 5,574.524 ns | 0.9766 |      - |  318832 B |

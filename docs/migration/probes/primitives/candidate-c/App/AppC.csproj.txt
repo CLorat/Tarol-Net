@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <PublishAot Condition="'$(Bench)' != 'true'">true</PublishAot><JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <DefineConstants Condition="'$(Bench)' == 'true'">$(DefineConstants);BENCH</DefineConstants></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Core/CoreC.csproj" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.16.0-preview.2" Condition="'$(Bench)' == 'true'" />
+  </ItemGroup>
+</Project>

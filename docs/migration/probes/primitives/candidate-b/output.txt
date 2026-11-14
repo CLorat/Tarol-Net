@@ -1,0 +1,7 @@
+# SDK 11.0.100, 2026-11-14. Candidate b = hand-written closed families on the 6a62f81 runtime + generator (tests/Primitives/Eval.B in a copy).
+## dotnet run
+b: version=3 price=3
+## without On(ArtworkRenamed), and with -p:DefineConstants=MISSING
+Domain.cs(19,22): error TAROL008: Event 'global::Eval.B.ArtworkRenamed' targets 'Artwork', but 'Artwork' declares no On(global::Eval.B.ArtworkRenamed) handler
+Domain.cs(30,55): error CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'Eval.B.ArtworkRenamed' is not covered.
+## runtime cost: identical to candidate a (same runtime and generated Dispatch)

@@ -12,7 +12,7 @@ ids: F-*n* and I-*n* from `CLorat/Tarol` `docs/review/domain-core.md`, D-*n*/Q*n
 `docs/review/net11-event-generation.md`, K-*n* from [kernel.md](../migration/kernel.md), V-*n*/S-*n* from
 [validations.md](../migration/validations.md).
 
-**Status: stage 1 (concept review).** Nothing is decided here yet; the open questions at the end go to the owner.
+**Status: stage 2 (evaluation).** Scope decided (R-1 … R-4 at the end); the design decisions follow in the migration note.
 
 ## 1. What a user of Tarol needs from an aggregate
 
@@ -158,7 +158,7 @@ Candidate c in detail (proposed here, to be measured in stage 2):
   real types its discovery is semantic, not by name. Another assembly could in theory derive from `Artwork.Event`;
   `Dispatch` throws `UnknownEvent` for it.
 
-Measured in stage 2 for a, b, c: exhaustiveness diagnostics, raise/apply cost and allocations per event, replay of
+Measured in stage 2 (primitives.md §3) for a, b, c: exhaustiveness diagnostics, raise/apply cost and allocations per event, replay of
 10,000 events, AOT, JSON with a source-generated context in the same assembly (V-9, F-10).
 
 ### 3.4 The codec: aliases, payload JSON, upcasters
@@ -319,9 +319,18 @@ An analyzer can make it a build error:
 9. **"Returns `Result`" is the cheap, precise signature of a rule.** Every guard, factory and invariant returns one, so
    the replay analyzer needs no list of rule names.
 
+## Scope decisions (owner, round 1, 2026-11-14)
+
+| # | Question | Answer |
+|---|---|---|
+| R-1 | Event model direction | **Propose candidate c** (library-nested bases, pure payload, routing envelope beside the event); measure a and b as comparison |
+| R-2 | Codec, aliases, upcasters | **Step 8**, generated with the store. Step 6 keeps only what names an event (alias attribute, default alias rule, duplicate-alias diagnostic) |
+| R-3 | Event metadata | **A stored-event type declared in Primitives** (Kernel-typed: actor, tenant, correlation, causation, event id, recorded-at), filled by the store in step 8 and shared by Persistence, Sagas and Messaging. The domain event itself has no metadata slots. Primitives therefore depends on Kernel |
+| R-4 | PR split | **Two PRs**: (A) events, routing, child entities, invariants, replay safety, analyzers; (B) opt-in snapshots with the snapshot + tail property test |
+
 ## Open questions
 
-Questions that change the scope of step 6 (asked now):
+Questions that changed the scope of step 6 (answered above, R-1 … R-4):
 
 1. **Event model direction**: stay with PR #24 (generated `closed` bases, envelope on the event, candidate a), or
    evaluate candidate c (library-nested bases, pure payload, routing envelope beside the event) as the proposal, with a

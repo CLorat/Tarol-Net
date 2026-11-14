@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><IsPackable>false</IsPackable><AssemblyName>Eval.A.Bench</AssemblyName><DefineConstants>$(DefineConstants);BENCH</DefineConstants><TreatWarningsAsErrors>false</TreatWarningsAsErrors></PropertyGroup>
+  <ItemGroup><Compile Include="../Eval.A/*.cs" />
+    <ProjectReference Include="..\..\..\gen\Primitives\Primitives.Generators\Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    <ProjectReference Include="..\..\..\src\Primitives\Primitives\Primitives.csproj"/>
+    <PackageReference Include="BenchmarkDotNet" VersionOverride="0.16.0-preview.2" /></ItemGroup>
+</Project>

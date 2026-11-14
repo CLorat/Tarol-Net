@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><IsAotCompatible>true</IsAotCompatible></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(TarolNetRepo)/src/Results/Tarol.Results/Tarol.Results.csproj" />
+    <ProjectReference Include="$(TarolNetRepo)/src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+  </ItemGroup>
+</Project>
