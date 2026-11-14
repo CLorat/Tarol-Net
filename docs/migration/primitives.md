@@ -659,3 +659,18 @@ CsCheck) would add shrinking; with fixed seeds and a step log the failures are r
 6. Enums: member names or numbers.
 7. Diagnostic ids: TPRM024–027 (keep part C's reservation) or TPRM016–019 (renumber part C).
 8. The test helper and the property-based test approach (§16.8).
+
+### 16.10 Owner answers (round 4, 2026-11-14)
+
+| # | Decision | Answer |
+|---|---|---|
+| 1 | API shape | **(A)**: `StateSchema`, `WriteState`, `ReadState(id, ref reader, options) : Option<TSelf>` as static abstract members of `IAggregateRoot<TSelf>`, plus `AggregateState.Write/Read` helpers |
+| 2 | Replay-only attribute | **`[LoadByReplay]`** (replaces the old `[SnapshotIgnore]`) |
+| 3 | Name pin | **`[StateName("x")]`** |
+| 4 | JSON | **generated `Utf8JsonWriter`/`Utf8JsonReader` code** |
+| 5 | `null`, `None`, empty `EntityRef` | **always written**, as `null`; every member is required on read |
+| 6 | Naming policy | **fixed camelCase at compile time** (part of the schema) |
+| 7 | Enums | **member names** (numbers for undefined values) |
+| 8 | Diagnostic ids | **TPRM024–027**; TPRM016–023 stay reserved for part C |
+| 9 | Test helper | **`AggregateTest.StoredStateMatchesReplay(aggregate, options)`** |
+| 10 | Property-based test | **hand-written seeded random walk**, no new package |
