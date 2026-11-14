@@ -328,6 +328,29 @@ An analyzer can make it a build error:
 | R-3 | Event metadata | **A stored-event type declared in Primitives** (Kernel-typed: actor, tenant, correlation, causation, event id, recorded-at), filled by the store in step 8 and shared by Persistence, Sagas and Messaging. The domain event itself has no metadata slots. Primitives therefore depends on Kernel |
 | R-4 | PR split | **Two PRs**: (A) events, routing, child entities, invariants, replay safety, analyzers; (B) opt-in snapshots with the snapshot + tail property test |
 
+## Decisions taken (owner, rounds 2 and 3, 2026-11-14; primitives.md §9)
+
+* **Events** (candidate c): library-nested bases, pure-payload records, `StreamEvent` beside the event; deletes raised
+  by the entity; `CreatedIn<TParent>` for a child with two owner types; `Raise` returns `Success`.
+* **Children**: cascade, strict replay, `EntityRef<T>`, compile-time owner check (`IOwnedBy<TOwner>`).
+* **Apply failure**: discard + poison. **Invariants**: at the hand-off, all entities, the rule's `Error`.
+* **Analyzers** (Error): state assigned outside `On`; rule, throw, clock or `Raise` inside `On`.
+* **Stored state instead of snapshots** (round 3): every commit stores the current state with the events; loads never
+  replay; queryable JSON with property names and nested children; an uncapturable field is an Error; an old shape is
+  replayed in memory and rewritten on the next change; step 8 adds a rebuild command. §5 above describes the earlier
+  "cache" view and is superseded by this.
+* **Package**: one `Tarol.Primitives` (`TPRM*`), depends on Kernel, Results, Options, StronglyTypedId; `Value`
+  dropped; a given/when/then test helper ships in the package.
+
+## What later steps must do
+
+| Step | Must |
+|---|---|
+| 7 Changes | call behaviour methods (no access to `Raise`); discard the instance on any failure or exception; `AggregateChanges.Prepare` before commit; findings 14, 15 |
+| 8 Persistence | store events (`StreamEvent` → columns) and the current state in one transaction with the expected version; fill `RecordedEvent` (event id, `RecordedAt` per commit, actor, tenant, correlation, causation); aliases from `[EventType]`; codec and upcasters; load from state, replay in memory on an old `schema`, rewrite on the next change; `RebuildStates<T>()`; `ValueObjectJson.Resolver` first |
+| 9 Sagas | consume `RecordedEvent`; real event types are visible to the saga generator by symbol, not by name |
+| 13 Samples | ArtFlow on the new syntax; `AuctionCreated.Id` duplicates the stream id: drop it |
+
 ## Open questions
 
 Questions that changed the scope of step 6 (answered above, R-1 … R-4):
