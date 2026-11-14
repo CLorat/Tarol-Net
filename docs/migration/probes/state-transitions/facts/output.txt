@@ -1,0 +1,27 @@
+# SDK 11.0.100, 2026-11-14. Build without .editorconfig:
+More.cs(3,53): warning CS8524: The switch expression does not handle some values of its input type (it is not exhaustive) involving an unnamed enum value. For example, the pattern '(AuctionStatus)3' is not covered. 
+Program.cs(12,42): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'AuctionStatus.Settled' is not covered. 
+Program.cs(17,15): warning CS8321: The local function 'Name2' is declared but never used 
+Program.cs(17,35): warning CS8509: The switch expression does not handle all possible values of its input type (it is not exhaustive). For example, the pattern 'State.Settled' is not covered. 
+
+# Build with editorconfig.txt (CS8524 = none):
+Program.cs(12,42): warning CS8509
+Program.cs(17,15): warning CS8321
+Program.cs(17,35): warning CS8509
+
+# 'public closed enum X { A, B }' (removed from More.cs): error CS0106: The modifier 'closed' is not valid for this item
+
+# dotnet run:
+{}
+{"EndTime":"1970-01-01T00:00:00+00:00"}
+{"Status":"Reopened"} -> JsonException
+{"Status":"Closed"} -> Holder { Status = Closed }
+{"Status":"closed"} -> Holder { Status = Closed }
+{"Status":"Settled"} -> JsonException
+closed
+{"Status":"Closed"}
+Holder { Status = Settled }
+Holder { Status = 7 }
+Open: [ToAttribute(new AuctionStatus[1] { 1 })]
+Closed: [ToAttribute(new AuctionStatus[1] { 2 })]
+Settled: [System.Text.Json.Serialization.JsonStringEnumMemberNameAttribute("settled")]
