@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Generated sources on disk (obj/…/generated) so a reviewer can read what the generator wrote for the fixtures. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
+    <ProjectReference Include="../../../src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
+    <!-- Analyzer project references do not flow: reference the bundled generators like a package consumer gets them. -->
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!-- The generator and analyzer as a normal assembly reference, so the tests can drive them; the runtime libraries as
+         the metadata the generated code compiles against. -->
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
+    <ProjectReference Include="../../Shared/Tarol.Testing.Generators/Tarol.Testing.Generators.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+</Project>
