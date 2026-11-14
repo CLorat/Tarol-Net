@@ -67,4 +67,78 @@ public class IncrementalityTests
         Incrementality.RegeneratedOutputs(driver).Count.ShouldBe(1);
         driver.Generated("Gallery.Aggregate.g.cs").ShouldNotBe(before);
     }
+
+    // ── lifecycles ──
+
+    private const string Status = """
+        using Tarol.Primitives;
+        namespace Auctions;
+        [Lifecycle]
+        public enum Lot { [To(Sold)] Listed, Sold }
+        """;
+
+    private static string LifecycleDomain => Domains.Lifecycle.Replace("public decimal Price { get; private set; }", "public decimal Price { get; private set; }\n    public Lot Lot { get; private set; }\n    public sealed record LotSold : Event;\n    private void On(LotSold e) { _ = e; Lot = Lot.Sold; }", StringComparison.Ordinal);
+
+    private static (Microsoft.CodeAnalysis.GeneratorDriver Driver, Microsoft.CodeAnalysis.CSharp.CSharpCompilation Compilation) Lifecycles()
+    {
+        var compilation = GeneratorTestHost.Compile(LifecycleDomain, Status, Other);
+        return (GeneratorTestHost.Run(compilation), compilation);
+    }
+
+    private static Microsoft.CodeAnalysis.GeneratorDriver Edit(Microsoft.CodeAnalysis.GeneratorDriver driver, Microsoft.CodeAnalysis.CSharp.CSharpCompilation compilation, int tree, string text)
+        => driver.RunGenerators(compilation.ReplaceSyntaxTree(compilation.SyntaxTrees.ElementAt(tree),
+            CSharpSyntaxTree.ParseText(text, GeneratorTestHost.Parse, path: $"Source{tree}.cs", cancellationToken: TestContext.Current.CancellationToken)), TestContext.Current.CancellationToken);
+
+    [Fact]
+    public void An_Unrelated_Edit_Regenerates_No_Lifecycle()
+    {
+        var (driver, compilation) = Lifecycles();
+        Incrementality.RegeneratedOutputs(Edit(driver, compilation, 2, Other.Replace("=> 1", "=> 2", StringComparison.Ordinal))).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Moving_The_Enum_Text_Regenerates_Nothing()
+    {
+        var (driver, compilation) = Lifecycles();
+        Incrementality.RegeneratedOutputs(Edit(driver, compilation, 1, "// a comment that moves every location\n" + Status)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void A_New_Edge_Regenerates_Only_The_Lifecycle_Class()
+    {
+        // the aggregate calls LotLifecycle.IsEdge, so its own code does not change
+        var (driver, compilation) = Lifecycles();
+        var edited = Edit(driver, compilation, 1, Status.Replace("Sold }", "[To(Listed)] Sold }", StringComparison.Ordinal));
+        Incrementality.RegeneratedOutputs(edited).Count.ShouldBe(1);
+        edited.Generated("LotLifecycle.g.cs").ShouldContain("Sold --> Listed");
+    }
+
+    [Fact]
+    public void A_New_State_In_Another_File_Regenerates_Its_Class_And_Its_Aggregate()
+    {
+        // a new member changes the class, and the aggregate's stored-state schema (the enum's names are part of it)
+        var (driver, compilation) = Lifecycles();
+        var before = driver.Generated("Auction.Aggregate.g.cs");
+        var edited = Edit(driver, compilation, 1, Status.Replace("[To(Sold)] Listed, Sold }", "[To(Sold, Withdrawn)] Listed, Sold, Withdrawn }", StringComparison.Ordinal));
+        Incrementality.RegeneratedOutputs(edited).Count.ShouldBe(2);
+        edited.Generated("Auction.Aggregate.g.cs").ShouldNotBe(before);
+    }
+
+    [Fact]
+    public void Renaming_The_Initial_State_Regenerates_The_Aggregate()
+    {
+        var (driver, compilation) = Lifecycles();
+        var edited = Edit(driver, compilation, 1, Status.Replace("[Lifecycle]", "[Lifecycle(Initial = nameof(Lot.Sold))]", StringComparison.Ordinal).Replace("[To(Sold)] Listed, Sold", "Listed, [To(Listed)] Sold", StringComparison.Ordinal));
+        Incrementality.RegeneratedOutputs(edited).Count.ShouldBe(2);
+        edited.Generated("Auction.Aggregate.g.cs").ShouldContain("global::Auctions.Lot.Sold)");
+    }
+
+    [Fact]
+    public void A_New_Transition_Label_Regenerates_Only_Its_Lifecycle_Class()
+    {
+        var (driver, compilation) = Lifecycles();
+        var edited = Edit(driver, compilation, 0, LifecycleDomain.Replace("public sealed record LotSold : Event;", "[Transition<Lot>(Lot.Listed, Lot.Sold)] public sealed record LotSold : Event;", StringComparison.Ordinal));
+        Incrementality.RegeneratedOutputs(edited).Count.ShouldBe(1);
+        edited.Generated("LotLifecycle.g.cs").ShouldContain("Listed --> Sold : LotSold");
+    }
 }

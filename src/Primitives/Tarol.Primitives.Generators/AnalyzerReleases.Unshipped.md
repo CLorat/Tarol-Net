@@ -20,6 +20,14 @@ TPRM012 | Tarol.Primitives | Error | AggregateGenerator
 TPRM013 | Tarol.Primitives | Error | DomainAnalyzer
 TPRM014 | Tarol.Primitives | Error | DomainAnalyzer
 TPRM015 | Tarol.Primitives | Error | DomainAnalyzer
+TPRM016 | Tarol.Primitives | Error | AggregateGenerator
+TPRM017 | Tarol.Primitives | Warning | AggregateGenerator
+TPRM018 | Tarol.Primitives | Warning | AggregateGenerator
+TPRM019 | Tarol.Primitives | Error | AggregateGenerator
+TPRM020 | Tarol.Primitives | Error | AggregateGenerator
+TPRM021 | Tarol.Primitives | Error | AggregateGenerator
+TPRM022 | Tarol.Primitives | Warning | DomainAnalyzer
+TPRM023 | Tarol.Primitives | Warning | DomainAnalyzer
 TPRM024 | Tarol.Primitives | Error | AggregateGenerator
 TPRM025 | Tarol.Primitives | Error | AggregateGenerator
 TPRM026 | Tarol.Primitives | Error | AggregateGenerator

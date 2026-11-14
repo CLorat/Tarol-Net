@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Event-sourced aggregates with child entities and short user code: behaviour methods decide and raise pure-payload events, On handlers apply them live and on replay through one generated dispatch, child entities route, cascade and stay closed to bypasses, invariants run when the events are handed to the store, analyzers keep decisions out of apply, and the current state is stored as queryable JSON with every commit and loaded without replay. Native-AOT ready.</Description>
-    <PackageTags>tarol;ddd;event-sourcing;aggregate;cqrs;source-generator;aot</PackageTags>
+    <Description>Event-sourced aggregates with child entities and short user code: behaviour methods decide and raise pure-payload events, On handlers apply them live and on replay through one generated dispatch, child entities route, cascade and stay closed to bypasses, invariants run when the events are handed to the store, analyzers keep decisions out of apply, the current state is stored as queryable JSON with every commit and loaded without replay, and state enums declare their lifecycle once, with generated guards and a commit-time check of every step. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;aggregate;cqrs;state-machine;source-generator;aot</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -9,7 +9,7 @@
     <ProjectReference Include="../../Results/Tarol.Results/Tarol.Results.csproj" />
     <ProjectReference Include="../../Options/Tarol.Options/Tarol.Options.csproj" />
     <ProjectReference Include="../../StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
-    <!-- D-10: the aggregate generator and the domain analyzers (TPRM001-TPRM015, TPRM024-TPRM027) ship inside this package. -->
+    <!-- D-10: the aggregate generator and the domain analyzers (TPRM001-TPRM027) and the CS8524 suppressor (TPRMSPR01) ship inside this package. -->
     <ProjectReference Include="../Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
                       ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
     <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->

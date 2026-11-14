@@ -5,7 +5,7 @@ Agent skill: [tarol-primitives](../../src/Primitives/Tarol.Primitives/skills/tar
 Concept: [docs/architecture/domain-core.md](../architecture/domain-core.md). Review, measurements and migration notes:
 [docs/migration/primitives.md](../migration/primitives.md).
 
-## Design in six points
+## Design in seven points
 
 1. **Decide, then apply.** A behaviour method checks its guards against the state and the `now` it is given, returns a
    `Result`, and raises events. An `On` handler applies one event and does nothing else: no rule, no throw, no clock, no
@@ -30,6 +30,32 @@ Concept: [docs/architecture/domain-core.md](../architecture/domain-core.md). Rev
    next commit. Fields the state cannot hold (entities, delegates, `object`) are compile errors (TPRM024);
    `[StateName]` pins a name across a rename, `[Transient]` leaves caches out, `[LoadByReplay]` opts an aggregate out.
    `AggregateTest.StoredStateMatchesReplay` proves state == replay on your own aggregates.
+
+7. **Lifecycles: the graph once, guards generated, a forgotten guard caught.** `[Lifecycle]` on a state enum and
+   `[To(...)]` on its states declare the allowed steps. The generator writes `<Enum>Lifecycle` (edge table, Mermaid
+   diagram, `CanTransitionTo`/`RequireTransitionTo` guards) and, in the aggregate's dispatch, a live-only check around
+   every event whose `On` handler assigns a lifecycle field. A step that is not an edge is remembered and
+   `AggregateChanges.Prepare` returns `Error.Internal("Lifecycle.ForbiddenStep", …)`; a created root or entity must be
+   in the initial state. Replay and state loads never check: history that today's graph forbids still loads. Concept:
+   [state-transitions.md](../architecture/state-transitions.md); evaluation and implementation:
+   [migration/state-transitions.md](../migration/state-transitions.md).
+
+```csharp
+[Lifecycle]
+public enum AuctionStatus { [To(Closed)] Open, [To(Settled)] Closed, Settled }
+
+public Result Close(DateTimeOffset now)
+{
+    var allowed = Status.RequireTransitionTo(AuctionStatus.Closed);   // AuctionStatus.NotAllowed, "Closed -> Closed"
+    if (!allowed.IsSuccess) return allowed;
+    if (now < EndTime) return Error.Conflict("Auction.NotEnded");     // a condition of this step stays a guard
+    return Raise(new Closed(now));
+}
+
+[Transition<AuctionStatus>(AuctionStatus.Open, AuctionStatus.Closed)]   // optional: labels the edge in the diagram
+public sealed record Closed(DateTimeOffset At) : Event;
+private void On(Closed e) { Status = AuctionStatus.Closed; ClosedAt = e.At; }
+```
 
 ### The state of a gallery
 

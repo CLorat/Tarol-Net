@@ -33,6 +33,7 @@ public abstract class AggregateRoot<TSelf> : IAggregateRoot, IEntity<TSelf>
     private long _version;
     private bool _dispatching;
     private bool _broken;
+    private LifecycleViolation? _violation;
 
     /// <summary>Creates the root with its id. A new aggregate passes <c>Id&lt;TSelf&gt;.New()</c>; replay passes the stored id.</summary>
     /// <param name="id">The id.</param>
@@ -128,7 +129,7 @@ public abstract class AggregateRoot<TSelf> : IAggregateRoot, IEntity<TSelf>
             ThrowHelper.RaiseDuringDispatch();
 
         var stream = new StreamEvent(_version + 1, entityId, parentId, @event);
-        Apply(in stream);
+        ApplyLive(in stream);
         (_changes ??= new List<StreamEvent>(8)).Add(stream);
     }
 
@@ -160,8 +161,34 @@ public abstract class AggregateRoot<TSelf> : IAggregateRoot, IEntity<TSelf>
     {
         if (_broken)
             ThrowHelper.Broken(typeof(TSelf).Name);
+        if (_violation is { } violation)
+            return violation.ToError();
         return CheckInvariants();
     }
+
+    /// <summary>
+    /// Applies a raised event on the live path only (<c>Raise</c>, never replay or a state load). Generated in your partial
+    /// class when the aggregate or one of its entities has a <see cref="LifecycleAttribute"/> field: the override marks the
+    /// dispatch as live, so the generated step checks run, and calls <see cref="ApplyRaised"/>. Do not call or override it
+    /// yourself (TPRM015).
+    /// </summary>
+    /// <param name="stream">The raised event.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    protected virtual void ApplyLive(in StreamEvent stream) => Apply(in stream);
+
+    /// <summary>Applies a raised event: for the generated <see cref="ApplyLive"/> only (TPRM015).</summary>
+    /// <param name="stream">The raised event.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    protected void ApplyRaised(in StreamEvent stream) => Apply(in stream);
+
+    /// <summary>
+    /// Remembers a step of a lifecycle field that is not a declared edge: for the generated dispatch only (TPRM015). The
+    /// first one is kept and <see cref="AggregateChanges.Prepare{TSelf}"/> returns it before the invariants run; the
+    /// instance must then be discarded, like after any failure.
+    /// </summary>
+    /// <param name="violation">The step.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    protected void ForbiddenStep(LifecycleViolation violation) => _violation ??= violation;
 
     internal void Committed() => _changes?.Clear();
 

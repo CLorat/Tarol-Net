@@ -8,6 +8,8 @@ Labels as in the [conventions](../architecture/conventions.md).
 
 ## 0. Summary
 
+**Implemented** in step 6 part C: §9 (the prototype's ids TPRM020–024 below became TPRM016–023, §7).
+
 * **How a lifecycle is defined**: one attribute on the enum, one `[To(...)]` per state that has outgoing edges.
 
   ```csharp
@@ -340,3 +342,150 @@ renumbered accordingly.
   creation, replay of a forbidden historical step, stored state), generator snapshots and incrementality with
   `tests/Shared/Tarol.Testing.Generators`, an AOT smoke step, a 0-allocation test; skill section in `tarol-primitives`
   and its evaluation checklist; README; migration-note rows; conventions §8 in full.
+
+## 9. Implementation (step 6 part C, 2026-11-14)
+
+Built from the probe (`Core/`, `Gen/`, `App/`) into `Tarol.Primitives` and `Tarol.Primitives.Generators`, as decided in
+L-1 … L-8. One owner question came up while building (round 3, below); nothing else needed a decision.
+
+### 9.1 Owner answer (round 3, 2026-11-14)
+
+| # | Question | Answer |
+|---|---|---|
+| L-9 | A `[Lifecycle]` enum nested in a type (`Auction.Status`): L-1's `<Enum>Lifecycle` must be a namespace-level class (extension blocks need a top-level static class), so two nested `Status` enums in one namespace would collide | **prefix the containing types**: `Auction.Status` → `AuctionStatusLifecycle`; a top-level enum keeps `<Enum>Lifecycle`. A nested enum must be at least internal and not inside a generic type (TPRM019) |
+
+### 9.2 Public API and behaviour changes
+
+| Before (part B) | Now | Why |
+|---|---|---|
+| — | `LifecycleAttribute` (`Initial`), `ToAttribute(params object[])`, `TransitionAttribute<TEnum>(from, to)` (`where TEnum : struct, Enum`; a generic attribute with `TEnum` constructor parameters compiles and reads back **[verified]**), `LifecycleViolation(Field, From, To, Event)` with `ToError()`, `Code` and `New` | L-1, L-2, L-5 |
+| — | generated `<Enum>Lifecycle` per valid `[Lifecycle]` enum: `Initial`, `Diagram`, `IsEdge`, `IsTerminal`, `Edges`, extension members `CanTransitionTo(to) : bool`, `RequireTransitionTo(to) : Result` (`Error.Conflict("<Enum>.NotAllowed", "<From> -> <To>")`); public when the enum is public, else internal | L-1, L-3, L-9 |
+| `Publish` called `Apply` | `Publish` calls `protected virtual ApplyLive` (default: `Apply`); `protected ApplyRaised`, `protected ForbiddenStep(LifecycleViolation)` (keeps the first); all `[EditorBrowsable(Never)]` | the live-only hook (D-2) |
+| `Prepare` ran the invariants | `Prepare` returns the remembered violation **before** the invariants; it stays on the instance (the instance is discarded on any failure) | L-2 |
+| — | generated per aggregate with a lifecycle field (root or entity): a `__live` flag, an `ApplyLive` override (flag around `ApplyRaised`, then the root's creation check), step-check `case`s in `Dispatch` for the events whose `On` assigns a lifecycle field (L-6), a creation check in every creation case of an entity with lifecycle fields (L-4), the same check around an owner's handler for a child's event while bubbling, and `[UnsafeAccessor]` field accessors `__Life…` | D-2, L-4, L-6 |
+| TPRM015: `Dispatch`, `CheckInvariants`, `__` members | **plus** calls of `ApplyLive`, `ApplyRaised`, `ForbiddenStep` and an override of `ApplyLive` | §8 |
+| — | TPRM016–TPRM021 (generator), TPRM022–TPRM023 (analyzer, compilation end), suppressor TPRMSPR01 | L-6, L-7, L-8 |
+
+Behaviour of existing aggregates: unchanged. An aggregate without lifecycle fields gets no override (`Publish` →
+`ApplyLive` → `Apply`, one virtual call more) and an identical generated file (the part A/B snapshots did not change).
+
+### 9.3 How the step check works
+
+* **Where.** The check sits in the generated dispatch case that already holds the entity: before the apply it reads the
+  lifecycle fields the event's handler can change, after it compares, behind the `__live` flag. Only events whose
+  effective `On` handler (the most-derived one, as in `__Apply`) assigns a lifecycle field get such a `case`, placed
+  before the generic `Entity<R, X>.Event`/`.Deleted`/`AggregateRoot<R>.Event` case; every other event takes the
+  unchanged path. "Assigns" is found with an `IOperation` walk over the handler and the same-type methods it calls
+  (`LifecycleDiscovery.Assigns`), done in the per-type transform.
+* **Live only.** `ApplyLive` is reached from `Publish` only; it raises `__live` around `ApplyRaised` (`try`/`finally`).
+  `ReplayHistory` and `ReadState` call `Apply` directly or no handler at all, so a step that today's lifecycle forbids
+  loads (test and property test), and the flag is never set on those paths (mutation-checked, §9.6).
+* **Creation (L-4).** A root's creation event is its first event: after `ApplyRaised` at version 1, every root
+  lifecycle field must hold `Initial`, otherwise `(new) -> <State>` is recorded; the root's step checks skip version 1
+  (`Version != 0` before the apply). An entity's creation `case` checks its fields after its `On`. This also catches a
+  property initializer or an unassigned field when `Initial` is not member 0.
+* **Owner handlers.** An owner's `On` for a child's event that assigns the owner's own lifecycle field (ArtFlow-style
+  "a won bid makes the payout due") is checked in the bubbling step (`__Up{i}`), around that owner's `__Apply`.
+* **Messages.** `<Type>.<Member>` (owner type's simple name and the property or field name), the states by
+  `ToString()`, the event by `GetType().Name`; only on the failure path, so the valid path allocates nothing.
+* **Stored state.** The lifecycle field is an ordinary enum field and stored by name (part B). `__live` starts with
+  `__` and `_violation` lives on the library base class: neither is captured (test: the stored keys of an auction).
+  A state read through `ReadState` has no baseline to restore; the next live step reads the current field, as after
+  replay (tests and property test).
+
+### 9.4 Generator and diagnostics
+
+* `LifecycleDiscovery.Model` builds one equatable model per enum (`ForAttributeWithMetadataName` on
+  `[Lifecycle]`); `[Transition]` labels come from a second `ForAttributeWithMetadataName` pipeline and are filtered
+  per enum, so a new label regenerates only that enum's class (incrementality test). The aggregate transform calls the
+  same model for every field type with `[Lifecycle]`: an invalid enum gives no class and no step check (test).
+* Edges are not in the aggregate model (the aggregate calls `<Enum>Lifecycle.IsEdge`): a new edge regenerates only the
+  class; a new state or another initial state regenerates the class and the aggregate (the enum's names are part of
+  `StateSchema`, part B). Moving the enum's text regenerates nothing.
+* Ids and severities as decided (L-7): TPRM016 bad target, TPRM019 unusable enum (`[Flags]`, aliased members, no
+  members, bad `Initial`, file-local, nested in a generic type, private/protected), TPRM020 `[To]` without
+  `[Lifecycle]`, TPRM021 a `[Transition]` that is not a declared edge (also: not a member, enum without `[Lifecycle]`)
+  are errors; TPRM017 unreachable (only for a declaration without errors), TPRM018 self-loop or duplicate edge,
+  TPRM022 never assigned, TPRM023 `[Transition]`/`On` mismatch are warnings.
+* TPRM022 looks at `[Lifecycle]` enums declared in the compilation and used by a field of a root or entity; the initial
+  state is exempt (it is the default) and a computed assignment (`State = e.To`) turns the rule off for that enum.
+  TPRM023 checks only the handler on the event's target type (an owner's handler for the child's event applies the
+  owner's state) and follows same-type helpers.
+* TPRMSPR01 (`LifecycleSwitchSuppressor`): CS8524 on a `switch` whose governing expression is a `[Lifecycle]` enum;
+  CS8509 for a missing state stays (tests; package consumer).
+
+### 9.5 Implementation notes (found while building)
+
+* Backing fields are implicitly declared and get no symbol action: TPRM022 first missed every auto-property. The
+  analyzer now walks the fields of each domain type (`SymbolKind.NamedType`).
+* `__live` is never read when no handler assigns a lifecycle field and no entity has one (CS0414 in the generated
+  code, found by the mutation run): the field is wrapped in `#pragma warning disable CS0414`, like part A's `__Parent`.
+* `TypedConstant.ToCSharpString` is in `Microsoft.CodeAnalysis.CSharp`; list patterns on `ImmutableArray` need
+  `System.Index`, absent in netstandard2.0: the generator uses length checks.
+* The first event of a test aggregate rebuilt from an empty history is a creation event: the property test's discard
+  path must replay from a history that contains the creation, or it reports `(new) -> Closed` (correctly).
+* Within one event the owner's check runs before the target's (the order of `__Up` in the dispatch case); both are
+  recorded, the first is returned.
+* The skill grew to 10.8 KB with the lifecycle rule, example and diagnostics (target ≈ 8 KB): the lifecycle section is
+  as short as it can be while every API name stays compiled in `SkillSampleTests`.
+
+### 9.6 Suppressions and analyzer configuration
+
+| Where | What | Why |
+|---|---|---|
+| generated `__live` field | `#pragma warning disable CS0414` around one line | read only by the step checks, which an aggregate whose handlers assign no lifecycle field does not have |
+
+No `NoWarn`, no `.editorconfig` change. The test fixtures need no suppression (`_ = e;` keeps CA1822 quiet in handlers
+that only assign a constant).
+
+Mutation checks: with the step comparison disabled (`if (false && …)`), 8 tests fail (7 `LifecycleTests`, the lifecycle
+property test); with the live flag ignored (`__live || true`), the replay test and the property test fail. Both
+restored.
+
+### 9.7 Verification
+
+SDK 11.0.100, 2026-11-14, from a clean tree (`rm -rf artifacts`) in CI order.
+
+| Step | Result |
+|---|---|
+| `dotnet restore Tarol.slnx`; build every `src/*/*.Generators` | OK |
+| `dotnet format Tarol.slnx --verify-no-changes --no-restore` | OK (after one `dotnet format` pass) |
+| `dotnet build Tarol.slnx -c Release --no-restore` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx -c Release --no-build` | **659 passed**, 0 failed (592 before; Primitives: 109 unit (+26), 128 generator (+41)) |
+| `eng/aot-smoke.sh` | 6 apps, 0 IL warnings each; `Tarol.Primitives.AotSmoke`: 27 checks (9 new: guards, valid steps, a forgotten guard at commit, an entity lifecycle, replay of a forbidden historical step, the state's name in the stored state, continuing after `ReadState`, the diagram, a switch without `_`), ALL CHECKS PASSED |
+| `eng/verify-packages.sh` | `Tarol.Primitives` with README, LICENSE, skill and the generator under `analyzers/dotnet/cs/`; the consumer runs 9 checks (4 new: a lend through the generated guard, the step check, guard and diagram, a switch without `_` under warnings-as-errors); OK |
+| diagnostics reach a package consumer | temporary traps files in `Tarol.Primitives.PackageTests`: first `error TPRM016`–`TPRM021` (generator; the warnings TPRM017/018 are errors under warnings-as-errors), then a second file with `error TPRM015` (`ApplyRaised` called), `TPRM022`, `TPRM023` (analyzer) and CS8524 reported only for the plain enum's switch (TPRMSPR01 suppressed the lifecycle one); both removed |
+
+New tests:
+
+* `LifecycleTests` (23): the generated class and its diagram (labels from `[Transition]`), `RequireTransitionTo`'s
+  conflict, an own guard code with `CanTransitionTo`, a valid flow, a forgotten guard at commit, two steps in one commit
+  (`Open -> Closed -> Settled`), the step check before the invariants, the first violation kept, an entity lifecycle, a
+  step applied by an owner's handler for a child's event, creation (L-4) of a root (named `Initial`, a default that is
+  not initial) and of an entity, a nested lifecycle enum, replay of a forbidden historical step and the next live step,
+  replay records no creation violation, the stored keys (`status` by name, no bookkeeping), a forbidden step is not in
+  the stored state, continuing after `ReadState`, and **0 bytes** for 2 000 checked raises plus 2 000 guards
+  (`GC.GetAllocatedBytesForCurrentThread`).
+* `StoredStatePropertyTests` (+2): the auction as a sixth model of the state == replay walk, and a lifecycle walk
+  (150 seeds × 40 steps, guarded and unguarded behaviours, commits on loaded instances, discards on failure): at every
+  commit `Prepare` reports a forbidden step exactly when an unguarded behaviour took one, replay and `ReadState` never
+  report one, and state == replay == load; a reachability guard on both paths.
+* `SkillSampleTests` (+1): the skill's lifecycle example.
+* Generator: `LifecycleDiagnosticTests` (33 cases: TPRM015–TPRM023, an invalid enum generates nothing, TPRMSPR01 keeps
+  CS8509 and CS8524 for other enums), `IncrementalityTests` (+6: an unrelated edit and moving the enum's text regenerate
+  nothing; a new edge regenerates only the class; a new state and another initial state regenerate the class and the
+  aggregate; a new `[Transition]` regenerates only its class), the `Lifecycle` snapshot (aggregate with a root, an
+  entity, a nested enum, an owner handler, a helper called from `On`, and four lifecycle classes).
+
+### 9.8 Skill evaluation checklist (`tarol-primitives`, lifecycle section)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| "An auction is open, closed or settled and never goes back" | `[Lifecycle] public enum AuctionStatus { [To(Closed)] Open, [To(Settled)] Closed, Settled }`, a `Status` property assigned in `On` | a hand-written `switch` of allowed pairs; `Stateless`; checking the graph inside `On` |
+| "Only an open auction can be closed" | `Status.RequireTransitionTo(AuctionStatus.Closed)` (generated conflict) or `Status.CanTransitionTo(…)` with an own code, in the behaviour | `if (Status != AuctionStatus.Open)` spread over behaviours; a check in `On` (TPRM014 for a `Result` call) |
+| "Show the lifecycle in the docs" | `AuctionStatusLifecycle.Diagram`, edges labelled with `[Transition<AuctionStatus>(Open, Closed)]` on the event | writing the Mermaid by hand; a `[Transition]` without the `[To]` edge (TPRM021) |
+| "Make sure a forgotten guard can never corrupt history" | nothing: the generated step check; test with `AggregateChanges.Prepare(x) == Error.Internal("Lifecycle.ForbiddenStep", "…")` | an invariant comparing old and new state; calling `ForbiddenStep` (TPRM015) |
+| "Old events contain a step that is forbidden today" | nothing: replay and `ReadState` never check | removing or renaming the state (old rows and events stop loading); a `throw` in `On` |
+| "Start in Draft, which is not the first member" | `[Lifecycle(Initial = nameof(Status.Draft))]`, the creation event's `On` assigns `Draft` | leaving the field at value 0 (reported as `(new) -> X`) |
+| "A switch over the states" | a `switch` naming every state, no `_` arm (TPRMSPR01) | `_ => throw …` (hides a new state; CS8509 would have reported it) |
+| "Add a state" | a new member with its `[To]` edges and an event whose `On` assigns it | forgetting the event (TPRM022), or the edge (TPRM017) |

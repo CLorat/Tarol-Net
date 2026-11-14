@@ -50,6 +50,17 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `AggregateState.Write/Read`, `AggregateTest.StoredStateMatchesReplay`, `[StateName]`, `[LoadByReplay]`; diagnostics
   TPRM024–TPRM027 (a field the state cannot hold, a state name used twice or reserved, a state attribute without effect,
   a `[Transient]` member filled in `On`).
+* `Tarol.Primitives` (step 6, part C): lifecycles. `[Lifecycle]` on a state enum and `[To(...)]` on its members declare
+  the allowed steps; the generator writes `<Enum>Lifecycle` (`Initial`, Mermaid `Diagram`, `IsEdge`, `IsTerminal`,
+  `Edges`, extension members `CanTransitionTo(to) : bool` and `RequireTransitionTo(to) : Result` with
+  `Error.Conflict("<Enum>.NotAllowed", "<From> -> <To>")`) and, inside the aggregate's dispatch, a live-only check of
+  every step of a lifecycle field: a step no `[To]` allows, or a created root/entity not in the initial state, is
+  returned by `AggregateChanges.Prepare` before the invariants as
+  `Error.Internal("Lifecycle.ForbiddenStep", "<Type>.<Field>: <From> -> <To> by <Event>")`. Replay and state loads never
+  check. `[Transition<TEnum>(from, to)]` labels an edge in the diagram; `LifecycleViolation`; the protected,
+  generated-use-only `ApplyLive`/`ApplyRaised`/`ForbiddenStep` on `AggregateRoot<T>`; diagnostics TPRM016–TPRM023;
+  suppressor TPRMSPR01 (CS8524 on complete switches over lifecycle enums). Concept note
+  `docs/architecture/state-transitions.md`.
 
 ### Changed
 

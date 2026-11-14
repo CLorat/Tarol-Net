@@ -72,16 +72,28 @@ var loaded = AggregateState.Read(gallery.Id, state, options);   // Option<Galler
   Generated writer/reader code, no reflection, nothing runs on read (no handler, invariant or rule). `StateSchema` is a
   stable hash of the shape: an old row reads as `None`, the store replays and rewrites it on the next commit.
   `[StateName("x")]` pins a name, `[Transient]` leaves a cache out, `[LoadByReplay]` turns the state off.
+* **Lifecycles**: `[Lifecycle] public enum AuctionStatus { [To(Closed)] Open, [To(Settled)] Closed, Settled }` declares
+  the graph once. Generated `AuctionStatusLifecycle`: `Initial`, a Mermaid `Diagram` (edges labelled by
+  `[Transition<AuctionStatus>(from, to)]` on events), `IsEdge`, `IsTerminal`, `Edges`, and the guards
+  `status.CanTransitionTo(to)` and `status.RequireTransitionTo(to)` (`Error.Conflict("AuctionStatus.NotAllowed", "Closed -> Closed")`).
+  A step no `[To]` allows (a forgotten guard), or a new root or entity that is not in its initial state, is caught on
+  the live path and returned by `AggregateChanges.Prepare` before the invariants:
+  `Error.Internal("Lifecycle.ForbiddenStep", "Auction.Status: Settled -> Open by Reopened")`. 0 bytes on the valid path;
+  replay and state loads never check, so old history loads. A `switch` naming every state needs no `_` arm.
 * **Tests** without a host: `AggregateTest.Given(Gallery.Open("Tate")).And(…).When(g => g.Tag("x"))` → `Result`, `Events`;
   `AggregateTest.StoredStateMatchesReplay(gallery, options)` proves state == replay for your own aggregates.
-* **Diagnostics** `TPRM001`–`TPRM015` and `TPRM024`–`TPRM027` (all errors): missing handlers, unowned or ambiguous
-  children, assignable containers, invariant shape, duplicate aliases, state assigned outside `On`,
-  rules/throws/clocks/raises inside `On`, generated plumbing used directly, fields the state cannot hold, state names
-  used twice, state attributes without effect, `[Transient]` members filled in `On`.
+* **Diagnostics** `TPRM001`–`TPRM027` (errors, except the warnings TPRM017, TPRM018, TPRM022, TPRM023): missing
+  handlers, unowned or ambiguous children, assignable containers, invariant shape, duplicate aliases, state assigned
+  outside `On`, rules/throws/clocks/raises inside `On`, generated plumbing used directly; lifecycle targets that are not
+  states, unreachable states, redundant edges, enums that cannot be lifecycles, `[To]` without `[Lifecycle]`, a
+  `[Transition]` that is no edge, states no `On` assigns, an `On` that does not perform its `[Transition]`; fields the
+  state cannot hold, state names used twice, state attributes without effect, `[Transient]` members filled in `On`.
+  Suppressor `TPRMSPR01`: CS8524 on a complete `switch` over a `[Lifecycle]` enum.
 
 ## Links
 
 * Skill for coding agents: `skills/tarol-primitives/SKILL.md` (in the package).
-* Concept and decisions: `docs/architecture/domain-core.md`, `docs/migration/primitives.md` in the repository.
+* Concept and decisions: `docs/architecture/domain-core.md`, `docs/architecture/state-transitions.md`,
+  `docs/migration/primitives.md`, `docs/migration/state-transitions.md` in the repository.
 
 Licence: proprietary, see `LICENSE`.

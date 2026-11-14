@@ -37,6 +37,21 @@ namespace Tarol.Primitives.Tests
             loaded.Lines.Single().Quantity.ShouldBe(2);
             System.Text.Encoding.UTF8.GetString(json).ShouldStartWith($$"""{"id":"{{order.Id.Value}}","version":2,"schema":""");
         }
+
+        [Fact]
+        public void The_Skill_Lifecycle_Example_Works()
+        {
+            var job = Job.Start("Paint");
+            job.Finish().IsSuccess.ShouldBeTrue();
+            job.Finish().ShouldBe(Result.Failure(Error.Conflict("JobState.NotAllowed", "Done -> Done")));
+            AggregateChanges.Prepare(job).IsSuccess.ShouldBeTrue();
+            AggregateChanges.Committed(job);
+
+            job.Reopen();
+            AggregateChanges.Prepare(job).ShouldBe(Result.Failure(Error.Internal("Lifecycle.ForbiddenStep", "Job.State: Done -> Open by Reopened")));
+            JobStateLifecycle.Diagram.ShouldContain("Open --> Done : Finished");
+            JobStateLifecycle.Initial.ShouldBe(JobState.Open);
+        }
     }
 }
 
@@ -69,5 +84,24 @@ namespace Tarol.Primitives.Tests.SkillSample
         public sealed record Removed : Deleted;
         private void On(Added e) => (Sku, Quantity) = (e.Sku, e.Quantity);
         [Invariant] private Result Positive() => Quantity > 0 ? Result.Success() : Error.Conflict("Line.Quantity");
+    }
+
+    [Lifecycle]
+    public enum JobState { [To(Done)] Open, Done }
+
+    public partial class Job : AggregateRoot<Job>
+    {
+        public JobState State { get; private set; }
+        public string Title { get; private set; } = "";
+        public static Job Start(string title) { var j = new Job(Id<Job>.New()); j.Raise(new Opened(title)); return j; }
+        public Result Finish() => State.RequireTransitionTo(JobState.Done).Bind(() => Raise(new Finished()));
+        public Success Reopen() => Raise(new Reopened());          // forgot its guard: Prepare reports Done -> Open
+
+        public sealed record Opened(string Title) : Event;
+        [Transition<JobState>(JobState.Open, JobState.Done)] public sealed record Finished : Event;
+        public sealed record Reopened : Event;
+        private void On(Opened e) => Title = e.Title;
+        private void On(Finished e) => State = JobState.Done;
+        private void On(Reopened e) => State = JobState.Open;
     }
 }

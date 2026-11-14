@@ -764,3 +764,11 @@ restored tree, malformed states, a missing JSON type, a broken aggregate, `[Load
 `StoredStatePropertyTests` (6: 5 models × 150 seeds × 40 steps, every prefix, continuing on restored instances; a
 reachability guard); `SkillSampleTests` (+1); generator: `StateSchemaTests` (18), `StateDiagnosticTests` (32),
 `IncrementalityTests` (+1: a stored record in another file regenerates its aggregate), the three snapshots.
+
+## 17. Part C: lifecycles
+
+State enums with declared transitions (`[Lifecycle]`, `[To]`, `[Transition<T>]`, generated `<Enum>Lifecycle`, the
+live-only step check, TPRM016–TPRM023, suppressor TPRMSPR01) are documented in their own note:
+concept [state-transitions.md](../architecture/state-transitions.md), evaluation, owner answers L-1 … L-9 and the
+implementation in [state-transitions.md](state-transitions.md) §7–§9.
+
