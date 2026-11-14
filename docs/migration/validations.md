@@ -569,7 +569,7 @@ comment: `TVAL006` where a fixture builds an invalid value object on purpose (`I
 |---|---|
 | `dotnet format Tarol.slnx --verify-no-changes` | clean (exit 0) |
 | `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
-| `dotnet test --solution Tarol.slnx` | **417 passed**, 0 failed (334 before; Validations 65 + generator 18) |
+| `dotnet test --solution Tarol.slnx` | **422 passed**, 0 failed (334 before; Validations 70 + generator 18) |
 | `eng/aot-smoke.sh` | `Tarol.Validations.AotSmoke`: 0 IL warnings, 10/10 native checks; Kernel, Options, Results, StronglyTypedId unchanged |
 | `eng/verify-packages.sh` | OK; `Tarol.Validations` contains `analyzers/dotnet/cs/Tarol.Validations.Generators.dll` and `skills/tarol-validations/SKILL.md`; the consumer's `project.assets.json` lists `tarol-validations`, `tarol-results`, `tarol-options`, `tarol-strongly-typed-id` |
 | diagnostics reach a package consumer | a temporary traps file in `Tarol.Validations.PackageTests` → `error TVAL001` … `error TVAL009` (one trap each; warnings are errors there), then removed |
