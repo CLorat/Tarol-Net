@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- One store contract suite, run against InMemoryAggregateStore and the Npgsql prototype (Testcontainers, D-15). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><InvariantGlobalization>true</InvariantGlobalization>
+    <AssemblyName>Probe.Persistence.Contract</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" Version="4.0.3" />
+    <PackageReference Include="Shouldly" Version="4.3.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
+    <ProjectReference Include="../Core/Core.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
+    <Compile Include="../App/Domain.cs" />
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <Using Include="Xunit" /><Using Include="Shouldly" />
+  </ItemGroup>
+</Project>

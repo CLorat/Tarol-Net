@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Prototype of the event codec (candidate K-A, decided to live in Tarol.Persistence, P-2) and of
+       Tarol.Persistence.Npgsql (schema S-A, guards G-1/G-2/G-3, lookups L-A/L-B, outbox, ReadAll). -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><IsAotCompatible>true</IsAotCompatible>
+    <RootNamespace>Tarol.Persistence</RootNamespace><AssemblyName>Probe.Persistence.Core</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
+  </ItemGroup>
+</Project>
