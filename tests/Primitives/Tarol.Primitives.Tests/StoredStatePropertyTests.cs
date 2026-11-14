@@ -2,9 +2,11 @@ using System.Text;
 using System.Text.Json;
 using Tarol.Primitives.Tests.Fixtures;
 using Tarol.Primitives.Tests.Galleries;
+using Tarol.Primitives.Tests.Lifecycles;
 using Tarol.Primitives.Tests.Nested;
 using Tarol.Primitives.Tests.Orders;
 using Tarol.Primitives.Tests.Showrooms;
+using Tarol.StronglyTypedId;
 
 namespace Tarol.Primitives.Tests;
 
@@ -23,7 +25,7 @@ public class StoredStatePropertyTests
     private static readonly JsonSerializerOptions Options = TestJsonOptions.Value;
     private static readonly string[] Words = ["art", "modern", "london", "x", "a longer word", "é"];
 
-    public static TheoryData<string> Models => ["Gallery", "Order", "Station", "Showroom", "Board"];
+    public static TheoryData<string> Models => ["Gallery", "Order", "Station", "Showroom", "Board", "Auction"];
 
     [Theory]
     [MemberData(nameof(Models))]
@@ -47,6 +49,9 @@ public class StoredStatePropertyTests
                     break;
                 case "Board":
                     Walk(seed, model, _ => Board.Create(), BoardSteps);
+                    break;
+                case "Auction":
+                    Walk(seed, model, _ => Auction.Open(Id<Auction>.New(), 10, AuctionEnd), AuctionSteps);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(model));
@@ -162,6 +167,100 @@ public class StoredStatePropertyTests
     [
         ("rename", static (b, r) => b.Rename(r.Next(4) == 0 ? "" : Word(r))), // sometimes invalid: no event
     ];
+
+    private static readonly DateTimeOffset AuctionEnd = new(2026, 11, 20, 18, 0, 0, TimeSpan.Zero);
+
+    // guarded behaviours only: every commit must prepare (lifecycle model; the unguarded ones are walked below)
+    private static readonly (string, Action<Auction, Random>)[] AuctionSteps =
+    [
+        ("bid", static (a, r) => a.PlaceBid(Id<Bidder>.New(), a.CurrentPrice + r.Next(1, 50), AuctionEnd.AddDays(-1))),
+        ("withdraw", static (a, r) => { if (Pick(a.Bids, r, out var bid)) bid.Withdraw(); }),
+        ("close", static (a, r) => a.Close(r.Next(4) == 0 ? AuctionEnd.AddDays(-1) : AuctionEnd.AddHours(1))),
+        ("settle", static (a, _) => a.Settle()),
+        ("close and settle", static (a, _) => a.CloseAndSettle(AuctionEnd.AddHours(1))),
+        ("pay", static (a, _) => a.Pay()),
+    ];
+
+    // the unguarded ones, with the step each would take if it is not an edge (null: no forbidden step)
+    private static readonly (string Name, Func<Auction, Random, bool> Forbidden)[] UnguardedAuctionSteps =
+    [
+        ("reopen", static (a, _) => { var from = a.Status; a.ReopenWithoutGuard(); return from != AuctionStatus.Open && !AuctionStatusLifecycle.IsEdge(from, AuctionStatus.Open); }),
+        ("settle unguarded", static (a, _) => { var from = a.Status; a.SettleWithoutGuard(); return from != AuctionStatus.Settled && !AuctionStatusLifecycle.IsEdge(from, AuctionStatus.Settled); }),
+        ("reinstate", static (a, r) => { if (!Pick(a.Bids, r, out var bid)) return false; var from = bid.Status; bid.ReinstateWithoutGuard(); return from != BidStatus.Active; }),
+        ("winning bid", static (a, _) => { a.PlaceWinningBidWithoutGuard(Id<Bidder>.New(), a.CurrentPrice + 1); return true; }),
+    ];
+
+    [Fact]
+    public void Every_Forbidden_Lifecycle_Step_Is_Reported_And_Stored_State_Still_Equals_Replay()
+    {
+        var (reported, commits) = (0, 0);
+        for (var seed = 1; seed <= Seeds; seed++)
+        {
+            var random = new Random(seed);
+            var live = Auction.Open(Id<Auction>.New(), 10, AuctionEnd);
+            var committed = new List<StreamEvent>(live.UncommittedChanges.ToArray());
+            AggregateChanges.Committed(live);
+            var expected = false;
+            var log = new List<string> { "open" };
+            for (var step = 1; step <= Steps; step++)
+            {
+                if (random.Next(5) == 0)
+                {
+                    var (name, forbidden) = UnguardedAuctionSteps[random.Next(UnguardedAuctionSteps.Length)];
+                    log.Add(name);
+                    expected |= forbidden(live, random);
+                }
+                else
+                {
+                    var (name, run) = AuctionSteps[random.Next(AuctionSteps.Length)];
+                    log.Add(name);
+                    run(live, random);
+                }
+
+                // replay and a state load are permissive: they never report the step
+                var history = committed.Concat(live.UncommittedChanges.ToArray()).ToArray();
+                var state = Json(live);
+                var replayed = Auction.Rehydrate(live.Id, history);
+                var loaded = AggregateState.Read(live.Id, Encoding.UTF8.GetBytes(state), Options).GetValueOrThrow();
+                Check(Json(replayed) == state && Json(loaded) == state, "the state differs from a replay or a load");
+                Check(!IsForbidden(AggregateChanges.Prepare(replayed)) && !IsForbidden(AggregateChanges.Prepare(loaded)), "replay or a load reported a step");
+
+                if (random.Next(3) != 0)
+                    continue;
+                var prepared = AggregateChanges.Prepare(live);
+                Check(IsForbidden(prepared) == expected, $"expected a forbidden step: {expected}, Prepare: {prepared}");
+                reported += expected ? 1 : 0;
+                commits += prepared.IsSuccess ? 1 : 0;
+                if (prepared.IsSuccess)
+                {
+                    committed.AddRange(live.UncommittedChanges.ToArray());
+                    AggregateChanges.Committed(live);
+                    live = random.Next(2) == 0 ? live : AggregateState.Read(live.Id, Encoding.UTF8.GetBytes(Json(live)), Options).GetValueOrThrow();
+                }
+                else
+                {
+                    // discard the instance, as a store would, and continue from the last commit
+                    live = Auction.Rehydrate(live.Id, committed.ToArray());
+                    log.Add("(discard)");
+                }
+
+                expected = false;
+
+                void Check(bool ok, string what)
+                {
+                    if (!ok)
+                        throw new InvalidOperationException($"Auction, seed {seed}, step {step}: {what}.{Environment.NewLine}steps: {string.Join(", ", log)}");
+                }
+            }
+        }
+
+        // the walk must reach both paths often (reachability guard)
+        reported.ShouldBeGreaterThan(Seeds / 2);
+        commits.ShouldBeGreaterThan(Seeds * 2);
+
+        static bool IsForbidden(Tarol.Results.Result result)
+            => !result.IsSuccess && result.ToString().Contains("Lifecycle.ForbiddenStep", StringComparison.Ordinal);
+    }
 
     [Fact]
     public void The_Walk_Reaches_Every_Shape()

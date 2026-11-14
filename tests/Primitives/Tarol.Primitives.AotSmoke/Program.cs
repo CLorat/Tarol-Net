@@ -82,6 +82,39 @@ Check("another schema reads as None", AggregateState.Read(shown.Id, otherSchema,
 Check("the state helper", AggregateTest.StoredStateMatchesReplay(shown, options).Version == shown.Version);
 Check("[LoadByReplay]: schema 0, no state", Tally.StateSchema == 0 && Throws(() => AggregateState.Write(Tally.Start(), options)));
 
+// ── lifecycles (part C) ──
+var lot = Lot.List("Rain");
+var bid = lot.Bid(10m);
+Check("guards: CanTransitionTo, RequireTransitionTo", lot.Status.CanTransitionTo(LotStatus.Sold) && lot.Sell().IsSuccess
+    && lot.Sell() == Result.Failure(Error.Conflict("LotStatus.NotAllowed", "Sold -> Sold")));
+Check("valid steps prepare", AggregateChanges.Prepare(lot).IsSuccess);
+AggregateChanges.Committed(lot);
+lot.RelistWithoutGuard();
+Check("a forgotten guard is reported at commit", AggregateChanges.Prepare(lot)
+    == Result.Failure(Error.Internal("Lifecycle.ForbiddenStep", "Lot.Status: Sold -> Listed by Relisted")));
+bid.Withdraw();
+Check("entity lifecycle: a withdrawn bid cannot be withdrawn again", bid.Withdraw() == Result.Failure(Error.Conflict("Bid.NotActive")));
+var oldLot = Lot.Rehydrate(lot.Id, History2(lot));
+Check("replay of a forbidden historical step loads", oldLot.Status == LotStatus.Listed && AggregateChanges.Prepare(oldLot).IsSuccess);
+var lotState = AggregateState.Write(oldLot, options);
+Check($"stored state holds the state's name: {System.Text.Encoding.UTF8.GetString(lotState)}", System.Text.Encoding.UTF8.GetString(lotState).Contains("\"status\":\"Listed\"", StringComparison.Ordinal));
+var restoredLot = AggregateState.Read(oldLot.Id, lotState, options).GetValueOrThrow();
+Check("a restored state continues with the step check", restoredLot.Sell().IsSuccess && AggregateChanges.Prepare(restoredLot).IsSuccess);
+Check("diagram", LotStatusLifecycle.Diagram.Contains("Listed --> Sold : Sold", StringComparison.Ordinal));
+Check("label switch over a lifecycle without a default arm (TPRMSPR01)", Lot.Label(LotStatus.Sold) == "sold");
+
+static StreamEvent[] History2(Lot lot)
+{
+    // Sold -> Listed is forbidden today: a stream as stored in 2025
+    var id = lot.Id.Value;
+    return
+    [
+        new(1, id, Guid.Empty, new Lot.Listed("Rain")),
+        new(2, id, Guid.Empty, new Lot.Sold()),
+        new(3, id, Guid.Empty, new Lot.Relisted()),
+    ];
+}
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
 
@@ -174,6 +207,87 @@ namespace Tarol.Primitives.AotSmoke
 
         [Invariant]
         private Result PriceNotNegative() => Price >= 0 ? Result.Success() : Error.Conflict("Artwork.NegativePrice");
+    }
+
+    [Lifecycle]
+    public enum LotStatus
+    {
+        [To(Sold)] Listed,
+        Sold,
+    }
+
+    [Lifecycle]
+    public enum BidStatus
+    {
+        [To(Withdrawn)] Active,
+        Withdrawn,
+    }
+
+    public partial class Lot : AggregateRoot<Lot>
+    {
+        public LotStatus Status { get; private set; }
+        public EntitySet<Bid> Bids { get; } = [];
+
+        public string Title { get; private set; } = "";
+
+        public static Lot List(string title)
+        {
+            var lot = new Lot(Id<Lot>.New());
+            lot.Raise(new Listed(title));
+            return lot;
+        }
+
+        public static string Label(LotStatus status) => status switch
+        {
+            LotStatus.Listed => "listed",
+            LotStatus.Sold => "sold",
+        };
+
+        public Bid Bid(decimal amount) => Raise(new Bid.Placed(amount));
+
+        public Result Sell() => Status.RequireTransitionTo(LotStatus.Sold).Bind(() => Raise(new Sold()));
+
+        public Success RelistWithoutGuard() => Raise(new Relisted());
+
+        public sealed record Listed(string Title) : Event;
+
+        [Transition<LotStatus>(LotStatus.Listed, LotStatus.Sold)]
+        public sealed record Sold : Event;
+
+        public sealed record Relisted : Event;
+
+        private void On(Listed e) => Title = e.Title;
+
+        private void On(Sold e)
+        {
+            _ = e;
+            Status = LotStatus.Sold;
+        }
+
+        private void On(Relisted e)
+        {
+            _ = e;
+            Status = LotStatus.Listed;
+        }
+    }
+
+    public partial class Bid : Entity<Lot, Bid>
+    {
+        public decimal Amount { get; private set; }
+        public BidStatus Status { get; private set; }
+
+        public Result Withdraw() => Status.CanTransitionTo(BidStatus.Withdrawn) ? Raise(new Withdrawn()) : Error.Conflict("Bid.NotActive");
+
+        public sealed record Placed(decimal Amount) : Created;
+        public sealed record Withdrawn : Event;
+
+        private void On(Placed e) => Amount = e.Amount;
+
+        private void On(Withdrawn e)
+        {
+            _ = e;
+            Status = BidStatus.Withdrawn;
+        }
     }
 
     [JsonSerializable(typeof(Artwork.Repriced))]

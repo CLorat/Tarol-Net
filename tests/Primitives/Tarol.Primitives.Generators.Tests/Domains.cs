@@ -126,4 +126,69 @@ internal static class Domains
             }
         }
         """;
+
+    public const string Lifecycle = """
+        using System.Linq;
+        using Tarol.Primitives;
+        using Tarol.Results;
+        using Tarol.StronglyTypedId;
+
+        namespace Auctions;
+
+        [Lifecycle]
+        public enum AuctionStatus { [To(Closed)] Open, [To(Settled)] Closed, Settled }
+
+        [Lifecycle]
+        public enum BidStatus { [To(Withdrawn, Won)] Active, Withdrawn, Won }
+
+        [Lifecycle]
+        public enum Payout { [To(Due)] None, Due }
+
+        public partial class Auction : AggregateRoot<Auction>
+        {
+            [Lifecycle]
+            internal enum Phase { [To(Late)] Early, Late }
+
+            public AuctionStatus Status { get; private set; }
+            public Payout Payout { get; private set; }
+            internal Phase Stage { get; private set; }
+            public decimal Price { get; private set; }
+            public EntitySet<Bid> Bids { get; } = [];
+
+            public static Auction Open() { var a = new Auction(Id<Auction>.New()); a.Raise(new Opened(1)); return a; }
+            public Result Close() => Status.RequireTransitionTo(AuctionStatus.Closed).Bind(() => Raise(new Closed()));
+            public Result Settle() => Status.CanTransitionTo(AuctionStatus.Settled) ? Raise(new Settled()) : Error.Conflict("Auction.NotClosed");
+            public Bid Bid(decimal amount) => Raise(new Bid.Placed(amount));
+            public Success Late() => Raise(new Lated());
+
+            public sealed record Opened(decimal Price) : Event;
+            [Transition<AuctionStatus>(AuctionStatus.Open, AuctionStatus.Closed)] public sealed record Closed : Event;
+            [Transition<AuctionStatus>(AuctionStatus.Closed, AuctionStatus.Settled)] public sealed record Settled : Event;
+            public sealed record Lated : Event;
+
+            private void On(Opened e) => Price = e.Price;
+            private void On(Closed e) { _ = e; Status = AuctionStatus.Closed; }
+            private void On(Settled e) { _ = e; Settle(AuctionStatus.Settled); }
+            private void On(Lated e) { _ = e; Stage = Phase.Late; }
+            private void On(Bid.Won e) { _ = e; Payout = Payout.Due; }
+            private void Settle(AuctionStatus status) => Status = status;
+        }
+
+        public partial class Bid : Entity<Auction, Bid>
+        {
+            public decimal Amount { get; private set; }
+            public BidStatus Status { get; private set; }
+            public Result Withdraw() => Status.CanTransitionTo(BidStatus.Withdrawn) ? Raise(new Withdrawn()) : Error.Conflict("Bid.NotActive");
+            public Success Win() => Raise(new Won());
+            public Success Raise() => Raise(new Raised(Amount + 1));
+            public sealed record Placed(decimal Amount) : Created;
+            [Transition<BidStatus>(BidStatus.Active, BidStatus.Withdrawn)] public sealed record Withdrawn : Event;
+            [Transition<BidStatus>(BidStatus.Active, BidStatus.Won)] public sealed record Won : Event;
+            public sealed record Raised(decimal Amount) : Event;
+            private void On(Placed e) => Amount = e.Amount;
+            private void On(Withdrawn e) { _ = e; Status = BidStatus.Withdrawn; }
+            private void On(Won e) { _ = e; Status = BidStatus.Won; }
+            private void On(Raised e) => Amount = e.Amount;
+        }
+        """;
 }

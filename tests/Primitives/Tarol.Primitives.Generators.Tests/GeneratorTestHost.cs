@@ -52,6 +52,19 @@ internal static class GeneratorTestHost
         return [.. generatorDiagnostics, .. analyzer, .. compiler];
     }
 
+    /// <summary>
+    /// Compiler warnings of the generated compilation after the suppressors ran: each with whether TPRMSPR01 suppressed it.
+    /// </summary>
+    public static ImmutableArray<(string Id, bool Suppressed)> CompilerWarningsWithSuppressor(params string[] sources)
+    {
+        var compilation = Compile(sources);
+        _ = Run(compilation).RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var options = new CompilationWithAnalyzersOptions(new AnalyzerOptions([]), onAnalyzerException: null, concurrentAnalysis: false, logAnalyzerExecutionTime: false, reportSuppressedDiagnostics: true);
+        var all = output.WithAnalyzers([new LifecycleSwitchSuppressor()], options).GetAllDiagnosticsAsync().GetAwaiter().GetResult();
+        return [.. all.Where(static d => d.Id.StartsWith("CS", StringComparison.Ordinal) && d.Severity >= DiagnosticSeverity.Warning)
+            .Select(static d => (d.Id, d.IsSuppressed)).OrderBy(static d => d.Id, StringComparer.Ordinal)];
+    }
+
     public static string[] Ids(this ImmutableArray<Diagnostic> diagnostics)
         => [.. diagnostics.Select(static d => d.Id).Order(StringComparer.Ordinal)];
 
