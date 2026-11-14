@@ -206,7 +206,8 @@ internal sealed class Emitter
         Line($"/// <returns>Its event type.</returns>");
         Line($"public static {P}EventType EventTypeOf({P}DomainEvent domainEvent) => domainEvent switch");
         Open();
-        foreach (var e in _model.Events.Where(static e => !e.IsAbstract))
+        // most-derived first: a non-sealed event must not hide the events derived from it
+        foreach (var e in _model.Events.Where(static e => !e.IsAbstract).OrderByDescending(static e => e.Bases.Count).ThenBy(static e => e.FullName, System.StringComparer.Ordinal))
             Line($"{e.FullName} => new({Literal(e.Alias)}, {e.AliasVersion}),");
         Line($"_ => {P}ThrowHelper.UnknownEvent<{P}EventType>(domainEvent?.GetType().Name ?? \"null\", {Literal(_root.Name)}),");
         _indent--;

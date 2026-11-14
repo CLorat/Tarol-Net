@@ -38,6 +38,22 @@ public class DiagnosticTests
             """).ShouldBeEmpty();
 
     [Fact]
+    public void F22_Handlers_For_A_Base_And_A_Derived_Event_Are_Ordered_Most_Derived_First()
+    {
+        var source = Usings + """
+            public partial class Shelf : AggregateRoot<Shelf>
+            {
+                public abstract record Changed : Event; public record Renamed : Changed; public sealed record Retitled : Renamed;
+                private void On(Changed e) { } private void On(Renamed e) { } private void On(Retitled e) { }
+            }
+            """;
+        GeneratorTestHost.Diagnose(source).Ids().ShouldBeEmpty();   // no CS8120 (a subsumed case)
+        var generated = GeneratorTestHost.Run(GeneratorTestHost.Compile(source)).Generated("Shelf.Aggregate.g.cs");
+        generated.IndexOf("Shelf.Retitled e", StringComparison.Ordinal).ShouldBeLessThan(generated.IndexOf("Shelf.Renamed e", StringComparison.Ordinal));
+        generated.IndexOf("Shelf.Renamed e", StringComparison.Ordinal).ShouldBeLessThan(generated.IndexOf("Shelf.Changed e", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void TPRM005_A_Handler_On_A_Type_That_Never_Receives_The_Event()
         => Ids("""
             public partial class Shelf : AggregateRoot<Shelf> { public EntitySet<Book> Books { get; } = []; public EntitySet<Lamp> Lamps { get; } = []; }

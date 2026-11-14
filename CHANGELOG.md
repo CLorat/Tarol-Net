@@ -33,6 +33,15 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   (old events always load), and implements `IValidatable` on input records (`Validated()`: all field errors with input
   paths such as `Lines[1].Quantity`, 0 B when valid). `ValueObjectJson` for source-generated contexts in the same
   assembly; diagnostics TVAL001–TVAL009; agent skill `tarol-validations`. Concept note `docs/architecture/validation.md`.
+* `Tarol.Primitives` (step 6, part A): event-sourced `AggregateRoot<T>` and child `Entity<TRoot, T>` (`EntitySet`,
+  `EntityRef`, children with several owner types via `CreatedIn<TParent>`); events are pure-payload records deriving from
+  the library's nested `Event`/`Created`/`Deleted` bases (`sealed record Repriced(decimal Price) : Event;`), routed with a
+  `StreamEvent` (version, entity id, parent id) beside them; a bundled generator writes the dispatch (target, owners,
+  root), identity maps, cascade, strict replay, `Rehydrate`, `EventTypeOf` and the invariant check; `[Invariant]` rules
+  returning `Result` run at the hand-off (`AggregateChanges.Prepare`), never on replay; a throwing `On` handler poisons
+  the instance; `RecordedEvent` for stored events with Kernel's `OperationContext`; `AggregateTest` given/when/then
+  helper; diagnostics TPRM001–TPRM015 (including "state assigned outside an On handler" and "rule, throw, clock or Raise
+  inside an On handler"); agent skill `tarol-primitives`. Concept note `docs/architecture/domain-core.md`.
 
 ### Changed
 
@@ -53,10 +62,18 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   rules TRES003 (Option part), TRES004, TRES005 (Option part) and TRES006 (Option part) are TOPT001–TOPT004.
   Mapping: docs/migration/options.md §7.1.
 
+* Primitives (step 6): the envelope left the event (no `Version`/`Timestamp`/ids on event objects; `StreamEvent` beside
+  it), `DomainClock` is gone, deletes are raised by the entity itself, the old generic event bases
+  (`DomainEvent<R, X>`, `CreateDomainEvent`, `DeleteDomainEvent`) and the generated `closed` bases are replaced by the
+  library's nested bases with the same user syntax. Full list: docs/migration/primitives.md §10.
+
 ### Removed
 
 * Kernel (step 4): the ambient `Tarol.Clock`, the markers `IUser` and `ITrace`, `IUserContext`/`ContextUserType`
   and `Security.IAuthorizer` are not carried over (docs/migration/kernel.md §8). `ITenant` stays as a phantom type.
+* Primitives (step 6): `Value`, `TarolPrimitivesJson`, `AggregateRootChangeAccessor`, `IDomainEvent*`, the writable
+  `FindRef` lookups and `GlobalUsings.cs`; the event codec (`IEventCodec`, `EventColumns`, `IEventUpcaster`) moves to
+  step 8 and snapshots become stored state in step 6 part B (docs/migration/primitives.md §10).
 
 * `IdJsonConverterFactory` (see docs/migration/stronglytypedid.md).
 * `Tarol.StronlgyTypedId.EntityFrameworkCore` is not carried over: EF Core is not Tarol's persistence provider.

@@ -8,7 +8,8 @@ Labels as in the [conventions](../architecture/conventions.md): **[verified]** =
 [`probes/primitives/`](probes/primitives/) (`*.csproj.txt` files are renamed so the repository build ignores them;
 build from a scratch copy with `-p:TarolNetRepo=<clone>`); **[verified by reading]**; **[unverified]**.
 
-**Status: stage 2 (evaluation).** The decisions in §9 go to the owner. Nothing in `src/` has changed yet.
+**Status: part A implemented** (events, routing, children, invariants, failure rules, analyzers, test helper; §10–§13). Part B
+(stored state, round 3 of §9) is the next pull request.
 
 ## 0. Summary
 
@@ -235,20 +236,23 @@ helper for arithmetic) and a `#pragma` with justification; the false negatives a
 
 | Type | Namespace | Notes |
 |---|---|---|
-| `AggregateRoot<TSelf>` (+ nested `Event`) | `Tarol.Primitives` | `Id`, `Version`, `UncommittedChanges : ReadOnlySpan<StreamEvent>`, `protected Success Raise(Event)`, `protected TChild Raise<TChild>(Entity<TSelf,TChild>.Created)` (+ explicit-id overload), `implicit operator Id<TSelf>` |
-| `Entity<TRoot, TSelf>` (+ nested `Event`, `Created`, `Deleted`) | `Tarol.Primitives` | `Id`, `protected TRoot Root`, `Raise(Event)`, `Raise(Deleted)`, `Raise<TChild>(Created)` |
+| `AggregateRoot<TSelf>` (+ nested `Event`) | `Tarol.Primitives` | `Id`, `Version`, `IsBroken`, `UncommittedChanges : ReadOnlySpan<StreamEvent>`, `protected Success Raise(Event)`, `protected TChild Raise<TChild>(Entity<TSelf,TChild>.Created[, Id<TChild>])`, `implicit operator Id<TSelf>`; `[EditorBrowsable(Never)] protected abstract void Dispatch(in StreamEvent)`, `protected virtual Result CheckInvariants()` (generated) |
+| `Entity<TRoot, TSelf>` (+ nested `Event`, `Created`, `CreatedIn<TParent>`, `Deleted`) | `Tarol.Primitives` | `Id`, `protected TRoot Root`, `Raise(Event)`, `Raise(Deleted)`, `Raise<TChild>(Created[, Id<TChild>])` |
 | `DomainEvent` | `Tarol.Primitives` | empty abstract record |
-| `StreamEvent` | `Tarol.Primitives` | `readonly record struct (long Version, Guid EntityId, Guid ParentId, DomainEvent Event)` |
-| `RecordedEvent` (R-3) | `Tarol.Primitives` | `StreamEvent` + `Id<IEvent>` event id, `DateTimeOffset RecordedAt`, `Actor`, `Option<Id<ITenant>>`, `Id<ICorrelation>`, `Option<Id<ICausation>>`; filled by the store (step 8) |
-| `IAggregateRoot<TSelf>` | `Tarol.Primitives` | `static abstract TSelf Rehydrate(Id<TSelf>, ReadOnlySpan<StreamEvent>)` |
-| `EntitySet<T>`, `EntityRef<T>`, `IOwnedBy<T>`, `IRegistry<T>` | `Tarol.Primitives` | no `ref` lookups |
-| `AggregateChanges` | `Tarol.Primitives` | `Result Prepare(aggregate)` (invariants, poison check), `void Committed(aggregate)` |
-| `InvariantAttribute`, `EventTypeAttribute`, `SnapshotAttribute`/`SnapshotIgnoreAttribute` (PR B) | `Tarol.Primitives` | |
-| `ThrowHelper` | `Tarol.Primitives` | `[EditorBrowsable(Never)]` |
+| `StreamEvent` | `Tarol.Primitives` | `readonly record struct (long Version, Guid EntityId, Guid ParentId, DomainEvent Event)`; `ParentId` is `Guid.Empty` except for creations |
+| `RecordedEvent` (R-3) | `Tarol.Primitives` | `sealed record (Guid StreamId, StreamEvent Event, Guid EventId, DateTimeOffset RecordedAt, OperationContext Context)`; `OperationContext` (Kernel) carries actor, tenant, correlation, causation; filled by the store (step 8) |
+| `EventType`, `EventTypeAttribute` | `Tarol.Primitives` | `(Alias, Version)`; default alias `<root>.<containing types>.<event>` in snake case |
+| `IAggregateRoot`, `IAggregateRoot<TSelf>` | `Tarol.Primitives` | `static abstract TSelf Rehydrate(Id<TSelf>, ReadOnlySpan<StreamEvent>)`, `static abstract EventType EventTypeOf(DomainEvent)` |
+| `IEntity<TSelf>`, `IOwnedBy<TOwner>`, `IRegistry<TEntity>` | `Tarol.Primitives` | `IRegistry<T>.TryFind(Id<T>, out T)`; no `ref` lookups |
+| `EntitySet<T>` (+ `EntitySet.Create`), `EntityRef<T>` | `Tarol.Primitives` | read-only; `[]` only; mutators internal |
+| `AggregateChanges` | `Tarol.Primitives` | `Result Prepare(aggregate)` (poison check + invariants of the root and every entity), `void Committed(aggregate)` |
+| `InvariantAttribute`, `TransientAttribute` | `Tarol.Primitives` | `[Transient]`: a cache, exempt from TPRM013 and (part B) not stored |
+| `AggregateTest`, `AggregateTest<TSelf>`, `AggregateOutcome<TSelf>` | `Tarol.Primitives` | given (by behaviours, committed and replayed) / when / outcome (`Result`, `Events`, `Aggregate`, `History`, `Replay()`) |
+| `ThrowHelper` | `Tarol.Primitives` | `[EditorBrowsable(Never)]`, used by generated code |
 
 Dependencies: Kernel (R-3; also brings TKRN001 into the user's domain code), Results, Options, StronglyTypedId. Not
 Validations: invariants and guards return `Result`; value objects are Validations' business. **`Primitives.Value` is
-dropped** (validations.md §7.6). Diagnostics renumbered to `TPRM001…` (conventions §3). Package: one
+dropped** (validations.md §7.6). Diagnostics renumbered to `TPRM001…` (conventions §2). Package: one
 `Tarol.Primitives` with its generator and analyzer bundled (D-10), no `build/*.targets`.
 
 Handed-over Changes findings: 1 (no path from a change to `Raise`) is answered by the behaviour-method contract
@@ -279,3 +283,133 @@ Asked with the question tool (one question per decision, recommendation first). 
 | 6, 7 | Analyzers | both **Error**: state assigned outside an `On` handler; rule/throw/clock/`Raise` inside `On`; `[Transient]` fields exempt |
 | 8 | Package | one `Tarol.Primitives` (generator + analyzer, `TPRM001…`), depends on Kernel, Results, Options, StronglyTypedId, not Validations; `Value` dropped; behaviour methods are the step 7 contract; Changes findings 14/15 → step 7 |
 | — | Test helper | **ship a given/when/then helper** in the package |
+
+### Owner answers (round 3, 2026-11-14)
+
+Snapshots become **stored state** (decision 3 above, reopened and answered): yes, every commit stores the current state
+and normal loads never replay; the state JSON is queryable; an old shape is replayed in memory and rewritten on the next
+change, rows carry their `schema` and step 8 offers `RebuildStates<T>()`; an uncapturable field is an Error. JSON
+shape: property names, children nested with their ids, no public record types. Built in part B.
+
+## 10. Changes against Tarol (`6a62f81`)
+
+### 10.1 Projects
+
+| Old | New |
+|---|---|
+| `src/Primitives/Primitives` (`Tarol.Primitives`) | `src/Primitives/Tarol.Primitives` |
+| `gen/Primitives/Primitives.Generators` (+ `Tarol.Primitives.targets`) | `src/Primitives/Tarol.Primitives.Generators`, bundled (D-10), **no targets file** |
+| `tests/Primitives/Primitives.UnitTests`, `.Generators.UnitTests`, `.AotSmoke` | `tests/Primitives/Tarol.Primitives.Tests`, `.Generators.Tests`, `.AotSmoke`, `.PackageTests` |
+
+The runtime and generator were rewritten for candidate c, not copied: the old design put the envelope on the event and
+generated the event bases, both of which change shape. What carries over in substance: flat identity maps, generated
+`switch` dispatch, `[UnsafeAccessor]` to internal mutators and private constructors, cascade, strict replay, `EntityRef`,
+uniform dispatch order, the `ThrowHelper` messages, default aliases and `[EventType]`.
+
+### 10.2 Public API and behaviour changes (every one deliberate)
+
+| Old | New | Why |
+|---|---|---|
+| events derive from generated `closed record Event : DomainEvent<R, X>` (or `DomainEvent<R, X>`, `CreateDomainEvent<R, P, X>`, `DeleteDomainEvent<R, P, X>`) | events derive from the library's nested bases `AggregateRoot<R>.Event`, `Entity<R, X>.Event/Created/CreatedIn<P>/Deleted`; **user syntax unchanged** (`: Event`, `: Created`) | R-1: real types, visible to other generators and the user's JSON context; target and root read from symbols |
+| envelope on the event (`Version`, `Timestamp`, `AggregateRootId`, `EntityId`, `ParentEntityId`, `internal set`, `[JsonIgnore]`) | **none**: `StreamEvent(Version, EntityId, ParentId, Event)` beside the event | F-10 gone; value equality of payloads; 32 B instead of 88 B per raised child event |
+| `DomainEvent.Timestamp` from `DomainClock` | **removed**, with `DomainClock` (F-12, K-2) | recorded-at belongs to the commit (`RecordedEvent.RecordedAt`); business time is a payload field |
+| `IDomainEvent`, `IDomainEvent<R, X>`, `IAggregateEvent<R>` | removed | routing is in `StreamEvent`; consumers constrain on `DomainEvent` |
+| `UncommittedChanges : ReadOnlySpan<DomainEvent>`, `Rehydrate(id, ReadOnlySpan<DomainEvent>)` | `ReadOnlySpan<StreamEvent>` both | the envelope travels with the event |
+| `AggregateRoot` (non-generic base class) | `IAggregateRoot` (marker interface) | nothing needed a base class |
+| `protected AggregateRoot()` (id from `Id.New()`) | only `protected AggregateRoot(Id<TSelf> id)`; the generated constructor is private | one way to create; factories pass `Id<T>.New()` |
+| `Raise(...)` returns `void` | returns `Success` | `return Raise(…);` in a `Result` behaviour |
+| delete raised by the parent with the child id in the payload (`Closed(Id<Room>) : Deleted(id)`) | raised by the entity itself (`Raise(new Closed())`), no id in the payload | decision 1; the id is in `StreamEvent.EntityId` |
+| child id generated in the event constructor (on every deserialization too) | generated once in `Raise` (`Id<T>.New()`), or passed: `Raise(e, id)` | insight 8 |
+| a creation raised by a non-owner: runtime `OrphanChild` | **compile error CS0311** (`IOwnedBy<TOwner>` constraint) | decision 2 |
+| a child with two owner types: explicit `CreateDomainEvent<R, P, X>` | `CreatedIn<TParent>` | the parent is named, the root inferred |
+| `IRegistry<T>.FindRef`, `EntitySet.FindRef` (writable `ref`, F-1 b) | `IRegistry<T>.TryFind`, `EntitySet.TryGet` | no swap of a foreign entity |
+| `ReplayHistory` `protected internal`, public `AggregateSnapshot.Replay`, public codec `ReadEvent` (F-1 d) | `ReplayHistory` internal (generated `Rehydrate` only); codec and snapshots not in part A | no forged, unrecorded event |
+| generated members callable from the user's partial (F-1 c) | still compiles, **TPRM015** reports `Dispatch`, `CheckInvariants` and `__` members | an access modifier cannot express it |
+| a behaviour assigning state directly (F-1 a) | **TPRM013** | decision 6 |
+| a throwing `On`: state half-applied, aggregate usable (F-9) | **poisoned**: `IsBroken`, every further `Raise`/`Prepare` throws; replay propagates | decision 4 |
+| no invariants (old `[Invariant] bool` in Validations) | `[Invariant] Result M()` on root and entities, run by `AggregateChanges.Prepare` over **all** entities | V-3, decision 5 |
+| `AggregateRootChangeAccessor.GetChanges/ClearChanges` | `UncommittedChanges` + `AggregateChanges.Prepare/Committed` | the hand-off runs invariants |
+| `IEventCodec<T>`, `EventColumns`, `IEventUpcaster`, generated `JsonResolver`/`TarolJson` | **moved to step 8** (R-2); `EventTypeOf` and `[EventType]` stay | events are ordinary types |
+| `ISnapshotable`, `ISnapshotSource`, `AggregateSnapshot`, `SnapshotIgnore`, generated `XSnapshot` records | **part B** (stored state, round 3) | decision 3 |
+| `Value` (`[GenerateValidation]` record) | **removed** | value objects come from Tarol.Validations (validations.md §7.6) |
+| `TarolPrimitivesJson` | removed | no Tarol-owned JSON in part A |
+| `GlobalUsings.cs` | removed; files write their usings | options.md, kernel.md |
+| foreign events: `AggregateRootId` check | structural: a root event must carry the root id, a creation under the root must name it, any other foreign event targets an unknown entity | no aggregate id on events |
+| an unknown event type in the dispatch | throws `UnknownEvent` (unchanged) | |
+| new | `AggregateTest` given/when/then helper | decision "test helper" |
+| diagnostics TAROL001–TAROL019 | TPRM001–TPRM015, all Error (§11) | conventions: family prefix |
+
+### 10.3 Implementation notes
+
+* **Generator pipeline.** Per-type transform (`CreateSyntaxProvider` over classes and records with a base list) →
+  symbol-free `TypeModel`s → one `Collect()` → grouped into an equatable `AggregateModel` per root (an aggregate's code
+  needs its owners, handlers and events from other files). Two outputs: diagnostics from the full model, source from a
+  copy **without locations**, so moving text regenerates nothing (`IncrementalityTests`: an unrelated edit and a method
+  body edit regenerate 0 outputs; a new event in one aggregate regenerates exactly 1). Justified deviation from "no
+  `Collect()`": the grouped models are tiny strings, and caching per aggregate is proven by the tests.
+* **Generated code** per aggregate in one file `<Root>.Aggregate.g.cs`: maps `__map{i}`, `TryFind`, private constructors
+  (unless the user declares `(Id<T>)` / `(Id<T>, TRoot)`), `Rehydrate`, `EventTypeOf`, `Dispatch` (one case per entity
+  type and kind, root events last, `default` throws), `__Apply` switches (most-derived event first), bubbling `__Up{i}`
+  (only where an owner has ancestor handlers), `__Unlink{i}`, cascade `__Remove{i}`, `CheckInvariants`, accessors.
+  Entity partials get `IOwnedBy<…>`, `__Parent` (typed by the unique owner, `object` for several) and `__Apply`.
+* **Bugs found by the tests while building**: an empty `switch` (CS1522) when a type's only handler is invalid;
+  `EventTypeOf` arms in alphabetical order hid a derived event behind a non-sealed base (CS8510). Both fixed, both tested.
+* **CA1822 on an empty `On` handler** (an event that changes no state): the analyzer is right that such a handler does
+  nothing; give the event state to apply, or keep the handler non-empty. Documented in the skill example.
+* **Analyzers and generator errors**: the compiler does not run analyzers when the compilation has errors, so TPRM013–015
+  appear once the generator errors are fixed (seen in the consumer traps run, §12).
+
+## 11. Suppressions and analyzer configuration
+
+| Where | What | Why |
+|---|---|---|
+| `AggregateRoot<TSelf>.Event`, `Entity<TRoot, TSelf>.Event` | `[SuppressMessage("Naming", "CA1716")]` | the short base name is the user syntax (decision 1); C# only (same precedent as `Tarol.Results.Error`) |
+| generated `__Parent` field | `#pragma warning disable CS0414` around one line | written and read only through `[UnsafeAccessor]`, which the compiler cannot see |
+| `tests/…/Fixtures.cs` (`Faulty`) | `#pragma warning disable TPRM014` around two handlers | fixtures that throw/raise inside `On` on purpose, to test the poison guard |
+
+No `NoWarn`, no `.editorconfig` change.
+
+## 12. Verification (SDK 11.0.100, 2026-11-14, from a clean tree in CI order)
+
+| Step | Result |
+|---|---|
+| `rm -rf artifacts`; `dotnet restore Tarol.slnx`; build every `src/*/*.Generators` | OK |
+| `dotnet format Tarol.slnx --verify-no-changes --no-restore` | OK (after one `dotnet format` pass of whitespace and braces) |
+| `dotnet build Tarol.slnx -c Release --no-restore` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx -c Release --no-build` | **503 passed**, 0 failed (422 before; Primitives: 48 unit, 33 generator) |
+| `eng/aot-smoke.sh` | 6 apps, 0 IL warnings each; `Tarol.Primitives.AotSmoke`: 11 checks, ALL CHECKS PASSED |
+| `eng/verify-packages.sh` | `Tarol.Primitives` contains `lib/net11.0`, README, LICENSE, `skills/tarol-primitives/SKILL.md`, `analyzers/dotnet/cs/Tarol.Primitives.Generators.dll`, no `build/`; the consumer runs (3 checks) and its `project.assets.json` lists the skills of Primitives, Kernel, Results, Options, StronglyTypedId; OK |
+| diagnostics reach a package consumer | temporary traps files in `Tarol.Primitives.PackageTests`: `error TPRM002` … `TPRM012` (generator), then a second file with `error TPRM013`, `TPRM014` (×2), `TPRM015`, `TKRN001` (Kernel dependency); both removed |
+
+Tests that cover the findings: F-1 a TPRM013 tests; F-1 b API (no `ref` lookups); F-1 c TPRM015 test; F-1 d `ReplayHistory`
+internal; F-2 `Delete_Should_Cascade_To_Descendants`; F-4 `A_Child_With_Two_Owner_Types…` (user `(Id, Root)` constructor);
+F-5 the `Orders` snapshot (field container `_notes`); F-6 the `Nested` snapshot and TPRM002/003 tests; F-7, F-14, I-4,
+I-9 `StrictReplayTests`; F-8 TPRM004 tests; F-9 `FailureTests`; F-10 and equality `EventTests`; F-12 no clock in the
+package (and `Events_Are_Pure_Payload…`); F-15 `IncrementalityTests`; F-22 `F22_Handlers_…_Most_Derived_First`; S-3
+`ReplaySafetyTests`; V-3 `InvariantTests`.
+
+## 13. Skill evaluation checklist (`tarol-primitives`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| "Add an aggregate `Order` with lines" | `partial class Order : AggregateRoot<Order>`, `EntitySet<Line> Lines { get; } = [];`, `partial class Line : Entity<Order, Line>`, `sealed record Added(…) : Created;`, `Raise(new Line.Added(…))` returning the line | `new Line(...)`, `Lines.Add(...)`, a settable `EntitySet`, `DomainEvent<Order, Line>` |
+| "Reject a bid after the end time" | `public Result PlaceBid(…, DateTimeOffset now)` with a guard returning `Error.Conflict`, then `return Raise(…)` | `DateTime.UtcNow` (TKRN001), a throw or rule inside `On` (TPRM014) |
+| "Remove a line" | `public Success Remove() => Raise(new Removed());` with `sealed record Removed : Deleted;` | a delete event carrying the id; removing from the set |
+| "Keep a total on the order when a line changes" | `private void On(Line.Added e)` on `Order` (ancestor handler) | assigning the total in a behaviour (TPRM013) |
+| "An order never has more than 50 lines" | `[Invariant] private Result AtMost50() => …;` and `AggregateChanges.Prepare` | an `[Invariant] bool`, checking it inside `On` |
+| "Write a behaviour test" | `AggregateTest.Given(Order.Start()).And(…).When(…)` → `Result`, `Events` | building `StreamEvent`s by hand |
+| "Load an order from stored events" | `Order.Rehydrate(id, history)` | calling `Dispatch` (TPRM015) |
+| "A note can belong to an order or a line" | `CreatedIn<Order>` / `CreatedIn<Line>` events | plain `Created` (TPRM007) |
+
+## 14. What later steps must do
+
+See [domain-core.md](../architecture/domain-core.md#what-later-steps-must-do) and the plan (rows 6–9, 13). Part B
+(stored state) is the next pull request of step 6.
+
+## 15. Open items
+
+* Part B: stored state (decision 3, round 3).
+* `CreatedIn<P>` raised by an owner of another type than `P` passes the compile-time check (the child implements
+  `IOwnedBy` for both) and fails at run time with `OrphanChild`; a narrower constraint needs a second generic overload.
+* The analyzer's known false positive (pure `Result`-returning arithmetic inside `On`) and false negative (a write
+  through another instance) from §7 remain; the replay test covers the second.
