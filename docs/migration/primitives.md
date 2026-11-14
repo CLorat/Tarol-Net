@@ -9,7 +9,7 @@ Labels as in the [conventions](../architecture/conventions.md): **[verified]** =
 build from a scratch copy with `-p:TarolNetRepo=<clone>`); **[verified by reading]**; **[unverified]**.
 
 **Status: part A implemented** (events, routing, children, invariants, failure rules, analyzers, test helper; §10–§13). Part B
-(stored state, round 3 of §9): stage 1 evaluation in §16, waiting for the owner's answers.
+(stored state, round 3 of §9) **implemented**: evaluation, answers and changes in §16.
 
 ## 0. Summary
 
@@ -330,7 +330,7 @@ uniform dispatch order, the `ThrowHelper` messages, default aliases and `[EventT
 | no invariants (old `[Invariant] bool` in Validations) | `[Invariant] Result M()` on root and entities, run by `AggregateChanges.Prepare` over **all** entities | V-3, decision 5 |
 | `AggregateRootChangeAccessor.GetChanges/ClearChanges` | `UncommittedChanges` + `AggregateChanges.Prepare/Committed` | the hand-off runs invariants |
 | `IEventCodec<T>`, `EventColumns`, `IEventUpcaster`, generated `JsonResolver`/`TarolJson` | **moved to step 8** (R-2); `EventTypeOf` and `[EventType]` stay | events are ordinary types |
-| `ISnapshotable`, `ISnapshotSource`, `AggregateSnapshot`, `SnapshotIgnore`, generated `XSnapshot` records | **part B** (stored state, round 3) | decision 3 |
+| `ISnapshotable`, `ISnapshotSource`, `AggregateSnapshot`, `SnapshotIgnore`, generated `XSnapshot` records | **stored state** (part B, §16.11): `StateSchema`/`WriteState`/`ReadState` on `IAggregateRoot<T>`, `[LoadByReplay]`, no public records | decision 3, round 4 |
 | `Value` (`[GenerateValidation]` record) | **removed** | value objects come from Tarol.Validations (validations.md §7.6) |
 | `TarolPrimitivesJson` | removed | no Tarol-owned JSON in part A |
 | `GlobalUsings.cs` | removed; files write their usings | options.md, kernel.md |
@@ -408,7 +408,6 @@ See [domain-core.md](../architecture/domain-core.md#what-later-steps-must-do) an
 
 ## 15. Open items
 
-* Part B: stored state (decision 3, round 3).
 * `CreatedIn<P>` raised by an owner of another type than `P` passes the compile-time check (the child implements
   `IOwnedBy` for both) and fails at run time with `OrphanChild`; a narrower constraint needs a second generic overload.
 * The analyzer's known false positive (pure `Result`-returning arithmetic inside `On`) and false negative (a write
@@ -524,11 +523,11 @@ Member values:
 
 | Member type | Written | Read | Through the options? |
 |---|---|---|---|
-| `string`, `bool`, integers, `decimal`, `Guid`, `DateTime`, `DateTimeOffset` | `Utf8JsonWriter` directly (the format System.Text.Json writes) | `reader.GetX()` | no |
+| `string`, `bool`, integers, `decimal`, `double`, `float`, `Guid`, `DateTime`, `DateTimeOffset` | `Utf8JsonWriter` directly (the format System.Text.Json writes) | `reader.GetX()` | no |
 | `Id<T>` | the Guid string (`IdJsonConverter`'s format) | `(Id<T>)reader.GetGuid()` | no |
 | enum | its **member name** (`"Dim"`); an undefined value as its number | name or number; an unknown name throws | no |
 | `T?` and `Option<T>` of the above | the value, or `null` | `null` → `null`/`None` | no |
-| anything else (`List<T>`, records, value objects, `double`, `DateOnly`, …) | `JsonSerializer.Serialize(writer, v, StateJson.Info<T>(options, "Gallery.Tags"))` | `Deserialize(ref reader, info)` | **yes**: the options' resolver chain (value objects need `ValueObjectJson.Resolver` first; the type must be in the user's context). The `JsonTypeInfo` is cached per options instance; a missing one throws `NotSupportedException` naming the member and the `[JsonSerializable]` to add |
+| anything else (`List<T>`, records, value objects, `DateOnly`, `TimeSpan`, …) | `JsonSerializer.Serialize(writer, v, StateJson.Info<T>(options, "Gallery.Tags"))` | `Deserialize(ref reader, info)` | **yes**: the options' resolver chain (value objects need `ValueObjectJson.Resolver` first; the type must be in the user's context). The `JsonTypeInfo` is cached per options instance; a missing one throws `NotSupportedException` naming the member and the `[JsonSerializable]` to add |
 
 The probe's JSON (one room, two artworks, ids shortened):
 
@@ -617,7 +616,7 @@ Caveat found: the identity maps are filled in tree order on read and in creation
 `CheckInvariants` may visit entities in another order; when **two** entities break invariants, `Prepare` can report the
 other one first. Both failures discard the instance; the order was never specified.
 
-### 16.6 Diagnostics (provisional ids; tested in `StateDiagnosticTests`, 32 cases)
+### 16.6 Diagnostics (ids confirmed in §16.10; tested in `StateDiagnosticTests`, 32 cases)
 
 | Id | Severity | Trigger |
 |---|---|---|
@@ -674,3 +673,94 @@ CsCheck) would add shrinking; with fixed seeds and a step log the failures are r
 | 8 | Diagnostic ids | **TPRM024–027**; TPRM016–023 stay reserved for part C |
 | 9 | Test helper | **`AggregateTest.StoredStateMatchesReplay(aggregate, options)`** |
 | 10 | Property-based test | **hand-written seeded random walk**, no new package |
+
+### 16.11 Public API and behaviour changes (part B)
+
+| Before (part A / old Tarol) | Now | Why |
+|---|---|---|
+| `IAggregateRoot<TSelf>`: `Rehydrate`, `EventTypeOf` | **plus** `static abstract int StateSchema`, `WriteState(Utf8JsonWriter, TSelf, JsonSerializerOptions)`, `ReadState(Id<TSelf>, ref Utf8JsonReader, JsonSerializerOptions) : Option<TSelf>`, generated for every root | answer 1; a generic store needs no reflection |
+| old `ToSnapshot()`/`FromSnapshot()` with public `XSnapshot` records, opt-out `[SnapshotIgnore]` on classes and properties | no records; `[LoadByReplay]` on the root; fields are left out with `[Transient]` (part A) | round 3, answer 2 |
+| old snapshots dropped fields, get-only collections, `init` and entity-typed state silently (F-3, I-10, F-23) | **every instance field** is captured; what cannot be stored is **TPRM024** | round 3 |
+| old public generated snapshot records invisible to the user's STJ context (F-11) | generated writer/reader code; member values through the caller's options | answer 4 |
+| old `SchemaVersion` constant checked by `FromSnapshot` (throws) | `StateSchema`: FNV-1a of the JSON shape, nested types included; another schema → `None` (no exception) | round 3 |
+| — | `[StateName("x")]`, `AggregateState.Write/Read`, `AggregateTest.StoredStateMatchesReplay`, `StateJson` (generated code only, `[EditorBrowsable(Never)]`) | answers 3, 1, 9 |
+| — | internal `AggregateRoot.RestoreVersion(long)` (generated `ReadState` only, via `[UnsafeAccessor]`) | restore without events |
+| — | `ThrowHelper.ForeignState`, `NoStoredState`, `RestoreOnUsedAggregate`, `NegativeStateVersion` | messages |
+| — | TPRM024–TPRM027 (Error); TPRM016–023 stay reserved for part C | answer 8 |
+
+Behaviour: no existing behaviour changed; the generated files only gain members. A `[LoadByReplay]` aggregate's
+`WriteState` throws `InvalidOperationException`; writing a broken aggregate throws.
+
+### 16.12 Implementation notes (found while building)
+
+* `Option<T>` has two `TryGetValue` overloads (the union protocol), so `TryGetValue(out var v)` is ambiguous (CS0121)
+  and `out T v` warns for reference types (CS8600): the writer uses `IsSome`/`GetValueOrThrow()`.
+* Enum aliases (`A = 1, B = 1`) would give duplicate `case` labels (CS0152): one name per value, the first declared.
+* The schema hash depends on types in other files (a stored record); the per-type transform reruns on every
+  compilation, so the aggregate regenerates when such a record changes (incrementality test) and stays cached otherwise.
+* Tests that read a static counter (`BoardName.Checks`, `Leaky.Applied`) and the property test that moves it share one
+  xUnit collection; in parallel the counter check raced.
+* Mutation check: with the reader's `__Parent` assignment removed, the property test fails for every model with
+  children (the round-trip tests alone did not catch it).
+* `found` counts members per object; a duplicated key combined with a missing one would pass the count. jsonb removes
+  duplicate keys and the writer never writes them, so a count is enough.
+
+### 16.13 Suppressions and analyzer configuration (part B)
+
+| Where | What | Why |
+|---|---|---|
+| `tests/…/StoredState/Leaky.cs` | `#pragma warning disable TPRM013` around one method | a fixture that bypasses its event on purpose, to prove `StoredStateMatchesReplay` catches it |
+
+No `NoWarn`, no `.editorconfig` change.
+
+### 16.14 Skill evaluation checklist (part B additions to `tarol-primitives`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| "Store the order's state with each commit / load it" | `Order.WriteState(writer, order, options)` / `Order.ReadState(id, ref reader, options)` or `AggregateState.Write/Read`; replay with `Rehydrate` on `None` | a hand-written DTO or `JsonSerializer.Serialize(order)`; treating `None` as an error |
+| "Rename `Title` to `Name` without breaking stored rows" | `[StateName("title")] public string Name { get; private set; }` | nothing (rows replay, fine) or a migration script; it is optional |
+| "Cache a computed summary on the aggregate" | `[Transient] private string? _summary;` filled lazily, reset with `_summary = null;` in `On` | filling it in `On` (TPRM027); storing it |
+| "Keep the currently selected line" | `public Id<Line>? Selected { get; private set; }` | `private Line? _selected;` (TPRM024) |
+| "This aggregate must always load by replay" | `[LoadByReplay]` on the root | `[SnapshotIgnore]`; `[LoadByReplay]` on an entity (TPRM026) |
+| "Prove the state is right in a test" | `AggregateTest.StoredStateMatchesReplay(order, options)` | comparing properties by hand |
+| "A state member is a `List<Tag>`" | add `[JsonSerializable(typeof(List<Tag>))]` to the context of the state options | ignoring the `NotSupportedException` naming the member |
+
+### 16.15 What step 8 must do (stored state)
+
+* Commit: in the events' transaction, upsert `(stream id, version, schema, state jsonb)` when `T.StateSchema != 0`;
+  the expected-version check covers both.
+* Load: read the state row; `T.ReadState` when its `schema` column equals `T.StateSchema`; otherwise, on `None` or with
+  no row, `T.Rehydrate` from the events; the next commit rewrites the row. Decide whether a `JsonException` on read
+  falls back to replay (corrupt row) or fails loudly.
+* `RebuildStates<T>()`: replay every stream whose `schema` differs and rewrite its row.
+* State options: `ValueObjectJson.Resolver` first, then the user's context; cache them.
+* Optional: load from an older state plus the tail of events (`ReadState` then replaying events after its version) if a
+  state row can lag the stream; with one transaction it cannot.
+
+### 16.16 Open items (part B)
+
+* `CheckInvariants` visits entities in map order, which differs between a restored and a replayed aggregate (§16.5).
+* A change inside a type that has a custom `JsonConverter` is not seen by the schema hash (§16.4).
+* `double`/`float` members are written directly (added after the evaluation, so a context need not list them); NaN and
+  infinities throw on write, as System.Text.Json does by default.
+
+
+### 16.17 Verification (SDK 11.0.100, 2026-11-14, from a clean tree in CI order)
+
+| Step | Result |
+|---|---|
+| `rm -rf artifacts`; `dotnet restore Tarol.slnx`; build every `src/*/*.Generators` | OK |
+| `dotnet format Tarol.slnx --verify-no-changes --no-restore` | OK (after one `dotnet format` pass) |
+| `dotnet build Tarol.slnx -c Release --no-restore` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx -c Release --no-build` | **592 passed**, 0 failed (503 before; Primitives: 83 unit, 87 generator) |
+| `eng/aot-smoke.sh` | 6 apps, 0 IL warnings each; `Tarol.Primitives.AotSmoke`: 18 checks (7 new: state == replay, round trip, every member kind, continuing on a restored tree, another schema → `None`, the test helper, `[LoadByReplay]`), ALL CHECKS PASSED |
+| `eng/verify-packages.sh` | `Tarol.Primitives` contains `lib/net11.0`, README, LICENSE, `skills/tarol-primitives/SKILL.md`, the generator under `analyzers/dotnet/cs/`; the consumer runs 5 checks (2 new: stored state from the package, state == replay) and lists the skills of Primitives, Kernel, Results, Options, StronglyTypedId; OK |
+| diagnostics reach a package consumer | temporary traps files in `Tarol.Primitives.PackageTests`: `error TPRM024`, `TPRM025`, `TPRM026` (generator), then a second file with `error TPRM027` (analyzer); both removed |
+
+New tests: `StoredStateTests` (29: a round trip per model (Gallery, Orders, nested Station, Board, Showroom), the agreed
+JSON shape, `null`/`None`/empty ref, enums and `[StateName]`, jsonb key order, an old schema → `None` → replay → current
+schema on the next write, a mismatch skips the object, no rule and no `On` handler runs on read, continuing on a
+restored tree, malformed states, a missing JSON type, a broken aggregate, `[LoadByReplay]`, the helper);
+`StoredStatePropertyTests` (6: 5 models × 150 seeds × 40 steps, every prefix, continuing on restored instances; a
+reachability guard); `SkillSampleTests` (+1); generator: `StateSchemaTests` (18), `StateDiagnosticTests` (32),
+`IncrementalityTests` (+1: a stored record in another file regenerates its aggregate), the three snapshots.

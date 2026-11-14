@@ -97,4 +97,31 @@ public static class ThrowHelper
     [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
     public static void EntitySetInitializer(string entityType)
         => throw new InvalidOperationException($"An EntitySet<{entityType}> can only be initialized empty ('= []' or '= new()'); children are added by their creation events.");
+
+    /// <summary>A state was restored onto an aggregate that already has a version or changes.</summary>
+    /// <param name="aggregateType">The aggregate type.</param>
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    public static void RestoreOnUsedAggregate(string aggregateType)
+        => throw new InvalidOperationException($"Cannot restore the stored state onto a {aggregateType} that already has a version or uncommitted changes.");
+
+    /// <summary>A stored state carries a negative version.</summary>
+    /// <param name="aggregateType">The aggregate type.</param>
+    /// <param name="version">The version read.</param>
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    public static void NegativeStateVersion(string aggregateType, long version)
+        => throw new InvalidOperationException($"The stored state of {aggregateType} has version {version}; a version is never negative.");
+
+    /// <summary>A stored state carries another aggregate's id.</summary>
+    /// <param name="aggregateType">The aggregate type.</param>
+    /// <param name="expected">The id asked for.</param>
+    /// <param name="actual">The id in the state.</param>
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ForeignState(string aggregateType, Guid expected, Guid actual)
+        => throw new InvalidOperationException($"The stored state belongs to {aggregateType} '{actual}', not to '{expected}'.");
+
+    /// <summary>The state of an aggregate that loads by replay was written.</summary>
+    /// <param name="aggregateType">The aggregate type.</param>
+    [DoesNotReturn, MethodImpl(MethodImplOptions.NoInlining)]
+    public static void NoStoredState(string aggregateType)
+        => throw new InvalidOperationException($"{aggregateType} is [LoadByReplay]: it has no stored state (StateSchema is 0). Store its events only.");
 }

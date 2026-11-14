@@ -14,7 +14,9 @@ namespace Tarol.Primitives.Generators;
 ///         <c>On</c> handlers, <c>[Transient]</c> members);</item>
 ///         <item>TPRM014: an <c>On</c> handler does not call a rule or guard (a method returning <c>Result</c>), throw,
 ///         read a <c>TimeProvider</c> or raise;</item>
-///         <item>TPRM015: user code does not call <c>Dispatch</c>, <c>CheckInvariants</c> or generated <c>__</c> members.</item>
+///         <item>TPRM015: user code does not call <c>Dispatch</c>, <c>CheckInvariants</c> or generated <c>__</c> members;</item>
+///         <item>TPRM027: an <c>On</c> handler does not fill a <c>[Transient]</c> member (it is not stored, so a load from the
+///         stored state would lose it); resetting it to <c>null</c> or <c>default</c> is allowed.</item>
 ///     </list>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -22,7 +24,7 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(Diagnostics.StateOutsideApply, Diagnostics.DecisionInApply, Diagnostics.PlumbingUsed);
+        ImmutableArray.Create(Diagnostics.StateOutsideApply, Diagnostics.DecisionInApply, Diagnostics.PlumbingUsed, Diagnostics.TransientIsState);
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -58,6 +60,8 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
                     };
                     if (!apply && StateMember(target) is { } member)
                         writes.Add((method, member, ctx.Operation.Syntax.GetLocation()));
+                    else if (apply && TransientMember(target) is { } transient && !IsReset(ctx.Operation))
+                        ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.TransientIsState, ctx.Operation.Syntax.GetLocation(), transient.Name, method.Parameters[0].Type.Name));
                 }, OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.CoalesceAssignment,
                     OperationKind.Increment, OperationKind.Decrement);
 
@@ -138,6 +142,32 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
         if (member is IFieldSymbol { AssociatedSymbol: { } associated } && Symbols.HasAttribute(associated, "TransientAttribute"))
             return null;
         return member;
+    }
+
+    /// <summary>A <c>[Transient]</c> field or property of this instance (or the backing field of a <c>[Transient]</c> property).</summary>
+    private static ISymbol? TransientMember(IOperation? target)
+    {
+        var member = target switch
+        {
+            IFieldReferenceOperation { Field.IsStatic: false, Instance: IInstanceReferenceOperation } f => (ISymbol)f.Field,
+            IPropertyReferenceOperation { Property.IsStatic: false, Instance: IInstanceReferenceOperation } p => p.Property,
+            _ => null,
+        };
+        if (member is null)
+            return null;
+        if (Symbols.HasAttribute(member, "TransientAttribute"))
+            return member;
+        return member is IFieldSymbol { AssociatedSymbol: { } associated } && Symbols.HasAttribute(associated, "TransientAttribute") ? associated : null;
+    }
+
+    /// <summary>A plain assignment of <c>null</c> or <c>default</c>: resetting a cache.</summary>
+    private static bool IsReset(IOperation operation)
+    {
+        if (operation is not ISimpleAssignmentOperation { Value: var value })
+            return false;
+        while (value is IConversionOperation { IsImplicit: true } conversion)
+            value = conversion.Operand;
+        return value is IDefaultValueOperation || value is ILiteralOperation { ConstantValue: { HasValue: true, Value: null } };
     }
 
     private static bool IsPlumbing(IMethodSymbol method)

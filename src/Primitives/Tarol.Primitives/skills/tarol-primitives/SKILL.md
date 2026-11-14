@@ -4,8 +4,10 @@ description: >-
   Use when writing event-sourced aggregates with Tarol.Primitives: AggregateRoot<T>, child entities (Entity<TRoot,T>,
   EntitySet, EntityRef), events (Event, Created, CreatedIn<TParent>, Deleted, [EventType]), On handlers, behaviour
   methods that return Result and take now, [Invariant], Rehydrate/StreamEvent, AggregateChanges.Prepare/Committed, the
-  AggregateTest given/when/then helper, and fixing TPRM001-TPRM015. Do not decompile or web-search, do not hand-write a
-  dispatch switch, do not use the old DomainEvent<TRoot,TEntity>/CreateDomainEvent/DomainClock/ToSnapshot API.
+  AggregateTest given/when/then helper, the stored state (StateSchema, WriteState/ReadState, AggregateState,
+  [LoadByReplay], [StateName], [Transient], StoredStateMatchesReplay), and fixing TPRM001-TPRM015 and TPRM024-TPRM027.
+  Do not decompile or web-search, do not hand-write a dispatch switch or a state serializer, do not use the old
+  DomainEvent<TRoot,TEntity>/CreateDomainEvent/DomainClock/ToSnapshot/[SnapshotIgnore] API.
 ---
 # Tarol.Primitives
 
@@ -34,6 +36,15 @@ description: >-
    discard the instance; after a throwing `On` it is `IsBroken` and refuses work.
 7. **New aggregate**: `var o = new Order(Id<Order>.New()); o.Raise(new Opened(...));` inside a static factory (the
    generated constructor is private).
+8. **Stored state.** Every commit also stores the aggregate's current state; a load reads it without replay. Captured:
+   **every instance field** of the root and its entities (auto-property backing fields included), as camelCase JSON
+   (`Name` → `"name"`, `_tags` → `"tags"`), children nested with their `id`, `id`/`version`/`schema` on the root,
+   `null` written, enums by name. Keep state in plain data: no entity, root, collection of them, delegate or `object`
+   in a field (TPRM024): hold children in `EntitySet`/`EntityRef`, refer by `Id<T>`. Derived caches: `[Transient]`, and
+   never fill one in `On` (TPRM027; `_cache = null;` is fine). Rename a stored member safely with
+   `[StateName("oldName")]`. Shape changes need nothing: `StateSchema` changes, old rows load by replay and are
+   rewritten on the next commit. `[LoadByReplay]` on the root turns the state off. Member types other than primitives,
+   `Id<T>`, enums, `T?`/`Option<T>` of them go through the JSON options: list them in your `JsonSerializerContext`.
 
 ## Example
 
@@ -74,6 +85,13 @@ public partial class Line : Entity<Order, Line>
 // test
 var outcome = AggregateTest.Given(Order.Start()).When(o => o.Submit(DateTimeOffset.UnixEpoch));
 // outcome.Result == Result.Failure(Error.Conflict("Order.Empty")); outcome.Events is empty
+
+// stored state: write, read back without replay, and prove state == replay
+var order = Order.Start();
+order.Add("SKU", 2);
+byte[] json = AggregateState.Write(order, options);                     // {"id":…,"version":2,"schema":…,"isOpen":true,…,"lines":[…]}
+Order loaded = AggregateState.Read(order.Id, json, options).GetValueOrThrow();   // None: another schema → replay
+AggregateTest.StoredStateMatchesReplay(order, options);                 // throws with both JSON strings if they differ
 ```
 
 ## Common mistakes
@@ -91,9 +109,15 @@ var outcome = AggregateTest.Given(Order.Start()).When(o => o.Submit(DateTimeOffs
 | calling `Dispatch`, `CheckInvariants`, `__map0` | TPRM015 |
 | `DateTime.UtcNow` in the domain | TKRN001 (Tarol.Kernel): take `now` as a parameter |
 | replaying out of order / another stream / unknown entity | `InvalidOperationException` from `Rehydrate` |
+| `private Line? _current;`, `List<Line>`, `Func<…>` or `object` field on an aggregate | TPRM024: keep `Id<Line>`, use `EntitySet`/`EntityRef`, `[Transient]`, or `[LoadByReplay]` |
+| `_name` field and `Name` property, or a member named `id`/`version`/`schema` | TPRM025: pin one with `[StateName("…")]` |
+| `[StateName]` on a computed/`[Transient]`/static member, `[LoadByReplay]` on an entity | TPRM026 |
+| `[Transient]` member assigned from the event in `On` | TPRM027: drop `[Transient]` (it is state) or only reset it |
+| a member type missing from the JSON context | `NotSupportedException` from `WriteState`/`ReadState` naming the member |
 
 ## AOT
 
-No reflection: dispatch is a generated `switch`, private constructors and container mutators are reached through
-`[UnsafeAccessor]`. Events are plain records; list them in your own `JsonSerializerContext` (with value objects, use
-`ValueObjectJson.Options(context)` from Tarol.Validations).
+No reflection: dispatch is a generated `switch`, private constructors, container mutators and stored fields are reached
+through `[UnsafeAccessor]`, and the state JSON is generated `Utf8JsonWriter`/`Utf8JsonReader` code. Events and the
+state's member types (`List<string>`, records, value objects…) go in your own `JsonSerializerContext`; with value
+objects use `ValueObjectJson.Options(context)` from Tarol.Validations.

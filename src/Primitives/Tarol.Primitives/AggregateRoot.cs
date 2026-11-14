@@ -146,6 +146,16 @@ public abstract class AggregateRoot<TSelf> : IAggregateRoot, IEntity<TSelf>
         }
     }
 
+    /// <summary>Sets the version of a state-restored aggregate (reached by the generated <c>ReadState</c> only).</summary>
+    internal void RestoreVersion(long version)
+    {
+        if (_version != 0 || _changes is { Count: > 0 })
+            ThrowHelper.RestoreOnUsedAggregate(typeof(TSelf).Name);
+        if (version < 0)
+            ThrowHelper.NegativeStateVersion(typeof(TSelf).Name, version);
+        _version = version;
+    }
+
     internal Result Prepare()
     {
         if (_broken)

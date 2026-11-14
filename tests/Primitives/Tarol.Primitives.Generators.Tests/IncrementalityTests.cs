@@ -49,4 +49,22 @@ public class IncrementalityTests
 
         Incrementality.RegeneratedOutputs(driver).ShouldBeEmpty();
     }
+
+    [Fact]
+    public void A_Change_To_A_Stored_Record_In_Another_File_Regenerates_The_Aggregate()
+    {
+        // the schema hash covers the members of stored records, so the aggregate must follow an edit elsewhere
+        const string Record = "namespace Museum; public sealed record Plaque(string Text);";
+        var gallery = Domains.Gallery.Replace("public string Name { get; private set; } = \"\";", "public string Name { get; private set; } = \"\";\n    public Plaque? Plaque { get; private set; }", StringComparison.Ordinal);
+        var compilation = GeneratorTestHost.Compile(gallery, Domains.Orders, Record);
+        var driver = GeneratorTestHost.Run(compilation);
+        var before = driver.Generated("Gallery.Aggregate.g.cs");
+
+        var edited = compilation.ReplaceSyntaxTree(compilation.SyntaxTrees.Last(),
+            CSharpSyntaxTree.ParseText(Record.Replace("string Text", "string Text, int Year", StringComparison.Ordinal), GeneratorTestHost.Parse, path: "Source2.cs", cancellationToken: TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(edited, TestContext.Current.CancellationToken);
+
+        Incrementality.RegeneratedOutputs(driver).Count.ShouldBe(1);
+        driver.Generated("Gallery.Aggregate.g.cs").ShouldNotBe(before);
+    }
 }

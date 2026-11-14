@@ -112,6 +112,34 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "Dispatch, CheckInvariants and the generated maps, constructors and accessors are reached only by generated code. Raise events from behaviour methods, and let AggregateChanges.Prepare run the invariants.");
 
+    /// <summary>TPRM024: a field the stored state cannot hold.</summary>
+    public static readonly DiagnosticDescriptor Uncapturable = new(
+        "TPRM024", "Field cannot be stored with the aggregate's state",
+        "'{0}' of '{1}' cannot be stored with the aggregate's state: it holds {2}. {3}.",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "Every instance field of a root and its entities (auto-property backing fields included) is stored with each commit, and a load restores it without replay. A field holding an entity, a root, a collection of them, a delegate or an untyped object cannot be written as data. Hold children in an EntitySet or EntityRef, keep an Id<T>, mark derived data [Transient], or mark the aggregate [LoadByReplay].");
+
+    /// <summary>TPRM025: two stored members share a JSON name, or one uses a reserved name.</summary>
+    public static readonly DiagnosticDescriptor StateNameCollision = new(
+        "TPRM025", "Stored state name used twice",
+        "'{0}' of '{1}' is stored as \"{2}\", {3}; rename it or pin a name with [StateName]",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "The state of a root or entity is one JSON object: every stored field and child collection needs its own name. \"id\" is reserved on every object, \"version\" and \"schema\" on the root.");
+
+    /// <summary>TPRM026: a state attribute that has no effect where it is.</summary>
+    public static readonly DiagnosticDescriptor StateAttributeIgnored = new(
+        "TPRM026", "State attribute has no effect",
+        "{0} on '{1}' has no effect: {2}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "[StateName] names a stored field, auto-property or child collection; [LoadByReplay] belongs on an aggregate root. Elsewhere they would silently do nothing.");
+
+    /// <summary>TPRM027: a [Transient] member that an On handler fills from an event (analyzer).</summary>
+    public static readonly DiagnosticDescriptor TransientIsState = new(
+        "TPRM027", "Transient member is filled from an event",
+        "[Transient] '{0}' is assigned from event data in On({1}); it is not stored, so an aggregate loaded from its state loses it. Remove [Transient], or only reset it (null or default) in On.",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A [Transient] member is derived data that the stored state leaves out. An On handler that assigns it a value makes it state: after a load from the stored state it would be missing, and the aggregate would differ from a replay. Resetting a cache to null or default in On is allowed.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
         "TPRM001" => GeneratorFailure,
@@ -126,6 +154,9 @@ internal static class Diagnostics
         "TPRM010" => DuplicateAlias,
         "TPRM011" => NotAnOwner,
         "TPRM012" => ForeignChild,
+        "TPRM024" => Uncapturable,
+        "TPRM025" => StateNameCollision,
+        "TPRM026" => StateAttributeIgnored,
         _ => GeneratorFailure,
     };
 }

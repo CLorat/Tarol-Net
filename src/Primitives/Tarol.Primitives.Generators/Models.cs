@@ -24,8 +24,48 @@ internal enum EventKind
 /// <summary>A containing type to re-open around generated code (<c>partial class Outer { … }</c>).</summary>
 internal sealed record ContainerModel(string Keyword, string Name);
 
-/// <summary>An <c>EntitySet&lt;T&gt;</c> or <c>EntityRef&lt;T&gt;</c> member of a root or entity.</summary>
-internal sealed record ContainerMember(string Name, string Child, bool IsRef, bool IsField, LocationInfo? Location);
+/// <summary>An <c>EntitySet&lt;T&gt;</c> or <c>EntityRef&lt;T&gt;</c> member of a root or entity; <paramref name="StateName"/> is its JSON name.</summary>
+internal sealed record ContainerMember(string Name, string Child, bool IsRef, bool IsField, string StateName, LocationInfo? Location);
+
+/// <summary>How a stored field is written: directly with the writer/reader, or through the options' resolver chain.</summary>
+internal enum StateKind
+{
+    Json,
+    String,
+    Bool,
+    Number,
+    Guid,
+    DateTime,
+    DateTimeOffset,
+    Enum,
+    Id,
+}
+
+/// <summary>A wrapper around a directly written value: <c>T?</c> (value types) or <c>Option&lt;T&gt;</c>.</summary>
+internal enum StateWrap
+{
+    None,
+    Nullable,
+    Option,
+}
+
+/// <summary>
+/// One captured field of a root or entity: the CLR field (a backing field or a plain field), its JSON name, its type, how it
+/// is written, and its shape descriptor for the schema hash.
+/// </summary>
+internal sealed record StateField(
+    string Field,
+    string Member,
+    string Name,
+    string Type,
+    StateKind Kind,
+    StateWrap Wrap,
+    string Value,
+    string ReadMethod,
+    string EnumUnderlying,
+    EquatableArray<string> EnumMembers,
+    string Shape,
+    LocationInfo? Location);
 
 /// <summary>An <c>On(TEvent)</c> handler.</summary>
 internal sealed record HandlerModel(string Event, LocationInfo? Location);
@@ -48,6 +88,8 @@ internal sealed record TypeModel(
     EquatableArray<HandlerModel> Handlers,
     EquatableArray<string> Invariants,
     bool HasIdConstructor,
+    EquatableArray<StateField> StateFields,
+    bool LoadByReplay,
     // event
     EventKind EventKind,
     string? Target,
@@ -65,6 +107,7 @@ internal sealed record TypeModel(
         Diagnostics = default,
         Members = new EquatableArray<ContainerMember>(Members.Select(static m => m with { Location = null }).ToImmutableArray()),
         Handlers = new EquatableArray<HandlerModel>(Handlers.Select(static h => h with { Location = null }).ToImmutableArray()),
+        StateFields = new EquatableArray<StateField>(StateFields.Select(static f => f with { Location = null }).ToImmutableArray()),
     };
 }
 

@@ -3,7 +3,8 @@
 Event-sourced aggregates with child entities, and short user code. Behaviour methods check their guards and raise
 pure-payload events; `On` handlers apply them, live and on replay, through one generated dispatch. Child entities route,
 cascade and cannot be changed without an event; invariants run when the events are handed to the store; analyzers keep
-decisions out of `On` handlers. Native-AOT ready, no reflection.
+decisions out of `On` handlers. The current state is written as queryable JSON with every commit and read back without
+replay. Native-AOT ready, no reflection.
 
 ## Install
 
@@ -50,6 +51,10 @@ var gallery = Gallery.Rehydrate(id, history);                 // replay: no guar
 var result = gallery.Rooms[0].Close(now);
 if (result.IsSuccess && AggregateChanges.Prepare(gallery) is { IsSuccess: true })   // invariants
     store.Append(gallery.Id, gallery.UncommittedChanges);      // StreamEvent: version, entity id, parent id, payload
+
+// stored state: written with every commit, read without replay
+byte[] state = AggregateState.Write(gallery, options);     // {"id":…,"version":3,"schema":…,"name":"Tate","rooms":[{"id":…,"title":"Turner",…}]}
+var loaded = AggregateState.Read(gallery.Id, state, options);   // Option<Gallery>: None when the shape changed → replay
 ```
 
 ## What you get
@@ -62,10 +67,17 @@ if (result.IsSuccess && AggregateChanges.Prepare(gallery) is { IsSuccess: true }
 * **Strict replay**: a gap, a foreign event, an unknown or duplicate entity or an unknown event type throws.
 * **Failure means discard**: a failed behaviour, a broken invariant or an exception; after an `On` handler threw the
   instance is broken and refuses further work.
-* **Tests** without a host: `AggregateTest.Given(Gallery.Open("Tate")).And(…).When(g => g.Tag("x"))` → `Result`, `Events`.
-* **Diagnostics** `TPRM001`–`TPRM015` (all errors): missing handlers, unowned or ambiguous children, assignable
-  containers, invariant shape, duplicate aliases, state assigned outside `On`, rules/throws/clocks/raises inside `On`, and
-  generated plumbing used directly.
+* **Stored state**: every instance field of the root and its entities, as camelCase JSON with children nested by id
+  and `id`/`version`/`schema` on the root (`Gallery.WriteState`/`ReadState`, or `AggregateState.Write`/`Read`).
+  Generated writer/reader code, no reflection, nothing runs on read (no handler, invariant or rule). `StateSchema` is a
+  stable hash of the shape: an old row reads as `None`, the store replays and rewrites it on the next commit.
+  `[StateName("x")]` pins a name, `[Transient]` leaves a cache out, `[LoadByReplay]` turns the state off.
+* **Tests** without a host: `AggregateTest.Given(Gallery.Open("Tate")).And(…).When(g => g.Tag("x"))` → `Result`, `Events`;
+  `AggregateTest.StoredStateMatchesReplay(gallery, options)` proves state == replay for your own aggregates.
+* **Diagnostics** `TPRM001`–`TPRM015` and `TPRM024`–`TPRM027` (all errors): missing handlers, unowned or ambiguous
+  children, assignable containers, invariant shape, duplicate aliases, state assigned outside `On`,
+  rules/throws/clocks/raises inside `On`, generated plumbing used directly, fields the state cannot hold, state names
+  used twice, state attributes without effect, `[Transient]` members filled in `On`.
 
 ## Links
 
