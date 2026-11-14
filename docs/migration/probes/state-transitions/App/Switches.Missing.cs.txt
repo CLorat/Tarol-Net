@@ -1,0 +1,6 @@
+namespace ArtFlow.A;
+public static class Missing
+{
+    public static string Label(AuctionStatus s) => s switch { AuctionStatus.Open => "open", AuctionStatus.Closed => "closed" };
+    public static string Plain(ArtFlow.C.AuctionStatus s) => s switch { ArtFlow.C.AuctionStatus.Open => "o", ArtFlow.C.AuctionStatus.Closed => "c", ArtFlow.C.AuctionStatus.Settled => "s" };
+}

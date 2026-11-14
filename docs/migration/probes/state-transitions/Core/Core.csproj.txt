@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Copy src/Primitives/Tarol.Primitives/*.cs and Testing/ here (main @ 8ead467), apply AggregateRoot.cs.patch, keep Lifecycle.cs. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <IsAotCompatible>true</IsAotCompatible><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Tarol.Primitives</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../../../src/Kernel/Tarol.Kernel/Tarol.Kernel.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../../../src/Results/Tarol.Results/Tarol.Results.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../../../src/Options/Tarol.Options/Tarol.Options.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../../../src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+  </ItemGroup>
+</Project>
