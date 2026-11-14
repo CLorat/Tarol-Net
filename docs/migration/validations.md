@@ -305,6 +305,16 @@ public sealed partial record SearchAuctions([Length(Max = 100)] string Text, [Ra
 public sealed partial record ListBids(Id<Auction> Auction, [Range(1, 500)] int PageSize) : IValidatable;   // other limit, no new type
 ```
 
+### 3.9 JSON in the same assembly (found in stage 3) **[verified]** (`stj/`, JIT and Native AOT)
+
+The generated `[JsonConverter]` is invisible to the System.Text.Json source generator (generators do not see each other's
+output). A source-generated context **in the same assembly** as the value object therefore writes the record's object
+shape, silently: `{"Total":{"Value":40}}`. From **another assembly** it is right (`{"Total":40}`, old data loads), because
+the attribute is then in metadata. Tried and failed: `[JsonSourceGenerationOptions(Converters = [typeof(Quantity.ValueJsonConverter)])]`
+(compiles, ignored) and a generated static constructor that inserts a resolver into `Default.Options`
+(`InvalidOperationException`: options are sealed by their context). What works: a resolver first in the options' chain,
+including nested properties and `Option<Quantity>` (`{"Total":40,"Bonus":null}`, 0 IL warnings). Decision V-9.
+
 ## 4. Invariants (designed here, built in step 6)
 
 | Shape | User code | Notes |
@@ -488,6 +498,7 @@ Asked in the session (2026-11-13), one question per decision with a recommendati
 | V-5 | diagnostics | **as proposed**: TVAL001–TVAL005 Error, TVAL006–TVAL008 Warning |
 | V-6 | package and names | **one `Tarol.Validations`** (bundled generator; depends on Results, Options, StronglyTypedId); attribute names **`Range`, `Length`, `Pattern`, `Email`, `NotEmpty`, `Count`** |
 | V-7 | naming convention | **value objects next to their aggregate with plain names** (`Bidders.Name`, `Experts.Name`), shared ones in the context root, per-request limits on primitive input parameters (§3.8) |
+| V-9 | value-object JSON in a same-assembly context (found in stage 3, §3.9) | **resolver + TVAL009**: generated code registers every converter in `ValueObjectJson.Resolver`; Tarol-owned options (event store, web package) insert it; user-owned contexts use `ValueObjectJson.Options(MyJson.Default)`; TVAL009 (Warning) on `MyJson.Default` used directly when the context reaches a same-assembly value object |
 | V-8 | replay enforcement | S-3: test with a minimal aggregate now; step 6 repeats it and decides the analyzer |
 
 Consequence of V-1/V-7 for TVAL003: a rule attribute is allowed on a primary-constructor parameter of a value object

@@ -1,0 +1,13 @@
+# cd app; dotnet run -p:TarolNetRepo=<clone>   (JIT; Native AOT: dotnet publish -c Release -r linux-x64, 0 IL warnings, same output)
+# 1. value object and source-generated context in different assemblies (Attach.cs removed):
+other assembly context: {"Total":40}
+read back: AppEvent { Total = 500 }
+# 2. same assembly: the STJ generator does not see the [JsonConverter] another generator adds; silent object shape
+same assembly context:  {"Total":{"Value":40},"Bonus":{"Value":40}}
+# 3. same assembly + a resolver first in the options chain (nested properties and Option<T> included):
+same assembly + resolver first: {"Total":40,"Bonus":null}
+context options + resolver:     {"Total":41,"Bonus":null}
+read back:                      LibEvent { Total = 500, Bonus = None }
+# 4. [JsonSourceGenerationOptions(Converters = [typeof(Quantity.ValueJsonConverter)])]: compiles, ignored (still {"Value":40})
+# 5. Attach.cs (static constructor inserting the resolver into Default.Options):
+System.InvalidOperationException: JsonSerializerOptions instances cannot be modified once encapsulated by a JsonSerializerContext.
