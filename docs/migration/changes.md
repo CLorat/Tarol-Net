@@ -412,7 +412,7 @@ Consequences of the three answers against the recommendation:
 
 ## 10. What the implementation must do (in the decided order)
 
-### PR 7A `persistence: the aggregate store port and an in-memory store`
+### PR 7A `persistence: the aggregate store port and an in-memory store` (done: [persistence.md](persistence.md))
 
 1. `src/Persistence/Tarol.Persistence` (depends on Primitives, Kernel, Results, Options, StronglyTypedId):
    `IAggregateReader` (`Load`, `Find` over unique lookups) and `IAggregateStore` (§6), `IdempotencyKey`, `StoredOutcome(Guid StreamId, long Version, int Events)`,

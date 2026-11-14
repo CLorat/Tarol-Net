@@ -20,7 +20,8 @@ time; see the [migration plan](docs/migration/plan.md).
 | `Tarol.Kernel` | `OperationContext`: who acts (`Actor`), tenant, correlation and causation as `Id<T>`, AOT-safe JSON; analyzer that keeps the system clock out of your code (inject `TimeProvider`) | migrated |
 | `Tarol.Validations` | rules declared once on value objects (`record struct Quantity([Range(1, 100)] int Value)`): generated `Create`, trusting JSON converter, comparisons; `IValidatable` inputs validated with all field errors and input paths as `Invalid`, zero allocation when valid; generator and analyzer included | migrated |
 | `Tarol.Primitives` | event-sourced aggregates with child entities: pure-payload events (`sealed record Repriced(decimal Price) : Event;`), generated dispatch, cascade and strict replay, invariants at the hand-off, a given/when/then test helper, stored state (the current state as queryable JSON with every commit, loaded without replay), lifecycles (state enums with declared transitions, generated guards, every step checked at commit); generator and analyzers included | migrated (step 6 done, parts A–C) |
-| `Tarol.Changes`, `Tarol.Persistence`, … | | planned (see plan) |
+| `Tarol.Persistence` | the aggregate store port: tenant-scoped loads, appends with an expected version and an idempotency key stored in the same commit, unique lookups; an in-memory store for tests that records every event with its operation context and exercises the stored state | new (step 7, PR 7A) |
+| `Tarol.Changes`, `Tarol.Persistence.Npgsql`, … | | planned (see plan) |
 
 Packages are private: they are published only to the owner's GitHub Packages feed, never to nuget.org.
 
