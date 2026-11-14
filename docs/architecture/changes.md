@@ -11,7 +11,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/changes/`](../migration/probes/changes/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions C-1 … C-16, [migration/changes.md](../migration/changes.md) §9). Step 7 builds the
+**Status: core implemented** in step 7 (PR 7A `Tarol.Persistence`, PR 7B `Tarol.Changes`; [migration/changes.md](../migration/changes.md) §14; owner decisions C-1 … C-16 in §9). Step 7 builds the
 core and the internal entry; the other entries are built in steps 9, 10 and 11 (C-1, C-2).
 
 ## 1. What a user of Tarol needs from a change
@@ -224,10 +224,10 @@ of `Run` (C-11): built at the edge, never ambient (identity-context.md §4).
 | Package | Contents | Step |
 |---|---|---|
 | `Tarol.Persistence` | `IAggregateStore` (load, append with expected version and key, seen), `IdempotencyKey`, `InMemoryAggregateStore` | 7 (C-6) |
-| `Tarol.Changes` (+ generator) | `IChange<T>`, `ICreation<T>`, `ChangeContext`, `ChangeOutcome`, `ChangeOptions`, `ChangePipeline`, `IChangePermission`, entry attributes, `ChangeTest`; generator: `Target`, `Dispatch`, TCHG diagnostics | 7 |
+| `Tarol.Changes` (+ generator) | `IChange<T>`, `ICreation<T>`, `ChangeContext`, `ChangeOutcome`, `ChangeOptions`, `ChangePipeline`, `IChangeAuthorization`, entry attributes, `ChangeTest`; generator: `Target`, `Dispatch`, TCHG diagnostics | 7 |
 | `Tarol.Persistence.Npgsql` | the store, the key table, the outbox table | 8 |
 | `Tarol.Sagas` | outbox worker, reaction table and `React`, `DeliveryPolicy` | 9 |
-| `Tarol.Security`, `Tarol.Changes.AspNetCore` (+ generator) | `IChangePermission` via `IAuthorizationService`; endpoints, webhooks, problem details | 10 |
+| `Tarol.Security`, `Tarol.Changes.AspNetCore` (+ generator) | `IChangeAuthorization` via `IAuthorizationService`; endpoints, webhooks, problem details | 10 |
 | `Tarol.Messaging` | consumers, inbox, contract versions | 11 |
 
 * **Endpoints are generated `RequestDelegate`s** (C-12) **[verified]**: 0 IL warnings, native self-test 24/24. The
