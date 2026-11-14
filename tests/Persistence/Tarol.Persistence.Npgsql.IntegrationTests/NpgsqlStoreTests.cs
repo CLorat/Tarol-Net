@@ -25,10 +25,10 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
 
     private static Guid TenantOf(OperationContext context) => context.Tenant.TryGetValue(out Id<ITenant> t) ? t.Value : Guid.Empty;
 
-    private static async Task<List<PositionedEvent>> ReadAll(NpgsqlAggregateStore feed, GlobalPosition after = default)
+    private static async Task<List<PositionedEvent>> ReadAll(NpgsqlAggregateStore feed, GlobalPosition after = default, int limit = 1000)
     {
         var events = new List<PositionedEvent>();
-        await foreach (var e in feed.ReadAll(after, 1000, Ct))
+        await foreach (var e in feed.ReadAll(after, limit, Ct))
             events.Add(e);
         return events;
     }
@@ -227,6 +227,48 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         var late = await ReadAll(store, page[0].Position);
         late.Count.ShouldBe(1);
         late[0].Position.Position.ShouldBeLessThan(page[0].Position.Position);   // a position-only checkpoint would have lost it
+    }
+
+    // Found while building 8B: ordering by the text output column skipped every transaction id with fewer digits.
+    [Fact]
+    public async Task Paging_the_feed_returns_every_event_once_while_others_commit()
+    {
+        var store = await postgres.IsolatedStore(_time);
+        using var writing = new CancellationTokenSource();
+        var writers = Enumerable.Range(0, 8).Select(_ => Task.Run(async () =>
+        {
+            while (!writing.IsCancellationRequested)
+                await Committed(store, Member.Join(Id<Member>.New(_time), ""), NewTenant());
+        }, Ct)).ToArray();
+        await Task.Delay(300, Ct);
+
+        var seen = new List<PositionedEvent>();
+        var after = GlobalPosition.Start;
+        for (var pages = 0; pages < 200; pages++)
+        {
+            var page = await ReadAll(store, after, limit: 7);
+            if (page.Count > 0)
+                after = page[^1].Position;
+            seen.AddRange(page);
+        }
+        await writing.CancelAsync();
+        await Task.WhenAll(writers);
+        while ((await ReadAll(store, after, limit: 7)) is { Count: > 0 } rest)
+        {
+            seen.AddRange(rest);
+            after = rest[^1].Position;
+        }
+
+        var dups = seen.GroupBy(static e => e.Event.EventId).Where(static g => g.Count() > 1).Select(static g => g.First().Position).ToArray();
+        dups.ShouldBeEmpty();
+        seen.Select(static e => e.Position).ShouldBeInOrder();
+        var all = new List<string>();
+        await using (var cmd = postgres.DataSource.CreateCommand($"SELECT tx_id::text || ':' || position FROM {store.Schema}.events ORDER BY tx_id, position"))
+        await using (var r = await cmd.ExecuteReaderAsync(Ct))
+            while (await r.ReadAsync(Ct)) all.Add(r.GetString(0));
+        var got = seen.Select(static e => $"{e.Position.Transaction}:{e.Position.Position}").ToHashSet();
+        var missing = all.Where(x => !got.Contains(x)).ToList();
+        missing.ShouldBeEmpty($"missing {missing.Count}: {string.Join(" ", missing.Take(20))}");
     }
 
     [Fact]

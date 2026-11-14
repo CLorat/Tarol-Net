@@ -16,6 +16,9 @@ public sealed class Postgres : IAsyncLifetime
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
     private int _schemas;
 
+    /// <summary>The container's connection string.</summary>
+    public string ConnectionString => _container.GetConnectionString();
+
     /// <summary>The data source, as an application builds it for Native AOT.</summary>
     public NpgsqlDataSource DataSource { get; private set; } = null!;
 

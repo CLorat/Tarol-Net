@@ -493,13 +493,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
 
         public string Seen => $"SELECT stream_id, version, events FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
 
-        // (tx_id, position) is the order; only transactions older than the oldest running one are final (P-14)
+        // (tx_id, position) is the order; only transactions older than the oldest running one are final (P-14).
+        // The text column needs its own name: ORDER BY tx_id would otherwise sort by the text output column.
         public string ReadAll => $"""
-            SELECT tx_id::text, position, type, stream_id, version, entity_id, parent_id, alias, alias_version, payload, event_id, recorded_at,
+            SELECT tx_id::text AS tx_text, position, type, stream_id, version, entity_id, parent_id, alias, alias_version, payload, event_id, recorded_at,
                    actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, tenant
             FROM {schema}.events
             WHERE (tx_id, position) > ($1::text::xid8, $2) AND tx_id < pg_snapshot_xmin(pg_current_snapshot())
-            ORDER BY tx_id, position
+            ORDER BY events.tx_id, events.position
             LIMIT $3
             """;
 

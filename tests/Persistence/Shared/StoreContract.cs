@@ -240,7 +240,7 @@ public abstract class StoreContract
                 await Task.Delay(50, Ct);
         }
 
-        mine.Select(e => e.Event.Event.Version).ShouldBe([1L, 2, 3]);
+        mine.Select(e => e.Event.Event.Version).ShouldBe([1L, 2, 3], string.Join(" ", mine.Select(e => $"{e.Position}/{e.Event.EventId}/{e.Event.Context.Tenant}")));
         mine.ShouldAllBe(e => e.StreamType == Member.StreamType && e.Event.Context == context && e.Event.RecordedAt == Time.GetUtcNow());
         mine.Select(e => e.Event.EventId).Distinct().Count().ShouldBe(3);
         mine.ShouldAllBe(e => e.Event.EventId.Version == 7);

@@ -62,6 +62,7 @@
   </Folder>
   <Folder Name="/tests/Persistence/">
     <Project Path="tests/Persistence/Tarol.Persistence.AotSmoke/Tarol.Persistence.AotSmoke.csproj" />
+    <Project Path="tests/Persistence/Tarol.Persistence.Npgsql.AotSmoke/Tarol.Persistence.Npgsql.AotSmoke.csproj" />
     <Project Path="tests/Persistence/Tarol.Persistence.Npgsql.IntegrationTests/Tarol.Persistence.Npgsql.IntegrationTests.csproj" />
     <Project Path="tests/Persistence/Tarol.Persistence.Tests/Tarol.Persistence.Tests.csproj" />
   </Folder>
