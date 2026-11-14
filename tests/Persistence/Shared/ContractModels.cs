@@ -25,13 +25,22 @@ public partial class Member : AggregateRoot<Member>
 
     public Badge Award(string name) => Raise(new Badge.Awarded(name));
 
+    public Success Leave(string reason) => Raise(new Left(reason));
+
     public sealed record Joined(string Email) : Event;
     public sealed record Earned(int Points) : Event;
     public sealed record EmailChanged(string Email) : Event;
 
+    /// <summary>v1 had no reason (the integration tests upcast a stored v1 payload).</summary>
+    [EventType("member.left", 2)]
+    public sealed record Left(string Reason) : Event;
+
     private void On(Joined e) => Email = e.Email;
     private void On(Earned e) => Points += e.Points;
     private void On(EmailChanged e) => Email = e.Email;
+    private void On(Left e) => LeftFor = e.Reason;
+
+    public string? LeftFor { get; private set; }
 }
 
 /// <summary>A child of <see cref="Member"/>.</summary>
@@ -66,6 +75,7 @@ public partial class Tally : AggregateRoot<Tally>
 [JsonSerializable(typeof(Member.Joined))]
 [JsonSerializable(typeof(Member.Earned))]
 [JsonSerializable(typeof(Member.EmailChanged))]
+[JsonSerializable(typeof(Member.Left))]
 [JsonSerializable(typeof(Badge.Awarded))]
 [JsonSerializable(typeof(Tally.Started))]
 [JsonSerializable(typeof(Tally.Bumped))]

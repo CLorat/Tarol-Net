@@ -15,14 +15,16 @@ public abstract class StoreContract
 {
     private static readonly DateTimeOffset Start = new(2026, 11, 14, 12, 0, 0, TimeSpan.Zero);
     private readonly Option<Id<ITenant>> _tenant;
-    private readonly IAggregateStore _store;
+    private IAggregateStore? _store;
 
     protected StoreContract()
     {
         Time = new FakeTimeProvider(Start);
         _tenant = Id<ITenant>.New(Time);
-        _store = CreateStore(Time, new StoreLookups().Define<Member>("email", m => m.Email));
     }
+
+    // created on first use: a derived class's constructor (its fixture) has run by then
+    private IAggregateStore Store => _store ??= CreateStore(Time, new StoreLookups().Define<Member>("email", m => m.Email));
 
     /// <summary>The fake clock the store must read <see cref="RecordedEvent.RecordedAt"/> from.</summary>
     protected FakeTimeProvider Time { get; }
@@ -42,17 +44,17 @@ public abstract class StoreContract
     private async Task<T> Committed<T>(T aggregate, long expected = 0, OperationContext? context = null)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
-        (await _store.Append(aggregate, expected, context ?? Alice, Option.None, Ct)).ShouldBe(Result.Success());
+        (await Store.Append(aggregate, expected, context ?? Alice, Option.None, Ct)).ShouldBe(Result.Success());
         AggregateChanges.Committed(aggregate);
         return aggregate;
     }
 
     private async Task<T> Loaded<T>(Id<T> id, OperationContext? context = null)
         where T : AggregateRoot<T>, IAggregateRoot<T>
-        => (await _store.Load(id, context ?? Alice, Ct)).GetValueOrThrow();
+        => (await Store.Load(id, context ?? Alice, Ct)).GetValueOrThrow();
 
     [Fact]
-    public async Task A_missing_stream_is_None() => (await _store.Load(Id<Member>.New(Time), Alice, Ct)).IsNone.ShouldBeTrue();
+    public async Task A_missing_stream_is_None() => (await Store.Load(Id<Member>.New(Time), Alice, Ct)).IsNone.ShouldBeTrue();
 
     [Fact]
     public async Task An_aggregate_with_children_round_trips()
@@ -84,7 +86,7 @@ public abstract class StoreContract
     public async Task Expected_version_0_refuses_an_existing_stream()
     {
         var member = await Committed(NewMember("a@x"));
-        var result = await _store.Append(Member.Join(member.Id, "b@x"), 0, Alice, Option.None, Ct);
+        var result = await Store.Append(Member.Join(member.Id, "b@x"), 0, Alice, Option.None, Ct);
         result.ShouldBe(Result.Failure(StoreErrors.VersionConflict(0, 1)));
     }
 
@@ -97,8 +99,8 @@ public abstract class StoreContract
         first.Earn(1).IsSuccess.ShouldBeTrue();
         second.Earn(2).IsSuccess.ShouldBeTrue();
 
-        (await _store.Append(first, 1, Alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
-        (await _store.Append(second, 1, Alice, Option.None, Ct)).ShouldBe(Result.Failure(StoreErrors.VersionConflict(1, 2)));
+        (await Store.Append(first, 1, Alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
+        (await Store.Append(second, 1, Alice, Option.None, Ct)).ShouldBe(Result.Failure(StoreErrors.VersionConflict(1, 2)));
         (await Loaded(member.Id)).Points.ShouldBe(1);
     }
 
@@ -106,7 +108,7 @@ public abstract class StoreContract
     public async Task Changes_that_do_not_follow_the_expected_version_throw()
     {
         var member = NewMember("a@x");
-        await Should.ThrowAsync<ArgumentException>(async () => _ = await _store.Append(member, 3, Alice, Option.None, Ct));
+        await Should.ThrowAsync<ArgumentException>(async () => _ = await Store.Append(member, 3, Alice, Option.None, Ct));
     }
 
     [Fact]
@@ -114,17 +116,17 @@ public abstract class StoreContract
     {
         var member = await Committed(NewMember("a@x"));
         var key = new IdempotencyKey(_tenant, "test", "k-empty");
-        (await _store.Append(member, 1, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
-        (await _store.Seen(key, Ct)).IsNone.ShouldBeTrue();
+        (await Store.Append(member, 1, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
+        (await Store.Seen(key, Ct)).IsNone.ShouldBeTrue();
     }
 
     [Fact]
     public async Task Another_tenant_does_not_see_the_stream_or_its_lookups()
     {
         var member = await Committed(NewMember("a@x"));
-        (await _store.Load(member.Id, OtherTenant, Ct)).IsNone.ShouldBeTrue();
-        (await _store.Load(member.Id, OperationContext.Start(Actor.User("alice"), Option.None, Time), Ct)).IsNone.ShouldBeTrue();
-        (await _store.Find<Member>("email", "a@x", OtherTenant, Ct)).IsNone.ShouldBeTrue();
+        (await Store.Load(member.Id, OtherTenant, Ct)).IsNone.ShouldBeTrue();
+        (await Store.Load(member.Id, OperationContext.Start(Actor.User("alice"), Option.None, Time), Ct)).IsNone.ShouldBeTrue();
+        (await Store.Find<Member>("email", "a@x", OtherTenant, Ct)).IsNone.ShouldBeTrue();
         await Committed(Member.Join(member.Id, "a@x"), context: OtherTenant);   // same id and key, another tenant
     }
 
@@ -134,18 +136,18 @@ public abstract class StoreContract
         var key = new IdempotencyKey(_tenant, "payments", "evt_1");
         var member = NewMember("a@x");
         member.Earn(1).IsSuccess.ShouldBeTrue();
-        (await _store.Append(member, 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
-        (await _store.Seen(key, Ct)).ShouldBe(new StoredOutcome(member.Id.Value, 2, 2));
+        (await Store.Append(member, 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
+        (await Store.Seen(key, Ct)).ShouldBe(new StoredOutcome(member.Id.Value, 2, 2));
     }
 
     [Fact]
     public async Task A_key_stored_meanwhile_refuses_the_commit()
     {
         var key = new IdempotencyKey(_tenant, "payments", "evt_1");
-        (await _store.Append(NewMember("a@x"), 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
+        (await Store.Append(NewMember("a@x"), 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
         var second = NewMember("b@x");
-        (await _store.Append(second, 0, Alice, key, Ct)).ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key)));
-        (await _store.Load(second.Id, Alice, Ct)).IsNone.ShouldBeTrue();
+        (await Store.Append(second, 0, Alice, key, Ct)).ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key)));
+        (await Store.Load(second.Id, Alice, Ct)).IsNone.ShouldBeTrue();
     }
 
     [Fact]
@@ -153,35 +155,35 @@ public abstract class StoreContract
     {
         var member = await Committed(NewMember("a@x"));
         var key = new IdempotencyKey(_tenant, "payments", "evt_2");
-        StoreErrors.IsVersionConflict(await _store.Append(Member.Join(member.Id, "z@x"), 0, Alice, key, Ct)).ShouldBeTrue();
-        (await _store.Seen(key, Ct)).IsNone.ShouldBeTrue();
+        StoreErrors.IsVersionConflict(await Store.Append(Member.Join(member.Id, "z@x"), 0, Alice, key, Ct)).ShouldBeTrue();
+        (await Store.Seen(key, Ct)).IsNone.ShouldBeTrue();
     }
 
     [Fact]
     public async Task Keys_are_scoped_by_tenant_and_scope()
     {
         var key = new IdempotencyKey(_tenant, "payments", "evt_1");
-        (await _store.Append(NewMember("a@x"), 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
-        (await _store.Seen(new IdempotencyKey(_tenant, "payments", "evt_1"), Ct)).IsSome.ShouldBeTrue();
-        (await _store.Seen(new IdempotencyKey(OtherTenant.Tenant, "payments", "evt_1"), Ct)).IsNone.ShouldBeTrue();
-        (await _store.Seen(new IdempotencyKey(_tenant, "webhooks", "evt_1"), Ct)).IsNone.ShouldBeTrue();
+        (await Store.Append(NewMember("a@x"), 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
+        (await Store.Seen(new IdempotencyKey(_tenant, "payments", "evt_1"), Ct)).IsSome.ShouldBeTrue();
+        (await Store.Seen(new IdempotencyKey(OtherTenant.Tenant, "payments", "evt_1"), Ct)).IsNone.ShouldBeTrue();
+        (await Store.Seen(new IdempotencyKey(_tenant, "webhooks", "evt_1"), Ct)).IsNone.ShouldBeTrue();
     }
 
     [Fact]
     public async Task A_lookup_finds_moves_and_refuses_a_taken_key()
     {
         var member = await Committed(NewMember("a@x"));
-        (await _store.Find<Member>("email", "a@x", Alice, Ct)).ShouldBe(member.Id);
+        (await Store.Find<Member>("email", "a@x", Alice, Ct)).ShouldBe(member.Id);
 
         var taken = NewMember("a@x");
-        (await _store.Append(taken, 0, Alice, Option.None, Ct)).ShouldBe(Result.Failure(StoreErrors.LookupTaken("email", "a@x")));
-        (await _store.Load(taken.Id, Alice, Ct)).IsNone.ShouldBeTrue();
+        (await Store.Append(taken, 0, Alice, Option.None, Ct)).ShouldBe(Result.Failure(StoreErrors.LookupTaken("email", "a@x")));
+        (await Store.Load(taken.Id, Alice, Ct)).IsNone.ShouldBeTrue();
 
         var loaded = await Loaded(member.Id);
         loaded.ChangeEmail("b@x");
         await Committed(loaded, expected: 1);
-        (await _store.Find<Member>("email", "a@x", Alice, Ct)).IsNone.ShouldBeTrue();
-        (await _store.Find<Member>("email", "b@x", Alice, Ct)).ShouldBe(member.Id);
+        (await Store.Find<Member>("email", "a@x", Alice, Ct)).IsNone.ShouldBeTrue();
+        (await Store.Find<Member>("email", "b@x", Alice, Ct)).ShouldBe(member.Id);
         await Committed(NewMember("a@x"));   // the old key is free again
     }
 
@@ -190,12 +192,12 @@ public abstract class StoreContract
     {
         await Committed(NewMember(""));
         await Committed(NewMember(""));
-        (await _store.Find<Member>("email", "", Alice, Ct)).IsNone.ShouldBeTrue();
+        (await Store.Find<Member>("email", "", Alice, Ct)).IsNone.ShouldBeTrue();
     }
 
     [Fact]
     public async Task An_undefined_lookup_throws()
-        => await Should.ThrowAsync<InvalidOperationException>(async () => _ = await _store.Find<Member>("nope", "1", Alice, Ct));
+        => await Should.ThrowAsync<InvalidOperationException>(async () => _ = await Store.Find<Member>("nope", "1", Alice, Ct));
 
     [Fact]
     public async Task A_load_by_replay_aggregate_round_trips()
@@ -210,24 +212,32 @@ public abstract class StoreContract
     [Fact]
     public async Task Every_event_is_recorded_with_the_operation_and_one_commit_time()
     {
-        var feed = (IEventFeed)_store;   // every store of the contract serves the feed
+        var feed = (IEventFeed)Store;   // every store of the contract serves the feed
         var member = NewMember("a@x");
         member.Earn(1).IsSuccess.ShouldBeTrue();
         var badge = member.Award("gold");
         var context = Alice.AsSystem("Jobs.Test").CausedBy(Id<ICausation>.New(Time));
-        (await _store.Append(member, 0, context, Option.None, Ct)).IsSuccess.ShouldBeTrue();
+        (await Store.Append(member, 0, context, Option.None, Ct)).IsSuccess.ShouldBeTrue();
 
+        // A database feed returns a commit once every older transaction has finished (P-14), so poll for a while.
         var mine = new List<PositionedEvent>();
-        var after = GlobalPosition.Start;
-        while (true)
+        var waited = System.Diagnostics.Stopwatch.StartNew();   // real waiting, not domain time
+        while (mine.Count < 3 && waited.Elapsed < TimeSpan.FromSeconds(30))
         {
-            var page = new List<PositionedEvent>();
-            await foreach (var e in feed.ReadAll(after, 500, Ct))
-                page.Add(e);
-            if (page.Count == 0)
-                break;
-            mine.AddRange(page.Where(e => e.Event.StreamId == member.Id.Value));
-            after = page[^1].Position;
+            mine.Clear();
+            var after = GlobalPosition.Start;
+            while (true)
+            {
+                var page = new List<PositionedEvent>();
+                await foreach (var e in feed.ReadAll(after, 500, Ct))
+                    page.Add(e);
+                if (page.Count == 0)
+                    break;
+                mine.AddRange(page.Where(e => e.Event.StreamId == member.Id.Value));
+                after = page[^1].Position;
+            }
+            if (mine.Count < 3)
+                await Task.Delay(50, Ct);
         }
 
         mine.Select(e => e.Event.Event.Version).ShouldBe([1L, 2, 3]);
@@ -252,7 +262,7 @@ public abstract class StoreContract
             copies.Add(copy);
         }
 
-        var results = await Task.WhenAll(copies.Select(c => Task.Run(async () => await _store.Append(c, 1, Alice, Option.None, Ct), Ct)));
+        var results = await Task.WhenAll(copies.Select(c => Task.Run(async () => await Store.Append(c, 1, Alice, Option.None, Ct), Ct)));
 
         results.Count(static r => r.IsSuccess).ShouldBe(1);
         results.Count(StoreErrors.IsVersionConflict).ShouldBe(15);
@@ -264,7 +274,7 @@ public abstract class StoreContract
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
-        await Should.ThrowAsync<OperationCanceledException>(async () => _ = await _store.Load(Id<Member>.New(Time), Alice, cts.Token));
-        await Should.ThrowAsync<OperationCanceledException>(async () => _ = await _store.Append(NewMember("a@x"), 0, Alice, Option.None, cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(async () => _ = await Store.Load(Id<Member>.New(Time), Alice, cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(async () => _ = await Store.Append(NewMember("a@x"), 0, Alice, Option.None, cts.Token));
     }
 }
