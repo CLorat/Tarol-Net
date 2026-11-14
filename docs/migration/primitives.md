@@ -266,3 +266,16 @@ Asked with the question tool (one question per decision, recommendation first). 
 6. Bypass enforcement: access modifiers + `[UnsafeAccessor]` + analyzer (severity).
 7. Replay analyzer: scope and severity.
 8. Package layout, dependencies, `Value`, diagnostic ids, behaviour-method contract (`Raise` returns `Success`).
+
+### Owner answers (round 2, 2026-11-14)
+
+| # | Decision | Answer |
+|---|---|---|
+| 1 | Event model | **candidate c**; a delete is raised by the entity itself (no id in the payload); a child with two owner types uses `CreatedIn<TParent>`; `Raise` returns `Success` |
+| 2 | Child entities | **keep** cascade (D-5 a), strict replay, `EntityRef<T>`, plus the compile-time owner check (`IOwnedBy<TOwner>`, CS0311) |
+| 3 | Snapshots | default-on; capture **every instance field** (except generated and `[SnapshotIgnore]`), gaps reported as Warning. **Reopened by the owner:** "the aggregate in the store always is the current values and does not need replay to get them" (state stored with every commit, not a replay cache). Under discussion; JSON shape and severity open |
+| 4 | Apply failures (F-9) | **discard + poison** |
+| 5 | Invariants | at the hand-off (`AggregateChanges.Prepare`), **all entities** on every commit (no touched-set tracking); the rule's `Error` unchanged |
+| 6, 7 | Analyzers | both **Error**: state assigned outside an `On` handler; rule/throw/clock/`Raise` inside `On`; `[Transient]` fields exempt |
+| 8 | Package | one `Tarol.Primitives` (generator + analyzer, `TPRM001…`), depends on Kernel, Results, Options, StronglyTypedId, not Validations; `Value` dropped; behaviour methods are the step 7 contract; Changes findings 14/15 → step 7 |
+| — | Test helper | **ship a given/when/then helper** in the package |
