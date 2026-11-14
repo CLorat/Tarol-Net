@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Changes package (no ProjectReference). Proves that the package works and that its bundled
+    generator, and those of its dependencies (Tarol.Primitives, Tarol.Validations, Tarol.Results), reach a package consumer.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Changes" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckChangesAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolChangesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Changes.Generators'" />
+      <_TarolPrimitivesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Primitives.Generators'" />
+      <_TarolValidationsGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Validations.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolChangesGenerator)' == ''" Text="The Tarol.Changes generator (Tarol.Changes.Generators.dll) did not reach the compiler." />
+    <Error Condition="'@(_TarolPrimitivesGenerator)' == '' or '@(_TarolValidationsGenerator)' == ''" Text="The generators of Tarol.Primitives / Tarol.Validations did not flow from the dependencies." />
+    <Message Importance="high" Text="Tarol.Changes analyzers: @(_TarolChangesGenerator);@(_TarolPrimitivesGenerator);@(_TarolValidationsGenerator)" />
+  </Target>
+</Project>

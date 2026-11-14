@@ -66,6 +66,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   (`Stream.VersionConflict`, `Idempotency.DuplicateKey`, `Lookup.Taken`), and `InMemoryAggregateStore`: tenant
   isolation, atomic appends, `RecordedEvent` with the operation context and commit time, stored-state loads, defined
   lookups; agent skill `tarol-persistence`. Concept and decisions of step 7 in `docs/architecture/changes.md`.
+* `Tarol.Changes` (step 7, PR 7B): `IChange<T>`, `ICreation<T>`, `ILoads<T>`, `[Read]`, `ChangeContext`,
+  `ChangePipeline` (validation before any read, automatic load, permission hook `IChangeAuthorization`, time read once,
+  `Prepare`, append with expected version and idempotency key, discard on failure, version conflicts returned),
+  `ChangeOptions`, `ChangeOutcome`, `ChangeTest`; bundled generator (target, `[Read]` loads, typed
+  `GeneratedChanges.Dispatch`) with diagnostics TCHG001–TCHG005; agent skill `tarol-changes`.
 
 ### Changed
 

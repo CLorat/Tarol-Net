@@ -307,22 +307,21 @@ The in-memory store checks the expected version and stores (key → outcome) ins
 standing in for one transaction. A key seen before returns the stored `ChangeOutcome` with `Replayed = true` before any
 load. A key whose append would commit twice is refused (`Change.Duplicate`).
 
-## 5. Generator and diagnostics (proposed for the implementation) **[unverified]** except TCHG001
+## 5. Generator and diagnostics
+
+**Built in PR 7B** (§14) **[verified]**, renumbered from the proposal (TCHG006→005, TCHG008→004):
 
 | Id | Severity | When |
 |---|---|---|
-| TCHG001 | Error | `IChange<T>` record without exactly one `Id<T>` member and no explicit `Target` **[verified]** |
-| TCHG002 | Error | change record not `partial` (the generator must add `Target`) |
-| TCHG003 | Error | `[Endpoint]` route parameter without a member of that name, or a member type that is not `IParsable` |
-| TCHG004 | Error | two `[Endpoint]`s with the same verb and route in one assembly |
-| TCHG005 | Error | an entry factory (`[OnEvent<T>]`, `[Webhook]`, `[Consumes]`) that is not `static TChange From(TPayload[, RecordedEvent])` |
-| TCHG006 | Warning | an `IChange`/`ICreation` input that is not `IValidatable` but has value-object members with rules |
-| TCHG007 | Error | `Execute` assigns aggregate state or calls something other than one public behaviour (best effort) |
-| TCHG008 | Error | `[Read]` on a member that is not an `Id<X>` of an aggregate, or on the change's own target |
+| TCHG001 | Error | an `IChange<T>` without exactly one `Id<T>` member and without its own `Target` (not for `ILoads<T>`) |
+| TCHG002 | Error | a change that needs generated code (`Target`, `[Read]`) is not `partial`, or a containing type is not |
+| TCHG003 | Error | generic, file-local, or both `IChange<T>` and `ICreation<T>` |
+| TCHG004 | Error | `[Read]` on a member that is not an `Id<X>` of an aggregate, or on the change's own target |
+| TCHG005 | Warning | members with validation rules, but the change is not `IValidatable` |
 
-TCHG001 does not apply to `ILoads<T>` changes (C-16).
-
-Step 7's generator emits only `Target`, `LoadReads`, `Dispatch` and TCHG001–002, 006–008; the others come with their entries.
+Proposed for the entries, numbered when they are built: route parameter without a member or not `IParsable`, two
+`[Endpoint]`s with one verb and route (step 10), an entry factory with the wrong shape (steps 9–11). Dropped: "`Execute`
+calls more than one behaviour" (best effort only, and `Execute` cannot reach the store or `Raise` anyway).
 
 ## 6. Decided API (step 7 part)
 
@@ -424,7 +423,7 @@ Consequences of the three answers against the recommendation:
 3. README, skill `tarol-persistence` (port contract for step 8 implementers and test authors), AOT smoke, package
    verification, conventions §8.
 
-### PR 7B `changes: the change pipeline, typed entry and generator`
+### PR 7B `changes: the change pipeline, typed entry and generator` (done: §14)
 
 1. `src/Changes/Tarol.Changes` (+ `Tarol.Changes.Generators`), depends on Persistence and Validations: the API of §6;
    `Run` = `Validated()` → `Seen(key)` → `[Read]` aggregates (422 when missing) → load: automatic by `Target`, or the
@@ -462,8 +461,9 @@ Consequences of the three answers against the recommendation:
 | "handle a version conflict" | `Error { Code: "Stream.VersionConflict" }` returned; the caller retries | a retry loop inside `Execute` |
 | "a change with two `Id<Auction>` members" | implement `Id<Auction> IChange<Auction>.Target => …` | ignoring TCHG001 |
 | "close an auction found by its lot number" | `ILoads<Auction>` with `Load` using `reader.Find<Auction>("lot", …)` | loading in `Execute`; injecting the store into the record |
+| "run a change from an outbox row typed as object" | `pipeline.Dispatch(change, context, options, ct)` (generated, namespace = assembly name) | a `switch` by hand; reflection |
 | "only auction verified artworks" | `[Read] Id<Artwork> Artwork` + `context.Read<Artwork>()` passed to the factory | changing the artwork in the same change (a saga); loading it by hand when `[Read]` suffices |
-| "test the change" | `ChangeTest.Given(…).At(…).When(change, actor)` | a hand-rolled store fake |
+| "test the change" | `ChangeTest.At(now).Given(aggregate).When(change, actor)` → `Result`, `Events`, `Recorded` | a hand-rolled store fake |
 
 ## 12. Verification of this PR (SDK 11.0.100, 2026-11-14) **[verified]**
 
@@ -479,3 +479,73 @@ Probes: `probes/changes/all.sh` → [`output.txt`](probes/changes/output.txt) (6
 * Whether `ChangeOutcome` should carry the committed `RecordedEvent`s for the caller (e.g. to return a created child's
   id): not needed by any scenario here.
 * The read side after C-3.
+
+## 14. Implementation (PR 7B, 2026-11-14)
+
+`Tarol.Changes` (+ `Tarol.Changes.Generators`), stacked on PR 7A. Package guide: `src/Changes/Tarol.Changes/README.md`;
+user guide: [docs/changes/README.md](../changes/README.md).
+
+### 14.1 Public API
+
+`IChange<T>` (`Target`, `Execute`), `ICreation<T>` (`Execute`, no target, C-10), `ILoads<T> : IChange<T>` (`Load`; its
+`Target` is a default member returning `Id<T>.Empty`), `ChangeContext(Operation, Now, Reads?)` with `Read<T>()` and
+`Read<T>(member)`, `ReadAttribute`, `Reads`, `IHasReads` (generated use), `ChangeOutcome(StreamId, Version, Events,
+Replayed)`, `ChangeOptions(Key, ExpectedVersion, Principal)`, `IChangeAuthorization`, `ChangePipeline(store, time,
+authorization?)` with `Run<T>(IChange<T>, …)` and `Run<T>(ICreation<T>, …)`, `ChangeTest` (`At`, `Given`, `Later`, `As`,
+`InTenant`, `When`, `Load`, `Context`, `Store`, `Pipeline`, `Clock`) and `ChangeTestOutcome(Result, Events, Recorded)`.
+Generated: `Target`, `LoadReads`, and per assembly `internal static class GeneratedChanges` with `Dispatch(object, …)`.
+
+### 14.2 Deliberate differences from §6 and §10
+
+* **`IChangePermission` (§6, §10) is `IChangeAuthorization`**: CA1711 reserves the suffix "Permission"; renaming beat a suppression.
+* **No entry attributes yet** (`[Endpoint]`, `[OnEvent<T>]`, `[Webhook]`, `[Consumes]`): they ship with the step that
+  builds their entry (9–11), so an attribute never compiles and silently does nothing (security.md §7: no unused
+  abstraction). C-5 (attributes on the change) is unchanged.
+* **The dispatcher is `internal`, in a namespace named after the assembly**: one public fixed type per assembly collided
+  across assemblies in the old CQRS generator (review C12). Cross-assembly saga dispatch is step 9's to design.
+* **A creation's authorization runs on the new aggregate** (there is no loaded resource), before the invariants. A
+  factory that returns a loaded aggregate throws; an `ExpectedVersion` other than 0 is a version conflict; a stream that
+  exists (only possible for a factory reusing an id) is `Error.Conflict("T.AlreadyExists")`.
+* **`ChangeTest` has its own standing clock** (`At`, `Later`): the package does not depend on
+  `Microsoft.Extensions.TimeProvider.Testing`.
+* Diagnostics renumbered (§5).
+
+### 14.3 Found while building
+
+* **`[Read]` aggregates are recognised by their `AggregateRoot<X>` base class, not by `IAggregateRoot<X>`**: the
+  Primitives generator adds that interface, and one generator never sees another's output, so the interface check
+  rejected every aggregate (TCHG004 on valid code). The same rule as candidate B's blocker, inside one solution.
+* **The dispatcher depended on the whole change model**, so renaming a target member regenerated it; it now takes
+  (name, inheritance depth) only (incrementality test).
+* A member named `Target` implements `IChange<T>.Target` itself; the generator then emits nothing (test).
+
+### 14.4 Tests **[verified]**
+
+* `Tarol.Changes.Tests` (37): creation, `Invalid` before any read (store loads = 0), empty target id, guard on an input
+  field, auto-load and `Now`, guard failure, 404 and another tenant, actor in behaviour and records, job settlement with
+  the system actor and `RecordedAt`, version conflict returned without a reload (one load), `ExpectedVersion`, key replay
+  without running and without loading, failure stores no key, invariant discard, exception propagation, no-event change,
+  explicit target, creation with `ExpectedVersion`, authorization after load with the principal and on creation;
+  C-16: `[Read]` decides, missing read 422, read aggregate never written, `[Read]` on a change, `ILoads` by lookup and its
+  `NotFound`, load-or-create; `Reads` lookups; generated `Dispatch` for changes, creations, unknown and `null`;
+  `ChangeTest` refusals, actor/tenant/time; the skill example verbatim.
+* `Tarol.Changes.Generators.Tests` (22): snapshot of `Target`, `[Read]`, nested change and dispatcher; the generated code
+  compiles without warnings with the Primitives generator; no dispatcher without changes; every diagnostic and its
+  message; explicit `Target`, `ILoads`, a member named `Target` and a creation without reads need no code; a foreign
+  `IChange<T>` is ignored; incrementality: unrelated file, `Execute` body edit, moved text → nothing regenerated; a
+  renamed target member → only its change.
+
+### 14.5 Suppressions and analyzer configuration
+
+None in `src/`. Tests: `#pragma warning disable TVAL006` in three test files that build inputs the way JSON would (the
+pipeline validates them), as in the Primitives and Validations tests.
+
+### 14.6 Verification (SDK 11.0.100, 2026-11-14)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` (Debug and `-c Release`) | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` | 743 total, 0 failed (684 before + 37 `Tarol.Changes.Tests` + 22 `Tarol.Changes.Generators.Tests`) |
+| `eng/verify-packages.sh` | OK: `Tarol.Changes` holds `lib/` (+ XML docs), `analyzers/dotnet/cs/Tarol.Changes.Generators.dll`, `README.md`, `LICENSE`, `skills/tarol-changes/SKILL.md`; the consumer passes 8/8, its generators (Changes, Primitives, Validations) reach the compiler, `project.assets.json` lists `tarol-changes` and the dependencies' skills |
+| `eng/aot-smoke.sh` | 8 apps, each 0 IL warnings; `Tarol.Changes.AotSmoke` 8/8 natively |

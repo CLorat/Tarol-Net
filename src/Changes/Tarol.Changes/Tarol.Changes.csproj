@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Changes are the entries of an actor into the domain: an input record names its target and calls one behaviour method; one pipeline validates before any read, loads the target (or lets a special change load it), checks the permission, passes the time read once, runs the invariants, commits with the expected version and an idempotency key, and discards the instance on any failure. Generated target, read-only aggregate loads and a typed dispatcher; a test helper on an in-memory store. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;command;use-case;pipeline;source-generator;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
+    <ProjectReference Include="../../Validations/Tarol.Validations/Tarol.Validations.csproj" />
+    <!-- D-10: the changes generator (Target, LoadReads, Dispatch; TCHG001-TCHG005) ships inside this package. -->
+    <ProjectReference Include="../Tarol.Changes.Generators/Tarol.Changes.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

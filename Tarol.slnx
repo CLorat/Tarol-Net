@@ -11,6 +11,10 @@
     <File Path="nuget.config" />
   </Folder>
   <Folder Name="/src/" />
+  <Folder Name="/src/Changes/">
+    <Project Path="src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" />
+    <Project Path="src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
+  </Folder>
   <Folder Name="/src/Kernel/">
     <Project Path="src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj" />
     <Project Path="src/Kernel/Tarol.Kernel/Tarol.Kernel.csproj" />
@@ -39,6 +43,11 @@
     <Project Path="src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/Changes/">
+    <Project Path="tests/Changes/Tarol.Changes.AotSmoke/Tarol.Changes.AotSmoke.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.Generators.Tests/Tarol.Changes.Generators.Tests.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.Tests/Tarol.Changes.Tests.csproj" />
+  </Folder>
   <Folder Name="/tests/Kernel/">
     <Project Path="tests/Kernel/Tarol.Kernel.AotSmoke/Tarol.Kernel.AotSmoke.csproj" />
     <Project Path="tests/Kernel/Tarol.Kernel.Generators.Tests/Tarol.Kernel.Generators.Tests.csproj" />
