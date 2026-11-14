@@ -182,6 +182,13 @@ redelivery after the window commits again (documented).
 
 Projections themselves are a later step; the feed is the port they will read.
 
+Found while building 8B **[verified]**: `pg_snapshot_xmin` is the oldest running transaction of the **whole cluster**,
+so any long-running or idle-in-transaction session holds every feed back until it ends (a test that kept a
+transaction open stalled another test's feed). Readers poll; operators set `idle_in_transaction_session_timeout`. And
+the text form of the transaction id must not share the column's name: `SELECT tx_id::text … ORDER BY tx_id` sorts by
+the text output column ("1000" < "741") and a checkpoint then skips transactions (259 of 1,416 events in a paging test);
+the probe's ids all had three digits, so it did not show.
+
 ## 10. AOT
 
 `NpgsqlSlimDataSourceBuilder(…).EnableArrays()`, jsonb written and read as UTF-8 text (no `EnableJsonTypes`), the codec

@@ -523,3 +523,75 @@ None.
 | `dotnet test --solution Tarol.slnx` | 808 total, 0 failed (743 before) |
 | `rm -rf artifacts`, `dotnet build Tarol.slnx -c Release`, `eng/verify-packages.sh` | OK; `Tarol.Persistence` consumer 9/9 (2 new), skills listed |
 | `eng/aot-smoke.sh` | 8 apps, each 0 IL warnings, all checks passed natively |
+
+## 21. Implementation: PR 8B (2026-11-14)
+
+`persistence: Tarol.Persistence.Npgsql`, stacked on PR 8A. As decided in §15 and §16; differences below.
+
+### 21.1 Public API (new package `Tarol.Persistence.Npgsql`, depends on `Tarol.Persistence` and `Npgsql` 10.0.3)
+
+| Type | Members |
+|---|---|
+| `NpgsqlAggregateStore : IAggregateStore, IEventFeed` | `(NpgsqlDataSource, EventCodec, TimeProvider, NpgsqlStoreOptions?)`, `Schema`, `EnsureSchema(ct)`, `Load`, `Find`, `Seen`, `Append`, `ReadAll`, `RebuildStates<T>(ct) : Task<int>`, `PurgeKeys(olderThan, batch, ct) : Task<int>` |
+| `NpgsqlStoreOptions` | `Schema` (validated identifier, default `tarol`), `StateOptions` (default: the codec's options), `Lookups` (`StoreLookups`) |
+| `NpgsqlSchema` | `Version` (1), `DefaultSchema`, `Script(schema)` |
+
+### 21.2 Deliberate differences from §13/§16
+
+* **No outbox table yet**: the script has streams, events, lookups, idempotency keys and `schema_version`; 8C adds the
+  outbox table (still schema version 1: nothing is released).
+* **No per-load logging** of the state fallback (P-12 said "logged"): the package has no logging dependency; a counter
+  or `ILogger` hook can come with step 9's host.
+* The feed index is `(tx_id, position)` (`events_feed`); the probe had one on `position` only.
+* `RebuildStates<T>` takes no `OperationContext` (it writes no events) and pages by `(tenant, id)`, 500 streams a page.
+* `EnsureSchema` refuses a database whose `schema_version` is newer than the package's.
+* The shared contract suite now creates its store on first use (a derived class's fixture is set by then) and waits up
+  to 30 s for its events in a database feed (see 21.3, item 2).
+
+### 21.3 Found while building
+
+1. **The feed sorted by the text output column** (`SELECT tx_id::text … ORDER BY tx_id`): a checkpoint skipped every
+   transaction id with fewer digits; 259 of 1,416 events missing in the new paging test with 8 concurrent writers
+   **[verified]**. Fixed (`AS tx_text`, `ORDER BY events.tx_id, events.position`), in the probe too; the probe's
+   `output.txt` was not affected (all its ids had three digits).
+2. **Any open transaction in the cluster holds the feed back** (cluster-wide `pg_snapshot_xmin`): the contract's feed
+   test saw nothing while another test held a transaction open **[verified]**. Documented in README and skill.
+3. A span (`UncommittedChanges`, the `Rehydrate` argument) cannot live across an `await` (CS4007): the store copies the
+   changes to an array and rehydrates in a non-async helper.
+
+### 21.4 Tests **[verified]**
+
+`Tarol.Persistence.Npgsql.IntegrationTests` (36, `[Trait("Category", "Integration")]`, one Testcontainers `postgres:17`
+assembly fixture, fresh tenant per test, own schema for cross-tenant tests): the shared contract (19); queryable state and
+event columns; tenant in lookups and keys; `[LoadByReplay]` stores no state; another schema → replay → rewrite; a state
+that does not parse → replay; `RebuildStates`; a v1 payload upcast and an unknown alias; every `RecordedEvent` column from
+the feed including `traceparent` under an `ActivityListener`; the two late-commit cases on two connections; paging the
+feed while 8 writers commit (no loss, no duplicate, ordered); 64 writers × 5 attempts gapless; 16 concurrent creations
+with one lookup key → one commits; `PurgeKeys` in batches; `EnsureSchema` idempotent and refusing a newer schema; schema
+name validation; an aggregate missing from the codec; the skill example verbatim. Stable in 8 consecutive runs.
+
+`Tarol.Persistence.Npgsql.AotSmoke`: offline check always; with `TAROL_PG` 10 database checks natively (append, state
+load, key, lookup, conflict, feed with context, rebuild, purge; own schema, dropped afterwards). The CI `aot-smoke` job gets
+a `postgres:17` service and `TAROL_PG`. `Tarol.Persistence.Npgsql.PackageTests`: schema script, stream type and schema
+validation from the packed package, without a database.
+
+### 21.5 CI
+
+`build` runs the unit tests with `-- --filter-not-trait "Category=Integration" --ignore-exit-code 8` (exit code 8: a
+project with no test left); the new `integration` job runs the integration tests on the hosted runner's Docker; to make
+required on `main` (plan.md "CI and release").
+
+### 21.6 Suppressions and analyzer configuration
+
+None.
+
+### 21.7 Verification (SDK 11.0.100, 2026-11-14)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker running) | 844 total, 0 failed (808 + 36 integration) |
+| `dotnet test --solution Tarol.slnx -- --filter-not-trait "Category=Integration" --ignore-exit-code 8` (Docker stopped) | 808 total, 0 failed; the integration project runs no test and starts no container |
+| `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK; `Tarol.Persistence.Npgsql` holds `lib/net11.0` (dll, xml), `README.md`, `LICENSE`, `skills/tarol-persistence-npgsql/SKILL.md`; the consumer passes 3/3 and lists the skills of the package and its dependencies |
+| `TAROL_PG=… eng/aot-smoke.sh` (local `postgres:17`) | 9 apps, each 0 IL warnings; `Tarol.Persistence.Npgsql.AotSmoke` 11/11 natively |

@@ -5,7 +5,8 @@ Tarol is a .NET 11 framework for event-sourced Domain-Driven Design:
 * **Every change is an event**, so state can always be rebuilt from the event stream.
 * **User code stays small**: the plumbing is source-generated, and each generator ships inside its runtime package.
 * **Native-AOT ready**: no reflection on the hot path; every package that claims AOT has a smoke app in CI.
-* **Persistence on Npgsql**: a thin event store instead of a document database (planned).
+* **Persistence on Npgsql**: a thin event store instead of a document database: events, queryable current state,
+  lookups and idempotency keys in one transaction, the tenant in every key.
 
 Tarol-Net is the successor of [CLorat/Tarol](https://github.com/CLorat/Tarol). Packages move over one family at a
 time; see the [migration plan](docs/migration/plan.md).
@@ -22,7 +23,8 @@ time; see the [migration plan](docs/migration/plan.md).
 | `Tarol.Primitives` | event-sourced aggregates with child entities: pure-payload events (`sealed record Repriced(decimal Price) : Event;`), generated dispatch, cascade and strict replay, invariants at the hand-off, a given/when/then test helper, stored state (the current state as queryable JSON with every commit, loaded without replay), lifecycles (state enums with declared transitions, generated guards, every step checked at commit); generator and analyzers included | migrated (step 6 done, parts A–C) |
 | `Tarol.Persistence` | the aggregate store port: tenant-scoped loads, appends with an expected version and an idempotency key stored in the same commit, unique lookups; an in-memory store for tests that records every event with its operation context and exercises the stored state | new (step 7, PR 7A) |
 | `Tarol.Changes` | changes as the entries of an actor into the domain: an input record (`IChange<T>`, `ICreation<T>`) that calls one behaviour; one pipeline (validate before any read, load or `ILoads<T>`, `[Read]` aggregates, permission hook, time read once, invariants, expected version, idempotency key, discard on failure); generated target, reads and typed dispatcher; `ChangeTest` helper | new (step 7, PR 7B) |
-| `Tarol.Persistence.Npgsql`, `Tarol.Sagas`, … | | planned (see plan) |
+| `Tarol.Persistence.Npgsql` | the PostgreSQL store on plain Npgsql: one guarded statement per commit (conflicts are results), stored state as queryable JSON, unique lookups, idempotency keys, a gap-free global feed, a shipped SQL schema | new (step 8, PR 8B) |
+| `Tarol.Sagas`, … | | planned (see plan) |
 
 Packages are private: they are published only to the owner's GitHub Packages feed, never to nuget.org.
 

@@ -77,6 +77,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `IEventFeed.ReadAll(GlobalPosition, limit)`; `StoreLookups` shared by stores; `InMemoryStoreOptions` (state options,
   codec round trip, lookups). Design: docs/architecture/persistence.md, docs/migration/persistence.md §20.
 
+* `Tarol.Persistence.Npgsql` (step 8B): `NpgsqlAggregateStore` (`IAggregateStore`, `IEventFeed`) on plain Npgsql with
+  one guarded statement per commit, stored state as queryable JSON, key-function lookups, idempotency keys and
+  `PurgeKeys`, `RebuildStates<T>`, the (transaction, position) feed, `NpgsqlSchema.Script` and `EnsureSchema`;
+  integration tests on Testcontainers PostgreSQL and the CI `integration` job; agent skill `tarol-persistence-npgsql`.
+
 ### Changed
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and

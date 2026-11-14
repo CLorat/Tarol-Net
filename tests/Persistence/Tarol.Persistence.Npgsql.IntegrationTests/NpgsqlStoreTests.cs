@@ -198,7 +198,8 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
                                                actor_kind, actor_id, correlation_id)
             VALUES ('{{Guid.Empty}}', 'tally', '{{stream}}', 1, '{{Guid.CreateVersion7()}}', 'tally.started', 1, '{{stream}}', '{}', now(), 'User', 'u', '{{Guid.CreateVersion7()}}')
             """;
-        async Task Sql(NpgsqlConnection c, string sql) { await using var command = new NpgsqlCommand(sql, c); await command.ExecuteNonQueryAsync(Ct); }
+        async Task Sql(NpgsqlConnection c, string sql)
+        { await using var command = new NpgsqlCommand(sql, c); await command.ExecuteNonQueryAsync(Ct); }
         await using var older = await postgres.DataSource.OpenConnectionAsync(Ct);
         await using var newer = await postgres.DataSource.OpenConnectionAsync(Ct);
 
@@ -265,7 +266,8 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         var all = new List<string>();
         await using (var cmd = postgres.DataSource.CreateCommand($"SELECT tx_id::text || ':' || position FROM {store.Schema}.events ORDER BY tx_id, position"))
         await using (var r = await cmd.ExecuteReaderAsync(Ct))
-            while (await r.ReadAsync(Ct)) all.Add(r.GetString(0));
+            while (await r.ReadAsync(Ct))
+                all.Add(r.GetString(0));
         var got = seen.Select(static e => $"{e.Position.Transaction}:{e.Position.Position}").ToHashSet();
         var missing = all.Where(x => !got.Contains(x)).ToList();
         missing.ShouldBeEmpty($"missing {missing.Count}: {string.Join(" ", missing.Take(20))}");
@@ -287,9 +289,12 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
                 var expected = loaded.Version;
                 loaded.Earn(1).IsSuccess.ShouldBeTrue();
                 var result = await store.Append(loaded, expected, context, Option.None, Ct);
-                if (result.IsSuccess) Interlocked.Increment(ref ok);
-                else if (StoreErrors.IsVersionConflict(result)) Interlocked.Increment(ref conflicts);
-                else throw new InvalidOperationException(result.ToString());
+                if (result.IsSuccess)
+                    Interlocked.Increment(ref ok);
+                else if (StoreErrors.IsVersionConflict(result))
+                    Interlocked.Increment(ref conflicts);
+                else
+                    throw new InvalidOperationException(result.ToString());
             }
         }, Ct)));
 
