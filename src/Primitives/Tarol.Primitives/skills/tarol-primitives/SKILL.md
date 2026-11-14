@@ -5,7 +5,8 @@ description: >-
   EntitySet, EntityRef), events (Event, Created, CreatedIn<TParent>, Deleted, [EventType]), On handlers, behaviour
   methods that return Result and take now, [Invariant], Rehydrate/StreamEvent, AggregateChanges.Prepare/Committed, the
   AggregateTest given/when/then helper, the stored state (StateSchema, WriteState/ReadState, AggregateState,
-  [LoadByReplay], [StateName], [Transient], StoredStateMatchesReplay), and fixing TPRM001-TPRM015 and TPRM024-TPRM027.
+  [LoadByReplay], [StateName], [Transient], StoredStateMatchesReplay), lifecycles ([Lifecycle], [To], [Transition<T>],
+  <Enum>Lifecycle, CanTransitionTo/RequireTransitionTo, Lifecycle.ForbiddenStep), and fixing TPRM001-TPRM027.
   Do not decompile or web-search, do not hand-write a dispatch switch or a state serializer, do not use the old
   DomainEvent<TRoot,TEntity>/CreateDomainEvent/DomainClock/ToSnapshot/[SnapshotIgnore] API.
 ---
@@ -45,6 +46,14 @@ description: >-
    `[StateName("oldName")]`. Shape changes need nothing: `StateSchema` changes, old rows load by replay and are
    rewritten on the next commit. `[LoadByReplay]` on the root turns the state off. Member types other than primitives,
    `Id<T>`, enums, `T?`/`Option<T>` of them go through the JSON options: list them in your `JsonSerializerContext`.
+9. **Lifecycles.** `[Lifecycle]` on a state enum, `[To(...)]` on each state with outgoing edges (initial = member 0
+   or `[Lifecycle(Initial = nameof(X))]`). Generated `<Enum>Lifecycle` (nested `Auction.Status` → `AuctionStatusLifecycle`):
+   `Initial`, `Diagram`, `IsEdge`, `IsTerminal`, `Edges`, and `state.CanTransitionTo(to)` / `state.RequireTransitionTo(to)`
+   (`Error.Conflict("<Enum>.NotAllowed", "<From> -> <To>")`) to guard behaviours; `On` just assigns. A step no `[To]`
+   allows, or a new root/entity not in `Initial` (`(new) -> X`), is caught live and `Prepare` returns
+   `Error.Internal("Lifecycle.ForbiddenStep", …)` before the invariants. Replay and `ReadState` never check. Optional
+   `[Transition<T>(from, to)]` on an event labels the edge. A switch naming every state needs no `_` arm (TPRMSPR01).
+   Stored by name: a state name is forever; a new member changes `StateSchema`.
 
 ## Example
 
@@ -92,6 +101,26 @@ order.Add("SKU", 2);
 byte[] json = AggregateState.Write(order, options);                     // {"id":…,"version":2,"schema":…,"isOpen":true,…,"lines":[…]}
 Order loaded = AggregateState.Read(order.Id, json, options).GetValueOrThrow();   // None: another schema → replay
 AggregateTest.StoredStateMatchesReplay(order, options);                 // throws with both JSON strings if they differ
+
+// lifecycle
+[Lifecycle]
+public enum JobState { [To(Done)] Open, Done }
+
+public partial class Job : AggregateRoot<Job>
+{
+    public JobState State { get; private set; }
+    public string Title { get; private set; } = "";
+    public static Job Start(string title) { var j = new Job(Id<Job>.New()); j.Raise(new Opened(title)); return j; }
+    public Result Finish() => State.RequireTransitionTo(JobState.Done).Bind(() => Raise(new Finished()));
+    public Success Reopen() => Raise(new Reopened());   // no guard: Prepare -> "Job.State: Done -> Open by Reopened"
+
+    public sealed record Opened(string Title) : Event;
+    [Transition<JobState>(JobState.Open, JobState.Done)] public sealed record Finished : Event;
+    public sealed record Reopened : Event;
+    private void On(Opened e) => Title = e.Title;
+    private void On(Finished e) => State = JobState.Done;
+    private void On(Reopened e) => State = JobState.Open;
+}
 ```
 
 ## Common mistakes
@@ -113,6 +142,11 @@ AggregateTest.StoredStateMatchesReplay(order, options);                 // throw
 | `_name` field and `Name` property, or a member named `id`/`version`/`schema` | TPRM025: pin one with `[StateName("…")]` |
 | `[StateName]` on a computed/`[Transient]`/static member, `[LoadByReplay]` on an entity | TPRM026 |
 | `[Transient]` member assigned from the event in `On` | TPRM027: drop `[Transient]` (it is state) or only reset it |
+| `[To(3)]`; unreachable state; `[To(A)] A` | TPRM016; TPRM017, TPRM018 (Warnings) |
+| `[Lifecycle, Flags]`, aliased members, bad `Initial`, private nested enum | TPRM019 |
+| `[To]` without `[Lifecycle]`; `[Transition]` that is no `[To]` edge | TPRM020; TPRM021 |
+| state no `On` assigns; `On` not assigning its `[Transition]`'s `To` | TPRM022; TPRM023 (Warnings) |
+| calling/overriding `ApplyLive`, `ApplyRaised`, `ForbiddenStep` | TPRM015 |
 | a member type missing from the JSON context | `NotSupportedException` from `WriteState`/`ReadState` naming the member |
 
 ## AOT
