@@ -17,7 +17,7 @@ the plan impact. **Design only**: this PR changes no package code. Probes and ou
   themselves (`ILoads<T>`), and read-only other aggregates are `[Read] Id<X>` members **[verified]**.
 * **The pipeline is library code** (generic, no reflection); the generator adds `Target`, a typed `Dispatch(object)`, the
   reaction table and the entries. Under Native AOT: **0 IL warnings**, all scenarios pass natively **[verified]**.
-* **Cost**: 260 ns / 920 B hand-written vs 415 ns / 976 B through the pipeline (+≈ 150 ns, +56 B per change, both
+* **Cost**: 252 ns / 920 B hand-written vs 395 ns / 976 B through the pipeline (+≈ 145 ns, +56 B per change, both
   including a one-event replay) **[verified]** (`Bench/`, short run). Against one database round trip this is noise.
 * **HTTP entries must be generated `RequestDelegate`s** (C-12): the Request Delegate Generator does not see generated
   `MapPost` calls; those publish with IL2026/IL3050 and the native app aborts at startup **[verified]**.
@@ -286,12 +286,12 @@ A generated `(HttpContext) => Task` lambda binds to the `RequestDelegate` overlo
 
 | Method | Mean | Allocated |
 |---|---:|---:|
-| hand-written (validate, load, `Close`, `Prepare`, append, `Committed`) | 260.5 ns | 920 B |
-| `ChangePipeline.Run` | 415.1 ns | 976 B |
-| generated `Dispatch(object)` → `Run` | 411.1 ns | 976 B |
+| hand-written (validate, load, `Close`, `Prepare`, append, `Committed`) | 251.5 ns | 920 B |
+| `ChangePipeline.Run` (with the C-16 checks) | 395.4 ns | 976 B |
+| generated `Dispatch(object)` → `Run` | 374.2 ns | 976 B |
 
 The store is the same in all three (load = replay of one event, append = nothing). Short runs have wide error bars
-(±250 … 750 ns); compare ratios. The overhead (+56 B, ≈ +150 ns) comes from the async state machine of `Run`, the
+(±160 … 350 ns); compare ratios. The overhead (+56 B, ≈ +145 ns) comes from the async state machine of `Run`, the
 interface calls and the permission hook **[unverified breakdown]**. The in-process loop in `App/` measured 279 B (JIT) and
 −65 B (AOT) for the same difference, i.e. within its noise.
 
@@ -469,7 +469,7 @@ Consequences of the three answers against the recommendation:
 
 Docs and probes only; no project in `Tarol.slnx` changed. `dotnet build Tarol.slnx`: 0 warnings, 0 errors.
 `dotnet test --solution Tarol.slnx`: 659 total, 0 failed. `dotnet format Tarol.slnx --verify-no-changes`: exit 0.
-Probes: `probes/changes/all.sh` → [`output.txt`](probes/changes/output.txt) (59 PASS, 0 FAIL).
+Probes: `probes/changes/all.sh` → [`output.txt`](probes/changes/output.txt) (67 PASS, 0 FAIL).
 
 ## 13. Open items
 

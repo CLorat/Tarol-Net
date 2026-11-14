@@ -19,6 +19,8 @@ public sealed class FixedStore(StreamEvent[] history) : IAggregateStore
         where T : AggregateRoot<T>, IAggregateRoot<T> => ValueTask.FromResult<Option<T>>(T.Rehydrate(id, history));
     public ValueTask<Result> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T> => ValueTask.FromResult(Result.Success());
+    public ValueTask<Option<Id<T>>> Find<T>(string lookup, string key, OperationContext context, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T> => ValueTask.FromResult<Option<Id<T>>>(Option.None);
     public ValueTask<Option<ChangeOutcome>> Seen(IdempotencyKey key, CancellationToken cancellationToken) => ValueTask.FromResult<Option<ChangeOutcome>>(Option.None);
 }
 
