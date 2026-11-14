@@ -41,6 +41,18 @@ namespace Shop
             _ => global::Tarol.Primitives.ThrowHelper.UnknownEvent<global::Tarol.Primitives.EventType>(domainEvent?.GetType().Name ?? "null", "Order"),
         };
 
+        /// <summary>The stored stream type of this aggregate.</summary>
+        public static string StreamType => "order";
+
+        /// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>
+        public static global::Tarol.Primitives.EventCatalog EventTypes { get; } = new("order",
+            new global::Tarol.Primitives.EventCatalogEntry(new("order.line.added", 1), typeof(global::Shop.Line.Added)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("shop.order.line_removed", 2), typeof(global::Shop.Line.Removed)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("order.note.on_line", 1), typeof(global::Shop.Note.OnLine)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("order.note.on_order", 1), typeof(global::Shop.Note.OnOrder)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("order.shipping.assigned", 1), typeof(global::Shop.Shipping.Assigned)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("order.shipping.cancelled", 1), typeof(global::Shop.Shipping.Cancelled)));
+
         /// <inheritdoc />
         protected override void Dispatch(in global::Tarol.Primitives.StreamEvent stream)
         {

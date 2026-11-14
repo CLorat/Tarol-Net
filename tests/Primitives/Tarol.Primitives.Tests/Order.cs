@@ -4,6 +4,7 @@ using Tarol.StronglyTypedId;
 namespace Tarol.Primitives.Tests.Orders;
 
 /// <summary>A single child (EntityRef), a child with two owner types (CreatedIn), and a user-declared entity constructor.</summary>
+[StreamType("test_order")] // the skill sample has an Order too: one stream type per compilation (TPRM028)
 public partial class Order : AggregateRoot<Order>
 {
     public EntitySet<Line> Lines { get; } = [];

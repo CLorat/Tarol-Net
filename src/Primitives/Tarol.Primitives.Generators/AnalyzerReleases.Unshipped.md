@@ -32,3 +32,5 @@ TPRM024 | Tarol.Primitives | Error | AggregateGenerator
 TPRM025 | Tarol.Primitives | Error | AggregateGenerator
 TPRM026 | Tarol.Primitives | Error | AggregateGenerator
 TPRM027 | Tarol.Primitives | Error | DomainAnalyzer
+TPRM028 | Tarol.Primitives | Error | AggregateGenerator
+TPRM029 | Tarol.Primitives | Error | AggregateGenerator

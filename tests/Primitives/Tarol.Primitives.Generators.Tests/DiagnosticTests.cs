@@ -120,6 +120,25 @@ public class DiagnosticTests
             """).ShouldBe(["TPRM010"]);
 
     [Fact]
+    public void TPRM028_Two_Aggregates_With_One_Stream_Type()
+        => Ids("""
+            namespace A { public partial class Shelf : AggregateRoot<Shelf> { } }
+            namespace B { public partial class Shelf : AggregateRoot<Shelf> { } }
+            namespace C { [StreamType("shelf")] public partial class Rack : AggregateRoot<Rack> { } }
+            """).ShouldBe(["TPRM028", "TPRM028"]);
+
+    [Fact]
+    public void TPRM028_Not_For_A_Pinned_Unique_Stream_Type()
+        => Ids("""
+            namespace A { public partial class Shelf : AggregateRoot<Shelf> { } }
+            namespace B { [StreamType("b_shelf")] public partial class Shelf : AggregateRoot<Shelf> { } }
+            """).ShouldBeEmpty();
+
+    [Fact]
+    public void TPRM029_An_Empty_Stream_Type()
+        => Ids("""[StreamType(" ")] public partial class Shelf : AggregateRoot<Shelf> { }""").ShouldBe(["TPRM029"]);
+
+    [Fact]
     public void TPRM011_CreatedIn_A_Type_That_Does_Not_Own_The_Child()
         => Ids("""
             public partial class Shelf : AggregateRoot<Shelf> { public EntitySet<Book> Books { get; } = []; }

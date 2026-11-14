@@ -37,6 +37,20 @@ namespace Auctions
             _ => global::Tarol.Primitives.ThrowHelper.UnknownEvent<global::Tarol.Primitives.EventType>(domainEvent?.GetType().Name ?? "null", "Auction"),
         };
 
+        /// <summary>The stored stream type of this aggregate.</summary>
+        public static string StreamType => "auction";
+
+        /// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>
+        public static global::Tarol.Primitives.EventCatalog EventTypes { get; } = new("auction",
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.closed", 1), typeof(global::Auctions.Auction.Closed)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.lated", 1), typeof(global::Auctions.Auction.Lated)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.opened", 1), typeof(global::Auctions.Auction.Opened)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.settled", 1), typeof(global::Auctions.Auction.Settled)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.bid.placed", 1), typeof(global::Auctions.Bid.Placed)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.bid.raised", 1), typeof(global::Auctions.Bid.Raised)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.bid.withdrawn", 1), typeof(global::Auctions.Bid.Withdrawn)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("auction.bid.won", 1), typeof(global::Auctions.Bid.Won)));
+
         #pragma warning disable CS0414 // read by the step checks, which an aggregate whose handlers assign no lifecycle field does not have
         private bool __live;
         #pragma warning restore CS0414

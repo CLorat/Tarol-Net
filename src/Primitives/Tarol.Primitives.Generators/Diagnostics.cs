@@ -198,6 +198,20 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "A [Transient] member is derived data that the stored state leaves out. An On handler that assigns it a value makes it state: after a load from the stored state it would be missing, and the aggregate would differ from a replay. Resetting a cache to null or default in On is allowed.");
 
+    /// <summary>TPRM028: two aggregates of one compilation share a stream type.</summary>
+    public static readonly DiagnosticDescriptor DuplicateStreamType = new(
+        "TPRM028", "Duplicate stream type",
+        "Aggregates '{0}' and '{1}' are both stored as stream type '{2}'; pin a unique one with [StreamType]",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "The stream type is part of every stored key. Two aggregates with one stream type would read each other's streams.");
+
+    /// <summary>TPRM029: [StreamType] with an empty name.</summary>
+    public static readonly DiagnosticDescriptor EmptyStreamType = new(
+        "TPRM029", "Empty stream type",
+        "[StreamType] on '{0}' needs a non-empty name",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "The stream type names the aggregate's streams in the store; it cannot be empty.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
         "TPRM001" => GeneratorFailure,
@@ -210,6 +224,8 @@ internal static class Diagnostics
         "TPRM008" => AssignableContainer,
         "TPRM009" => InvariantShape,
         "TPRM010" => DuplicateAlias,
+        "TPRM028" => DuplicateStreamType,
+        "TPRM029" => EmptyStreamType,
         "TPRM011" => NotAnOwner,
         "TPRM012" => ForeignChild,
         "TPRM016" => BadTarget,

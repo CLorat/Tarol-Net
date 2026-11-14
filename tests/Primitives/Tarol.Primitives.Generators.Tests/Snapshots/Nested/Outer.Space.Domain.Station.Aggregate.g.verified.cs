@@ -33,6 +33,14 @@ namespace Outer.Space
                 _ => global::Tarol.Primitives.ThrowHelper.UnknownEvent<global::Tarol.Primitives.EventType>(domainEvent?.GetType().Name ?? "null", "Station"),
             };
 
+            /// <summary>The stored stream type of this aggregate.</summary>
+            public static string StreamType => "station";
+
+            /// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>
+            public static global::Tarol.Primitives.EventCatalog EventTypes { get; } = new("station",
+                new global::Tarol.Primitives.EventCatalogEntry(new("station.repaired", 1), typeof(global::Elsewhere.Repaired)),
+                new global::Tarol.Primitives.EventCatalogEntry(new("station.domain.module.docked", 1), typeof(global::Outer.Space.Domain.Module.Docked)));
+
             /// <inheritdoc />
             protected override void Dispatch(in global::Tarol.Primitives.StreamEvent stream)
             {
