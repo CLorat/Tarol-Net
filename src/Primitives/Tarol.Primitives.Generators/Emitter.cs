@@ -191,6 +191,7 @@ internal sealed partial class Emitter
         Line();
 
         EmitEventTypeOf();
+        EmitApplyLive();
         EmitDispatch();
         EmitApply(_root);
         EmitHelpers();
@@ -239,6 +240,7 @@ internal sealed partial class Emitter
             else
                 EmitCreate(entity, owners[0], $"{bases}.Created");
 
+            EmitEntityStepCase(entity, deleted: true);
             Line($"case {bases}.Deleted:");
             Open();
             Line($"if (!__map{i}.TryGetValue(({Id}<{x}>)stream.EntityId, out var entity))");
@@ -249,6 +251,7 @@ internal sealed partial class Emitter
             Line("return;");
             Close();
 
+            EmitEntityStepCase(entity, deleted: false);
             Line($"case {bases}.Event:");
             Open();
             Line($"if (!__map{i}.TryGetValue(({Id}<{x}>)stream.EntityId, out var entity))");
@@ -258,6 +261,7 @@ internal sealed partial class Emitter
             Close();
         }
 
+        EmitRootStepCase();
         Line($"case {P}AggregateRoot<{RootName}>.Event:");
         Open();
         Line($"if (stream.EntityId != Id.Value)");
@@ -312,6 +316,7 @@ internal sealed partial class Emitter
         Line(member.IsRef ? $"__TarolRef<{x}>.Set({container}, entity);" : $"__TarolSet<{x}>.Add({container}, entity);");
         Line($"__Parent{i}(entity) = {ownerExpr};");
         ApplyAndBubble(entity);
+        EmitCreationCheck(entity, "entity", "__live");
         Line("return;");
         Close();
     }
@@ -460,15 +465,36 @@ internal sealed partial class Emitter
 
     private void EmitUpStep(TypeModel owner, string ownerExpr)
     {
+        var fields = AncestorStepFields(owner);
         if (owner.FullName == RootName)
         {
-            if (HasForeignHandlers(_root))
+            if (!HasForeignHandlers(_root))
+                return;
+            if (fields.Count == 0)
+            {
                 Line("__Apply(e);");
+                return;
+            }
+
+            Open();
+            EmitCapture(_root, fields, "this");
+            Line("__Apply(e);");
+            EmitStepCheck(_root, fields, "this", "e");
+            Close();
             return;
         }
 
         var o = _index[owner.FullName];
-        if (HasForeignHandlers(owner))
+        if (HasForeignHandlers(owner) && fields.Count > 0)
+        {
+            Open();
+            Line($"var __owner = {ownerExpr};");
+            EmitCapture(owner, fields, "__owner");
+            Line($"__Apply{o}(__owner, e);");
+            EmitStepCheck(owner, fields, "__owner", "e");
+            Close();
+        }
+        else if (HasForeignHandlers(owner))
             Line($"__Apply{o}({ownerExpr}, e);");
         if (NeedsUp(owner.FullName))
             Line($"__Up{o}({ownerExpr}, e);");
@@ -514,6 +540,9 @@ internal sealed partial class Emitter
 
     private void EmitRootAccessors()
     {
+        EmitLifecycleAccessors(_root);
+        foreach (var entity in _model.Entities.Where(static e => e.CanEmit))
+            EmitLifecycleAccessors(entity);
         foreach (var entity in _model.Entities.Where(static e => e.CanEmit))
         {
             var x = entity.FullName;

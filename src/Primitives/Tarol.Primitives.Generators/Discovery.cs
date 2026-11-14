@@ -34,16 +34,16 @@ internal static class Discovery
         if (type.TypeKind == Microsoft.CodeAnalysis.TypeKind.Class && !type.IsRecord)
         {
             if (Symbols.RootOf(type) is { } root)
-                return Owner(TypeKind.Root, type, root, ct);
+                return Owner(TypeKind.Root, type, root, ctx.SemanticModel, ct);
             if (Symbols.EntityRootOf(type) is { } entityRoot)
-                return Owner(TypeKind.Entity, type, entityRoot, ct);
+                return Owner(TypeKind.Entity, type, entityRoot, ctx.SemanticModel, ct);
             return null;
         }
 
         return type.IsRecord ? Event(type, ct) : null;
     }
 
-    private static TypeModel Owner(TypeKind kind, INamedTypeSymbol type, INamedTypeSymbol root, CancellationToken ct)
+    private static TypeModel Owner(TypeKind kind, INamedTypeSymbol type, INamedTypeSymbol root, SemanticModel model, CancellationToken ct)
     {
         var diagnostics = new List<DiagnosticInfo>();
         var location = LocationOf(type);
@@ -73,6 +73,8 @@ internal static class Discovery
         var hasIdConstructor = false;
         var stored = !Symbols.HasAttribute(root, "LoadByReplayAttribute");
         var state = new List<StateField>();
+        var lifecycle = LifecycleDiscovery.Fields(type, ct);
+        var lifecycleMembers = new HashSet<ISymbol>(lifecycle.Select(static f => f.Member), SymbolEqualityComparer.Default);
 
         foreach (var member in type.GetMembers())
         {
@@ -98,7 +100,8 @@ internal static class Discovery
                     break;
 
                 case IMethodSymbol { MethodKind: MethodKind.Ordinary } method when Symbols.IsHandler(method):
-                    handlers.Add(new HandlerModel(Symbols.FullName(method.Parameters[0].Type), LocationOf(method)));
+                    handlers.Add(new HandlerModel(Symbols.FullName(method.Parameters[0].Type), LocationOf(method),
+                        lifecycleMembers.Count == 0 ? default : LifecycleDiscovery.Assigns(method, model, lifecycleMembers, ct)));
                     break;
 
                 case IMethodSymbol { MethodKind: MethodKind.Ordinary } method when method.GetAttributes().Any(static a => Symbols.Is(a.AttributeClass, "InvariantAttribute")):
@@ -128,7 +131,7 @@ internal static class Discovery
             kind, Symbols.FullName(root), Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
             Containers(type, ct), canEmit,
             Array(members), Array(handlers), Array(invariants), hasIdConstructor,
-            Array(state), !stored,
+            Array(state), !stored, Array(lifecycle.Select(static f => f.Model).ToList()),
             EventKind.None, null, null, type.IsAbstract, default, "", 0, location, Array(diagnostics));
     }
 
@@ -143,7 +146,7 @@ internal static class Discovery
                 var (alias, version) = Alias(type, root!);
                 return new TypeModel(
                     TypeKind.Event, Symbols.FullName(root!), Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
-                    default, true, default, default, default, false, default, false,
+                    default, true, default, default, default, false, default, false, default,
                     kind, Symbols.FullName(target!), parent is null ? null : Symbols.FullName(parent), type.IsAbstract,
                     new EquatableArray<string>(bases.ToImmutableArray()), alias, version, LocationOf(type), default);
             }
@@ -152,7 +155,7 @@ internal static class Discovery
             {
                 return new TypeModel(
                     TypeKind.Event, "", Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
-                    default, false, default, default, default, false, default, false, EventKind.None, null, null, type.IsAbstract, default, "", 0,
+                    default, false, default, default, default, false, default, false, default, EventKind.None, null, null, type.IsAbstract, default, "", 0,
                     LocationOf(type),
                     Array(new List<DiagnosticInfo> { DiagnosticInfo.Create(Diagnostics.Unsupported, LocationOf(type), type.Name, "an event derives from the Event, Created, CreatedIn<TParent> or Deleted base of the type it targets, not from DomainEvent") }));
             }

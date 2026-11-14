@@ -67,8 +67,14 @@ internal sealed record StateField(
     string Shape,
     LocationInfo? Location);
 
-/// <summary>An <c>On(TEvent)</c> handler.</summary>
-internal sealed record HandlerModel(string Event, LocationInfo? Location);
+/// <summary>An <c>On(TEvent)</c> handler; <paramref name="Assigns"/> are the lifecycle members it assigns.</summary>
+internal sealed record HandlerModel(string Event, LocationInfo? Location, EquatableArray<string> Assigns = default);
+
+/// <summary>
+/// A field of a root or entity whose type is a <c>[Lifecycle]</c> enum: the CLR field (for the accessor), the member name
+/// (for messages), the enum, its generated class and its initial state (fully qualified).
+/// </summary>
+internal sealed record LifecycleField(string Field, string Member, string Enum, string Class, string Initial);
 
 /// <summary>
 /// One root, entity or event, as strings and value types only (no symbols, no <see cref="Location"/>), so the per-type
@@ -90,6 +96,7 @@ internal sealed record TypeModel(
     bool HasIdConstructor,
     EquatableArray<StateField> StateFields,
     bool LoadByReplay,
+    EquatableArray<LifecycleField> LifecycleFields,
     // event
     EventKind EventKind,
     string? Target,

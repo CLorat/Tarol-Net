@@ -112,6 +112,64 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "Dispatch, CheckInvariants and the generated maps, constructors and accessors are reached only by generated code. Raise events from behaviour methods, and let AggregateChanges.Prepare run the invariants.");
 
+    /// <summary>TPRM016: a <c>[To]</c> argument that is not a member of the same enum.</summary>
+    public static readonly DiagnosticDescriptor BadTarget = new(
+        "TPRM016", "Transition target is not a state",
+        "'{0}' in [To] on '{1}' is not a member of '{2}'",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "[To] lists the states a lifecycle state may change to: members of the same [Lifecycle] enum, such as [To(Closed, Cancelled)]. Attribute arguments cannot be typed by the enum, so the generator checks them.");
+
+    /// <summary>TPRM017: a state that no path from the initial state reaches.</summary>
+    public static readonly DiagnosticDescriptor Unreachable = new(
+        "TPRM017", "State is unreachable",
+        "State '{0}' of '{1}' cannot be reached from the initial state '{2}'",
+        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "No chain of [To] edges leads from the initial state to this state, so a live step can never enter it. Add the missing [To], or remove the state once no stored event or state row uses its name (a stored state name is forever).");
+
+    /// <summary>TPRM018: a self-loop or an edge declared twice.</summary>
+    public static readonly DiagnosticDescriptor RedundantEdge = new(
+        "TPRM018", "Redundant transition",
+        "[To({0})] on '{1}' is {2}",
+        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "A step to the same state is no change and is never checked; an edge declared twice says nothing new. Remove it.");
+
+    /// <summary>TPRM019: an enum that cannot be a lifecycle.</summary>
+    public static readonly DiagnosticDescriptor UnusableLifecycle = new(
+        "TPRM019", "Enum cannot be a lifecycle",
+        "'{0}' cannot be a lifecycle: {1}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A lifecycle has one state per member: no [Flags], no two members with one value, at least one member, an Initial that names a member, and an enum the generated namespace-level class can see (at least internal, not file-local, not nested in a generic type).");
+
+    /// <summary>TPRM020: <c>[To]</c> on a member of an enum without <c>[Lifecycle]</c>.</summary>
+    public static readonly DiagnosticDescriptor ToWithoutLifecycle = new(
+        "TPRM020", "[To] outside a lifecycle",
+        "[To] on '{0}' has no effect: '{1}' has no [Lifecycle]",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "[To] declares edges of a lifecycle. Without [Lifecycle] on the enum nothing is generated or checked; add [Lifecycle] or remove [To].");
+
+    /// <summary>TPRM021: a <c>[Transition]</c> on an event that is not a declared edge.</summary>
+    public static readonly DiagnosticDescriptor TransitionNotAnEdge = new(
+        "TPRM021", "[Transition] is not a declared edge",
+        "[Transition] on '{0}' labels {1} of '{2}', which is not a declared edge: {3}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "[To] on the states is the graph; [Transition<TEnum>(from, to)] on an event only labels one of its edges in the diagram. Declare the edge with [To] on the from-state, or correct the label.");
+
+    /// <summary>TPRM022: a declared state that no <c>On</c> handler assigns (analyzer).</summary>
+    public static readonly DiagnosticDescriptor NeverAssigned = new(
+        "TPRM022", "State is never assigned",
+        "State '{0}' of '{1}' is never assigned in an On handler; no event can enter it",
+        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "The lifecycle declares the state, but no On handler of an aggregate or entity in this project assigns it to a field of the enum, so it is dead (as ArtFlow's Settled was). Add the event that enters it, or remove the state once nothing stored uses its name. The initial state is exempt; an enum assigned from a computed value is not checked.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>TPRM023: an event's <c>On</c> handler does not assign the <c>To</c> of its <c>[Transition]</c> (analyzer).</summary>
+    public static readonly DiagnosticDescriptor TransitionMismatch = new(
+        "TPRM023", "On handler does not perform its [Transition]",
+        "On({0}) on '{1}' does not assign '{2}' to a '{3}' field, but '{0}' is labelled [Transition] {4} -> {2}",
+        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "[Transition<TEnum>(from, to)] says which step an event performs. Its On handler should assign that state; otherwise the label and the diagram are wrong.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
     /// <summary>TPRM024: a field the stored state cannot hold.</summary>
     public static readonly DiagnosticDescriptor Uncapturable = new(
         "TPRM024", "Field cannot be stored with the aggregate's state",
@@ -154,6 +212,12 @@ internal static class Diagnostics
         "TPRM010" => DuplicateAlias,
         "TPRM011" => NotAnOwner,
         "TPRM012" => ForeignChild,
+        "TPRM016" => BadTarget,
+        "TPRM017" => Unreachable,
+        "TPRM018" => RedundantEdge,
+        "TPRM019" => UnusableLifecycle,
+        "TPRM020" => ToWithoutLifecycle,
+        "TPRM021" => TransitionNotAnEdge,
         "TPRM024" => Uncapturable,
         "TPRM025" => StateNameCollision,
         "TPRM026" => StateAttributeIgnored,

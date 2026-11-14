@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Tarol.Primitives.Generators;
@@ -26,6 +27,8 @@ public sealed class AggregateGenerator : IIncrementalGenerator
     /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        InitializeLifecycles(context);
+
         var types = context.SyntaxProvider
             .CreateSyntaxProvider(static (node, _) => Discovery.IsCandidate(node), static (ctx, ct) => Discovery.Transform(ctx, ct))
             .Where(static model => model is not null)
@@ -74,6 +77,49 @@ public sealed class AggregateGenerator : IIncrementalGenerator
         });
     }
 
+    /// <summary>
+    /// The lifecycle pipelines: one model per <c>[Lifecycle]</c> enum (TPRM016–019), <c>[To]</c> outside a lifecycle
+    /// (TPRM020) and <c>[Transition]</c> labels (TPRM021). Each enum's class is emitted from a location-free model that
+    /// carries only its own labels, so an edit elsewhere leaves it cached.
+    /// </summary>
+    private static void InitializeLifecycles(IncrementalGeneratorInitializationContext context)
+    {
+        var enums = context.SyntaxProvider.ForAttributeWithMetadataName(LifecycleDiscovery.LifecycleAttribute,
+            static (node, _) => node is EnumDeclarationSyntax,
+            static (ctx, ct) => LifecycleDiscovery.Model((INamedTypeSymbol)ctx.TargetSymbol, ct));
+
+        var orphans = context.SyntaxProvider.ForAttributeWithMetadataName(LifecycleDiscovery.ToAttribute,
+                static (node, _) => node is EnumMemberDeclarationSyntax,
+                static (ctx, _) => LifecycleDiscovery.ToWithoutLifecycle(ctx.TargetSymbol, ctx.TargetNode))
+            .Where(static d => d is not null);
+        context.RegisterSourceOutput(orphans, static (spc, d) => spc.ReportDiagnostic(d!.ToDiagnostic()));
+
+        var transitions = context.SyntaxProvider.ForAttributeWithMetadataName(LifecycleDiscovery.TransitionAttribute,
+                static (node, _) => node is TypeDeclarationSyntax,
+                static (ctx, ct) => new EquatableArray<LabelOrDiagnostic>(LifecycleDiscovery
+                    .Labels((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes, ct)
+                    .Select(static x => new LabelOrDiagnostic(x.Label, x.Diagnostic)).ToImmutableArray()))
+            .SelectMany(static (items, _) => items.ToImmutableArray());
+        context.RegisterSourceOutput(transitions.Where(static x => x.Diagnostic is not null),
+            static (spc, x) => spc.ReportDiagnostic(x.Diagnostic!.ToDiagnostic()));
+        var labels = transitions.Where(static x => x.Label is not null).Select(static (x, _) => x.Label!).Collect();
+
+        context.RegisterSourceOutput(enums.Where(static m => m.Diagnostics.Count > 0), static (spc, model) =>
+        {
+            foreach (var diagnostic in model.Diagnostics)
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
+        });
+
+        var outputs = enums.Where(static m => m.IsValid).Combine(labels).Select(static (pair, _) => pair.Left.WithoutLocations() with
+        {
+            Labels = new EquatableArray<LifecycleLabel>(pair.Right.Where(l => l.Enum == pair.Left.FullName)
+                .OrderBy(static l => l.From, StringComparer.Ordinal).ThenBy(static l => l.To, StringComparer.Ordinal)
+                .ThenBy(static l => l.Event, StringComparer.Ordinal).Distinct().ToImmutableArray()),
+        });
+        context.RegisterSourceOutput(outputs, static (spc, model)
+            => spc.AddSource(model.HintName, SourceText.From(LifecycleEmitter.Emit(model), Encoding.UTF8)));
+    }
+
     private static ImmutableArray<AggregateModel> Group(ImmutableArray<TypeModel> all, CancellationToken ct)
     {
         var builder = ImmutableArray.CreateBuilder<AggregateModel>();
@@ -90,3 +136,6 @@ public sealed class AggregateGenerator : IIncrementalGenerator
         return builder.ToImmutable();
     }
 }
+
+/// <summary>A <c>[Transition]</c> as a label of a declared edge, or its TPRM021.</summary>
+internal sealed record LabelOrDiagnostic(LifecycleLabel? Label, DiagnosticInfo? Diagnostic);

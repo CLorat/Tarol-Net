@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -14,9 +15,12 @@ namespace Tarol.Primitives.Generators;
 ///         <c>On</c> handlers, <c>[Transient]</c> members);</item>
 ///         <item>TPRM014: an <c>On</c> handler does not call a rule or guard (a method returning <c>Result</c>), throw,
 ///         read a <c>TimeProvider</c> or raise;</item>
-///         <item>TPRM015: user code does not call <c>Dispatch</c>, <c>CheckInvariants</c> or generated <c>__</c> members;</item>
+///         <item>TPRM015: user code does not call <c>Dispatch</c>, <c>CheckInvariants</c>, the lifecycle hook (<c>ApplyLive</c>,
+///         <c>ApplyRaised</c>, <c>ForbiddenStep</c>) or generated <c>__</c> members, and does not override <c>ApplyLive</c>;</item>
 ///         <item>TPRM027: an <c>On</c> handler does not fill a <c>[Transient]</c> member (it is not stored, so a load from the
-///         stored state would lose it); resetting it to <c>null</c> or <c>default</c> is allowed.</item>
+///         stored state would lose it); resetting it to <c>null</c> or <c>default</c> is allowed;</item>
+///         <item>TPRM022: a state of a <c>[Lifecycle]</c> enum used by a domain type is assigned by some <c>On</c> handler;</item>
+///         <item>TPRM023: the <c>On</c> handler of an event with <c>[Transition]</c> assigns its <c>To</c>.</item>
 ///     </list>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -24,7 +28,8 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(Diagnostics.StateOutsideApply, Diagnostics.DecisionInApply, Diagnostics.PlumbingUsed, Diagnostics.TransientIsState);
+        ImmutableArray.Create(Diagnostics.StateOutsideApply, Diagnostics.DecisionInApply, Diagnostics.PlumbingUsed, Diagnostics.TransientIsState,
+            Diagnostics.NeverAssigned, Diagnostics.TransitionMismatch);
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -41,6 +46,26 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
 
             var callers = new ConcurrentDictionary<IMethodSymbol, ConcurrentBag<IMethodSymbol>>(SymbolEqualityComparer.Default);
             var writes = new ConcurrentBag<(IMethodSymbol Method, ISymbol Member, Location Location)>();
+            // TPRM022/023: every assignment of a lifecycle enum to a member of a domain type; State is null for a computed value
+            var states = new ConcurrentBag<(IMethodSymbol Method, INamedTypeSymbol Enum, string? State)>();
+            var lifecycles = new ConcurrentDictionary<INamedTypeSymbol, byte>(SymbolEqualityComparer.Default);
+            var handlers = new ConcurrentBag<IMethodSymbol>();
+
+            start.RegisterSymbolAction(ctx =>
+            {
+                switch (ctx.Symbol)
+                {
+                    case INamedTypeSymbol type when IsDomainType(type):
+                        // backing fields are implicitly declared and get no symbol action of their own
+                        foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
+                            if (!field.IsStatic && LifecycleDiscovery.IsLifecycle(field.Type) && field.Type.Locations.Any(static l => l.IsInSource))
+                                lifecycles.TryAdd((INamedTypeSymbol)field.Type, 0);
+                        break;
+                    case IMethodSymbol { IsOverride: true, Name: "ApplyLive" } method when IsDomainType(method.ContainingType) && IsPlumbing(method):
+                        ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.PlumbingUsed, method.Locations.FirstOrDefault(), method.Name));
+                        break;
+                }
+            }, SymbolKind.NamedType, SymbolKind.Method);
 
             start.RegisterOperationBlockStartAction(block =>
             {
@@ -49,6 +74,8 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
                 if (method.MethodKind is MethodKind.Constructor or MethodKind.StaticConstructor)
                     return;
                 var apply = Symbols.IsHandler(method);
+                if (apply)
+                    handlers.Add(method);
 
                 block.RegisterOperationAction(ctx =>
                 {
@@ -58,6 +85,8 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
                         IIncrementOrDecrementOperation increment => increment.Target,
                         _ => null,
                     };
+                    if (target is IMemberReferenceOperation { Instance: IInstanceReferenceOperation } && LifecycleDiscovery.IsLifecycle(target.Type))
+                        states.Add((method, (INamedTypeSymbol)target.Type!, AssignedState(ctx.Operation, (INamedTypeSymbol)target.Type!)));
                     if (!apply && StateMember(target) is { } member)
                         writes.Add((method, member, ctx.Operation.Syntax.GetLocation()));
                     else if (apply && TransientMember(target) is { } transient && !IsReset(ctx.Operation))
@@ -115,7 +144,63 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
                 foreach (var write in writes)
                     if (!OnlyFromApply(write.Method, 0))
                         end.ReportDiagnostic(Diagnostic.Create(Diagnostics.StateOutsideApply, write.Location, write.Member.Name, write.Method.Name));
+
+                // assignments in On handlers and in the private helpers only they call
+                var applied = states.Where(w => Symbols.IsHandler(w.Method) || OnlyFromApply(w.Method, 0)).ToList();
+
+                // TPRM022: a declared state no On handler assigns (the initial state is exempt; a computed assignment disables it)
+                foreach (var lifecycle in lifecycles.Keys)
+                {
+                    var model = LifecycleDiscovery.Model(lifecycle, end.CancellationToken);
+                    var assigned = applied.Where(w => SymbolEqualityComparer.Default.Equals(w.Enum, lifecycle)).ToList();
+                    if (!model.IsValid || assigned.Any(static w => w.State is null))
+                        continue;
+                    foreach (var state in model.States.Where(s => s != model.Initial && assigned.All(w => w.State != s)))
+                        end.ReportDiagnostic(Diagnostic.Create(Diagnostics.NeverAssigned,
+                            lifecycle.GetMembers(state).FirstOrDefault()?.Locations.FirstOrDefault(), state, lifecycle.Name));
+                }
+
+                // TPRM023: an On handler that does not assign the To of its event's [Transition]
+                foreach (var handler in handlers)
+                {
+                    if (!SymbolEqualityComparer.Default.Equals(TargetOf(handler.Parameters[0].Type), handler.ContainingType))
+                        continue; // an owner's handler for a child's event applies its own state, not the child's step
+                    var reached = Reached(handler);
+                    foreach (var attribute in handler.Parameters[0].Type.GetAttributes())
+                    {
+                        if (attribute.AttributeClass is not { TypeArguments.Length: 1 } transition
+                            || !Symbols.Is(transition.OriginalDefinition, "TransitionAttribute`1")
+                            || transition.TypeArguments[0] is not INamedTypeSymbol lifecycle
+                            || !LifecycleDiscovery.IsLifecycle(lifecycle)
+                            || attribute.ConstructorArguments.Length != 2)
+                            continue;
+                        var from = StateName(lifecycle, attribute.ConstructorArguments[0].Value);
+                        var to = StateName(lifecycle, attribute.ConstructorArguments[1].Value);
+                        if (from is null || to is null)
+                            continue; // TPRM021
+                        var assigned = states.Where(w => reached.Contains(w.Method) && SymbolEqualityComparer.Default.Equals(w.Enum, lifecycle)).ToList();
+                        if (assigned.Any(w => w.State is null || w.State == to))
+                            continue;
+                        end.ReportDiagnostic(Diagnostic.Create(Diagnostics.TransitionMismatch, handler.Locations.FirstOrDefault(),
+                            handler.Parameters[0].Type.Name, handler.ContainingType.Name, to, lifecycle.Name, from));
+                    }
+                }
             });
+
+            // the handler and the methods of its type it calls, transitively
+            HashSet<IMethodSymbol> Reached(IMethodSymbol handler)
+            {
+                var set = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default) { handler.OriginalDefinition };
+                for (var changed = true; changed;)
+                {
+                    changed = false;
+                    foreach (var pair in callers)
+                        if (!set.Contains(pair.Key) && pair.Value.Any(c => set.Contains(c.OriginalDefinition)))
+                            changed |= set.Add(pair.Key);
+                }
+
+                return set;
+            }
 
             bool OnlyFromApply(IMethodSymbol method, int depth)
             {
@@ -127,6 +212,30 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
             }
         });
     }
+
+    /// <summary>The member name of a lifecycle enum constant assigned by a plain assignment, or <see langword="null"/> for a computed value.</summary>
+    private static string? AssignedState(IOperation operation, INamedTypeSymbol lifecycle)
+    {
+        if (operation is not ISimpleAssignmentOperation { Value: var value })
+            return null;
+        while (value is IConversionOperation { IsImplicit: true } conversion)
+            value = conversion.Operand;
+        return value.ConstantValue.HasValue ? StateName(lifecycle, value.ConstantValue.Value) : null;
+    }
+
+    /// <summary>The root or entity an event targets.</summary>
+    private static INamedTypeSymbol? TargetOf(ITypeSymbol type)
+    {
+        for (var b = type.BaseType; b is not null; b = b.BaseType)
+            if (Symbols.LibraryEventBase(b) is { Kind: not EventKind.None } found)
+                return found.Target;
+        return null;
+    }
+
+    private static string? StateName(INamedTypeSymbol lifecycle, object? value)
+        => value is null
+            ? null
+            : lifecycle.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(f => f.HasConstantValue && Equals(f.ConstantValue, value))?.Name;
 
     private static ISymbol? StateMember(IOperation? target)
     {
@@ -174,7 +283,7 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
     {
         if (method.Name.StartsWith("__", System.StringComparison.Ordinal) && IsDomainType(method.ContainingType))
             return true;
-        if (method.Name is not ("Dispatch" or "CheckInvariants"))
+        if (method.Name is not ("Dispatch" or "CheckInvariants" or "ApplyLive" or "ApplyRaised" or "ForbiddenStep"))
             return false;
         for (var m = method; m is not null; m = m.OverriddenMethod)
             if (IsLibraryBase(m.ContainingType))
