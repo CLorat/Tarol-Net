@@ -48,6 +48,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
     private readonly TimeProvider _time;
     private readonly JsonSerializerOptions _stateOptions;
     private readonly StoreLookups _lookups;
+    private readonly ReactionTable? _reactions;
     private readonly Sql _sql;
 
     /// <summary>Creates a store.</summary>
@@ -67,7 +68,12 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
         _stateOptions = options.StateOptions ?? codec.Options;
         _lookups = options.Lookups ?? new StoreLookups();
         _sql = new Sql(options.Schema);
+        _reactions = options.Reactions;
+        Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema);
     }
+
+    /// <summary>Claims, completes and fails the outbox rows the commits wrote (<see cref="NpgsqlStoreOptions.Reactions"/>).</summary>
+    public NpgsqlOutbox Outbox { get; }
 
     /// <summary>The PostgreSQL schema of the tables.</summary>
     public string Schema => _sql.Schema;
@@ -248,6 +254,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
                     lookupCommands.Add((Command(batch, _sql.ClaimLookup, tenant, type, lookup, lookupKey, id, eventIds[0]), lookup, lookupKey));
             }
 
+            // outbox rows: one per (event, reaction), in this commit (C-2, P-1)
+            if (_reactions is not null)
+            {
+                var (reactions, rowVersions, rowEvents) = OutboxRows(_reactions, changes, eventIds);
+                if (reactions.Length > 0)
+                    _ = Command(batch, _sql.WriteOutbox, tenant, type, id, at, reactions, rowVersions, rowEvents, eventIds[0]);
+            }
+
             // 3. the version after these statements: ours, or the winner's after a lost race (read committed)
             _ = Command(batch, _sql.StreamVersion, tenant, type, id);
 
@@ -329,20 +343,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
         await using (reader.ConfigureAwait(false))
         {
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
-                var type = reader.GetString(2);
-                var domainEvent = _codec.Decode(type, new EventType(reader.GetString(7), reader.GetInt32(8)), reader.GetFieldValue<byte[]>(9));
-                var tenant = reader.GetGuid(17);
-                var actor = new Actor(Enum.Parse<ActorKind>(reader.GetString(12)), reader.GetString(13),
-                    reader.IsDBNull(14) ? Option.None : reader.GetString(14));
-                var context = new OperationContext(actor, tenant == NoTenant ? Option.None : (Id<ITenant>)tenant,
-                    (Id<ICorrelation>)reader.GetGuid(15), reader.IsDBNull(16) ? Option.None : (Id<ICausation>)reader.GetGuid(16));
-                var recorded = new RecordedEvent(reader.GetGuid(3),
-                    new StreamEvent(reader.GetInt64(4), reader.GetGuid(5), reader.IsDBNull(6) ? Guid.Empty : reader.GetGuid(6), domainEvent),
-                    reader.GetGuid(10), reader.GetFieldValue<DateTimeOffset>(11), context);
-                yield return new PositionedEvent(
-                    new GlobalPosition(ulong.Parse(reader.GetString(0), CultureInfo.InvariantCulture), reader.GetInt64(1)), type, recorded);
-            }
+                yield return RecordedEvents.Read(reader, 0, _codec);
         }
     }
 
@@ -408,6 +409,24 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
     }
 
     // ---------------------------------------------------------------------------------------------------------- helpers
+
+    private static (string[] Reactions, long[] Versions, Guid[] Events) OutboxRows(ReactionTable table, StreamEvent[] changes, Guid[] eventIds)
+    {
+        var reactions = new List<string>();
+        var versions = new List<long>();
+        var events = new List<Guid>();
+        for (var i = 0; i < changes.Length; i++)
+        {
+            foreach (var reaction in table(changes[i].Event))
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(reaction);
+                reactions.Add(reaction);
+                versions.Add(changes[i].Version);
+                events.Add(eventIds[i]);
+            }
+        }
+        return ([.. reactions], [.. versions], [.. events]);
+    }
 
     private static T Replay<T>(Id<T> id, StreamEvent[] history)
         where T : AggregateRoot<T>, IAggregateRoot<T>
@@ -480,6 +499,12 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
             ON CONFLICT (tenant, type, lookup, key) DO UPDATE SET stream_id = EXCLUDED.stream_id WHERE lookups.stream_id = EXCLUDED.stream_id
             """;
 
+        public string WriteOutbox => $"""
+            INSERT INTO {schema}.outbox (tenant, reaction, type, stream_id, version, event_id, due_at)
+            SELECT $1, r, $2, $3, v, e, $4 FROM unnest($5::text[], $6::bigint[], $7::uuid[]) AS u(r, v, e)
+            WHERE {Ours("$8")}
+            """;
+
         public string StreamVersion => $"SELECT version FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
 
         public string LoadState => $"SELECT schema, state FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
@@ -496,8 +521,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
         // (tx_id, position) is the order; only transactions older than the oldest running one are final (P-14).
         // The text column needs its own name: ORDER BY tx_id would otherwise sort by the text output column.
         public string ReadAll => $"""
-            SELECT tx_id::text AS tx_text, position, type, stream_id, version, entity_id, parent_id, alias, alias_version, payload, event_id, recorded_at,
-                   actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, tenant
+            SELECT {RecordedEvents.Columns("events")}
             FROM {schema}.events
             WHERE (tx_id, position) > ($1::text::xid8, $2) AND tx_id < pg_snapshot_xmin(pg_current_snapshot())
             ORDER BY events.tx_id, events.position

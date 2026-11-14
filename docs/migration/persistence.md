@@ -595,3 +595,62 @@ None.
 | `dotnet test --solution Tarol.slnx -- --filter-not-trait "Category=Integration" --ignore-exit-code 8` (Docker stopped) | 808 total, 0 failed; the integration project runs no test and starts no container |
 | `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK; `Tarol.Persistence.Npgsql` holds `lib/net11.0` (dll, xml), `README.md`, `LICENSE`, `skills/tarol-persistence-npgsql/SKILL.md`; the consumer passes 3/3 and lists the skills of the package and its dependencies |
 | `TAROL_PG=… eng/aot-smoke.sh` (local `postgres:17`) | 9 apps, each 0 IL warnings; `Tarol.Persistence.Npgsql.AotSmoke` 11/11 natively |
+
+## 22. Implementation: PR 8C (2026-11-14)
+
+`persistence: outbox rows and claims`, stacked on PR 8B. As decided in §15 (P-1, P-10) and §16; differences below.
+
+### 22.1 Public API (new)
+
+| Package | Type | Members |
+|---|---|---|
+| `Tarol.Persistence` | `delegate ReadOnlySpan<string> ReactionTable(DomainEvent)` | the reactions to an event (step 9 generates it) |
+| `Tarol.Persistence.Npgsql` | `NpgsqlStoreOptions.Reactions` | `ReactionTable?`; `null` = no outbox rows |
+| | `NpgsqlAggregateStore.Outbox` | `NpgsqlOutbox` |
+| | `NpgsqlOutbox` | `Claim(max, lease, ct) : Task<IReadOnlyList<OutboxRow>>`, `Complete(row, ct) : Task<bool>`, `Fail(row, retryAt, error, ct) : Task<bool>`, `Pending(ct) : Task<long>` |
+| | `OutboxRow(long Id, Guid ClaimId, string Reaction, Option<Id<ITenant>> Tenant, int Attempts, Option<string> LastError, PositionedEvent Event)` | |
+
+Schema: the `outbox` table (`UNIQUE (reaction, event_id)`, `claim_id`, `lease_until`, indexes `outbox_due`, `outbox_stream`)
+joins the script; still schema version 1 (nothing released).
+
+### 22.2 Deliberate differences from §8 and §16
+
+* **`ReactionTable` lives in `Tarol.Persistence`**, not in the Npgsql package: step 9's generated `ReactionsTo` can fill it
+  without a reference to Npgsql.
+* **Claims carry the event** (`OutboxRow.Event`, read in the claim statement), so the worker needs no second query.
+* **A claim id per claim**: `Complete` and `Fail` present it and return `false` when the lease expired and another
+  worker claimed the row again (the probe's `Complete(id)` could delete a row someone else owned).
+* **Claims read the store's `TimeProvider`** (time.md), instead of taking `now` as a parameter.
+* **The in-memory store writes no outbox rows** yet; step 9 adds an in-memory outbox with its worker.
+* **No dead-letter** in 8C: a row that keeps failing stays the head of its (stream, reaction); step 9 moves it out (C-9).
+
+### 22.3 Found while building
+
+1. The feed tests were flaky again (1 failure in about 20 runs) for the same reason as §21.3 item 2: another test held a
+   transaction open and the cluster-wide xmin held this test's feed back. Every feed test that expects rows now waits
+   until they are final (`Eventually`); 25 consecutive runs are green.
+2. A collection expression in a span-returning lambda is CS9203 (design §12 item 6) — it bit the first test again; the
+   `ReactionTable` docs and the skill show static arrays.
+
+### 22.4 Tests **[verified]**
+
+`NpgsqlOutboxTests` (8): one row per (event, reaction) with the full `RecordedEvent` and tenant, heads first; refused
+commits (version conflict, taken lookup) write no rows; no table → no rows; a reaction listed twice → exception and
+nothing committed; 4 workers claim 50 rows of 10 streams exactly once, per stream in version order, never two of one
+stream at once; the next row of a stream waits for its head; an expired lease is claimed again and the first worker's
+`Complete`/`Fail` return `false`; `Fail` delays the row and keeps the error. AOT smoke: claim with the event and
+complete, natively.
+
+### 22.5 Verification (SDK 11.0.100, 2026-11-14)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker running) | 852 total, 0 failed (808 + 44 integration) |
+| `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK |
+| `TAROL_PG=… eng/aot-smoke.sh` | 9 apps, each 0 IL warnings; `Tarol.Persistence.Npgsql.AotSmoke` 12/12 natively |
+
+### 22.6 Suppressions and analyzer configuration
+
+None.

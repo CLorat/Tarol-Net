@@ -37,6 +37,7 @@ await store.EnsureSchema(ct);                                                   
 | `events` | (tenant, type, stream_id, version) | alias, alias version, entity and parent id, `payload jsonb`, `recorded_at` (one per commit), actor, correlation, causation, `traceparent`, `position` + `tx_id` (the feed) |
 | `lookups` | (tenant, type, lookup, key) | the stream owning a unique key |
 | `idempotency_keys` | (tenant, scope, key) | the first outcome of a keyed commit |
+| `outbox` | id; unique (reaction, event_id) | one row per (event, reaction) from `NpgsqlStoreOptions.Reactions`, written in the commit; lease, attempts, last error |
 
 `type` is the aggregate's generated `StreamType`; the tenant is `00000000-0000-0000-0000-000000000000` without one.
 Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for your queries.
@@ -56,6 +57,12 @@ Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for yo
   `idle_in_transaction_session_timeout`.
 * **Keys** are kept until you purge them: `PurgeKeys(now - TimeSpan.FromDays(7), 1000)` in a periodic job; a redelivery
   after its key was purged commits again.
+* **Outbox**: with `Reactions` (a `ReactionTable`; step 9 generates it), every commit writes one row per (event,
+  reaction). `store.Outbox.Claim(max, lease)` hands due rows to a worker with `FOR UPDATE SKIP LOCKED`, each with its
+  `RecordedEvent`; only the oldest row of a (stream, reaction) is claimable, so one stream's events reach a reaction in
+  order, one at a time. `Complete(row)` deletes it, `Fail(row, retryAt, error)` delays it; both return `false` when the
+  lease expired and another worker claimed the row again. A row that keeps failing holds back only its own stream for
+  that reaction; the worker loop, backoff and dead-lettering come with `Tarol.Sagas` (step 9).
 * **Schema**: `NpgsqlSchema.Script(schema)` is idempotent and versioned (`schema_version`); `EnsureSchema` runs it and
   refuses a database with a newer version.
 

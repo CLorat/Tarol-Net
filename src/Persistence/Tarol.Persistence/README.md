@@ -77,6 +77,11 @@ that no upcaster moves throws on load (events are the truth); a stored state tha
 replay. Both stores implement `IEventFeed`: `ReadAll(GlobalPosition after, int limit, ct)` returns every committed
 event in commit order with its `GlobalPosition` (transaction, position), the checkpoint of a projection.
 
+## Reactions
+
+`ReactionTable` (`DomainEvent → ReadOnlySpan<string>`) names the reactions to an event; a database store writes one
+outbox row per (event, reaction) in the event's commit (`Tarol.Persistence.Npgsql`). Step 9 generates the table.
+
 ## AOT
 
 No reflection: loads call the aggregate's generated static `Rehydrate`/`ReadState`, the state is written by generated

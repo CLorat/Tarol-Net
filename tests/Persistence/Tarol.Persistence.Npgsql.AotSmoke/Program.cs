@@ -33,7 +33,12 @@ else
 {
     await using var db = new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays().Build();
     var schema = $"aot_smoke_{Environment.ProcessId}";
-    var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = schema, Lookups = lookups });
+    var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions
+    {
+        Schema = schema,
+        Lookups = lookups,
+        Reactions = e => e is Wallet.Opened ? Reactions.OnOpened : ReadOnlySpan<string>.Empty,
+    });
     try
     {
         await store.EnsureSchema(default);
@@ -58,6 +63,9 @@ else
             feed.Add(e);
         Check("feed with context", feed.Count == 3 && feed.All(e => e.Event.Context == context && e.StreamType == "wallet"));
         Check("rebuild states", await store.RebuildStates<Wallet>(default) == 0);
+        var claimed = await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), default);
+        Check("outbox row claimed with its event", claimed.Count == 1 && claimed[0].Reaction == "Welcome" && claimed[0].Event.Event.Event.Event is Wallet.Opened);
+        Check("outbox row completed", await store.Outbox.Complete(claimed[0], default) && await store.Outbox.Pending(default) == 0);
         Check("purge keys", await store.PurgeKeys(TimeProvider.System.GetUtcNow().AddDays(1), 100, default) == 1);
     }
     finally
@@ -69,3 +77,8 @@ else
 
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
+
+internal static class Reactions
+{
+    public static readonly string[] OnOpened = ["Welcome"];
+}

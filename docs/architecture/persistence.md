@@ -8,8 +8,8 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/persistence/`](../migration/probes/persistence/), [`output.txt`](../migration/probes/persistence/output.txt));
 **[verified by reading]** means read in the named code, not run; **[unverified]** means reasoned, not run here.
 
-**Status: designed** (owner decisions P-1 … P-16, [migration/persistence.md](../migration/persistence.md) §15). Built in
-three PRs: 8A codec and port, 8B `Tarol.Persistence.Npgsql`, 8C outbox (P-16).
+**Status: implemented** (owner decisions P-1 … P-16, [migration/persistence.md](../migration/persistence.md) §15) in three
+PRs: 8A codec and port (§20), 8B `Tarol.Persistence.Npgsql` (§21), 8C outbox (§22).
 
 ## 1. What one commit writes
 
