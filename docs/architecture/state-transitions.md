@@ -11,7 +11,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/state-transitions/`](../migration/probes/state-transitions/)); **[verified by reading]** means read in the named
 code, not run; **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: stage 1 (concept review).** Nothing is decided; the open questions at the end change the scope.
+**Status: stage 1 done, scope decided (D-1 … D-4 below); stage 2 (evaluation) next.**
 
 ## 1. What a user needs it for
 
@@ -265,6 +265,19 @@ reachability check, diagram) and the T1/T2 safety net, not the guard line. (b) c
    belongs where events and commits are (Primitives).
 8. **Declaring the graph reveals dead states.** ArtFlow's `Settled` (and `Winner`) are unreachable today and nothing
    says so; reachability from the initial state is the cheapest useful generator check.
+
+## Scope decisions (owner, round 1, 2026-11-14)
+
+| # | Question | Answer |
+|---|---|---|
+| D-1 | Ambition (open question 1) | **Declare, guard and safety net**: the graph is declared once; generated `CanTransitionTo`/`Allows`, reachability check and diagram; behaviours enforce it with guards; the framework also catches a forgotten guard at commit, with no user code |
+| D-2 | Kept until commit (open question 2) | **Per-step check only (T2)**: the edge check runs in the live raise path (`Publish`), stores nothing on the valid path, remembers the first forbidden step and `Prepare` returns it. **No baseline (T1)**, so invariants get no `Transition<T>`; monotonic rules stay ordinary guards |
+| D-3 | Shapes (open question 3) | **Enum first**; the declaration is designed so that a `closed` hierarchy can use it later. Stage 2 still measures the hierarchy as a comparison |
+| D-4 | Placement (open question 6) | **Step 6 part C**: its own PR in `Tarol.Primitives`, after part B (stored state), built on its capture rules |
+
+Still open for stage 2 (asked with the measurements): failure type and code of a violation found at commit (open
+question 4), edges labelled by events (open question 5), generator diagnostics and their severities, the CS8524
+recommendation for enum switches.
 
 ## Open questions
 
