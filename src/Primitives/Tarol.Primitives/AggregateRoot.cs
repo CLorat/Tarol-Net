@@ -122,8 +122,10 @@ public abstract class AggregateRoot<TSelf> : IAggregateRoot, IEntity<TSelf>
 
     internal void Publish(Guid entityId, Guid parentId, DomainEvent @event)
     {
-        if (_broken) ThrowHelper.Broken(typeof(TSelf).Name);
-        if (_dispatching) ThrowHelper.RaiseDuringDispatch();
+        if (_broken)
+            ThrowHelper.Broken(typeof(TSelf).Name);
+        if (_dispatching)
+            ThrowHelper.RaiseDuringDispatch();
 
         var stream = new StreamEvent(_version + 1, entityId, parentId, @event);
         Apply(in stream);
@@ -133,10 +135,12 @@ public abstract class AggregateRoot<TSelf> : IAggregateRoot, IEntity<TSelf>
     /// <summary>Replays stored history (reached by the generated <c>Rehydrate</c> only).</summary>
     internal void ReplayHistory(ReadOnlySpan<StreamEvent> history)
     {
-        if (_changes is { Count: > 0 }) ThrowHelper.ReplayWithUncommittedChanges();
+        if (_changes is { Count: > 0 })
+            ThrowHelper.ReplayWithUncommittedChanges();
         foreach (ref readonly var stream in history)
         {
-            if (stream.Version != _version + 1) ThrowHelper.OutOfOrderEvent(_version + 1, stream.Version);
+            if (stream.Version != _version + 1)
+                ThrowHelper.OutOfOrderEvent(_version + 1, stream.Version);
             ArgumentNullException.ThrowIfNull(stream.Event, nameof(history));
             Apply(in stream);
         }
@@ -144,7 +148,8 @@ public abstract class AggregateRoot<TSelf> : IAggregateRoot, IEntity<TSelf>
 
     internal Result Prepare()
     {
-        if (_broken) ThrowHelper.Broken(typeof(TSelf).Name);
+        if (_broken)
+            ThrowHelper.Broken(typeof(TSelf).Name);
         return CheckInvariants();
     }
 

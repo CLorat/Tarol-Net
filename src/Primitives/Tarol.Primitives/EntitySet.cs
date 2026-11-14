@@ -80,7 +80,8 @@ public static class EntitySet
     public static EntitySet<TEntity> Create<TEntity>(ReadOnlySpan<TEntity> items)
         where TEntity : IEntity<TEntity>
     {
-        if (!items.IsEmpty) ThrowHelper.EntitySetInitializer(typeof(TEntity).Name);
+        if (!items.IsEmpty)
+            ThrowHelper.EntitySetInitializer(typeof(TEntity).Name);
         return new EntitySet<TEntity>();
     }
 }

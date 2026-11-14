@@ -37,12 +37,12 @@ internal sealed class Emitter
             _events[e.FullName] = e;
 
         foreach (var owner in Owners())
-        foreach (var member in owner.Members)
-        {
-            if (!_owners.TryGetValue(member.Child, out var list))
-                _owners[member.Child] = list = [];
-            list.Add((owner, member));
-        }
+            foreach (var member in owner.Members)
+            {
+                if (!_owners.TryGetValue(member.Child, out var list))
+                    _owners[member.Child] = list = [];
+                list.Add((owner, member));
+            }
     }
 
     public IReadOnlyList<DiagnosticInfo> Diagnostics => _diagnostics;
@@ -84,15 +84,15 @@ internal sealed class Emitter
         }
 
         foreach (var type in Owners())
-        foreach (var handler in type.Handlers)
-        {
-            if (!_events.TryGetValue(handler.Event, out var e))
-                _diagnostics.Add(DiagnosticInfo.Create(Generators.Diagnostics.HandlerNeverCalled, handler.Location, Short(handler.Event), type.Name,
-                    $"'{Short(handler.Event)}' is not an event of aggregate '{_root.Name}'"));
-            else if (e.Target != type.FullName && !IsAncestor(type.FullName, e.Target!))
-                _diagnostics.Add(DiagnosticInfo.Create(Generators.Diagnostics.HandlerNeverCalled, handler.Location, Short(handler.Event), type.Name,
-                    $"the event targets '{Short(e.Target!)}', and '{type.Name}' is neither that type nor one of its owners"));
-        }
+            foreach (var handler in type.Handlers)
+            {
+                if (!_events.TryGetValue(handler.Event, out var e))
+                    _diagnostics.Add(DiagnosticInfo.Create(Generators.Diagnostics.HandlerNeverCalled, handler.Location, Short(handler.Event), type.Name,
+                        $"'{Short(handler.Event)}' is not an event of aggregate '{_root.Name}'"));
+                else if (e.Target != type.FullName && !IsAncestor(type.FullName, e.Target!))
+                    _diagnostics.Add(DiagnosticInfo.Create(Generators.Diagnostics.HandlerNeverCalled, handler.Location, Short(handler.Event), type.Name,
+                        $"the event targets '{Short(e.Target!)}', and '{type.Name}' is neither that type nor one of its owners"));
+            }
 
         foreach (var group in _model.Events.Where(static e => !e.IsAbstract).GroupBy(static e => e.Alias).Where(static g => g.Count() > 1))
         {
