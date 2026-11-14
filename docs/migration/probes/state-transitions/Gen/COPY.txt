@@ -1,0 +1,1 @@
+// EquatableArray.cs, LocationInfo.cs, IsExternalInit.cs: copy from src/Primitives/Tarol.Primitives.Generators and change the namespace to Tarol.Lifecycle.Generators.
