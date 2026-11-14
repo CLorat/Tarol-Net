@@ -27,8 +27,19 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `OperationContext` (actor, `Option<Id<ITenant>>`, `Id<ICorrelation>`, `Option<Id<ICausation>>`; `Start`, `CausedBy`,
   `AsSystem`) with a fixed AOT-safe JSON contract; bundled analyzer TKRN001 (system clock read, inject `TimeProvider`);
   agent skill `tarol-kernel`. Concept notes on time, identity, tracing and security in `docs/architecture/`.
+* `Tarol.Validations` (step 5): rule attributes `Range`, `Length`, `Pattern` (timeout), `Email`, `NotEmpty`, `Count`
+  declared once on `readonly partial record struct` value objects; the bundled generator writes `Create(…) : Result<T>`,
+  `Check`, limit constants, a conversion to the field, comparisons, an invariant `ToString` and a trusting JSON converter
+  (old events always load), and implements `IValidatable` on input records (`Validated()`: all field errors with input
+  paths such as `Lines[1].Quantity`, 0 B when valid). `ValueObjectJson` for source-generated contexts in the same
+  assembly; diagnostics TVAL001–TVAL009; agent skill `tarol-validations`. Concept note `docs/architecture/validation.md`.
 
 ### Changed
+
+* Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and
+  `IPrerequisite`/`IPrerequisiteAsync` are gone. Rules live on value objects and inputs; invariants return to step 6 as
+  `[Invariant]` rules returning `Result`; prerequisites are guard clauses returning `Result` with `now` as a parameter.
+  Full list: docs/migration/validations.md §10.
 
 * `Tarol.Results`: the typed `Result<T>.Value` is replaced by patterns, `TryGetValue` and `GetValueOrThrow()`
   (C# unions require `object? Value`); `Combine<T1,T2>` now combines failures like `Combine(params)`; `TapError` is

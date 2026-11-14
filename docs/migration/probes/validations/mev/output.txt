@@ -1,0 +1,56 @@
+# dotnet run -c Release -p:TarolNetRepo=<clone>  (SDK 11.0.100, JIT)
+valid: 52960 B
+valid: 5112 B
+valid: 5112 B
+invalid: 9656 B
+   key=Name path=Name name=Name msg=The Name field is required.
+   key=Email path=Email name=Email msg=The Email field is not a valid e-mail address.
+   key=Quantity path=Quantity name=Quantity msg=The field Quantity must be between 1 and 100.
+   key=Lines[1].Sku path=Lines[1].Sku name=Sku msg=The Sku field is required.
+   key=Lines[1].Quantity path=Lines[1].Quantity name=Quantity msg=The field Quantity must be between 1 and 10.
+   key=Shipping.Street path=Shipping.Street name=Street msg=The Street field is required.
+   key=Shipping.Zip path=Shipping.Zip name=Zip msg=The field Zip must match the regular expression '^\d{5}$'.
+invalid2: 8384 B
+   key=Name path=Name name=Name msg=The Name field is required.
+   key=Email path=Email name=Email msg=The Email field is not a valid e-mail address.
+   key=Quantity path=Quantity name=Quantity msg=The field Quantity must be between 1 and 100.
+   key=Lines[1].Sku path=Lines[1].Sku name=Sku msg=The Sku field is required.
+   key=Lines[1].Quantity path=Lines[1].Quantity name=Quantity msg=The field Quantity must be between 1 and 10.
+   key=Shipping.Street path=Shipping.Street name=Street msg=The Street field is required.
+   key=Shipping.Zip path=Shipping.Zip name=Zip msg=The field Zip must match the regular expression '^\d{5}$'.
+emptyIdOnly: 5552 B
+   key=OrderId path=OrderId name=OrderId msg=must not be empty
+someNickTooLong: 5112 B
+redos threw RegexMatchTimeoutException
+redos took 1999 ms
+
+# dotnet publish -c Release -r linux-x64 -o out -p:TarolNetRepo=<clone>; ./out/mev  (Native AOT)
+warning IL2026: PlaceOrder.Lines: Using member 'System.ComponentModel.DataAnnotations.MinLengthAttribute.MinLengthAttribute(Int32)'
+valid: 136416 B
+valid: 5216 B
+valid: 5120 B
+invalid: 8976 B
+   key=Name path=Name name=Name msg=The Name field is required.
+   key=Email path=Email name=Email msg=The Email field is not a valid e-mail address.
+   key=Quantity path=Quantity name=Quantity msg=The field Quantity must be between 1 and 100.
+   key=Lines[1].Sku path=Lines[1].Sku name=Sku msg=The Sku field is required.
+   key=Lines[1].Quantity path=Lines[1].Quantity name=Quantity msg=The field Quantity must be between 1 and 10.
+   key=Shipping.Street path=Shipping.Street name=Street msg=The Street field is required.
+   key=Shipping.Zip path=Shipping.Zip name=Zip msg=The field Zip must match the regular expression '^\d{5}$'.
+invalid2: 8304 B
+   key=Name path=Name name=Name msg=The Name field is required.
+   key=Email path=Email name=Email msg=The Email field is not a valid e-mail address.
+   key=Quantity path=Quantity name=Quantity msg=The field Quantity must be between 1 and 100.
+   key=Lines[1].Sku path=Lines[1].Sku name=Sku msg=The Sku field is required.
+   key=Lines[1].Quantity path=Lines[1].Quantity name=Quantity msg=The field Quantity must be between 1 and 10.
+   key=Shipping.Street path=Shipping.Street name=Street msg=The Street field is required.
+   key=Shipping.Zip path=Shipping.Zip name=Zip msg=The field Zip must match the regular expression '^\d{5}$'.
+emptyIdOnly: 5752 B
+   key=OrderId path=OrderId name=OrderId msg=must not be empty
+someNickTooLong: 5120 B
+redos threw RegexMatchTimeoutException
+redos took 1999 ms
+
+# with [property: StringLength(10, MinimumLength = 2)] on Option<string> Nickname (first version of the probe):
+Unhandled exception. System.InvalidCastException: Unable to cast object of type 'Tarol.Options.Option`1[System.String]' to type 'System.String'.
+   at System.ComponentModel.DataAnnotations.StringLengthAttribute.IsValid(Object value)

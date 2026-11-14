@@ -1,0 +1,53 @@
+# dotnet run -c Release -p:TarolNetRepo=<clone>  (JIT)
+== math
+a + b = 110 (int; 110 is out of range, so it is not a Quantity)
+a + 1 = 41, a * 2 = 80, a > b = False, a < 50 = True, Math.Max(a, b) = 70
+Sum(l => l.Quantity) = 110; Max = 70; OrderBy works: 40,70
+Quantity.Create(a + b) = Invalid { : Range }
+money.Amount * 3 = 31.5
+sizeof Quantity = 4, Title = 8, Money = 24
+== factories
+Quantity.Create(0) = Invalid { : Range }
+Title.Create("") = Invalid { : Required }; Title.Create("a much too long title") = Invalid { : Length }
+Email.Create("nope") = Invalid { : Pattern }
+Evil.Create(30*a+!) = Invalid { : Pattern } in 103 ms (GeneratedRegex, 100 ms timeout caught)
+== repository serialization (source-generated context)
+{"orderId":"01a1d64f-8ea8-709a-80b1-c779775b7d40","name":"Lamp","total":40,"bonus":70,"price":{"amount":10.5,"currency":0},"lines":[{"product":"01a1d64f-8e2f-7351-be8f-73de9a25253d","quantity":40},{"product":"01a1d64f-8e2f-77df-9d1d-bb524a617fe9","quantity":70}]}
+round trip equal (scalars) = True
+None -> "bonus":null
+old event under stricter rules loads: name='A title that is far too long', total=500, price=-1
+== command validation (collect all, input paths)
+Invalid { OrderId: Required; Name: Length; Contact: Pattern; Lines[1].Product: Required; Lines[1].Quantity: Range; Nickname: Length; Price.Amount: Range }
+missing name/contact -> Invalid { Name: Required; Contact: Required }
+== allocations (1000 iterations after warm-up)
+Quantity.Create valid: 0 B; invalid: 288 B
+Email.Create valid: 0 B
+PlaceOrder.Validated valid: 0 B; invalid (7 errors): 1704 B
+
+# dotnet publish -c Release -r linux-x64 -o out -p:TarolNetRepo=<clone>: IL/AOT warnings:
+0
+# ./out/vo  (Native AOT)
+== math
+a + b = 110 (int; 110 is out of range, so it is not a Quantity)
+a + 1 = 41, a * 2 = 80, a > b = False, a < 50 = True, Math.Max(a, b) = 70
+Sum(l => l.Quantity) = 110; Max = 70; OrderBy works: 40,70
+Quantity.Create(a + b) = Invalid { : Range }
+money.Amount * 3 = 31.5
+sizeof Quantity = 4, Title = 8, Money = 24
+== factories
+Quantity.Create(0) = Invalid { : Range }
+Title.Create("") = Invalid { : Required }; Title.Create("a much too long title") = Invalid { : Length }
+Email.Create("nope") = Invalid { : Pattern }
+Evil.Create(30*a+!) = Invalid { : Pattern } in 97 ms (GeneratedRegex, 100 ms timeout caught)
+== repository serialization (source-generated context)
+{"orderId":"01a1d64f-94a4-7f4f-b80e-7af914466f65","name":"Lamp","total":40,"bonus":70,"price":{"amount":10.5,"currency":0},"lines":[{"product":"01a1d64f-9440-77ff-964f-406c8c670a7c","quantity":40},{"product":"01a1d64f-9440-7c29-a680-e821669e8f04","quantity":70}]}
+round trip equal (scalars) = True
+None -> "bonus":null
+old event under stricter rules loads: name='A title that is far too long', total=500, price=-1
+== command validation (collect all, input paths)
+Invalid { OrderId: Required; Name: Length; Contact: Pattern; Lines[1].Product: Required; Lines[1].Quantity: Range; Nickname: Length; Price.Amount: Range }
+missing name/contact -> Invalid { Name: Required; Contact: Required }
+== allocations (1000 iterations after warm-up)
+Quantity.Create valid: 0 B; invalid: 288 B
+Email.Create valid: 0 B
+PlaceOrder.Validated valid: 0 B; invalid (7 errors): 1704 B

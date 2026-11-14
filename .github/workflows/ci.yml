@@ -40,6 +40,12 @@ jobs:
       - name: Restore
         run: dotnet restore Tarol.slnx
 
+      # dotnet format loads the solution without building it. Projects that compile only with generated members
+      # (Tarol.Validations' value objects and IValidatable inputs) need the generator assemblies on disk first;
+      # format loads the Debug configuration.
+      - name: Build generators
+        run: for project in src/*/*.Generators/*.csproj; do dotnet build "$project" --no-restore --nologo -v quiet; done
+
       - name: Format
         run: dotnet format Tarol.slnx --verify-no-changes --no-restore
 

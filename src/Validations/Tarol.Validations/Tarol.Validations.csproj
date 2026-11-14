@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Rules declared once, on value objects: a source generator turns [Range], [Length], [Pattern], [Email], [NotEmpty] and [Count] on a record struct into Create(…) : Result&lt;T&gt;, a trusting JSON converter (old events always load), comparisons and conversions, and gives every IValidatable input a zero-allocation Validate() that collects all field errors with input paths as Tarol.Results Invalid. Native-AOT ready.</Description>
+    <PackageTags>tarol;validation;value-objects;ddd;event-sourcing;source-generator;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Results/Tarol.Results/Tarol.Results.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options/Tarol.Options.csproj" />
+    <ProjectReference Include="../../StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+    <!-- D-10: the value-object generator and the validation analyzer (TVAL001-TVAL008) ship inside this package. -->
+    <ProjectReference Include="../Tarol.Validations.Generators/Tarol.Validations.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <!-- The Options and Results analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

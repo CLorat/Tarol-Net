@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Validations package (no ProjectReference). Proves that the package works and that its
+    bundled generator and analyzer, and those of its dependencies (Tarol.Results, Tarol.Options, Tarol.StronglyTypedId),
+    reach a package consumer. Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and
+    an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Validations" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckValidationsAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolValidationsGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Validations.Generators'" />
+      <_TarolResultsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Results.Generators'" />
+      <_TarolOptionsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Options.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolValidationsGenerator)' == ''" Text="The Tarol.Validations generator (Tarol.Validations.Generators.dll) did not reach the compiler." />
+    <Error Condition="'@(_TarolResultsAnalyzer)' == '' or '@(_TarolOptionsAnalyzer)' == ''" Text="The analyzers of Tarol.Results / Tarol.Options did not flow from the dependencies." />
+    <Message Importance="high" Text="Tarol.Validations analyzers: @(_TarolValidationsGenerator);@(_TarolResultsAnalyzer);@(_TarolOptionsAnalyzer)" />
+  </Target>
+</Project>

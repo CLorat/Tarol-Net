@@ -16,19 +16,19 @@ Review material that stays authoritative until a family is migrated: `CLorat/Tar
 | 2 | Results | `Tarol.Results` (+ analyzers) | done: non-boxing C# 15 `[Union]` shape (D-9 measured), `Invalid` \| `Error` violations, 141 tests, AOT smoke 0 IL warnings, package verified; see [results.md](results.md) |
 | 3 | Options | `Tarol.Options` (+ analyzer); `Tarol.Results` depends on it (owner revised Q-6 after PR #5) | done: `[Union]` struct `T` \| `None` (candidates A–E measured), analyzer TOPT001–TOPT004, AOT smoke 0 IL warnings, both packages verified with their own skill; see [options.md](options.md) |
 | 4 | Kernel | `Tarol.Kernel` (+ analyzer): `Actor`, `OperationContext`, `Id<ITenant/ICorrelation/ICausation>`; no clock (inject `TimeProvider`); Security designed, built in step 10 (D-7) | done: concept notes `docs/architecture/{time,identity-context,tracing,security}.md`, clock isolation proved, TKRN001, 47 tests, AOT smoke 0 IL warnings, package verified; see [kernel.md](kernel.md) |
-| 5 | Validations | `Tarol.Validations` (+ Value and Invariant generators), Prerequisites; time-dependent prerequisites take `now` (kernel.md §12) | next |
-| 6 | Domain core | `Tarol.Primitives` (+ generator); delete `DomainClock` and the `Timestamp` initializer, metadata slots typed with Kernel types, no `global using` (kernel.md §12) | |
-| 7 | Changes | `Tarol.Changes` (+ generator, ROADMAP Phase 3) | |
-| 8 | Persistence | `Tarol.Persistence`, `Tarol.Persistence.Npgsql` (ROADMAP Phase 2; Marten is not migrated); `RecordedAt` per commit, actor/tenant/correlation/causation per event, tenant in stream keys and filters (kernel.md §12) | |
+| 5 | Validations | `Tarol.Validations` (+ generator and analyzer TVAL001–TVAL009); rules once on struct value objects, `IValidatable` inputs, `ValueObjectJson`; invariants and prerequisites designed for steps 6–7 | done: concept note [validation.md](../architecture/validation.md), 83 tests, AOT smoke 0 IL warnings, package verified; see [validations.md](validations.md) |
+| 6 | Domain core | `Tarol.Primitives` (+ generator); delete `DomainClock` and the `Timestamp` initializer, metadata slots typed with Kernel types, no `global using` (kernel.md §12); `[Invariant]` rules returning `Result` + generated `CheckInvariants()` after apply, live only; drop `[GenerateValidation]` from `Value`; replay test on `AggregateRoot` and the replay analyzer decision (validations.md §14) | |
+| 7 | Changes | `Tarol.Changes` (+ generator, ROADMAP Phase 3); validate commands before load (`Validated()`), prerequisites as guards returning `Result` with `now`, discard the instance on an invariant failure (validations.md §14) | |
+| 8 | Persistence | `Tarol.Persistence`, `Tarol.Persistence.Npgsql` (ROADMAP Phase 2; Marten is not migrated); `RecordedAt` per commit, actor/tenant/correlation/causation per event, tenant in stream keys and filters (kernel.md §12); `ValueObjectJson.Resolver` first in the event store's JSON options (V-9) | |
 | 9 | Sagas | `Tarol.Sagas` (+ generator), `.Engine`, `.Testing`, `.Persistence.InMemory`; Npgsql store after step 8; injected `TimeProvider` instead of `SagaOptions.UtcNow`, `OperationContext` in outbox rows and messages (kernel.md §12) | |
-| 10 | CQRS | after decision ROADMAP D-3; context per command; **`Tarol.Security`** built here (security.md) | |
+| 10 | CQRS | after decision ROADMAP D-3; context per command; **`Tarol.Security`** built here (security.md); pipeline order parse → load → permission → guards → apply → invariants → commit; `Invalid` → problem details with JSON-cased paths, `ValueObjectJson.Resolver` in ASP.NET Core's options (validations.md §14) | |
 | 11 | Messaging | after decision ROADMAP D-6; envelope from `OperationContext`, injected `TimeProvider`, tenant-scoped topic authorization (kernel.md §12) | |
 | 12 | Paginations | small API seed; decide then (Contexts went into Kernel in step 4; Security is built in step 10) | |
 | 13 | Samples | ArtFlow rebuilt on the migrated API | |
 | 14 | Templates | new template pack built and instantiated in CI | |
 
 Order follows the dependency graph of the old repository: StronglyTypedId has no Tarol dependency;
-Options and Results (which depends on Options), and Kernel (Options and StronglyTypedId) sit at the bottom; Validations depends only on StronglyTypedId;
+Options and Results (which depends on Options), and Kernel (Options and StronglyTypedId) sit at the bottom; Validations depends on Results, Options and StronglyTypedId;
 Primitives needs all of them; everything else needs Primitives.
 
 ## What is not migrated
@@ -50,7 +50,8 @@ backplane test):
 | `tests/Messaging/Messaging.UnitTests`, `tests/Validations/Validations.UnitTests`, `tests/Paginations/Paginations.UnitTests` | zero tests |
 | `src/Persistence/Persistence.Marten`, `src/Sagas/Sagas.Persistence.Marten` | replaced by the Npgsql store (ROADMAP D-1) |
 | `templates/TarolSolution`, `templates/Entity` | outdated API, not buildable; replaced in step 14 |
-| `plan-messagingIntegrationTests.prompt.md`, `Validations.Prerequisite/` at the root | content moves with its family |
+| `plan-messagingIntegrationTests.prompt.md` | content moves with its family |
+| `Validations.Prerequisite/` at the root, `gen/Validations/Validations.Invariant.Generators`, `InvariantAttribute` | prerequisites became guards in behaviour methods; invariants are rebuilt in step 6 (validations.md §10) |
 
 Typos that disappear by construction (new names): `Analzyer`, `StronlgyTypedId`, `EventEnvolope.cs`,
 `AggregateSnapshort.cs`, `ISnapshottable.cs`, `AppDbContextExtentions.cs`, `MartinUnitOfWork`,

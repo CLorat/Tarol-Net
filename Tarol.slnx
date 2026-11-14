@@ -27,6 +27,10 @@
     <Project Path="src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" />
     <Project Path="src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
   </Folder>
+  <Folder Name="/src/Validations/">
+    <Project Path="src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" />
+    <Project Path="src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
+  </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/Kernel/">
     <Project Path="tests/Kernel/Tarol.Kernel.AotSmoke/Tarol.Kernel.AotSmoke.csproj" />
@@ -54,5 +58,11 @@
     <Project Path="tests/StronglyTypedId/Tarol.StronglyTypedId.Generators.Tests/Tarol.StronglyTypedId.Generators.Tests.csproj" />
     <Project Path="tests/StronglyTypedId/Tarol.StronglyTypedId.Tests.ExternalAssembly/Tarol.StronglyTypedId.Tests.ExternalAssembly.csproj" />
     <Project Path="tests/StronglyTypedId/Tarol.StronglyTypedId.Tests/Tarol.StronglyTypedId.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Validations/">
+    <Project Path="tests/Validations/Tarol.Validations.AotSmoke/Tarol.Validations.AotSmoke.csproj" />
+    <Project Path="tests/Validations/Tarol.Validations.Benchmarks/Tarol.Validations.Benchmarks.csproj" />
+    <Project Path="tests/Validations/Tarol.Validations.Generators.Tests/Tarol.Validations.Generators.Tests.csproj" />
+    <Project Path="tests/Validations/Tarol.Validations.Tests/Tarol.Validations.Tests.csproj" />
   </Folder>
 </Solution>
