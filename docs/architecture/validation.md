@@ -1,6 +1,6 @@
 # Validation
 
-Concept note for step 5 (see [validations.md](../migration/validations.md)). It covers what validation means in an
+Concept note for step 5 (see [validations.md](../migration/validations.md)); **decided and implemented**. It covers what validation means in an
 event-sourced DDD framework, the four kinds of rules, where each one runs, what .NET 11 already provides, how failures
 map to `Tarol.Results`, `Option<T>`/`Id<T>`/collections, and replay safety. It starts from first principles; the old
 code (`CLorat/Tarol@6a62f81`) is a seed, reviewed in the migration note.
@@ -225,9 +225,33 @@ of `Tarol.Primitives` (step 6) to know what an apply method is **[unverified]**.
 | S-3 | Replay proof | a **minimal hand-written event-sourced aggregate** in the step 5 tests; step 6 repeats it on the real `AggregateRoot` and decides the analyzer |
 | S-4 | Pipeline order | **parse before load**: authenticate → coarse policy → parse input to value objects (400) → load (404) → permission (403) → behaviour guards (409) → apply → invariants → commit |
 
+## Decisions taken (owner, round 2, 2026-11-13/14; validations.md §9)
+
+* **Value validation** (V-1): rules once on struct value objects, generated `Validate` on `IValidatable` inputs, run
+  before load; per-request limits on primitive input parameters. **Naming** (V-7): value objects next to their aggregate
+  with plain names (`Bidders.Name`, `Experts.Name`), shared ones in the context root.
+* **Shape** (V-2): `readonly partial record struct X([Rule] T Value)`; the constructor trusts (JSON, replay, tests),
+  `Create` validates, TVAL006 warns on `new` outside the type; custom rule `static void Validate(…, ref ValidationErrors)`.
+* **Invariants** (V-3, built in step 6): `[Invariant]` methods returning `Result`, aggregated into a generated
+  `CheckInvariants()`, run after apply on the live path; a violation is the rule's `Error` (usually `Error.Conflict`).
+  This answers open question 4.
+* **Required/optional and paths** (V-4): the type decides (`Option<T>`/`T?` optional, everything else required);
+  C# member names in paths, converted by the web package. This answers open questions 5 and 6 (for `int`-based values
+  the JSON options at the edge decide "missing").
+* **JSON** (V-9, found in stage 3): a same-assembly source-generated context cannot see generated converters; Tarol's
+  `ValueObjectJson.Resolver` goes first in the options, TVAL009 points at direct use.
+
+## What later steps must do
+
+See [validations.md §14](../migration/validations.md#14-what-later-steps-must-do-also-in-planmd): step 6 builds
+invariants and repeats the replay test on `AggregateRoot`; step 7 validates commands before loading and turns
+prerequisites into guards; step 8 adds `ValueObjectJson.Resolver` to the event store's options; step 10 and the web
+package keep the pipeline order S-4, map `Invalid` to problem details with JSON-cased paths and add the resolver to
+ASP.NET Core's options.
+
 ## Open questions
 
-Questions 1, 2, 3 and 7 below were answered in round 1 (table above); 4–6 are asked in stage 2.
+All seven were answered (round 1: 1, 2, 3, 7; round 2: 4, 5, 6). Left open: see validations.md §15.
 
 1. **What is built in step 5?** Only value validation (rule helpers, path composition, maybe a value-object factory
    generator), with invariants and prerequisites *designed* here and built where the aggregate is (steps 6–7)? Or all

@@ -5,7 +5,10 @@ Origin: `CLorat/Tarol@6a62f81`: `src/Validations/{Validations,Validations.Value,
 `Validations.Prerequisite/` (repository root), `tests/Validations/*`. Old review: `docs/review/validations-and-changes.md`
 (findings 1–32, §2.3, §4, §7) and `docs/review/ROADMAP.md` Phase 3.
 
-**Status: decisions taken (§9); implementation in progress.**
+**Status: implemented.** §0–§8 are the evaluation (inventory, review, experiments, proposal), §9 the owner's decisions,
+§10 onwards the implementation. Where §6–§7 (the proposal) and §9–§10 differ, §9–§10 are what shipped: `[Pattern]`
+emits a cached `Regex` with a timeout instead of `[GeneratedRegex]` (§10.3), the collector's member overload is
+`AddAt`, and V-9 added `ValueObjectJson` and TVAL009.
 
 The concept review is in [validation.md](../architecture/validation.md) (kinds of rules, where they run, what .NET 11
 provides, `Invalid` vs `Error`, paths, replay safety, new insights, the owner's scope answers S-1–S-4). This note does
@@ -503,3 +506,131 @@ Asked in the session (2026-11-13), one question per decision with a recommendati
 
 Consequence of V-1/V-7 for TVAL003: a rule attribute is allowed on a primary-constructor parameter of a value object
 **or** of an `IValidatable` record; anywhere else it is TVAL003.
+
+## 10. Changes against Tarol
+
+### 10.1 Projects
+
+| Tarol-Net project | From |
+|---|---|
+| `src/Validations/Tarol.Validations` | `src/Validations/Validations` + `Validations.Value` + `Validations.Invariant` (rewritten on the agreed design; old files used as the specification) |
+| `src/Validations/Tarol.Validations.Generators` | `gen/Validations/Validations.Value.Generators` (rewritten: `ValidationGenerator`, `Emitter`) + new `ValidationAnalyzer`; bundled into `Tarol.Validations` (D-10) |
+| `tests/Validations/Tarol.Validations.Tests` | new (the old `Validations.Value.UnitTests` had 0 tests; its models became fixtures) |
+| `tests/Validations/Tarol.Validations.Generators.Tests` | replaces `Validations.Invariant.UnitTests` (17 substring tests of a generator that is not migrated): snapshots, diagnostics, incrementality |
+| `tests/Validations/Tarol.Validations.AotSmoke`, `.PackageTests`, `.Benchmarks` | new |
+| not migrated | `gen/…/Validations.Invariant.Generators` and `InvariantAttribute` (invariants move to step 6, V-3); `Validations.Prerequisite/` (prerequisites are guards, S-1); `gen/…/Validations.Generators` and `tests/…/Validations.UnitTests` (empty); `ValueValidationHelpers` (dead, finding 23) |
+
+### 10.2 Public API and behaviour changes (every one deliberate)
+
+| Tarol | Tarol-Net | Why |
+|---|---|---|
+| `[GenerateValidation]` on a class (and on Primitives' `Value`, inherited) | no marker: a Tarol rule on a record's primary-constructor parameter makes a value object; `IValidatable` makes an input | S-2, findings 6, 7 |
+| rules on any property of any class (`ArtWork.Title [Length]`) | rules on value objects and on primitive parameters of `IValidatable` inputs only; elsewhere TVAL003 | validation.md insight 1, V-1, V-7 |
+| `Tarol.Validations.Value.{NotEmpty,Range,Length,Pattern,Email}Attribute` | `Tarol.Validations.{NotEmpty,Range,Length,Pattern,Email,Count}Attribute`, `AttributeTargets.Parameter` | V-6 |
+| `Range(int/long/double/decimal)`, `Exclusive` (ignored) | `Range(long, long)`, `Range(double, double)`, `Range(string, string)` (decimal), named `Min`/`Max`; bounds checked against the type at compile time (TVAL005); `Exclusive` removed | findings 19, 21 |
+| `Length(int exact)`, `Length(min, max)`, `MinOnly`/`MaxOnly` (unusable) | `Length(min, max)`, named `Min`/`Max` | findings 3, 20 |
+| `Pattern(string)`: `new Regex(…, Compiled)`, no timeout | `Pattern(string) { TimeoutMilliseconds = 100, IgnoreCase }`: cached `Regex`, `CultureInvariant`, timeout; a timeout is a `Pattern` field error | finding 16, insight 9 |
+| `Email`: a regex (and a second, unused span check) | `Email`: one span check (`Rules.Email`) | finding 23 |
+| `NotEmpty` on `Guid` did not compile | `NotEmpty` on strings (blank), `Guid`, `Id<T>` | finding 21 |
+| — | `Count(min, max)` on arrays and `IReadOnlyList<T>` | collections (§6) |
+| generated `T.Validation.<Prop>.Validate(value) : Result` + `ValidateValues(this T)` | value object: `Create(…) : Result<T>`, `Check(T, ref ValidationErrors)`, constants, conversion, comparisons, `ToString`, `ValueJsonConverter`; input: `Validate(ref ValidationErrors)` + `Validated() : Result<T>` | S-2, V-1 |
+| one `Validate` call per **rule** (duplicate violations) | one check chain per value; the first failing rule reports | finding 4 |
+| `Violation.Validation("Money:Amount:Range", "Amount")` | `FieldError("Amount", "Range", "0..")`: the code names the rule, the field the **input path**, limits in the detail | insight 2 |
+| `Result.Combine` of all rule results | `ValidationErrors` collects, allocates only on the first error; valid path 0 B | §3.2, validation.md §8 |
+| nested delegation by `GetSymbolsWithName` (source only), no null check | value objects found also from metadata (`Check`), inputs by `IValidatable`; `null` → `Required` | finding 22 |
+| `ValidateInvariants(this T)` over `[Invariant] static bool` | removed here; step 6 builds `[Invariant] Result` rules (V-3) | S-1 |
+| `IPrerequisite<T>.Verify : bool`, `IPrerequisiteAsync<T>`, `[Prerequisite(code, text, order)]` | removed: guard clauses in the behaviour returning `Result`, `now` as a parameter; reads in the handler | S-1, insights 3–5, finding 31 |
+| VAL001 (Error), VAL999 (exception text) | TVAL001–TVAL005 (Error), TVAL006–TVAL009 (Warning), no exception diagnostics | V-5, findings 11, 24 |
+| JSON of value objects: the record's object shape | bare value through the generated converter; reads without validation; `ValueObjectJson.Resolver`/`Options`/`AddValueObjects` for same-assembly contexts | S-2, V-9 |
+
+### 10.3 Implementation notes
+
+* **No `[GeneratedRegex]`.** A source generator cannot hand a `[GeneratedRegex]` partial method to the regex generator,
+  for the same reason the JSON generator cannot see the generated `[JsonConverter]` (§3.9, **[verified]** for JSON;
+  for regex **[unverified]**, same Roslyn rule). The generated field is `new Regex(pattern, CultureInvariant, timeout)`
+  without `RegexOptions.Compiled` (ignored under Native AOT, finding 16); the timeout bounds the cost (§3.4; test
+  `Finding_16_…`: 30 × `a` + `!` with 50 ms → `Pattern` error).
+* **Paths without allocation.** `ValidationErrors` keeps up to 8 path segments in an `[InlineArray]` and builds the
+  string only in `Add` (`AllocationTests`: 0 B for 1,000 valid validations).
+* **Module initializers** register each value object's converter (`ValueObjectJson.Register`); private nested value
+  objects are not registered (a module initializer must be reachable from the module).
+* **Hand-written code wins.** A user `Create`, `Check`, `ToString`, `CompareTo`, conversion, `[JsonConverter]` or
+  `IValidatable.Validate` suppresses the generated member.
+
+## 11. Suppressions and analyzer configuration
+
+None in `src/`. No `NoWarn`, no `.editorconfig` change. In tests and samples, by `#pragma` at the narrowest scope with a
+comment: `TVAL006` where a fixture builds an invalid value object on purpose (`InputTests`, `AotSmoke`, `Benchmarks`),
+`TVAL009` in the one test that measures the hazard it reports (`JsonTests.V9_…`).
+
+## 12. Verification (SDK 11.0.100, 2026-11-14)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | clean (exit 0) |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` | **417 passed**, 0 failed (334 before; Validations 65 + generator 18) |
+| `eng/aot-smoke.sh` | `Tarol.Validations.AotSmoke`: 0 IL warnings, 10/10 native checks; Kernel, Options, Results, StronglyTypedId unchanged |
+| `eng/verify-packages.sh` | OK; `Tarol.Validations` contains `analyzers/dotnet/cs/Tarol.Validations.Generators.dll` and `skills/tarol-validations/SKILL.md`; the consumer's `project.assets.json` lists `tarol-validations`, `tarol-results`, `tarol-options`, `tarol-strongly-typed-id` |
+| diagnostics reach a package consumer | a temporary traps file in `Tarol.Validations.PackageTests` → `error TVAL001` … `error TVAL009` (one trap each; warnings are errors there), then removed |
+| skill sample | the skill's example compiled with warnings as errors and the bundled generator (`SkillSampleTests`) |
+
+```
+Tarol.Validations 0.0.0-alpha.0.9
+    LICENSE
+    README.md
+    Tarol.Validations.nuspec
+    analyzers/dotnet/cs/Tarol.Validations.Generators.dll
+    lib/net11.0/Tarol.Validations.dll
+    lib/net11.0/Tarol.Validations.xml
+    skills/tarol-validations/SKILL.md
+== tests/Validations/Tarol.Validations.PackageTests/Tarol.Validations.PackageTests.csproj
+ok   generated Create from the package
+ok   generated Validate from the package
+ok   JSON through the resolver
+ALL CHECKS PASSED
+```
+
+## 13. Skill evaluation checklist
+
+Run each task with a frontier model in a fresh console project that references the packed package, once with the
+skills copied to `.agents/skills/` and once without. Record correctness and token cost.
+
+`tarol-validations`:
+
+1. "A bid amount is a positive decimal with a currency; use it in a command and an event" → one
+   `readonly partial record struct Money([Range(Min = 0)] decimal Amount, Currency Currency)`; the command and the event
+   use `Money`; no rule repeated on a DTO.
+2. "Bidder names 3–60, expert names 3–120" → `Bidders.Name` and `Experts.Name` in their namespaces; no `BidderName`
+   prefix, no shared type with the wrong limit.
+3. "Validate the PlaceOrder command before loading the order" → `: IValidatable` on a `partial record`, `Validated()`,
+   return the `Invalid`; paths like `Lines[1].Quantity`.
+4. "Search endpoint with a page size of 1–50" → `[Range(1, 50)] int PageSize` on the `IValidatable` query; no value object.
+5. "An IBAN needs a checksum" → `[Length(15, 34)]` plus `static void Validate(string value, ref ValidationErrors errors)`.
+6. "Store events with value objects as JSON in the same project" → `ValueObjectJson.Options(MyJson.Default)` (TVAL009).
+7. "The auction end time must be at least one day in the future" → a guard in the behaviour with a `now` parameter, not
+   a rule attribute.
+8. Must not: use `[GenerateValidation]`, `ValidateValues()`, `IPrerequisite`, DataAnnotations or FluentValidation on Tarol
+   inputs; validate in a constructor, `On(event)` or a JSON converter; `new X(…)` in live code; `[Required]` on members;
+   decompile the assembly or search the web.
+
+Status: checklist written; **not yet run** (needs a model-evaluation harness outside this repository).
+
+## 14. What later steps must do (also in plan.md)
+
+| Step | Must |
+|---|---|
+| 6 Primitives | `[Invariant]` methods returning `Result`, aggregated into a generated `CheckInvariants()` run after apply on the live path (V-3); drop `[GenerateValidation]` from `Value` and decide whether `Value` stays; repeat the replay test (`ReplayTests`) on the real `AggregateRoot`, with snapshots, and decide the replay analyzer (S-3); events that embed value objects use the trusting converters |
+| 7 Changes | validate the command (`IValidatable.Validated()`) **before** loading (S-4); behaviour guards return `Result` (`Error.Conflict` for state, `Invalid.Field` for an input field), `now` as a parameter; reads of other aggregates in the handler; discard the instance when an invariant fails |
+| 8 Persistence | insert `ValueObjectJson.Resolver` first into the event store's `JsonSerializerOptions` (`AddValueObjects()`, V-9) |
+| 10 CQRS / web package | pipeline order S-4; map `Invalid` to problem details and convert paths per segment with the JSON naming policy (V-4); add `ValueObjectJson.Resolver` to ASP.NET Core's JSON options; map `Microsoft.Extensions.Validation` errors of plain DTOs to `Invalid` where both meet |
+| 13 Samples | rebuild ArtFlow's rules on value objects and guards (findings 17, 18 disappear with it) |
+
+## 15. Open items
+
+* Same-assembly JSON contexts need `ValueObjectJson.Options` (V-9). If a later Roslyn lets generators see each other's
+  output, the resolver and TVAL009 can go.
+* "Missing" vs `0` for an `int`-based value object from JSON (validation.md open question 6): left to the JSON options
+  at the edge (`RespectRequiredConstructorParameters`), decided with the web package.
+* Invariant failure type: V-3 says the rule's `Error`; whether `Error.Internal` is ever right is decided with step 6.
+
