@@ -255,8 +255,8 @@ Workflow `.github/workflows/ci.yml` on every push and pull request:
 | Job | Steps | Required check |
 |---|---|---|
 | `build` | setup-dotnet from `global.json` → `dotnet format --verify-no-changes` → `dotnet build Tarol.slnx -c Release` → `dotnet test --solution Tarol.slnx` (unit tests, TRX + coverage, integration tests filtered out) → `dotnet pack` → `eng/verify-packages.sh` | yes |
-| `aot-smoke` | for each `tests/*/*.AotSmoke`: publish, fail on IL warnings, run | yes |
-| `integration` | Docker available; runs `Category=Integration` | yes once a family has integration tests |
+| `aot-smoke` | for each `tests/*/*.AotSmoke`: publish, fail on IL warnings, run; a PostgreSQL 17 service and `TAROL_PG` for the database checks of `Tarol.Persistence.Npgsql.AotSmoke` | yes |
+| `integration` | Docker available; runs `Category=Integration` (`Tarol.Persistence.Npgsql.IntegrationTests`, Testcontainers PostgreSQL) | yes (since step 8B) |
 
 Release (tag `v*`), CodeQL and Dependabot are described in [the migration plan](../migration/plan.md#ci-and-release).
 

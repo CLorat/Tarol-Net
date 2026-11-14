@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Persistence.Npgsql package (no ProjectReference). Proves that the package works without
+    a database (schema script, options, codec, store construction) and that the Primitives generator and the Results
+    analyzer reach a consumer through its dependencies. The database is exercised by the integration tests.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Persistence.Npgsql" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckNpgsqlAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolPrimitivesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Primitives.Generators'" />
+      <_TarolResultsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Results.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolPrimitivesGenerator)' == '' or '@(_TarolResultsAnalyzer)' == ''" Text="The Primitives generator / Results analyzer did not flow from the dependencies of Tarol.Persistence.Npgsql." />
+  </Target>
+</Project>

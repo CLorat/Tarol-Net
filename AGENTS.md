@@ -16,11 +16,13 @@ SDK 11.0.x (pinned by `global.json`; test runner is Microsoft.Testing.Platform).
 
 ```bash
 dotnet build Tarol.slnx
-dotnet test --solution Tarol.slnx
+dotnet test --solution Tarol.slnx                                   # integration tests need Docker (dockerd &)
+dotnet test --solution Tarol.slnx -- --filter-not-trait "Category=Integration" --ignore-exit-code 8   # without Docker
 dotnet format Tarol.slnx --verify-no-changes   # after a build: format needs the generator assemblies (Tarol.Validations)
 dotnet pack Tarol.slnx -c Release          # -> artifacts/package/release
 eng/verify-packages.sh                     # inspects the .nupkg files and runs the package consumer tests
 eng/aot-smoke.sh                           # publishes every *.AotSmoke app with Native AOT, 0 IL warnings
+                                           # (TAROL_PG=<connection string> adds the Npgsql database checks)
 ```
 
 Generator snapshot tests: on a mismatch a `*.received.*` file is written next to the `*.verified.*` file.
