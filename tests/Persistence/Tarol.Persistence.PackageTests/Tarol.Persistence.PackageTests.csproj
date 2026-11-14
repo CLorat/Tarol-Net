@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Persistence package (no ProjectReference). Proves that the package works and that the
+    generator and analyzers of its dependencies (Tarol.Primitives, Tarol.Kernel, Tarol.Results) reach a package consumer.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Persistence" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckPersistenceAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolPrimitivesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Primitives.Generators'" />
+      <_TarolResultsAnalyzer Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Results.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolPrimitivesGenerator)' == '' or '@(_TarolResultsAnalyzer)' == ''" Text="The Primitives generator / Results analyzer did not flow from the dependencies of Tarol.Persistence." />
+    <Message Importance="high" Text="Tarol.Persistence analyzers: @(_TarolPrimitivesGenerator);@(_TarolResultsAnalyzer)" />
+  </Target>
+</Project>

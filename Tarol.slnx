@@ -19,6 +19,9 @@
     <Project Path="src/Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj" />
     <Project Path="src/Options/Tarol.Options/Tarol.Options.csproj" />
   </Folder>
+  <Folder Name="/src/Persistence/">
+    <Project Path="src/Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
+  </Folder>
   <Folder Name="/src/Primitives/">
     <Project Path="src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" />
     <Project Path="src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
@@ -46,6 +49,10 @@
     <Project Path="tests/Options/Tarol.Options.Benchmarks/Tarol.Options.Benchmarks.csproj" />
     <Project Path="tests/Options/Tarol.Options.Generators.Tests/Tarol.Options.Generators.Tests.csproj" />
     <Project Path="tests/Options/Tarol.Options.Tests/Tarol.Options.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Persistence/">
+    <Project Path="tests/Persistence/Tarol.Persistence.AotSmoke/Tarol.Persistence.AotSmoke.csproj" />
+    <Project Path="tests/Persistence/Tarol.Persistence.Tests/Tarol.Persistence.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Primitives/">
     <Project Path="tests/Primitives/Tarol.Primitives.AotSmoke/Tarol.Primitives.AotSmoke.csproj" />

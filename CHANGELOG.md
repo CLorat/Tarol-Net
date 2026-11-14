@@ -61,6 +61,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   generated-use-only `ApplyLive`/`ApplyRaised`/`ForbiddenStep` on `AggregateRoot<T>`; diagnostics TPRM016–TPRM023;
   suppressor TPRMSPR01 (CS8524 on complete switches over lifecycle enums). Concept note
   `docs/architecture/state-transitions.md`.
+* `Tarol.Persistence` (step 7, PR 7A): the aggregate store port `IAggregateReader` (`Load`, `Find` by unique lookup)
+  and `IAggregateStore` (`Append` with expected version and `IdempotencyKey`, `Seen`), `StoredOutcome`, `StoreErrors`
+  (`Stream.VersionConflict`, `Idempotency.DuplicateKey`, `Lookup.Taken`), and `InMemoryAggregateStore`: tenant
+  isolation, atomic appends, `RecordedEvent` with the operation context and commit time, stored-state loads, defined
+  lookups; agent skill `tarol-persistence`. Concept and decisions of step 7 in `docs/architecture/changes.md`.
 
 ### Changed
 
