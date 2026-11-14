@@ -203,7 +203,7 @@ of `Run` (C-11): built at the edge, never ambient (identity-context.md §4).
 | a reaction runs after its event is durable | outbox row per (event, reaction) written in the commit's transaction (`ReactionsTo(event)`) | 8 (table), 9 (worker) |
 | a reaction runs at least once, effect once | key (reaction, event id) | 9 |
 | foreign messages are deduplicated | inbox = the same key table, key (contract, message id) | 11 |
-| order per stream | one aggregate's events are committed in version order; the outbox worker dispatches one stream's rows in order **[unverified]** | 8/9 |
+| order per stream | one aggregate's events are committed in version order; the outbox claim returns only the head row per (stream, reaction) (P-10) **[verified]** in the step 8 probe | 8/9 |
 | order across systems | not guaranteed; `NotFound` for a foreign target retries | 11 |
 
 ## 8. Webhooks and foreign events
@@ -281,7 +281,7 @@ factories; C-14 `ChangeTest`; C-15 two PRs; C-16 the pipeline loads the target a
 
 ## Open questions
 
-* Retention of idempotency keys (hours? days?) and whether the store purges them: step 8.
-* Per-stream ordering of outbox rows across several workers: step 8/9.
+* Retention of idempotency keys: decided in step 8 (P-11, [persistence.md](persistence.md) §7): `PurgeKeys`, 7 days default.
+* Per-stream ordering of outbox rows across several workers: decided in step 8 (P-10, [persistence.md](persistence.md) §8).
 * Unknown versions of a known webhook type: dead-letter (proposed) or acknowledge? Step 10.
 * The read side (queries, projections) after C-3: a later decision.
