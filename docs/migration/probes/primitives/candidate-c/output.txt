@@ -1,0 +1,33 @@
+# SDK 11.0.100, 2026-11-14. Candidate c (prototype runtime + hand-written generated code), against Tarol-Net Results/StronglyTypedId.
+## App (JIT): dotnet run
+ok   guard returns Error, no event
+ok   replay = live (ancestor handler, cascade)
+ok   events are pure payload: value equality
+ok   envelope beside the event
+ok   same-assembly STJ context: {"Name":"Rain"}
+ok   invariants pass
+ok   invariant violation on hand-off: Failure(Error { Conflict, Artwork.NegativePrice })
+ok   replay of the violating history still loads (no rule on replay)
+ok   unknown entity update throws
+ok   gap throws
+ALL CHECKS PASSED
+## App (Native AOT): dotnet publish -c Release; IL2xxx/IL3xxx = 0
+ALL CHECKS PASSED
+## Owner check: Gallery raising new Artwork.Hung (Artwork is owned by Room)
+error CS0311: The type 'C.Domain.Artwork' cannot be used as type parameter 'TChild' in ... AggregateRoot<Gallery>.Raise<TChild>(Entity<Gallery, TChild>.Created). There is no implicit reference conversion from 'C.Domain.Artwork' to 'C.Core.IOwnedBy<C.Domain.Gallery>'.
+## Bench (BenchmarkDotNet 0.16.0-preview.2, ShortRun): cd Bench && dotnet run -c Release -- --bench --filter '*'
+| Method          | Mean          | Error         | StdDev        | Gen0   | Gen1   | Allocated |
+|---------------- |--------------:|--------------:|--------------:|-------:|-------:|----------:|
+| RaiseChildEvent |      27.23 ns |      29.81 ns |      1.634 ns | 0.0001 |      - |      32 B |
+| RaiseCreate     |     513.62 ns |     127.71 ns |      7.000 ns | 0.0020 | 0.0010 |     547 B |
+| Replay10k       | 620,673.08 ns | 580,765.27 ns | 31,833.705 ns | 0.9766 |      - |  318904 B |
+## Analyzer prototype on Corpus (cd Corpus && dotnet build)
+Cases.cs(25,43): warning TPRM900: 'Name' is assigned in 'RenameDirect', which is not an On handler
+Cases.cs(26,27): warning TPRM900: 'Count' is assigned in 'Bump', which is not an On handler
+Cases.cs(27,41): warning TPRM901: 'Create' in apply method 'On': a call returning Result is a rule or a guard
+Cases.cs(28,56): warning TPRM901: 'throw' in apply method 'On': a throw rejects history on replay
+Cases.cs(29,38): warning TPRM901: 'GetUtcNow' in apply method 'On': the clock; use the time in the event
+Cases.cs(30,34): warning TPRM901: 'Raise' in apply method 'On': raising is decided by behaviour methods
+Cases.cs(39,29): warning TPRM900: '_cache' is assigned in 'get_Cached', which is not an On handler
+Cases.cs(40,37): warning TPRM900: 'Total' is assigned in 'On2', which is not an On handler
+Cases.cs(57,41): warning TPRM901: 'Add' in apply method 'On': a call returning Result is a rule or a guard

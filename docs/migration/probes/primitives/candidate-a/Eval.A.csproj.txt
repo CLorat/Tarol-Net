@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        Native-AOT smoke test of the domain core and the generated code. Publish with
+          dotnet publish tests/Primitives/Primitives.AotSmoke -c Release -r linux-x64
+        It must report 0 IL2xxx/IL3xxx warnings and exit 0. Reflection-based JSON is switched off,
+        so every JSON call has to go through generated metadata.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <PublishAot Condition="'$(Bench)' != 'true'">true</PublishAot><DefineConstants Condition="'$(Bench)' == 'true'">$(DefineConstants);BENCH</DefineConstants>
+        <TrimmerSingleWarn>false</TrimmerSingleWarn>
+        <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\gen\Primitives\Primitives.Generators\Primitives.Generators.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+        <ProjectReference Include="..\..\..\src\Primitives\Primitives\Primitives.csproj"/>
+    </ItemGroup>
+
+<ItemGroup><PackageReference Include="BenchmarkDotNet" VersionOverride="0.16.0-preview.2" Condition="'$(Bench)' == 'true'" /></ItemGroup></Project>

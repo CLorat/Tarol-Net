@@ -1,0 +1,12 @@
+# SDK 11.0.100, 2026-11-14
+## dotnet run (JIT)
+changes=1
+{"Price":12.5} roundtrip=True
+Core.Entity`2+Created[App.Gallery,App.Artwork]
+{"Name":"x"} 2
+## dotnet publish -c Release (PublishAot): IL2xxx/IL3xxx warnings = 0
+## native binary
+changes=1
+{"Price":12.5} roundtrip=True
+Core.Entity`2+Created[App.Gallery,App.Artwork]
+{"Name":"x"} 2

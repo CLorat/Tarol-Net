@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Generator and analyzers for Tarol.Primitives (TPRM001-TPRM015). Settings inherited from src/Directory.Build.props
+       (TarolIsGenerator): netstandard2.0, Roslyn component, packed into Tarol.Primitives, never on its own. -->
+</Project>

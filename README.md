@@ -19,7 +19,8 @@ time; see the [migration plan](docs/migration/plan.md).
 | `Tarol.Results` | `Result<T>` / `Result` as non-boxing C# 15 unions of a value and a `Violation` (`Invalid` field errors or one `Error`), conversions to and from `Option<T>`; AOT-safe JSON, analyzers included | migrated |
 | `Tarol.Kernel` | `OperationContext`: who acts (`Actor`), tenant, correlation and causation as `Id<T>`, AOT-safe JSON; analyzer that keeps the system clock out of your code (inject `TimeProvider`) | migrated |
 | `Tarol.Validations` | rules declared once on value objects (`record struct Quantity([Range(1, 100)] int Value)`): generated `Create`, trusting JSON converter, comparisons; `IValidatable` inputs validated with all field errors and input paths as `Invalid`, zero allocation when valid; generator and analyzer included | migrated |
-| `Tarol.Primitives`, … | | planned (see plan) |
+| `Tarol.Primitives` | event-sourced aggregates with child entities: pure-payload events (`sealed record Repriced(decimal Price) : Event;`), generated dispatch, cascade and strict replay, invariants at the hand-off, a given/when/then test helper; generator and analyzers included | migrated (part A; stored state next) |
+| `Tarol.Changes`, `Tarol.Persistence`, … | | planned (see plan) |
 
 Packages are private: they are published only to the owner's GitHub Packages feed, never to nuget.org.
 
