@@ -9,5 +9,7 @@
     <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <!-- The store contract, shared with the Npgsql integration tests (step 8B). -->
+    <Compile Include="../Shared/**/*.cs" LinkBase="Contract" />
   </ItemGroup>
 </Project>
