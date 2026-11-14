@@ -42,6 +42,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   the instance; `RecordedEvent` for stored events with Kernel's `OperationContext`; `AggregateTest` given/when/then
   helper; diagnostics TPRM001–TPRM015 (including "state assigned outside an On handler" and "rule, throw, clock or Raise
   inside an On handler"); agent skill `tarol-primitives`. Concept note `docs/architecture/domain-core.md`.
+* `Tarol.Primitives` (step 6, part B): stored state. Every aggregate gets generated `StateSchema`,
+  `WriteState(Utf8JsonWriter, aggregate, options)` and `ReadState(id, ref Utf8JsonReader, options) : Option<T>` on
+  `IAggregateRoot<T>`: every instance field of the root and its entities as queryable camelCase JSON (children nested by
+  id, `id`/`version`/`schema` on the root, `null` written, enums by name), read back without running a handler,
+  invariant or rule; `StateSchema` is a stable FNV-1a hash of the shape, `None` on another shape (the store replays).
+  `AggregateState.Write/Read`, `AggregateTest.StoredStateMatchesReplay`, `[StateName]`, `[LoadByReplay]`; diagnostics
+  TPRM024–TPRM027 (a field the state cannot hold, a state name used twice or reserved, a state attribute without effect,
+  a `[Transient]` member filled in `On`).
 
 ### Changed
 

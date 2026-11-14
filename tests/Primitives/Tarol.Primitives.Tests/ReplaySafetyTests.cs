@@ -9,6 +9,7 @@ namespace Tarol.Primitives.Tests;
 ///     S-3 on the real AggregateRoot (repeats tests/Validations/…/ReplayTests): loading and replaying never runs a rule, so
 ///     events recorded under older, looser rules still load.
 /// </summary>
+[Collection(StaticCounters.Name)]
 public class ReplaySafetyTests
 {
     [Fact]

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Tarol.Options;
 using Tarol.Primitives;
 using Tarol.Primitives.AotSmoke;
 using Tarol.Results;
@@ -59,6 +60,28 @@ Check("foreign history throws", Throws(() => Gallery.Rehydrate(Id<Gallery>.New()
 var test = AggregateTest.Given(Gallery.Open("Given")).When(static g => Result.Success(g.AddRoom("A")));
 Check("given/when/then helper", test.Events.SequenceEqual([new Room.Added("A")]));
 
+// ── stored state (part B) ──
+var options = SmokeJson.Default.Options;
+var shown = Gallery.Open("Shown");
+shown.Retag(["modern", "london"]);
+shown.SetMood(Mood.Calm);
+shown.SetMotto("Look closer");
+var hall = shown.AddRoom("Hall");
+hall.Hang("Weather").Reprice(10m);
+shown.Feature(hall.Id);
+var state = AggregateState.Write(shown, options);
+Console.WriteLine("state: " + System.Text.Encoding.UTF8.GetString(state));
+Check("state == state of a full replay", state.AsSpan().SequenceEqual(AggregateState.Write(Gallery.Rehydrate(shown.Id, shown.UncommittedChanges), options)));
+var restored = AggregateState.Read(shown.Id, state, options).GetValueOrThrow();
+Check("read(write(x)) writes the same state", state.AsSpan().SequenceEqual(AggregateState.Write(restored, options)));
+Check("members restored (list, enum, Option, Id, nested child)", restored.Tags.Count == 2 && restored.Mood == Mood.Calm && restored.Motto.IsSome && restored.Featured == hall.Id && restored.Rooms[0].Artworks[0].Price == 10m);
+restored.Rooms[0].Close();
+Check("a restored aggregate continues: versions, cascade", restored.UncommittedChanges[0].Version == shown.Version + 1 && restored.Rooms.Count == 0);
+var otherSchema = System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.UTF8.GetString(state).Replace($"\"schema\":{Gallery.StateSchema}", "\"schema\":1", StringComparison.Ordinal));
+Check("another schema reads as None", AggregateState.Read(shown.Id, otherSchema, options).IsNone);
+Check("the state helper", AggregateTest.StoredStateMatchesReplay(shown, options).Version == shown.Version);
+Check("[LoadByReplay]: schema 0, no state", Tally.StateSchema == 0 && Throws(() => AggregateState.Write(Tally.Start(), options)));
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
 
@@ -68,6 +91,10 @@ namespace Tarol.Primitives.AotSmoke
     {
         public EntitySet<Room> Rooms { get; } = [];
         public string Name { get; private set; } = "";
+        public List<string> Tags { get; private set; } = [];
+        public Mood Mood { get; private set; }
+        public Option<string> Motto { get; private set; }
+        public Id<Room>? Featured { get; private set; }
 
         public static Gallery Open(string name)
         {
@@ -78,9 +105,41 @@ namespace Tarol.Primitives.AotSmoke
 
         public Room AddRoom(string title) => Raise(new Room.Added(title));
 
+        public Success Retag(List<string> tags) => Raise(new Retagged(tags));
+
+        public Success SetMood(Mood mood) => Raise(new MoodSet(mood));
+
+        public Success SetMotto(string motto) => Raise(new MottoSet(motto));
+
+        public Success Feature(Id<Room> room) => Raise(new Featuring(room));
+
         public sealed record Opened(string Name) : Event;
+        public sealed record Retagged(List<string> Tags) : Event;
+        public sealed record MoodSet(Mood Mood) : Event;
+        public sealed record MottoSet(string Motto) : Event;
+        public sealed record Featuring(Id<Room> Room) : Event;
 
         private void On(Opened e) => Name = e.Name;
+        private void On(Retagged e) => Tags = [.. e.Tags];
+        private void On(MoodSet e) => Mood = e.Mood;
+        private void On(MottoSet e) => Motto = new Option<string>(e.Motto);
+        private void On(Featuring e) => Featured = e.Room;
+    }
+
+    public enum Mood { Busy, Calm }
+
+    [LoadByReplay]
+    public partial class Tally : AggregateRoot<Tally>
+    {
+        public int Count { get; private set; }
+
+        public static Tally Start() => new(Id<Tally>.New());
+
+        public Success Add() => Raise(new Added());
+
+        public sealed record Added : Event;
+
+        private void On(Added e) => Count++;
     }
 
     public partial class Room : Entity<Gallery, Room>
@@ -118,5 +177,6 @@ namespace Tarol.Primitives.AotSmoke
     }
 
     [JsonSerializable(typeof(Artwork.Repriced))]
+    [JsonSerializable(typeof(List<string>))]
     internal sealed partial class SmokeJson : JsonSerializerContext;
 }

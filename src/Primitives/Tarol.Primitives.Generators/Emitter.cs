@@ -5,7 +5,7 @@ using System.Text;
 namespace Tarol.Primitives.Generators;
 
 /// <summary>Plans and writes the generated code of one aggregate: the root's dispatch, maps and Rehydrate, and each entity's partial.</summary>
-internal sealed class Emitter
+internal sealed partial class Emitter
 {
     private const string P = "global::Tarol.Primitives.";
     private const string Id = "global::Tarol.StronglyTypedId.Id";
@@ -195,6 +195,7 @@ internal sealed class Emitter
         EmitApply(_root);
         EmitHelpers();
         EmitInvariants();
+        EmitState();
         EmitRootAccessors();
         CloseType(_root);
     }
@@ -578,6 +579,8 @@ internal sealed class Emitter
         Line($"file static class __TarolRoot<TSelf> where TSelf : {P}AggregateRoot<TSelf>");
         Open();
         Line($"{Accessor}Method, Name = \"ReplayHistory\")] public static extern void ReplayHistory({P}AggregateRoot<TSelf> aggregate, global::System.ReadOnlySpan<{P}StreamEvent> history);");
+        if (!_root.LoadByReplay)
+            Line($"{Accessor}Method, Name = \"RestoreVersion\")] public static extern void RestoreVersion({P}AggregateRoot<TSelf> aggregate, long version);");
         Close();
         Line();
         Line($"file static class __TarolSet<T> where T : {P}IEntity<T>");

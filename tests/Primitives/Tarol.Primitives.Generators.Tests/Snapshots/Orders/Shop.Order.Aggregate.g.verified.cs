@@ -201,6 +201,257 @@ namespace Shop
             __map2.Remove(entity.Id);
         }
 
+        /// <summary>The shape of the stored state (a hash of the captured names and types); 0 when the aggregate loads by replay.</summary>
+        public static int StateSchema => 732380472;
+
+        /// <summary>Writes the current state of the aggregate and all its entities as one JSON object (no events).</summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="aggregate">The aggregate.</param>
+        /// <param name="options">The options for member values (value objects need ValueObjectJson.Resolver first).</param>
+        public static void WriteState(global::System.Text.Json.Utf8JsonWriter writer, global::Shop.Order aggregate, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(writer);
+            global::System.ArgumentNullException.ThrowIfNull(aggregate);
+            global::System.ArgumentNullException.ThrowIfNull(options);
+            if (aggregate.IsBroken)
+                global::Tarol.Primitives.ThrowHelper.Broken("Order");
+            writer.WriteStartObject();
+            writer.WriteString(__sn0, aggregate.Id.Value);
+            writer.WriteNumber(__sn6, aggregate.Version);
+            writer.WriteNumber(__sn7, 732380472);
+            writer.WriteStartArray(__sn1);
+            foreach (var child0 in aggregate.Lines)
+                __WriteState0(writer, child0, options);
+            writer.WriteEndArray();
+            writer.WriteStartArray(__sn2);
+            foreach (var child1 in aggregate._notes)
+                __WriteState1(writer, child1, options);
+            writer.WriteEndArray();
+            writer.WritePropertyName(__sn3);
+            if (aggregate.Shipping.Value is { } child2)
+                __WriteState2(writer, child2, options);
+            else
+                writer.WriteNullValue();
+            writer.WriteEndObject();
+        }
+
+        private static void __WriteState0(global::System.Text.Json.Utf8JsonWriter writer, global::Shop.Line entity, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteString(__sn0, entity.Id.Value);
+            writer.WritePropertyName(__sn4);
+            if (__S0_0(entity) is { } value__S0_0)
+                writer.WriteStringValue(value__S0_0);
+            else
+                writer.WriteNullValue();
+            writer.WriteStartArray(__sn2);
+            foreach (var child1 in __Member0_Notes(entity))
+                __WriteState1(writer, child1, options);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        private static void __WriteState1(global::System.Text.Json.Utf8JsonWriter writer, global::Shop.Note entity, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteString(__sn0, entity.Id.Value);
+            writer.WriteEndObject();
+        }
+
+        private static void __WriteState2(global::System.Text.Json.Utf8JsonWriter writer, global::Shop.Shipping entity, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteString(__sn0, entity.Id.Value);
+            writer.WritePropertyName(__sn5);
+            if (__S2_0(entity) is { } value__S2_0)
+                writer.WriteStringValue(value__S2_0);
+            else
+                writer.WriteNullValue();
+            writer.WriteEndObject();
+        }
+
+        /// <summary>
+        /// Restores the aggregate from its stored state without events (no On handler, invariant or rule runs); None when the
+        /// state has another schema (the object is skipped), so the caller replays instead.
+        /// </summary>
+        /// <param name="id">The aggregate's id; the state's id must match.</param>
+        /// <param name="reader">A reader on, or before, the state object.</param>
+        /// <param name="options">The options the state was written with.</param>
+        /// <returns>The aggregate, with no uncommitted changes, or None.</returns>
+        public static global::Tarol.Options.Option<global::Shop.Order> ReadState(global::Tarol.StronglyTypedId.Id<global::Shop.Order> id, ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(options);
+            if (!global::Tarol.Primitives.StateJson.Begin(ref reader, 732380472, "Order"))
+                return default;
+            var aggregate = new global::Shop.Order(id);
+            var version = 0L;
+            var found = 0;
+            while (global::Tarol.Primitives.StateJson.Next(ref reader, "Order"))
+            {
+                if (reader.ValueTextEquals("id"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Order");
+                    var stored = reader.GetGuid();
+                    if (stored != id.Value)
+                        global::Tarol.Primitives.ThrowHelper.ForeignState("Order", id.Value, stored);
+                    found++;
+                }
+                else if (reader.ValueTextEquals("version"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Order");
+                    version = reader.GetInt64();
+                    found++;
+                }
+                else if (reader.ValueTextEquals("schema"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Order"); // checked by Begin
+                    found++;
+                }
+                else if (reader.ValueTextEquals("lines"u8))
+                {
+                    global::Tarol.Primitives.StateJson.StartArray(ref reader, "Order");
+                    while (global::Tarol.Primitives.StateJson.NextItem(ref reader, "Order"))
+                    {
+                        var child = aggregate.__ReadState0(ref reader, options);
+                        __TarolSet<global::Shop.Line>.Add(aggregate.Lines, child);
+                        __Parent0(child) = aggregate;
+                    }
+                    found++;
+                }
+                else if (reader.ValueTextEquals("notes"u8))
+                {
+                    global::Tarol.Primitives.StateJson.StartArray(ref reader, "Order");
+                    while (global::Tarol.Primitives.StateJson.NextItem(ref reader, "Order"))
+                    {
+                        var child = aggregate.__ReadState1(ref reader, options);
+                        __TarolSet<global::Shop.Note>.Add(aggregate._notes, child);
+                        __Parent1(child) = aggregate;
+                    }
+                    found++;
+                }
+                else if (reader.ValueTextEquals("shipping"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Order");
+                    if (reader.TokenType != global::System.Text.Json.JsonTokenType.Null)
+                    {
+                        var child = aggregate.__ReadState2(ref reader, options);
+                        __TarolRef<global::Shop.Shipping>.Set(aggregate.Shipping, child);
+                        __Parent2(child) = aggregate;
+                    }
+                    found++;
+                }
+                else
+                    global::Tarol.Primitives.StateJson.Unknown(ref reader, "Order");
+            }
+            if (found != 6)
+                global::Tarol.Primitives.StateJson.Missing("Order", "\"id\", \"version\", \"schema\", \"lines\", \"notes\", \"shipping\"");
+            __TarolRoot<global::Shop.Order>.RestoreVersion(aggregate, version);
+            return new global::Tarol.Options.Option<global::Shop.Order>(aggregate);
+        }
+
+        private global::Shop.Line __ReadState0(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            var id = (global::Tarol.StronglyTypedId.Id<global::Shop.Line>)global::Tarol.Primitives.StateJson.FindId(reader, "Line");
+            if (__map0.ContainsKey(id))
+                global::Tarol.Primitives.ThrowHelper.DuplicateEntity("Line", id.Value);
+            var entity = __New0(id, this);
+            __map0.Add(id, entity);
+            var found = 0;
+            while (global::Tarol.Primitives.StateJson.Next(ref reader, "Line"))
+            {
+                if (reader.ValueTextEquals("id"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Line"); // read by FindId
+                    found++;
+                }
+                else if (reader.ValueTextEquals("sku"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Line");
+                    __S0_0(entity) = reader.GetString()!;
+                    found++;
+                }
+                else if (reader.ValueTextEquals("notes"u8))
+                {
+                    global::Tarol.Primitives.StateJson.StartArray(ref reader, "Line");
+                    while (global::Tarol.Primitives.StateJson.NextItem(ref reader, "Line"))
+                    {
+                        var child = __ReadState1(ref reader, options);
+                        __TarolSet<global::Shop.Note>.Add(__Member0_Notes(entity), child);
+                        __Parent1(child) = entity;
+                    }
+                    found++;
+                }
+                else
+                    global::Tarol.Primitives.StateJson.Unknown(ref reader, "Line");
+            }
+            if (found != 3)
+                global::Tarol.Primitives.StateJson.Missing("Line", "\"id\", \"sku\", \"notes\"");
+            return entity;
+        }
+
+        private global::Shop.Note __ReadState1(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            var id = (global::Tarol.StronglyTypedId.Id<global::Shop.Note>)global::Tarol.Primitives.StateJson.FindId(reader, "Note");
+            if (__map1.ContainsKey(id))
+                global::Tarol.Primitives.ThrowHelper.DuplicateEntity("Note", id.Value);
+            var entity = __New1(id, this);
+            __map1.Add(id, entity);
+            var found = 0;
+            while (global::Tarol.Primitives.StateJson.Next(ref reader, "Note"))
+            {
+                if (reader.ValueTextEquals("id"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Note"); // read by FindId
+                    found++;
+                }
+                else
+                    global::Tarol.Primitives.StateJson.Unknown(ref reader, "Note");
+            }
+            if (found != 1)
+                global::Tarol.Primitives.StateJson.Missing("Note", "\"id\"");
+            return entity;
+        }
+
+        private global::Shop.Shipping __ReadState2(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            var id = (global::Tarol.StronglyTypedId.Id<global::Shop.Shipping>)global::Tarol.Primitives.StateJson.FindId(reader, "Shipping");
+            if (__map2.ContainsKey(id))
+                global::Tarol.Primitives.ThrowHelper.DuplicateEntity("Shipping", id.Value);
+            var entity = __New2(id, this);
+            __map2.Add(id, entity);
+            var found = 0;
+            while (global::Tarol.Primitives.StateJson.Next(ref reader, "Shipping"))
+            {
+                if (reader.ValueTextEquals("id"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Shipping"); // read by FindId
+                    found++;
+                }
+                else if (reader.ValueTextEquals("address"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Shipping");
+                    __S2_0(entity) = reader.GetString()!;
+                    found++;
+                }
+                else
+                    global::Tarol.Primitives.StateJson.Unknown(ref reader, "Shipping");
+            }
+            if (found != 2)
+                global::Tarol.Primitives.StateJson.Missing("Shipping", "\"id\", \"address\"");
+            return entity;
+        }
+
+        private static readonly global::System.Text.Json.JsonEncodedText __sn0 = global::System.Text.Json.JsonEncodedText.Encode("id");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn1 = global::System.Text.Json.JsonEncodedText.Encode("lines");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn2 = global::System.Text.Json.JsonEncodedText.Encode("notes");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn3 = global::System.Text.Json.JsonEncodedText.Encode("shipping");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn4 = global::System.Text.Json.JsonEncodedText.Encode("sku");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn5 = global::System.Text.Json.JsonEncodedText.Encode("address");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn6 = global::System.Text.Json.JsonEncodedText.Encode("version");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn7 = global::System.Text.Json.JsonEncodedText.Encode("schema");
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<Sku>k__BackingField")] private static extern ref string __S0_0(global::Shop.Line owner);
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<Address>k__BackingField")] private static extern ref string __S2_0(global::Shop.Shipping owner);
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Constructor)] private static extern global::Shop.Line __New0(global::Tarol.StronglyTypedId.Id<global::Shop.Line> id, global::Shop.Order root);
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "__Parent")] private static extern ref global::Shop.Order __Parent0(global::Shop.Line entity);
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "__Apply")] private static extern void __Apply0(global::Shop.Line entity, global::Tarol.Primitives.DomainEvent e);
@@ -269,6 +520,7 @@ namespace Shop
 file static class __TarolRoot<TSelf> where TSelf : global::Tarol.Primitives.AggregateRoot<TSelf>
 {
     [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "ReplayHistory")] public static extern void ReplayHistory(global::Tarol.Primitives.AggregateRoot<TSelf> aggregate, global::System.ReadOnlySpan<global::Tarol.Primitives.StreamEvent> history);
+    [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "RestoreVersion")] public static extern void RestoreVersion(global::Tarol.Primitives.AggregateRoot<TSelf> aggregate, long version);
 }
 
 file static class __TarolSet<T> where T : global::Tarol.Primitives.IEntity<T>

@@ -168,6 +168,215 @@ namespace Museum
             return global::Tarol.Results.Result.Success();
         }
 
+        /// <summary>The shape of the stored state (a hash of the captured names and types); 0 when the aggregate loads by replay.</summary>
+        public static int StateSchema => 648789033;
+
+        /// <summary>Writes the current state of the aggregate and all its entities as one JSON object (no events).</summary>
+        /// <param name="writer">The writer.</param>
+        /// <param name="aggregate">The aggregate.</param>
+        /// <param name="options">The options for member values (value objects need ValueObjectJson.Resolver first).</param>
+        public static void WriteState(global::System.Text.Json.Utf8JsonWriter writer, global::Museum.Gallery aggregate, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(writer);
+            global::System.ArgumentNullException.ThrowIfNull(aggregate);
+            global::System.ArgumentNullException.ThrowIfNull(options);
+            if (aggregate.IsBroken)
+                global::Tarol.Primitives.ThrowHelper.Broken("Gallery");
+            writer.WriteStartObject();
+            writer.WriteString(__sn0, aggregate.Id.Value);
+            writer.WriteNumber(__sn7, aggregate.Version);
+            writer.WriteNumber(__sn8, 648789033);
+            writer.WritePropertyName(__sn1);
+            if (__SR0(aggregate) is { } value__SR0)
+                writer.WriteStringValue(value__SR0);
+            else
+                writer.WriteNullValue();
+            writer.WriteStartArray(__sn2);
+            foreach (var child1 in aggregate.Rooms)
+                __WriteState1(writer, child1, options);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        private static void __WriteState0(global::System.Text.Json.Utf8JsonWriter writer, global::Museum.Artwork entity, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteString(__sn0, entity.Id.Value);
+            writer.WritePropertyName(__sn3);
+            writer.WriteNumberValue(__S0_0(entity));
+            writer.WriteEndObject();
+        }
+
+        private static void __WriteState1(global::System.Text.Json.Utf8JsonWriter writer, global::Museum.Room entity, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteString(__sn0, entity.Id.Value);
+            writer.WritePropertyName(__sn4);
+            if (__S1_0(entity) is { } value__S1_0)
+                writer.WriteStringValue(value__S1_0);
+            else
+                writer.WriteNullValue();
+            writer.WritePropertyName(__sn5);
+            writer.WriteNumberValue(__S1_1(entity));
+            writer.WriteStartArray(__sn6);
+            foreach (var child0 in __Member1_Artworks(entity))
+                __WriteState0(writer, child0, options);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        /// <summary>
+        /// Restores the aggregate from its stored state without events (no On handler, invariant or rule runs); None when the
+        /// state has another schema (the object is skipped), so the caller replays instead.
+        /// </summary>
+        /// <param name="id">The aggregate's id; the state's id must match.</param>
+        /// <param name="reader">A reader on, or before, the state object.</param>
+        /// <param name="options">The options the state was written with.</param>
+        /// <returns>The aggregate, with no uncommitted changes, or None.</returns>
+        public static global::Tarol.Options.Option<global::Museum.Gallery> ReadState(global::Tarol.StronglyTypedId.Id<global::Museum.Gallery> id, ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(options);
+            if (!global::Tarol.Primitives.StateJson.Begin(ref reader, 648789033, "Gallery"))
+                return default;
+            var aggregate = new global::Museum.Gallery(id);
+            var version = 0L;
+            var found = 0;
+            while (global::Tarol.Primitives.StateJson.Next(ref reader, "Gallery"))
+            {
+                if (reader.ValueTextEquals("id"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Gallery");
+                    var stored = reader.GetGuid();
+                    if (stored != id.Value)
+                        global::Tarol.Primitives.ThrowHelper.ForeignState("Gallery", id.Value, stored);
+                    found++;
+                }
+                else if (reader.ValueTextEquals("version"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Gallery");
+                    version = reader.GetInt64();
+                    found++;
+                }
+                else if (reader.ValueTextEquals("schema"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Gallery"); // checked by Begin
+                    found++;
+                }
+                else if (reader.ValueTextEquals("name"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Gallery");
+                    __SR0(aggregate) = reader.GetString()!;
+                    found++;
+                }
+                else if (reader.ValueTextEquals("rooms"u8))
+                {
+                    global::Tarol.Primitives.StateJson.StartArray(ref reader, "Gallery");
+                    while (global::Tarol.Primitives.StateJson.NextItem(ref reader, "Gallery"))
+                    {
+                        var child = aggregate.__ReadState1(ref reader, options);
+                        __TarolSet<global::Museum.Room>.Add(aggregate.Rooms, child);
+                        __Parent1(child) = aggregate;
+                    }
+                    found++;
+                }
+                else
+                    global::Tarol.Primitives.StateJson.Unknown(ref reader, "Gallery");
+            }
+            if (found != 5)
+                global::Tarol.Primitives.StateJson.Missing("Gallery", "\"id\", \"version\", \"schema\", \"name\", \"rooms\"");
+            __TarolRoot<global::Museum.Gallery>.RestoreVersion(aggregate, version);
+            return new global::Tarol.Options.Option<global::Museum.Gallery>(aggregate);
+        }
+
+        private global::Museum.Artwork __ReadState0(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            var id = (global::Tarol.StronglyTypedId.Id<global::Museum.Artwork>)global::Tarol.Primitives.StateJson.FindId(reader, "Artwork");
+            if (__map0.ContainsKey(id))
+                global::Tarol.Primitives.ThrowHelper.DuplicateEntity("Artwork", id.Value);
+            var entity = __New0(id, this);
+            __map0.Add(id, entity);
+            var found = 0;
+            while (global::Tarol.Primitives.StateJson.Next(ref reader, "Artwork"))
+            {
+                if (reader.ValueTextEquals("id"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Artwork"); // read by FindId
+                    found++;
+                }
+                else if (reader.ValueTextEquals("price"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Artwork");
+                    __S0_0(entity) = reader.GetDecimal();
+                    found++;
+                }
+                else
+                    global::Tarol.Primitives.StateJson.Unknown(ref reader, "Artwork");
+            }
+            if (found != 2)
+                global::Tarol.Primitives.StateJson.Missing("Artwork", "\"id\", \"price\"");
+            return entity;
+        }
+
+        private global::Museum.Room __ReadState1(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+        {
+            var id = (global::Tarol.StronglyTypedId.Id<global::Museum.Room>)global::Tarol.Primitives.StateJson.FindId(reader, "Room");
+            if (__map1.ContainsKey(id))
+                global::Tarol.Primitives.ThrowHelper.DuplicateEntity("Room", id.Value);
+            var entity = __New1(id, this);
+            __map1.Add(id, entity);
+            var found = 0;
+            while (global::Tarol.Primitives.StateJson.Next(ref reader, "Room"))
+            {
+                if (reader.ValueTextEquals("id"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Room"); // read by FindId
+                    found++;
+                }
+                else if (reader.ValueTextEquals("title"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Room");
+                    __S1_0(entity) = reader.GetString()!;
+                    found++;
+                }
+                else if (reader.ValueTextEquals("totalValue"u8))
+                {
+                    global::Tarol.Primitives.StateJson.Value(ref reader, "Room");
+                    __S1_1(entity) = reader.GetDecimal();
+                    found++;
+                }
+                else if (reader.ValueTextEquals("artworks"u8))
+                {
+                    global::Tarol.Primitives.StateJson.StartArray(ref reader, "Room");
+                    while (global::Tarol.Primitives.StateJson.NextItem(ref reader, "Room"))
+                    {
+                        var child = __ReadState0(ref reader, options);
+                        __TarolSet<global::Museum.Artwork>.Add(__Member1_Artworks(entity), child);
+                        __Parent0(child) = entity;
+                    }
+                    found++;
+                }
+                else
+                    global::Tarol.Primitives.StateJson.Unknown(ref reader, "Room");
+            }
+            if (found != 4)
+                global::Tarol.Primitives.StateJson.Missing("Room", "\"id\", \"title\", \"totalValue\", \"artworks\"");
+            return entity;
+        }
+
+        private static readonly global::System.Text.Json.JsonEncodedText __sn0 = global::System.Text.Json.JsonEncodedText.Encode("id");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn1 = global::System.Text.Json.JsonEncodedText.Encode("name");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn2 = global::System.Text.Json.JsonEncodedText.Encode("rooms");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn3 = global::System.Text.Json.JsonEncodedText.Encode("price");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn4 = global::System.Text.Json.JsonEncodedText.Encode("title");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn5 = global::System.Text.Json.JsonEncodedText.Encode("totalValue");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn6 = global::System.Text.Json.JsonEncodedText.Encode("artworks");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn7 = global::System.Text.Json.JsonEncodedText.Encode("version");
+        private static readonly global::System.Text.Json.JsonEncodedText __sn8 = global::System.Text.Json.JsonEncodedText.Encode("schema");
+
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<Name>k__BackingField")] private static extern ref string __SR0(global::Museum.Gallery owner);
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<Price>k__BackingField")] private static extern ref decimal __S0_0(global::Museum.Artwork owner);
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<Title>k__BackingField")] private static extern ref string __S1_0(global::Museum.Room owner);
+        [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<TotalValue>k__BackingField")] private static extern ref decimal __S1_1(global::Museum.Room owner);
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Constructor)] private static extern global::Museum.Artwork __New0(global::Tarol.StronglyTypedId.Id<global::Museum.Artwork> id, global::Museum.Gallery root);
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "__Parent")] private static extern ref global::Museum.Room __Parent0(global::Museum.Artwork entity);
         [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "__Apply")] private static extern void __Apply0(global::Museum.Artwork entity, global::Tarol.Primitives.DomainEvent e);
@@ -232,6 +441,7 @@ namespace Museum
 file static class __TarolRoot<TSelf> where TSelf : global::Tarol.Primitives.AggregateRoot<TSelf>
 {
     [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "ReplayHistory")] public static extern void ReplayHistory(global::Tarol.Primitives.AggregateRoot<TSelf> aggregate, global::System.ReadOnlySpan<global::Tarol.Primitives.StreamEvent> history);
+    [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "RestoreVersion")] public static extern void RestoreVersion(global::Tarol.Primitives.AggregateRoot<TSelf> aggregate, long version);
 }
 
 file static class __TarolSet<T> where T : global::Tarol.Primitives.IEntity<T>

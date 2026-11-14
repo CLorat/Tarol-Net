@@ -1,0 +1,91 @@
+# SDK 11.0.100, 2026-11-14, branch prototype of step 6 part B
+
+## App, JIT (dotnet run)
+state: {"id":"<guid>","version":21,"schema":635019038,"address":{"street":"Millbank","city":"London"},"artworkCount":2,"budget":250000.50,"label":"Modern","log":["tag:art","tag:london"],"motto":"Look closer","name":"Tate","openedAt":"2026-11-14T09:30:00+01:00","tags":["art","london"],"visitors":1200,"curator":{"id":"<guid>","name":"Frances"},"rooms":[{"id":"<guid>","capacity":400,"lighting":"Dim","title":"Turbine Hall","totalValue":1150000,"artworks":[{"id":"<guid>","firstRoom":"<guid>","name":"Weather","preferred":"Warm","price":1100000,"reserve":null,"notes":[{"id":"<guid>","text":"on loan"}]},{"id":"<guid>","firstRoom":"<guid>","name":"Shibboleth","preferred":null,"price":50000,"reserve":40000,"notes":[]}],"notes":[{"id":"<guid>","text":"busy on Sundays"}]}]}
+bytes: 1035, events: 21, schema: 635019038
+PASS  state of live == state of full replay
+PASS  read(write(x)) writes the same JSON
+PASS  restoring runs no rule (value object Validate not called)
+PASS  version restored  21
+PASS  no uncommitted changes after a load
+PASS  invariants pass on a loaded aggregate
+PASS  [Transient] cache is not stored, recomputed on demand
+PASS  registry: TryFind an artwork in the loaded tree
+PASS  EntityRef restored
+PASS  multi-owner child restored under both owners
+PASS  jsonb key order reads back
+PASS  same versions after continuing on the loaded instance
+PASS  same state after continuing (cascade, ref delete, create)
+PASS  cascade on loaded: the closed room's artworks left the registry
+PASS  state after continuing == full replay
+PASS  another schema -> None
+PASS  ... and the object was skipped
+PASS  no schema member -> None
+PASS  foreign id throws  InvalidOperationException: The stored state belongs to Gallery '<guid>', not to '<guid>'.
+PASS  unknown member throws  JsonException: The stored state of Gallery has an unknown member "title".
+PASS  missing member throws  JsonException: The stored state of Gallery lacks members; expected "id", "version", "schema", "log", "budget", "name", "tags", "artworkCount", "motto", "address", "label", "openedAt", "visitors", "curator", "rooms".
+PASS  unknown enum name throws  JsonException: The stored state holds Lighting "Bright", which is not a member of Lighting. Stored enum names are kept forever: rename with care.
+PASS  duplicate entity id throws  InvalidOperationException: Room '<guid>' is created a second time: the stream contains the same creation twice, or two creations share an id.
+bare: {"id":"<guid>","version":1,"schema":635019038,"address":null,"artworkCount":0,"budget":null,"label":null,"log":[],"motto":null,"name":"Bare","openedAt":"2026-11-14T09:30:00+01:00","tags":[],"visitors":0,"curator":null,"rooms":[]}
+PASS  bare aggregate round-trips
+PASS  [LoadByReplay]: StateSchema is 0
+PASS  [LoadByReplay]: WriteState throws  InvalidOperationException: Ledger is [LoadByReplay]: it has no stored state (StateSchema is 0). Store its events only.
+PASS  [LoadByReplay]: ReadState is None
+PASS  JsonMetadataServices writer == generated writer
+ALL CHECKS PASSED
+
+## App, Native AOT (dotnet publish -c Release -r linux-x64; IL warnings: 0)
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+PASS
+ALL CHECKS PASSED
+
+## Bench (BenchmarkDotNet 0.16.0-preview.2, --job short --inProcess)
+// N=100: 191 events, state 17162 B, event JSON 8499 B
+// N=10: 20 events, state 1942 B, event JSON 886 B
+// N=1: 2 events, state 400 B, event JSON 67 B
+| Method         | Entities | Mean        | Error       | StdDev      | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|--------------- |--------- |------------:|------------:|------------:|------:|--------:|-------:|-------:|----------:|------------:|
+| Write          | 1        |    480.3 ns |    133.1 ns |     7.30 ns |  1.11 |    0.02 |      - |      - |         - |        0.00 |
+| MetadataWrite  | 1        |    911.6 ns |  1,157.9 ns |    63.47 ns |  2.11 |    0.13 | 0.0029 |      - |     432 B |        0.28 |
+| ReadState      | 1        |  1,668.4 ns |  1,494.5 ns |    81.92 ns |  3.87 |    0.17 | 0.0114 |      - |    1672 B |        1.09 |
+| Replay         | 1        |    431.4 ns |    122.8 ns |     6.73 ns |  1.00 |    0.00 | 0.0110 |      - |    1536 B |        1.00 |
+| ReplayFromJson | 1        |    971.8 ns |    450.8 ns |    24.71 ns |  2.25 |    0.06 | 0.0134 |      - |    1936 B |        1.26 |
+| Write          | 10       |  1,701.8 ns |  1,769.0 ns |    96.97 ns |  0.59 |    0.03 |      - |      - |         - |        0.00 |
+| MetadataWrite  | 10       |  3,707.4 ns |  5,864.1 ns |   321.43 ns |  1.28 |    0.10 | 0.0076 |      - |    1392 B |        0.21 |
+| ReadState      | 10       |  6,560.1 ns |  4,858.8 ns |   266.32 ns |  2.26 |    0.09 | 0.0458 |      - |    7032 B |        1.08 |
+| Replay         | 10       |  2,898.9 ns |    846.5 ns |    46.40 ns |  1.00 |    0.00 | 0.0458 |      - |    6536 B |        1.00 |
+| ReplayFromJson | 10       | 11,134.0 ns | 15,179.3 ns |   832.03 ns |  3.84 |    0.25 | 0.0763 |      - |   10824 B |        1.66 |
+| Write          | 100      | 13,067.0 ns |  7,836.7 ns |   429.56 ns |  0.44 |    0.02 |      - |      - |         - |        0.00 |
+| MetadataWrite  | 100      | 26,921.2 ns | 18,694.2 ns | 1,024.69 ns |  0.92 |    0.05 | 0.0305 |      - |    5352 B |        0.09 |
+| ReadState      | 100      | 54,057.0 ns | 37,624.6 ns | 2,062.33 ns |  1.84 |    0.09 | 0.4272 | 0.0610 |   63608 B |        1.08 |
+| Replay         | 100      | 29,429.9 ns | 24,252.4 ns | 1,329.36 ns |  1.00 |    0.00 | 0.4272 | 0.0610 |   58872 B |        1.00 |
+| ReplayFromJson | 100      | 98,703.2 ns | 91,536.9 ns | 5,017.45 ns |  3.36 |    0.20 | 0.7324 |      - |  100304 B |        1.70 |
+Intel Xeon Processor 2.10GHz, 1 CPU, 4 logical and 4 physical cores
+.NET SDK 11.0.100
+  [Host]   : .NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4

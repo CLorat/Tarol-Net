@@ -20,6 +20,9 @@ book.Lend("Ana");
 Check("generated dispatch from the package", Shelf.Rehydrate(shelf.Id, shelf.UncommittedChanges).Books.Single().Borrower == "Ana");
 Check("invariants from the package", AggregateChanges.Prepare(shelf).IsSuccess);
 Check("given/when/then helper", AggregateTest.Given(Shelf.Create()).When(static s => Result.Success(s.Add("X"))).Events.Count == 1);
+var state = AggregateState.Write(shelf, System.Text.Json.JsonSerializerOptions.Default);
+Check("stored state from the package", AggregateState.Read(shelf.Id, state, System.Text.Json.JsonSerializerOptions.Default).GetValueOrThrow().Books.Single().Borrower == "Ana");
+Check("stored state == replay", AggregateTest.StoredStateMatchesReplay(shelf, System.Text.Json.JsonSerializerOptions.Default).Version == shelf.Version);
 
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;

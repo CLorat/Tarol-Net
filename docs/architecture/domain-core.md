@@ -338,7 +338,9 @@ An analyzer can make it a build error:
 * **Stored state instead of snapshots** (round 3): every commit stores the current state with the events; loads never
   replay; queryable JSON with property names and nested children; an uncapturable field is an Error; an old shape is
   replayed in memory and rewritten on the next change; step 8 adds a rebuild command. §5 above describes the earlier
-  "cache" view and is superseded by this.
+  "cache" view and is superseded by this. Built in part B (round 4, primitives.md §16.10): static `StateSchema`,
+  `WriteState`, `ReadState : Option<T>` on `IAggregateRoot<T>`, generated writer/reader code, fixed camelCase names,
+  `null` always written, enums by name, `[LoadByReplay]`, `[StateName]`, TPRM024–027.
 * **Package**: one `Tarol.Primitives` (`TPRM*`), depends on Kernel, Results, Options, StronglyTypedId; `Value`
   dropped; a given/when/then test helper ships in the package.
 
@@ -347,7 +349,7 @@ An analyzer can make it a build error:
 | Step | Must |
 |---|---|
 | 7 Changes | call behaviour methods (no access to `Raise`); discard the instance on any failure or exception; `AggregateChanges.Prepare` before commit; findings 14, 15 |
-| 8 Persistence | store events (`StreamEvent` → columns) and the current state in one transaction with the expected version; fill `RecordedEvent` (event id, `RecordedAt` per commit, actor, tenant, correlation, causation); aliases from `[EventType]`; codec and upcasters; load from state, replay in memory on an old `schema`, rewrite on the next change; `RebuildStates<T>()`; `ValueObjectJson.Resolver` first |
+| 8 Persistence | store events (`StreamEvent` → columns) and the current state in one transaction with the expected version; fill `RecordedEvent` (event id, `RecordedAt` per commit, actor, tenant, correlation, causation); aliases from `[EventType]`; codec and upcasters; load from state (`T.ReadState`), replay in memory on `None` (an old `schema`), rewrite on the next change; `RebuildStates<T>()`; `ValueObjectJson.Resolver` first in the event and state options |
 | 9 Sagas | consume `RecordedEvent`; real event types are visible to the saga generator by symbol, not by name |
 | 13 Samples | ArtFlow on the new syntax; `AuctionCreated.Id` duplicates the stream id: drop it |
 

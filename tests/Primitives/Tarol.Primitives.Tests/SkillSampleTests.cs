@@ -23,6 +23,20 @@ namespace Tarol.Primitives.Tests
             order.Submit(DateTimeOffset.UnixEpoch).IsSuccess.ShouldBeTrue();
             order.Add("SKU", 1).ShouldBe(Result<Line>.Failure(Error.Conflict("Order.Submitted")));
         }
+
+        [Fact]
+        public void The_Skill_State_Example_Works()
+        {
+            var options = System.Text.Json.JsonSerializerOptions.Default;
+            var order = Order.Start();
+            order.Add("SKU", 2);
+            byte[] json = AggregateState.Write(order, options);
+            Order loaded = AggregateState.Read(order.Id, json, options).GetValueOrThrow();
+            AggregateTest.StoredStateMatchesReplay(order, options);
+
+            loaded.Lines.Single().Quantity.ShouldBe(2);
+            System.Text.Encoding.UTF8.GetString(json).ShouldStartWith($$"""{"id":"{{order.Id.Value}}","version":2,"schema":""");
+        }
     }
 }
 

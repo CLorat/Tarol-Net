@@ -71,10 +71,14 @@ internal static class Discovery
         var handlers = new List<HandlerModel>();
         var invariants = new List<string>();
         var hasIdConstructor = false;
+        var stored = !Symbols.HasAttribute(root, "LoadByReplayAttribute");
+        var state = new List<StateField>();
 
         foreach (var member in type.GetMembers())
         {
             ct.ThrowIfCancellationRequested();
+            if (stored)
+                StateDiscovery.Capture(member, state, diagnostics);
             if (member.IsImplicitlyDeclared)
                 continue;
 
@@ -83,14 +87,14 @@ internal static class Discovery
                 case IFieldSymbol { IsStatic: false } field when Symbols.ContainerChild(field.Type) is var (child, isRef) && child is not null:
                     if (!field.IsReadOnly)
                         diagnostics.Add(DiagnosticInfo.Create(Diagnostics.AssignableContainer, LocationOf(field), field.Name));
-                    members.Add(new ContainerMember(field.Name, Symbols.FullName(child), isRef, true, LocationOf(field)));
+                    members.Add(new ContainerMember(field.Name, Symbols.FullName(child), isRef, true, StateDiscovery.NameOf(field.Name, field), LocationOf(field)));
                     break;
 
                 case IPropertySymbol { IsStatic: false } property when Symbols.ContainerChild(property.Type) is var (child, isRef) && child is not null:
                     if (property.SetMethod is not null)
                         diagnostics.Add(DiagnosticInfo.Create(Diagnostics.AssignableContainer, LocationOf(property), property.Name));
                     if (property.GetMethod is not null)
-                        members.Add(new ContainerMember(property.Name, Symbols.FullName(child), isRef, false, LocationOf(property)));
+                        members.Add(new ContainerMember(property.Name, Symbols.FullName(child), isRef, false, StateDiscovery.NameOf(property.Name, property), LocationOf(property)));
                     break;
 
                 case IMethodSymbol { MethodKind: MethodKind.Ordinary } method when Symbols.IsHandler(method):
@@ -113,10 +117,18 @@ internal static class Discovery
             }
         }
 
+        if (stored)
+            StateDiscovery.CheckNames(kind, type, state, members, diagnostics);
+        else if (kind == TypeKind.Root)
+            StateDiscovery.CheckUnusedNames(type, diagnostics);
+        if (kind == TypeKind.Entity && Symbols.HasAttribute(type, "LoadByReplayAttribute"))
+            diagnostics.Add(DiagnosticInfo.Create(Diagnostics.StateAttributeIgnored, location, "[LoadByReplay]", type.Name, "it belongs on the aggregate root; an entity is stored or replayed with its root"));
+
         return new TypeModel(
             kind, Symbols.FullName(root), Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
             Containers(type, ct), canEmit,
             Array(members), Array(handlers), Array(invariants), hasIdConstructor,
+            Array(state), !stored,
             EventKind.None, null, null, type.IsAbstract, default, "", 0, location, Array(diagnostics));
     }
 
@@ -131,7 +143,7 @@ internal static class Discovery
                 var (alias, version) = Alias(type, root!);
                 return new TypeModel(
                     TypeKind.Event, Symbols.FullName(root!), Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
-                    default, true, default, default, default, false,
+                    default, true, default, default, default, false, default, false,
                     kind, Symbols.FullName(target!), parent is null ? null : Symbols.FullName(parent), type.IsAbstract,
                     new EquatableArray<string>(bases.ToImmutableArray()), alias, version, LocationOf(type), default);
             }
@@ -140,7 +152,7 @@ internal static class Discovery
             {
                 return new TypeModel(
                     TypeKind.Event, "", Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
-                    default, false, default, default, default, false, EventKind.None, null, null, type.IsAbstract, default, "", 0,
+                    default, false, default, default, default, false, default, false, EventKind.None, null, null, type.IsAbstract, default, "", 0,
                     LocationOf(type),
                     Array(new List<DiagnosticInfo> { DiagnosticInfo.Create(Diagnostics.Unsupported, LocationOf(type), type.Name, "an event derives from the Event, Created, CreatedIn<TParent> or Deleted base of the type it targets, not from DomainEvent") }));
             }
@@ -240,7 +252,7 @@ internal static class Discovery
         return sb.Append(".Aggregate.g.cs").ToString();
     }
 
-    private static LocationInfo? LocationOf(ISymbol symbol)
+    internal static LocationInfo? LocationOf(ISymbol symbol)
         => symbol.Locations.FirstOrDefault(static l => l.IsInSource) is { } location ? LocationInfo.From(location) : null;
 
     private static EquatableArray<T> Array<T>(List<T> items) where T : System.IEquatable<T>

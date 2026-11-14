@@ -107,6 +107,143 @@ namespace Outer.Space
                 __map0.Remove(entity.Id);
             }
 
+            /// <summary>The shape of the stored state (a hash of the captured names and types); 0 when the aggregate loads by replay.</summary>
+            public static int StateSchema => 450902408;
+
+            /// <summary>Writes the current state of the aggregate and all its entities as one JSON object (no events).</summary>
+            /// <param name="writer">The writer.</param>
+            /// <param name="aggregate">The aggregate.</param>
+            /// <param name="options">The options for member values (value objects need ValueObjectJson.Resolver first).</param>
+            public static void WriteState(global::System.Text.Json.Utf8JsonWriter writer, global::Outer.Space.Domain.Station aggregate, global::System.Text.Json.JsonSerializerOptions options)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(writer);
+                global::System.ArgumentNullException.ThrowIfNull(aggregate);
+                global::System.ArgumentNullException.ThrowIfNull(options);
+                if (aggregate.IsBroken)
+                    global::Tarol.Primitives.ThrowHelper.Broken("Station");
+                writer.WriteStartObject();
+                writer.WriteString(__sn0, aggregate.Id.Value);
+                writer.WriteNumber(__sn4, aggregate.Version);
+                writer.WriteNumber(__sn5, 450902408);
+                writer.WritePropertyName(__sn1);
+                writer.WriteNumberValue(__SR0(aggregate));
+                writer.WriteStartArray(__sn2);
+                foreach (var child0 in aggregate.Modules)
+                    __WriteState0(writer, child0, options);
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+
+            private static void __WriteState0(global::System.Text.Json.Utf8JsonWriter writer, global::Outer.Space.Domain.Module entity, global::System.Text.Json.JsonSerializerOptions options)
+            {
+                writer.WriteStartObject();
+                writer.WriteString(__sn0, entity.Id.Value);
+                writer.WritePropertyName(__sn3);
+                writer.WriteNumberValue(__S0_0(entity));
+                writer.WriteEndObject();
+            }
+
+            /// <summary>
+            /// Restores the aggregate from its stored state without events (no On handler, invariant or rule runs); None when the
+            /// state has another schema (the object is skipped), so the caller replays instead.
+            /// </summary>
+            /// <param name="id">The aggregate's id; the state's id must match.</param>
+            /// <param name="reader">A reader on, or before, the state object.</param>
+            /// <param name="options">The options the state was written with.</param>
+            /// <returns>The aggregate, with no uncommitted changes, or None.</returns>
+            public static global::Tarol.Options.Option<global::Outer.Space.Domain.Station> ReadState(global::Tarol.StronglyTypedId.Id<global::Outer.Space.Domain.Station> id, ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(options);
+                if (!global::Tarol.Primitives.StateJson.Begin(ref reader, 450902408, "Station"))
+                    return default;
+                var aggregate = new global::Outer.Space.Domain.Station(id);
+                var version = 0L;
+                var found = 0;
+                while (global::Tarol.Primitives.StateJson.Next(ref reader, "Station"))
+                {
+                    if (reader.ValueTextEquals("id"u8))
+                    {
+                        global::Tarol.Primitives.StateJson.Value(ref reader, "Station");
+                        var stored = reader.GetGuid();
+                        if (stored != id.Value)
+                            global::Tarol.Primitives.ThrowHelper.ForeignState("Station", id.Value, stored);
+                        found++;
+                    }
+                    else if (reader.ValueTextEquals("version"u8))
+                    {
+                        global::Tarol.Primitives.StateJson.Value(ref reader, "Station");
+                        version = reader.GetInt64();
+                        found++;
+                    }
+                    else if (reader.ValueTextEquals("schema"u8))
+                    {
+                        global::Tarol.Primitives.StateJson.Value(ref reader, "Station"); // checked by Begin
+                        found++;
+                    }
+                    else if (reader.ValueTextEquals("count"u8))
+                    {
+                        global::Tarol.Primitives.StateJson.Value(ref reader, "Station");
+                        __SR0(aggregate) = reader.GetInt32();
+                        found++;
+                    }
+                    else if (reader.ValueTextEquals("modules"u8))
+                    {
+                        global::Tarol.Primitives.StateJson.StartArray(ref reader, "Station");
+                        while (global::Tarol.Primitives.StateJson.NextItem(ref reader, "Station"))
+                        {
+                            var child = aggregate.__ReadState0(ref reader, options);
+                            __TarolSet<global::Outer.Space.Domain.Module>.Add(aggregate.Modules, child);
+                            __Parent0(child) = aggregate;
+                        }
+                        found++;
+                    }
+                    else
+                        global::Tarol.Primitives.StateJson.Unknown(ref reader, "Station");
+                }
+                if (found != 5)
+                    global::Tarol.Primitives.StateJson.Missing("Station", "\"id\", \"version\", \"schema\", \"count\", \"modules\"");
+                __TarolRoot<global::Outer.Space.Domain.Station>.RestoreVersion(aggregate, version);
+                return new global::Tarol.Options.Option<global::Outer.Space.Domain.Station>(aggregate);
+            }
+
+            private global::Outer.Space.Domain.Module __ReadState0(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Text.Json.JsonSerializerOptions options)
+            {
+                var id = (global::Tarol.StronglyTypedId.Id<global::Outer.Space.Domain.Module>)global::Tarol.Primitives.StateJson.FindId(reader, "Module");
+                if (__map0.ContainsKey(id))
+                    global::Tarol.Primitives.ThrowHelper.DuplicateEntity("Module", id.Value);
+                var entity = __New0(id, this);
+                __map0.Add(id, entity);
+                var found = 0;
+                while (global::Tarol.Primitives.StateJson.Next(ref reader, "Module"))
+                {
+                    if (reader.ValueTextEquals("id"u8))
+                    {
+                        global::Tarol.Primitives.StateJson.Value(ref reader, "Module"); // read by FindId
+                        found++;
+                    }
+                    else if (reader.ValueTextEquals("hours"u8))
+                    {
+                        global::Tarol.Primitives.StateJson.Value(ref reader, "Module");
+                        __S0_0(entity) = reader.GetInt32();
+                        found++;
+                    }
+                    else
+                        global::Tarol.Primitives.StateJson.Unknown(ref reader, "Module");
+                }
+                if (found != 2)
+                    global::Tarol.Primitives.StateJson.Missing("Module", "\"id\", \"hours\"");
+                return entity;
+            }
+
+            private static readonly global::System.Text.Json.JsonEncodedText __sn0 = global::System.Text.Json.JsonEncodedText.Encode("id");
+            private static readonly global::System.Text.Json.JsonEncodedText __sn1 = global::System.Text.Json.JsonEncodedText.Encode("count");
+            private static readonly global::System.Text.Json.JsonEncodedText __sn2 = global::System.Text.Json.JsonEncodedText.Encode("modules");
+            private static readonly global::System.Text.Json.JsonEncodedText __sn3 = global::System.Text.Json.JsonEncodedText.Encode("hours");
+            private static readonly global::System.Text.Json.JsonEncodedText __sn4 = global::System.Text.Json.JsonEncodedText.Encode("version");
+            private static readonly global::System.Text.Json.JsonEncodedText __sn5 = global::System.Text.Json.JsonEncodedText.Encode("schema");
+
+            [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<Count>k__BackingField")] private static extern ref int __SR0(global::Outer.Space.Domain.Station owner);
+            [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "<Hours>k__BackingField")] private static extern ref int __S0_0(global::Outer.Space.Domain.Module owner);
             [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Constructor)] private static extern global::Outer.Space.Domain.Module __New0(global::Tarol.StronglyTypedId.Id<global::Outer.Space.Domain.Module> id, global::Outer.Space.Domain.Station root);
             [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Field, Name = "__Parent")] private static extern ref global::Outer.Space.Domain.Station __Parent0(global::Outer.Space.Domain.Module entity);
             [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "__Apply")] private static extern void __Apply0(global::Outer.Space.Domain.Module entity, global::Tarol.Primitives.DomainEvent e);
@@ -141,6 +278,7 @@ namespace Outer.Space
 file static class __TarolRoot<TSelf> where TSelf : global::Tarol.Primitives.AggregateRoot<TSelf>
 {
     [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "ReplayHistory")] public static extern void ReplayHistory(global::Tarol.Primitives.AggregateRoot<TSelf> aggregate, global::System.ReadOnlySpan<global::Tarol.Primitives.StreamEvent> history);
+    [global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Method, Name = "RestoreVersion")] public static extern void RestoreVersion(global::Tarol.Primitives.AggregateRoot<TSelf> aggregate, long version);
 }
 
 file static class __TarolSet<T> where T : global::Tarol.Primitives.IEntity<T>

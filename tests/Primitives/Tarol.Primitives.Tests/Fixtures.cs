@@ -73,6 +73,8 @@ public partial class Faulty : AggregateRoot<Faulty>
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
 [JsonSerializable(typeof(Board.Renamed))]
+[JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(Showrooms.Address))]
 [JsonSerializable(typeof(Galleries.Artwork.Repriced))]
 [JsonSerializable(typeof(Galleries.Room.Added))]
 [JsonSerializable(typeof(Galleries.Room.Closed))]

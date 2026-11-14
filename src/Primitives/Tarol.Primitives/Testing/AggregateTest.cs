@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Tarol.Results;
 
 namespace Tarol.Primitives;
@@ -27,6 +29,55 @@ public static class AggregateTest
         ArgumentNullException.ThrowIfNull(aggregate);
         return new AggregateTest<TSelf>(aggregate);
     }
+
+    /// <summary>
+    /// Checks the stored state against replay: the state of <paramref name="aggregate"/>, the state of a replay of its
+    /// uncommitted events, and the state of an instance read back from its state must be the same JSON. Use it after any
+    /// sequence of behaviours on an aggregate that was never committed.
+    /// <code>AggregateTest.StoredStateMatchesReplay(order, options);</code>
+    /// </summary>
+    /// <typeparam name="TSelf">The aggregate type.</typeparam>
+    /// <param name="aggregate">The aggregate; its uncommitted events must be its whole history.</param>
+    /// <param name="options">The state's JSON options.</param>
+    /// <returns>The instance read back from the state (no uncommitted events), to continue on.</returns>
+    /// <exception cref="InvalidOperationException">The states differ (the message holds both), or the aggregate was committed.</exception>
+    public static TSelf StoredStateMatchesReplay<TSelf>(TSelf aggregate, JsonSerializerOptions options)
+        where TSelf : AggregateRoot<TSelf>, IAggregateRoot<TSelf>
+    {
+        ArgumentNullException.ThrowIfNull(aggregate);
+        if (aggregate.UncommittedChanges.Length != aggregate.Version)
+            throw new InvalidOperationException($"The {typeof(TSelf).Name} has committed events; pass its whole history to StoredStateMatchesReplay(aggregate, history, options).");
+        return StoredStateMatchesReplay(aggregate, aggregate.UncommittedChanges, options);
+    }
+
+    /// <summary>Checks the stored state of <paramref name="aggregate"/> against a replay of <paramref name="history"/> (see the other overload).</summary>
+    /// <typeparam name="TSelf">The aggregate type.</typeparam>
+    /// <param name="aggregate">The aggregate.</param>
+    /// <param name="history">Its whole history, from version 1.</param>
+    /// <param name="options">The state's JSON options.</param>
+    /// <returns>The instance read back from the state.</returns>
+    /// <exception cref="InvalidOperationException">The states differ.</exception>
+    public static TSelf StoredStateMatchesReplay<TSelf>(TSelf aggregate, ReadOnlySpan<StreamEvent> history, JsonSerializerOptions options)
+        where TSelf : AggregateRoot<TSelf>, IAggregateRoot<TSelf>
+    {
+        ArgumentNullException.ThrowIfNull(aggregate);
+        ArgumentNullException.ThrowIfNull(options);
+        if (TSelf.StateSchema == 0)
+            throw new InvalidOperationException($"{typeof(TSelf).Name} is [LoadByReplay]: it has no stored state to check.");
+        var live = AggregateState.Write(aggregate, options);
+        var replayed = AggregateState.Write(TSelf.Rehydrate(aggregate.Id, history), options);
+        if (!live.AsSpan().SequenceEqual(replayed))
+            throw Differ("the live aggregate", live, "a replay of its history", replayed);
+        if (!AggregateState.Read(aggregate.Id, live, options).TryGetValue(out TSelf? loaded))
+            throw new InvalidOperationException($"The state of {typeof(TSelf).Name} was written with schema {TSelf.StateSchema} but did not read back.");
+        var reread = AggregateState.Write(loaded, options);
+        if (!live.AsSpan().SequenceEqual(reread))
+            throw Differ("the live aggregate", live, "the aggregate read back from it", reread);
+        return loaded;
+    }
+
+    private static InvalidOperationException Differ(string a, byte[] left, string b, byte[] right)
+        => new($"The stored state of {a} differs from {b}.{Environment.NewLine}{a}: {Encoding.UTF8.GetString(left)}{Environment.NewLine}{b}: {Encoding.UTF8.GetString(right)}");
 }
 
 /// <summary>A behaviour test in progress: the given history and the aggregate rebuilt from it.</summary>

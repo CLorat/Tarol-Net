@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <Optimize>true</Optimize><DefineConstants>$(DefineConstants);BENCH</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../App/Domain.cs;../App/MetadataVariant.cs" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
+    <ProjectReference Include="$(TarolNetRepo)/src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
+    <ProjectReference Include="$(TarolNetRepo)/src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
+    <ProjectReference Include="$(TarolNetRepo)/src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolNetRepo)/src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
