@@ -1,0 +1,449 @@
+# Changes: evaluation (step 7 design)
+
+Evaluation of [changes.md](../architecture/changes.md): inventory of the old `Tarol.Changes`, three candidates for how a
+change and its entries are declared, the pipeline, the context and outcome per channel, delivery guarantees, AOT, and
+the plan impact. **Design only**: this PR changes no package code. Probes and output:
+[`probes/changes/`](probes/changes/), [`output.txt`](probes/changes/output.txt). Labels as in the
+[conventions](../architecture/conventions.md). Source of the old code: `CLorat/Tarol@6a62f81`.
+
+## 0. Summary
+
+* **The old `Tarol.Changes` is ≈ 5 % of a feature** **[verified by reading]**: eight marker types, no generator
+  (`gen/Changes` does not exist), no tests, two dead sibling projects. Nothing in it is ported; every name is replaced.
+* **Decided shape** (C-4, C-5): an input record implements `IChange<T>` or `ICreation<T>` and calls one behaviour in
+  `Execute`; entries are attributes on the record (`[Endpoint]`) or on a static `From` factory (`[OnEvent<T>]`,
+  `[Webhook]`, `[Consumes]`). A change without an attribute has the typed in-process entry.
+* **The pipeline is library code** (generic, no reflection); the generator adds `Target`, a typed `Dispatch(object)`, the
+  reaction table and the entries. Under Native AOT: **0 IL warnings**, all scenarios pass natively **[verified]**.
+* **Cost**: 260 ns / 920 B hand-written vs 415 ns / 976 B through the pipeline (+≈ 150 ns, +56 B per change, both
+  including a one-event replay) **[verified]** (`Bench/`, short run). Against one database round trip this is noise.
+* **HTTP entries must be generated `RequestDelegate`s** (C-12): the Request Delegate Generator does not see generated
+  `MapPost` calls; those publish with IL2026/IL3050 and the native app aborts at startup **[verified]**.
+* **Candidate B (`[Change]` on the behaviour method) is blocked**: its generated input record gets neither `Validate`
+  (CS0535) nor JSON metadata (SYSLIB1030) **[verified]**.
+* **Plan** (C-1, C-2, C-15): step 7 = `Tarol.Persistence` (store port + in-memory store) and `Tarol.Changes` (core +
+  internal entry), two PRs; reactions with sagas (9); REST and webhooks with Security (10); consumers (11). Old CQRS
+  is not migrated (C-3).
+
+## 1. Inventory of the old code
+
+### 1.1 Public API **[verified by reading]** (`src/Changes/*` at `6a62f81`)
+
+| Old type | File | What it was meant for | New (decided) |
+|---|---|---|---|
+| `IChange` | `Changes/Change.cs:5` | marker, unrelated to the generic one (finding 15) | — (not needed) |
+| `IChange<TAggregateRoot> where TAggregateRoot : IAggregateRoot` | `Change.cs:7` | a change of an existing aggregate; non-generic constraint, so no `T.Rehydrate` (finding 15) | `IChange<T> where T : AggregateRoot<T>, IAggregateRoot<T>` with `Target` and `Execute` |
+| `IChangeCreate<TAggregateRoot>` | `Change.cs:9` | a creation; not an `IChange<T>` (finding 15) | `ICreation<T>` with `Execute(ChangeContext) : Result<T>` |
+| `IApplysEvent<TDomainEvent> { TDomainEvent Event { get; } }` | `IApplysEvent.cs:5` | the event a change raises; typo (finding 26); `Event => new(…)` re-creates on every read (finding 14) | **removed**: the change calls a behaviour method, which raises (domain-core.md §9). Finding 1 ("no path to `Raise`") and finding 14 disappear |
+| `IApplysEventWhen<T> { bool When(); }` | `IApplysEvent.cs:10` | a gate | **removed**: guards return `Result` inside the behaviour |
+| `IHttpInvoke` | `Triggers/IHttpInvoke.cs` | "expose over HTTP" | `[Endpoint("POST …")]` |
+| `IReactsTo<TDomainEvent>` | `Triggers/IReactsTo.cs` | "run when this event happens" | `[OnEvent<T>]` on a `From` factory |
+| `ChangeAttribute(displayName, asApi, createsEntity)` | `CreateAttribute.cs` | commented out | — |
+| `Changes.Aggregates.Change<TAggregate>(Id)` | `Changes.Aggregates/Class1.cs` | leftover, no `Tarol.` namespace (finding 27) | not migrated (plan) |
+| `Changes.DomainEvent.RaisesEvent<T>`, `RaisesEvent` | `Changes.DomainEvent/RaisesEvent.cs` | unused attributes (finding 27) | not migrated (plan) |
+
+`Changes.csproj` references Kernel, Primitives and Results, of which only Primitives is used (finding 30).
+
+### 1.2 Generator and tests **[verified]**
+
+* **No generator**: `gen/` has `CQRS`, `Messaging`, `Primitives`, `Sagas`, `StronglyTypedId`, `Validations`; no
+  `Changes` (the session prompt's `gen/Changes/*` does not exist). `docs/review/validations-and-changes.md` §2.2 says the
+  same.
+* **No tests**: `tests/` has no Changes folder. `Changes.csproj` builds on SDK 11.0.100 with 1 warning (MSB9008: the
+  StronglyTypedId generator path `../generator/…` does not exist).
+
+### 1.3 Consumers **[verified by reading]** (grep over `src/`, `tests/`, `examples/`, `templates/`)
+
+| Consumer | Uses | Fate |
+|---|---|---|
+| ArtFlow `Auctions/Changes/{Bid,Close,Create}` | `abstract record Bid(Auction Auction, …) : IChange<Auction>, IHttpInvoke`; `Close : IApplysEvent<AuctionClosed> { Event { get; } = new(); }`; `Create : IChangeCreate<Auction>, IApplysEvent<AuctionCreated> { Event => new(Auction, …) }` | rewritten in step 13 as §2 (A). The records hold the **aggregate instance**, which a JSON body, an outbox row or a message cannot carry (`Abstractions.cs:126` says so) |
+| ArtFlow `ArtWorks/Changes/{Create,Verify}` | `Verify : IChange<ArtWork>, IApplysEvent<ArtworkVerified>, IReactsTo<ArtworkCreated>` | `[OnEvent<ArtWork.Created>]` factory |
+| ArtFlow prerequisites (8 classes) | `IPrerequisite(Async)<TChange>` returning `bool`, `TimeProvider` injected, `Order` | guards with `now` in the behaviour (validations.md §5, done in step 6); `NotVerified` is inverted (finding 17) |
+| `Tarol.Sagas.Abstractions.IChangeDispatcher.DispatchAsync(object, ChangeContext, ct)` | the saga outbox runs a change; implemented by the application | generated `Dispatch(object)` switch **[verified]**; `ChangeContext(MessageId, CorrelationId, CausationId, SagaType, SagaId)` becomes the `OperationContext` + key (step 9) |
+| `SagaStep.Execute(change).CompensateWith(change)` | plans changes | step 9 |
+| `SagaOutboxProcessor` | exception → retry with backoff, dead-letter after `MaxAttempts`; a failed `Result` → `ChangeFailed<T>` delivered back to the saga, no retry **[verified by reading]** (`SagaOutboxProcessor.cs:30-120`) | C-9 changes this for reactions: a Conflict retries |
+| `FakeChangeDispatcher` (`TestUtility/Sagas.Testing`) | records dispatched changes, scripted results | replaced by `ChangeTest` and the in-memory store |
+| `Primitives.UnitTests.csproj:34`, `Persistence.Marten.IntegrationTests.csproj:36` | project reference, no use (finding 30) | — |
+| `templates/*` | none | — |
+
+### 1.4 Old tests rerun on SDK 11.0.100 **[verified]**
+
+| Project | Result | Finding |
+|---|---|---|
+| Changes (no test project) | — | nothing tests Changes |
+| `tests/CQRS/CQRS.UnitTests` | builds (1 warning MSB9008); **0 tests**, exit code 8 "No tests ran" | review C-finding "runs 0 tests" still true; the dispatcher is untested |
+| `tests/Sagas/Sagas.Tests` | **79/79 passed**; 7 warnings (MSB9008 ×2, NU1510 ×6 for packages the shared framework already provides) | the change bridge is covered only through `FakeChangeDispatcher` and `ChangeFailed<T>` tests (`RegistryAndSerializationTests.cs:164,235`, `Engine/DeliveryTests.cs:186`) |
+
+### 1.5 Old review findings re-verified
+
+| Finding (`docs/review/validations-and-changes.md`) | Now |
+|---|---|
+| 1 no path from a change to `Raise` | answered by behaviour methods (domain-core.md §9); `Execute` calls one |
+| 14 `Event => new(…)` re-creates on read | disappears with `IApplysEvent` |
+| 15 unrelated `IChange` interfaces, non-generic constraint | `IChange<T>`/`ICreation<T>` with the `AggregateRoot<T>, IAggregateRoot<T>` constraint; the pipeline is generic over `T` **[verified]** |
+| 26 typo `IApplysEvent` | disappears |
+| 27, 30 dead projects, unused references | not migrated |
+| 31 prerequisites return `bool` | guards return `Result` (step 6) |
+| AOT hazard: `IChangeDispatcher(object)` needs runtime dispatch | generated `switch` **[verified]** |
+| AOT hazard: HTTP endpoints need reflection-based binding | generated `RequestDelegate`s, 0 IL warnings **[verified]**; RDG is not usable from generated code **[verified]** |
+| AOT hazard: `IReactsTo` needs reflection | generated reaction table **[verified]** |
+| CQRS C1–C15 (`docs/review/cqrs.md`) | not migrated (C-3) |
+
+## 2. Candidates (questions 1 and 2), as ArtFlow user code
+
+The domain is the same for every candidate (`probes/changes/App/Domain.cs`): `Auction` with `EntitySet<Bid>`,
+`[Lifecycle] AuctionStatus { Open → Closed → Settled → Paid }`, `Bid` with `Won`/`Lost`, and `Payout`. Behaviours:
+`Auction.Create(…, now)`, `PlaceBid`, `Close(now)`, `Settle(now)`, `RecordPayment(amount, reference)`, `Payout.MarkDue`.
+
+### (A) An input record per change (decided, C-4)
+
+Shown in the decided shape. The probe (`App/Changes.cs`) ran the same code **[verified]**, except that before C-10
+`CreateAuction` and `MarkPayoutDue` carried the new id (`Id<Auction> Auction`, `(Id<Payout>)recorded.StreamId`).
+
+```csharp
+// create an auction (user, REST)
+[Endpoint("POST /auctions", Policy = "auctions:write")]
+public sealed partial record CreateAuction(Title Title, Amount Reserve, DateTimeOffset EndsAt) : ICreation<Auction>, IValidatable
+{
+    public Result<Auction> Execute(ChangeContext context)
+        => Auction.Create(context.Operation.Actor.Id, Title, Reserve, EndsAt, context.Now);   // C-10: the factory makes the id
+}
+
+// close an auction (user, REST): 400 invalid, 404 missing, 409 already closed
+[Endpoint("POST /auctions/{auction}/close", Policy = "auctions:write")]
+public sealed partial record CloseAuction(Id<Auction> Auction) : IChange<Auction>, IValidatable
+{
+    public Result Execute(Auction auction, ChangeContext context) => auction.Close(context.Now);
+}
+
+// settle after the end time (background job): no attribute, typed call
+public sealed partial record SettleAuction(Id<Auction> Auction) : IChange<Auction>
+{
+    public Result Execute(Auction auction, ChangeContext context) => auction.Settle(context.Now);
+}
+// in the job:
+await pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.AuctionSettlement"), tenant, time), ct: ct);
+
+// mark the payout due (reaction to Bid.Won)
+public sealed partial record MarkPayoutDue(Guid Auction, decimal Amount) : ICreation<Payout>
+{
+    [OnEvent<Bid.Won>]
+    public static MarkPayoutDue From(Bid.Won e, RecordedEvent recorded) => new(recorded.StreamId, e.Amount);
+    public Result<Payout> Execute(ChangeContext context) => Payout.MarkDue(Auction, Amount, context.Now);
+}
+
+// record a payment (webhook)
+public sealed record PaymentSucceededV2(string PaymentId, Guid Reference, decimal Amount, string Currency);   // their contract
+public sealed partial record RecordPayment(Id<Auction> Auction, Amount Amount, string PaymentId) : IChange<Auction>, IValidatable
+{
+    [Webhook("payments", "payment.succeeded")]
+    public static RecordPayment From(PaymentSucceededV2 p) => new((Id<Auction>)p.Reference, new Amount(p.Amount), p.PaymentId);
+    public Result Execute(Auction auction, ChangeContext context) => auction.RecordPayment(Amount, PaymentId);
+}
+```
+
+Generated and library code (prototype output, `output.txt` GenTest section; endpoints from `Web/obj/…/Changes.Endpoints.g.cs`):
+
+```csharp
+partial record CloseAuction        // per change
+{
+    Id<Auction> IChange<Auction>.Target => Auction;
+}
+
+public static class GeneratedChanges   // per assembly
+{
+    public static ValueTask<Result<ChangeOutcome>> Dispatch(this ChangePipeline p, object change, OperationContext c, …)
+        => change switch { CloseAuction x => p.Run(x, c, o, ct), …, _ => throw new ArgumentException(…) };
+    public static IReadOnlyList<string> ReactionsTo(DomainEvent e) => e switch { Bid.Won => __reactions0, _ => [] };
+    public static ValueTask<Result<ChangeOutcome>> React(this ChangePipeline p, string reaction, RecordedEvent r, …)
+    {
+        var context = r.Context.AsSystem("Reactions." + reaction).CausedBy((Id<ICausation>)r.EventId);
+        var key = new IdempotencyKey(r.Context.Tenant, reaction, r.EventId.ToString("N"));
+        return (reaction, r.Event.Event) switch { ("MarkPayoutDue", Bid.Won e) => p.Run(MarkPayoutDue.From(e, r), context, new(Key: key), ct), … };
+    }
+}
+
+// step 10 (Tarol.Changes.AspNetCore): one RequestDelegate per [Endpoint]
+app.MapPost("/auctions/{auction}/close", (RequestDelegate)Run_CloseAuction).RequireAuthorization("auctions:write")
+   .WithMetadata(new AcceptsMetadata(["application/json"], typeof(CloseAuction), isOptional: true));
+static async Task Run_CloseAuction(HttpContext http)
+{
+    if (!Id<Auction>.TryParse(http.Request.RouteValues["auction"] as string, null, out var auction))
+    { await ChangeHttp.Write(http, Invalid.Field("Auction", "Format"), json); return; }
+    var (context, options) = ChangeHttp.Context(http);          // actor from ClaimsPrincipal, tenant claim, Idempotency-Key, If-Match
+    var result = await pipeline.Run(new CloseAuction(auction), context, options, http.RequestAborted);
+    await ChangeHttp.Write(http, result, json);                 // 204 + ETag | problem details
+}
+```
+
+### (B) `[Change]` on the behaviour method (comparison)
+
+```csharp
+public partial class Auction : AggregateRoot<Auction>
+{
+    [Change, Creates, Endpoint("POST /auctions")]
+    public static Result<Auction> Create(string seller, Title title, Amount reserve, DateTimeOffset endsAt, DateTimeOffset now) => …;
+    [Change, Endpoint("POST /auctions/{id}/close")]
+    public Result Close(DateTimeOffset now) => …;                 // `now` recognized by name and type
+    [Change]                                                      // job: await changes.Auction.Settle(id, context)
+    public Result Settle(DateTimeOffset now) => …;
+    [Change, Webhook("payments", "payment.succeeded", Map = typeof(PaymentMapping))]
+    public Result RecordPayment(Amount amount, string reference) => …;
+}
+// reaction: a method on Payout plus a mapping attribute naming Bid.Won and how its fields become parameters
+```
+
+Generated: `record Auction.CloseInput(Id<Auction> Id)` etc., the pipeline per method, entries. **Blocked**
+**[verified]** (`GenVisibility/`): a record emitted by this generator is invisible to the Validations generator
+(`CS0535: 'RenameAuction' does not implement interface member 'IValidatable.Validate(ref ValidationErrors)'`) and to the
+JSON source generator (`SYSLIB1030: Did not generate serialization metadata for type 'RenameAuction'`). The Changes
+generator would have to emit both itself. Further costs **[unverified]**: the actor and the reaction's event are no
+parameters of a behaviour, so reactions and webhooks need side mappings; business-time parameters (`endsAt`) and `now`
+are told apart only by name; the domain class carries transport attributes.
+
+### (C) A central map, no generator in the core (comparison) **[verified]** for the endpoint part
+
+```csharp
+changes.For<Auction>()
+    .Create<CreateAuction>((c, ctx) => Auction.Create(ctx.Operation.Actor.Id, c.Title, c.Reserve, c.EndsAt, ctx.Now))
+    .Change<CloseAuction>(c => c.Auction, (a, c, ctx) => a.Close(ctx.Now))
+    .Change<SettleAuction>(c => c.Auction, (a, c, ctx) => a.Settle(ctx.Now))
+    .Change<RecordPayment>(c => c.Auction, (a, c, ctx) => a.RecordPayment(c.Amount, c.PaymentId));
+changes.For<Payout>().OnEvent<Bid.Won, MarkPayoutDue>((e, r) => new(r.StreamId, e.Amount), (c, ctx) => Payout.MarkDue(c.Auction, c.Amount, ctx.Now));
+
+app.MapChange("/auctions/{auction}/close", http => new CloseAuction(Id<Auction>.Parse((string)http.Request.RouteValues["auction"]!, null)));
+app.MapWebhook<PaymentSucceededV2, RecordPayment>("payments", "payment.succeeded", AppJson.Default.PaymentSucceededV2, RecordPayment.From);
+```
+
+Library code only: a dictionary from input type to delegates, and `MapChange<T>` building a `RequestDelegate` (0 IL
+warnings **[verified]**, `CentralMap.MapChange` in `Web/Program.cs`). Every route binding is a hand-written lambda; an
+input with a route value and a body needs both read by hand; the map can drift from the input types (a change
+registered twice or never is a run-time error); a generic `MapPost(pattern, Delegate)` instead is RDG011 + IL2026/IL3050
+**[verified]**.
+
+### Comparison
+
+| | A input record | B `[Change]` on the method | C central map |
+|---|---|---|---|
+| user code per change | 4–6 lines, one file | 1 attribute | 1–2 lines in the map + the input record |
+| validation and JSON of the input | the existing generators **[verified]** | must be re-implemented **[verified]** | the existing generators |
+| reactions, webhooks | a `From` factory next to the input | side mappings | lambdas in the map |
+| pipeline | library, generic **[verified]** | generated per method | library |
+| what an agent finds | the record, its attribute, its `Execute` | the method | the map file |
+| compile-time checks | TCHG diagnostics on the record | on the method | none (run-time registration) |
+
+Entry declaration (question 1, second part): per change (attributes, decided C-5), by convention (routes from names;
+breaks on a rename), or in a central map (C above).
+
+## 3. The scenarios as probed (candidate A) **[verified]**
+
+From `output.txt` (App: JIT and native; Web: native self-test):
+
+| Scenario | Result |
+|---|---|
+| invalid input (`Title "x"`, `Amount 0`) | `Invalid { Title: Length; Reserve: Range }` before any load; HTTP 400 `{"errors":{"title":["Length"],"reserve":["Range"]}}` |
+| `Id<T>.Empty` target | `Invalid { Auction: Required }`, no load |
+| factory guard on an input field | `Invalid { EndsAt: TooSoon }`; HTTP 400 `endsAt` |
+| close twice | `Error { Conflict, AuctionStatus.NotAllowed }` (the generated lifecycle guard); HTTP 409 with `code` |
+| missing / another tenant | `NotFound`; HTTP 404 for both |
+| settle before / after the end time | `Auction.NotEnded` / success with `Closed`, `Won`, `Settled`; events record `System:Jobs.AuctionSettlement` and `RecordedAt` from the fake clock |
+| reaction to `Bid.Won` | `ReactionsTo(won) = [MarkPayoutDue]`; context `System:Reactions.MarkPayoutDue`, causation = the event id, correlation carried; redelivery → `Replayed = true`, nothing written |
+| concurrent writer (probe retry, rejected by C-7) | reload + decide again succeeded; a second race ended in `Bid.TooLow`, not in an overwrite; `If-Match` stale → `Stream.VersionConflict` |
+| webhook | signed delivery 200; redelivery 200, nothing written; actor `Service:webhook:payments`; wrong signature, tampered body, stale timestamp → 401; unknown type → 202; guard rejection → 200 (the probe's pre-C-9 policy) |
+| REST extras | anonymous → 401 (policy); `Idempotency-Key` retry → 200 with the same id; non-JSON body → 415 (routing, from `AcceptsMetadata`); bad route id → 400 `auction` |
+
+## 4. Measurements
+
+### 4.1 Native AOT **[verified]**
+
+| Build | IL warnings | Native run |
+|---|---|---|
+| App (core pipeline, generated dispatch and reactions) | 0 | all pass |
+| Web, generated `RequestDelegate` entries | 0 IL, 0 RDG; 17.2 MB binary | self-test 24/24 |
+| Web, generated `MapPost(pattern, (HttpContext, ChangePipeline) => …)` | IL2026 + IL3050 per endpoint (publish-time only, from generated code) | **aborts at startup**: `NotSupportedException: JsonTypeInfo metadata for type 'System.Threading.Tasks.Task'` |
+| Web, generic library `MapPost<TChange>(pattern, Delegate)` | RDG011 + IL2026 + IL3050 (also at build) | (same process) |
+
+A generated `(HttpContext) => Task` lambda binds to the `RequestDelegate` overload and causes no warning **[verified]**
+(first probe run), so the trap is only for lambdas with bound parameters.
+
+### 4.2 Pipeline cost **[verified]** (`Bench/`, BenchmarkDotNet 0.16.0-preview.2, `--job short --inProcess`)
+
+| Method | Mean | Allocated |
+|---|---:|---:|
+| hand-written (validate, load, `Close`, `Prepare`, append, `Committed`) | 260.5 ns | 920 B |
+| `ChangePipeline.Run` | 415.1 ns | 976 B |
+| generated `Dispatch(object)` → `Run` | 411.1 ns | 976 B |
+
+The store is the same in all three (load = replay of one event, append = nothing). Short runs have wide error bars
+(±250 … 750 ns); compare ratios. The overhead (+56 B, ≈ +150 ns) comes from the async state machine of `Run`, the
+interface calls and the permission hook **[unverified breakdown]**. The in-process loop in `App/` measured 279 B (JIT) and
+−65 B (AOT) for the same difference, i.e. within its noise.
+
+### 4.3 Generator incrementality **[verified]** (`GenTest/`)
+
+Run 1: 7 files (6 `Target` parts, 1 dispatch). Adding an unrelated file: models `Cached ×6`, outputs `Cached ×8`.
+Editing `Execute`'s body: the same (the model holds names and types only, no bodies, no locations). Two `Id<Auction>`
+members: TCHG001. Found: a generated field named with `string.GetHashCode()` differs per process; use an index.
+
+### 4.4 Idempotency and retry sketch **[verified]** (`App/`, `Core/InMemoryAggregateStore.cs`)
+
+The in-memory store checks the expected version and stores (key → outcome) inside the same lock as the append,
+standing in for one transaction. A key seen before returns the stored `ChangeOutcome` with `Replayed = true` before any
+load. A key whose append would commit twice is refused (`Change.Duplicate`).
+
+## 5. Generator and diagnostics (proposed for the implementation) **[unverified]** except TCHG001
+
+| Id | Severity | When |
+|---|---|---|
+| TCHG001 | Error | `IChange<T>` record without exactly one `Id<T>` member and no explicit `Target` **[verified]** |
+| TCHG002 | Error | change record not `partial` (the generator must add `Target`) |
+| TCHG003 | Error | `[Endpoint]` route parameter without a member of that name, or a member type that is not `IParsable` |
+| TCHG004 | Error | two `[Endpoint]`s with the same verb and route in one assembly |
+| TCHG005 | Error | an entry factory (`[OnEvent<T>]`, `[Webhook]`, `[Consumes]`) that is not `static TChange From(TPayload[, RecordedEvent])` |
+| TCHG006 | Warning | an `IChange`/`ICreation` input that is not `IValidatable` but has value-object members with rules |
+| TCHG007 | Error | `Execute` assigns aggregate state or calls something other than one public behaviour (best effort) |
+
+Step 7's generator emits only `Target`, `Dispatch` and TCHG001–002, 006–007; the others come with their entries.
+
+## 6. Decided API (step 7 part)
+
+```csharp
+namespace Tarol.Persistence;          // C-6
+public interface IAggregateStore
+{
+    ValueTask<Option<T>> Load<T>(Id<T> id, OperationContext context, CancellationToken ct) where T : AggregateRoot<T>, IAggregateRoot<T>;
+    ValueTask<Result> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key, CancellationToken ct) where …;
+    ValueTask<Option<StoredOutcome>> Seen(IdempotencyKey key, CancellationToken ct);
+}
+public readonly record struct IdempotencyKey(Option<Id<ITenant>> Tenant, string Scope, string Key);
+public sealed class InMemoryAggregateStore(TimeProvider time) : IAggregateStore { … }
+
+namespace Tarol.Changes;
+public interface IChange<T> where T : AggregateRoot<T>, IAggregateRoot<T> { Id<T> Target { get; } Result Execute(T aggregate, ChangeContext context); }
+public interface ICreation<T> where T : AggregateRoot<T>, IAggregateRoot<T> { Result<T> Execute(ChangeContext context); }   // C-10: no Target
+public readonly record struct ChangeContext(OperationContext Operation, DateTimeOffset Now);
+public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Events, bool Replayed = false);
+public readonly record struct ChangeOptions(Option<IdempotencyKey> Key = default, Option<long> ExpectedVersion = default, ClaimsPrincipal? Principal = null);
+public sealed class ChangePipeline(IAggregateStore store, TimeProvider time, IChangePermission? permission = null)
+{
+    public ValueTask<Result<ChangeOutcome>> Run<T>(IChange<T> change, OperationContext context, ChangeOptions options = default, CancellationToken ct = default) …;
+    public ValueTask<Result<ChangeOutcome>> Run<T>(ICreation<T> creation, OperationContext context, ChangeOptions options = default, CancellationToken ct = default) …;
+}
+public interface IChangePermission { ValueTask<Result> Check<T>(object change, T aggregate, OperationContext context, ClaimsPrincipal? principal, CancellationToken ct) where …; }
+// entry attributes (data only): EndpointAttribute, OnEventAttribute<TEvent>, WebhookAttribute, ConsumesAttribute
+// test helper (C-14): ChangeTest.Given(aggregate | events).At(time).When(change, actor) → ChangeTestOutcome
+```
+
+## 7. Plan impact (question 9)
+
+| Row | Before | Decided (C-1, C-2, C-3, C-6, C-15) |
+|---|---|---|
+| 7 | Changes | **`Tarol.Persistence`** (store port, in-memory store) + **`Tarol.Changes`** (core, internal entry, generator, `ChangeTest`); two PRs |
+| 8 | Persistence | `Tarol.Persistence.Npgsql` implements the port; key table in the append transaction; outbox table (rows from `ReactionsTo`) |
+| 9 | Sagas | + reactions to own events (`[OnEvent<T>]`, `React`, delivery policy C-9) on the same outbox worker; `IChangeDispatcher(object)` → generated `Dispatch` |
+| 10 | CQRS | renamed **Security and REST**: `Tarol.Security` + `Tarol.Changes.AspNetCore` (endpoints, webhooks, problem details); no CQRS |
+| 11 | Messaging | consumers (`[Consumes]`), inbox (= key table), contract versions |
+
+## 8. Decisions asked
+
+Round 1 (scope, before probing): C-1, C-2, C-3. Round 2 (after the measurements): C-4 … C-7. Round 3: C-8 … C-11.
+Round 4: C-12 … C-15. Questions already answered elsewhere were not asked again: parse before load (validation.md
+S-4), permissions as ASP.NET Core authorization handlers (security.md), behaviour methods as the contract (domain-core.md
+§9), discard on failure (primitives.md), the context shape (kernel.md).
+
+## 9. Owner answers (2026-11-14)
+
+| # | Question | Answer |
+|---|---|---|
+| C-1 | What step 7 builds | **Core + internal entry**: declaration, generated pipeline parts, typed in-process entry, store port + in-memory store, permission hook without ASP.NET Core; every other channel designed now, built in the step that owns its infrastructure |
+| C-2 | Plan | **Split by infrastructure**: 7 core; 8 store + outbox; 9 sagas + reactions; 10 Security + REST + webhooks (`Tarol.Changes.AspNetCore`); 11 consumers + inbox |
+| C-3 | ROADMAP D-3 (command model) | **Changes is the only write model**; old CQRS (`ICommand`/`IQuery`, dispatcher) not migrated; queries are a later decision; row 10 renamed |
+| C-4 | Declaring a change | **(A) input record** implementing `IChange<T>`/`ICreation<T>`, `Execute` calls one behaviour; library pipeline |
+| C-5 | Declaring entries | **Attributes on the change**: `[Endpoint]` on the record; `[OnEvent<T>]`, `[Webhook]`, `[Consumes]` on a static `From` factory |
+| C-6 | Store port | **`Tarol.Persistence` created in step 7** (port + `InMemoryAggregateStore`); Npgsql in 8 |
+| C-7 | Version conflicts | **Never retry** in the pipeline (against the recommendation "reload, 3 tries"): `Error.Conflict("Stream.VersionConflict")` goes to the caller |
+| C-8 | Idempotency keys | **Successes only, stored with the append in one transaction**; scoped keys per channel; retention in step 8 |
+| C-9 | Failures in reactions, webhooks, consumers | **Conflict = retry** (against the recommendation "acknowledge a guard conflict"): every `Error.Conflict` retries with backoff and dead-letters after N; the rest of the table as recommended |
+| C-10 | Who chooses a new aggregate's id | **The factory generates it** (against the recommendation "the input carries it"): `ICreation<T>` has no `Target`; redelivered creations are deduplicated only by the key |
+| C-11 | Context and permission | **Parameter; no checks until 10**: `Run(change, OperationContext, options)`, principal in options; `IChangePermission` hook without an implementation in 7; REST entries in 10 fail closed without one |
+| C-12 | REST entries | **Generated `RequestDelegate`s** with own binding, `AcceptsMetadata`, problem details via `IProblemDetailsService` when registered |
+| C-13 | TVAL006 in entry factories | **Exempt** `new` inside a static entry factory of an `IValidatable` change (Validations analyzer change, step 9) |
+| C-14 | Test support | **`ChangeTest` helper** on `InMemoryAggregateStore` with a fake `TimeProvider` |
+| C-15 | PR split of step 7 | **Two PRs**: (A) `Tarol.Persistence`; (B) `Tarol.Changes` |
+
+Consequences of the three answers against the recommendation:
+
+* **C-7**: an HTTP client gets 409 `Stream.VersionConflict` under contention and must retry; the outbox worker and
+  consumers treat it as transient (C-9 already retries it). The pipeline keeps no loop and no `Attempts` option.
+* **C-9**: a reaction whose guard can never pass (e.g. `Auction.NotSettled` forever) is retried until dead-lettered, so
+  it becomes visible to a human instead of being silently acknowledged. The retry count and backoff are options of the
+  worker (step 9). Webhooks answer 503 for a Conflict, so the sender retries too.
+* **C-10**: `CreateAuction` carries no id; a REST `POST /auctions` retried without `Idempotency-Key` creates a second
+  auction (documented in the skill: send the header). A reaction that creates (`MarkPayoutDue`) is deduplicated by its
+  key (reaction, event id), stored in the creation's transaction (C-8), so redelivery still creates once.
+
+## 10. What the implementation must do (in the decided order)
+
+### PR 7A `persistence: the aggregate store port and an in-memory store`
+
+1. `src/Persistence/Tarol.Persistence` (depends on Primitives, Kernel, Results, Options, StronglyTypedId):
+   `IAggregateStore` (§6), `IdempotencyKey`, `StoredOutcome(Guid StreamId, long Version, int Events)`,
+   `InMemoryAggregateStore(TimeProvider)`: tenant-scoped streams (another tenant → `None`), expected version (0 = must
+   not exist) → `Error.Conflict("Stream.VersionConflict")`, key stored with the append atomically, `RecordedEvent` log
+   with event id (UUIDv7 from the clock), `RecordedAt` per commit and the `OperationContext`; loads via `T.ReadState`
+   when `T.StateSchema != 0` (else `T.Rehydrate`), so the in-memory store exercises the stored state like step 8 will.
+2. Tests: version conflicts, tenant isolation, key replay, `RecordedEvent` contents, state vs replay load.
+3. README, skill `tarol-persistence` (port contract for step 8 implementers and test authors), AOT smoke, package
+   verification, conventions §8.
+
+### PR 7B `changes: the change pipeline, typed entry and generator`
+
+1. `src/Changes/Tarol.Changes` (+ `Tarol.Changes.Generators`), depends on Persistence and Validations: the API of §6;
+   `Run` = `Validated()` → `Seen(key)` → load → `IChangePermission` (if registered) → `Execute` with `now` read once →
+   `Prepare` → append(expected = loaded version, key) → `Committed`; no retry (C-7); creation appends with expected 0.
+   Entry attributes as data only (no ASP.NET Core reference).
+2. Generator: `Target` for `IChange<T>` records with one `Id<T>` member; `GeneratedChanges.Dispatch(object)`;
+   TCHG001, 002, 006, 007; equatable models without locations or bodies; deterministic names; `AnalyzerReleases`.
+3. `ChangeTest` (C-14).
+4. Tests: every row of §3 that belongs to the internal entry (invalid before load, 404, tenant 404, 409, system actor,
+   `now`, version conflict returned, key replay, discard on guard / `Prepare` / exception failure, creation twice with a
+   key); generator snapshots and incrementality; AOT smoke (pipeline + dispatch, 0 IL warnings).
+5. README, skill `tarol-changes`, docs, `CHANGELOG.md`, root `README.md`, plan status.
+
+### Later steps (designed here)
+
+* **8**: the port in Npgsql; key table written in the append transaction, successes only, retention; outbox rows from
+  `GeneratedChanges.ReactionsTo(event)` in the same transaction.
+* **9**: `[OnEvent<T>]` → generated `ReactionsTo`/`React` (context `AsSystem`, causation = event id, key = (reaction,
+  event id)); outbox worker with the C-9 policy (Conflict retries, then dead-letter); saga `Execute(change)` through
+  `Dispatch`; TVAL006 exemption for entry factories (C-13); TCHG005.
+* **10**: `Tarol.Security` implements `IChangePermission`; `Tarol.Changes.AspNetCore` generates `MapChanges()` and
+  `[Webhook]` endpoints as `RequestDelegate`s (§2 A, `Web/` probe), fails closed without a permission, maps outcomes as
+  in changes.md §6, `AddProblemDetails`, TCHG003/004.
+* **11**: `[Consumes]` consumers with the inbox key, contract versions, ordering.
+
+## 11. Skill evaluation checklist (`tarol-changes`, for PR 7B)
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| "add a change that closes an auction" | `sealed partial record CloseAuction(Id<Auction> Auction) : IChange<Auction>, IValidatable` with `Execute` calling `auction.Close(context.Now)` | calling `Raise`; taking the aggregate instance as a record member; `DateTimeOffset.UtcNow` (TKRN001) |
+| "create an auction" | `ICreation<Auction>` returning the factory's `Result<Auction>` | an id member on the creation input (C-10); loading first |
+| "run it from a background job" | `pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.X"), tenant, time), ct: ct)` | an ambient context; `Actor.User` for a job |
+| "handle a version conflict" | `Error { Code: "Stream.VersionConflict" }` returned; the caller retries | a retry loop inside `Execute` |
+| "a change with two `Id<Auction>` members" | implement `Id<Auction> IChange<Auction>.Target => …` | ignoring TCHG001 |
+| "test the change" | `ChangeTest.Given(…).At(…).When(change, actor)` | a hand-rolled store fake |
+
+## 12. Verification of this PR (SDK 11.0.100, 2026-11-14) **[verified]**
+
+Docs and probes only; no project in `Tarol.slnx` changed. `dotnet build Tarol.slnx`: 0 warnings, 0 errors.
+`dotnet test --solution Tarol.slnx`: 659 total, 0 failed. `dotnet format Tarol.slnx --verify-no-changes`: exit 0.
+Probes: `probes/changes/all.sh` → [`output.txt`](probes/changes/output.txt) (59 PASS, 0 FAIL).
+
+## 13. Open items
+
+* Retention of idempotency keys and outbox rows (step 8).
+* Order of one stream's outbox rows across several workers (steps 8–9).
+* Unknown version of a known webhook type: dead-letter proposed (step 10).
+* Whether `ChangeOutcome` should carry the committed `RecordedEvent`s for the caller (e.g. to return a created child's
+  id): not needed by any scenario here.
+* The read side after C-3.
