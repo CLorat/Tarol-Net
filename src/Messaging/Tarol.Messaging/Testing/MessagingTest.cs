@@ -205,7 +205,8 @@ public sealed class MessagingSystem
         foreach (var (source, trust) in options.Trusted)
             messaging.Trust(source, trust);
         Consumers = new MessageConsumers(options.Consumers ?? new ConsumerSet([], static (_, _, _, _, _) => ValueTask.FromResult(ConsumerRun.Not(Mapped.UnknownContract))),
-            Pipeline, DeadLetters, messaging, json) { Observed = RecordDelivery };
+            Pipeline, DeadLetters, messaging, json)
+        { Observed = RecordDelivery };
         transport.Prepare(options.Publications.Topics, Consumers.Subscriptions, CancellationToken.None).GetAwaiter().GetResult();
     }
 
