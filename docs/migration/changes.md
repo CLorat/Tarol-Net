@@ -383,7 +383,7 @@ S-4), permissions as ASP.NET Core authorization handlers (security.md), behaviou
 |---|---|---|
 | C-1 | What step 7 builds | **Core + internal entry**: declaration, generated pipeline parts, typed in-process entry, store port + in-memory store, permission hook without ASP.NET Core; every other channel designed now, built in the step that owns its infrastructure |
 | C-2 | Plan | **Split by infrastructure**: 7 core; 8 store + outbox; 9 sagas + reactions; 10 Security + REST + webhooks (`Tarol.Changes.AspNetCore`); 11 consumers + inbox |
-| C-3 | ROADMAP D-3 (command model) | **Changes is the only write model**; old CQRS (`ICommand`/`IQuery`, dispatcher) not migrated; queries are a later decision; row 10 renamed |
+| C-3 | ROADMAP D-3 (command model) | **Changes is the only write model**; old CQRS (`ICommand`/`IQuery`, dispatcher) not migrated; queries are a later decision (plan step 12); row 10 renamed |
 | C-4 | Declaring a change | **(A) input record** implementing `IChange<T>`/`ICreation<T>`, `Execute` calls one behaviour; library pipeline |
 | C-5 | Declaring entries | **Attributes on the change**: `[Endpoint]` on the record; `[OnEvent<T>]`, `[Webhook]`, `[Consumes]` on a static `From` factory |
 | C-6 | Store port | **`Tarol.Persistence` created in step 7** (port + `InMemoryAggregateStore`); Npgsql in 8 |
