@@ -692,4 +692,9 @@ None.
 
 ### 17.7 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
 
-VERIFICATION_11C
+`dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker: **1208 of 1208** (1171 + 37 in `Tarol.Messaging.Npgsql.IntegrationTests`); the integration project
+alone **10 times in a row in Release, 36 of 36 each** (before the skill test was added); `eng/aot-smoke.sh` with `TAROL_PG`:
+**15 apps** (14 + `Tarol.Messaging.Npgsql.AotSmoke`), 0 IL warnings each, all checks passed; `dotnet pack -c Release` +
+`eng/verify-packages.sh`: OK (`Tarol.Messaging.Npgsql` contains `lib/`, README, LICENSE and
+`skills/tarol-messaging-npgsql/SKILL.md`; its package consumer runs and lists the skill).
