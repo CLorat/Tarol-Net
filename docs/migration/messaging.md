@@ -778,3 +778,91 @@ and `TAROL_RABBITMQ`: **17 apps** (15 + the two brokers'), 0 IL warnings each, a
 `samples/Sagas/apphost.sh … 5`: 5 of 5 round trips with NATS (JIT), with RabbitMQ (JIT) and with the three Native AOT
 binaries (NATS), the README's result. The broker integration projects passed on their first full runs (17 + 17, before the
 skill tests were added), in the solution run, and **10 times each in a row in Release (18 of 18 every time)**.
+
+## 19. Implementation: PR 11E (2026-11-15)
+
+`messaging.signalr: the UI push`: the new package `Tarol.Messaging.SignalR` (M-3), rebuilt from the old Gateway/Transport
+layering on top of the system-to-system messaging. ASP.NET Core is the framework reference; the only package is the SignalR
+.NET client (`Microsoft.AspNetCore.SignalR.Client` 11.0.0).
+
+### 19.1 Public API
+
+| Type | Role |
+|---|---|
+| `UiPushExtensions.PushToUi(messaging, configure)`, `MapMessageHub(endpoints)` | registration: SignalR with `SignalRJson`, the forwarder, the authorizer; the hub at `HubPath` |
+| `UiPushOptions` | `Forward(topics)`, `Topics`, `Rules`, `Name` (`UiPush`), `HubPath` (`/tarol/messages`), `TenantClaim`, `Tenant`, `SubjectClaim` |
+| `UiPushForwarder` (`BackgroundService`) | the consumer subscription `<app>.<Name>`: trust (M-13), JSON check, `SendAsync` to `<tenant>/<topic>`; `Forward(incoming)`, `Subscription` |
+| `MessageHub` (`Hub`, `[Authorize]`) | `Subscribe(topic)`, `Unsubscribe(topic)`, `Publish(topic, data)`, `Group(tenant, topic)`, `MessageMethod` |
+| `ITopicAuthorizer`, `TopicOperation`, `TopicRules` (`Allow`, `Subscribe`, `Publish`) | authorization per principal, operation and topic (F3) |
+| `HubConnections` | the hub's open connections, aborted when the application stops |
+| `PushedMessage`, `SignalRJson` | what clients receive; the source-generated hub JSON (F1) |
+| `MessagePushClient` | `Connect`, `Start`, `Subscribe` (→ `IAsyncDisposable`), `Publish`, `Stop`, `State`, `Topics` |
+
+### 19.2 The old findings (inventory §3) and where they went
+
+| Finding | Now |
+|---|---|
+| F1 no source-generated hub JSON | `SignalRJson`, added by `PushToUi` and `Connect` |
+| F2 `CancellationToken` on hub methods | refuted in the probe; the hub methods take none (the connection's token is `Context.ConnectionAborted`) |
+| F3 no authentication or topic authorization | `[Authorize]`, `ITopicAuthorizer` for every subscribe and publish, the tenant from the principal |
+| F4, F5 unused or ancient packages | none: the framework reference and the SignalR client only |
+| F6 the gateway does not implement its port | gone: the forwarder is a consumer of `IMessageTransport` |
+| F7 no production connection, the reconnect lost | `MessagePushClient` replays on `Reconnected` (test: server stopped and started again on the same port) |
+| F8 subscribe before start | replayed at `Start` (test) |
+| F9 a failed subscribe leaves the topic dead | the handler is removed and the exception thrown (test) |
+| F10 the map read without the lock | an immutable map swapped with `Interlocked.CompareExchange` |
+| F11 unsubscribe removes every handler | a handle per handler; the last one unsubscribes (test) |
+| F12–F14, F16 the backplane runner | gone: the transports of 11A–11D |
+| F15 no envelope | `Message` (CloudEvents); `PushedMessage` carries id, version, subject, time, sender |
+| F17 the `On` handle discarded | kept and disposed with the client |
+| F18 handlers serial, one throw skips the rest | each handler isolated and logged (test) |
+| F19 `payload.ToArray()` copies | the data is parsed once into a `JsonElement` per message |
+| F20 the value-type cast | gone (no `JsonAotProtocol`) |
+| F21–F23 names, a test project under `src/`, an empty generator | gone by construction |
+
+### 19.3 Deliberate differences from §7, §10 and §11
+
+* **Client publishes** (`MessageHub.Publish`) exist besides the forwarding: the old plan's scenarios (client → backend →
+  same and other clients) need them. They reach the caller's tenant only and carry the server-stamped `Sender`; they are not
+  messages between systems (no outbox, no transport).
+* **`HubConnections` aborts the connections when the application stops**, and any client that reconnects into the
+  shutdown. Without it a graceful stop with live UI clients waited the host's whole shutdown timeout (30 s, measured), because
+  the clients' automatic reconnect (first delay 0) opened new WebSocket connections during the shutdown.
+* **A client handle's disposal never throws**: the unsubscribe after a lost connection is best effort (the native smoke run
+  found a `WebSocketException` there).
+* **The UI push is a notification**: a forwarded message reaches the clients connected at that moment; a send failure is
+  retried twice, then dropped and logged. Scale-out needs one forwarder name per web node (README), not a SignalR backplane.
+* **Native AOT needs one feature switch in the app** (`Microsoft.AspNetCore.SignalR.Hub.IsCustomAwaitableSupported=false`);
+  without it SignalR's server reports IL2026/IL3050 at publish. The package does not set it for the app (no `build/` targets,
+  conventions §6); the README and the skill say so.
+* **The tests are a plain test project** (`Tarol.Messaging.SignalR.Tests`, Kestrel on a loopback port, no Docker), so they run
+  in the `build` job.
+
+### 19.4 Changes against steps 7–10
+
+None.
+
+### 19.5 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Messaging.SignalR.Tests` | 17 | the scenarios of the old `plan-messagingIntegrationTests.prompt.md` on Kestrel with real clients: same-client round trip (sender stamped), other clients of the tenant (another tenant gets nothing), topic isolation, unsubscribe (one handler; the last unsubscribes), **reconnect** (server stopped and started on the same port, subscriptions replayed), subscribe before start, payload integrity, 50 concurrent publishes, cancellation and shutdown with live clients (under 5 s); forwarding from the transport to the tenant's subscribers (id, sender, subject, data) and not to another tenant; untrusted tenant / source mismatch / non-JSON not forwarded; refused subscribe and publish (`Forbidden`, no handler kept), an invalid topic, an unauthenticated connection (401), a tenant claim that is not a tenant; a failing handler isolated; a handle disposed after the server went away; groups and rules; the skill example verbatim |
+| `Tarol.Messaging.SignalR.AotSmoke` | 5 checks | hub, forwarder and client in one native process: subscribe, a publish through the hub, a forwarded message, a refused subscribe, a fast stop with a live client; Native AOT 0 IL warnings, 17.5 MB |
+| `Tarol.Messaging.SignalR.PackageTests` | 1 | the packed package: registered, the hub mapped, a client built |
+
+### 19.6 Skill evaluation checklist (`tarol-messaging-signalr`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| show settled auctions live in the browser | `[Publishes<T>]` + `PushToUi(o => { o.Forward("artflow.auction-settled"); o.Rules.Subscribe("artflow.*"); })`, `MapMessageHub()` | a typed hub; sending from a reaction with `IHubContext` |
+| a chat between users of one tenant | `o.Rules.Publish("artflow.chat", role: …)`, `MessagePushClient.Publish` | taking the tenant or the sender from the client |
+| a .NET app listens and survives restarts | `MessagePushClient.Connect`, `Subscribe` handles, `Start` | its own reconnect loop; one handler unsubscribing all |
+| publish the web app with Native AOT | the `IsCustomAwaitableSupported=false` switch | suppressing IL2026/IL3050 |
+
+### 19.7 Suppressions and analyzer configuration
+
+None.
+
+### 19.8 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
+
+VERIFICATION_11E
