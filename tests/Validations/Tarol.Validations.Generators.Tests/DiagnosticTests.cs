@@ -107,6 +107,33 @@ public class DiagnosticTests
     }
 
     [Fact]
+    public void TVAL006_Exempt_In_A_Static_Entry_Factory_Of_A_Validated_Change()
+    {
+        // C-13: the factory maps an event; the pipeline validates the change it returns before any read.
+        var found = Of("TVAL006", """
+            namespace Tarol.Changes { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class OnEventAttribute<T> : System.Attribute; }
+            public readonly partial record struct Q([Range(1, 2)] int Value);
+            public sealed record Won(int Amount);
+            public sealed partial record Validated(Q Amount) : IValidatable
+            {
+                [Tarol.Changes.OnEvent<Won>]
+                public static Validated From(Won e) => new(new Q(e.Amount));                         // exempt
+                [Tarol.Changes.OnEvent<Won>]
+                public static Validated Lambda(Won e) => new(((System.Func<Q>)(() => new Q(e.Amount)))());   // exempt (inside)
+                public static Validated NotAnEntry(Won e) => new(new Q(e.Amount));                    // reported
+            }
+            public sealed record Unvalidated(Q Amount)
+            {
+                [Tarol.Changes.OnEvent<Won>]
+                public static Unvalidated From(Won e) => new(new Q(e.Amount));                       // reported: nothing validates it
+            }
+            """);
+
+        found.Length.ShouldBe(2);
+        found.Select(d => d.Location.GetLineSpan().StartLinePosition.Line).Order().ShouldBe([10, 15]);   // NotAnEntry, Unvalidated.From (line 0: usings)
+    }
+
+    [Fact]
     public void TVAL007_DataAnnotations_Attributes_Have_No_Effect()
     {
         var found = Of("TVAL007",

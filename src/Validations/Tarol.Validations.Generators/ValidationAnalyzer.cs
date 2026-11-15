@@ -212,7 +212,26 @@ public sealed class ValidationAnalyzer : DiagnosticAnalyzer
                 return;
         }
 
+        // Inside a static entry factory of a validated change ([OnEvent<T>], later [Webhook]/[Consumes]): the factory maps a
+        // committed event or a foreign payload, and the pipeline validates the change it returns before any read (C-13).
+        if (InEntryFactory(context.ContainingSymbol))
+            return;
+
         var what = context.Operation is IWithOperation ? "a 'with' expression" : "'new " + named.Name + "(…)'";
         context.ReportDiagnostic(Diagnostic.Create(Diagnostics.BypassesCreate, context.Operation.Syntax.GetLocation(), named.Name, what));
+    }
+
+    private static bool InEntryFactory(ISymbol? symbol)
+    {
+        for (var current = symbol; current is not null; current = current.ContainingSymbol)
+        {
+            if (current is not IMethodSymbol { IsStatic: true, MethodKind: MethodKind.Ordinary } method)
+                continue;
+            var entry = method.GetAttributes().Any(static a => a.AttributeClass is { ContainingNamespace: { } ns } attribute
+                && ns.ToDisplayString() == "Tarol.Changes"
+                && attribute.OriginalDefinition.MetadataName is "OnEventAttribute`1" or "WebhookAttribute" or "ConsumesAttribute");
+            return entry && method.ContainingType.AllInterfaces.Any(static i => i.ToDisplayString() == "Tarol.Validations.IValidatable");
+        }
+        return false;
     }
 }

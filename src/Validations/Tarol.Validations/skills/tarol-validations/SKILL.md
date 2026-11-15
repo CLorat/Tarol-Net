@@ -21,7 +21,8 @@ description: >-
 4. **Inputs** are `sealed partial record X(…) : IValidatable`. Call `x.Validated()` → `Result<X>`: the input, or one
    `Invalid` with every field error (`Lines[1].Quantity: Range "1..100"`). Validate **before** loading the aggregate.
 5. **Create live, trust on load.** Live code: `Title.Create(raw)` → `Result<Title>`. `new Title(…)` and JSON reading do
-   not validate (old events must load); `new` outside the type is TVAL006.
+   not validate (old events must load); `new` outside the type is TVAL006 (except in a static `[OnEvent<T>]` factory of an
+   `IValidatable` change, whose result the pipeline validates).
 6. **The type decides required/optional.** `Option<T>` and `T?` are optional, validated when present. Every other member
    is required: `null`, `Id<T>.Empty`, a missing string value object → `Required`. A missing `int` value object reads as
    `0` and reports its own rule.
