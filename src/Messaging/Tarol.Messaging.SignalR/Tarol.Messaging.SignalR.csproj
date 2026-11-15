@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The UI push of Tarol.Messaging over SignalR: a consumer subscription forwards messages to SignalR groups per tenant and topic, an authenticated plain hub authorizes every subscribe and publish per topic (ITopicAuthorizer) and stamps the sender server-side, a source-generated hub JSON context, and a .NET client that keeps an immutable subscription map, replays it after start and on every reconnect, and isolates failing handlers. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;messaging;signalr;aspnetcore;realtime;ui-push;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <ProjectReference Include="../Tarol.Messaging/Tarol.Messaging.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

@@ -31,6 +31,7 @@
     <Project Path="src/Messaging/Tarol.Messaging.Nats/Tarol.Messaging.Nats.csproj" />
     <Project Path="src/Messaging/Tarol.Messaging.Npgsql/Tarol.Messaging.Npgsql.csproj" />
     <Project Path="src/Messaging/Tarol.Messaging.RabbitMq/Tarol.Messaging.RabbitMq.csproj" />
+    <Project Path="src/Messaging/Tarol.Messaging.SignalR/Tarol.Messaging.SignalR.csproj" />
   </Folder>
   <Folder Name="/src/Sagas/">
     <Project Path="src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
@@ -89,6 +90,7 @@
     <Project Path="tests/Messaging/Tarol.Messaging.Npgsql.IntegrationTests/Tarol.Messaging.Npgsql.IntegrationTests.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.RabbitMq.AotSmoke/Tarol.Messaging.RabbitMq.AotSmoke.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.RabbitMq.IntegrationTests/Tarol.Messaging.RabbitMq.IntegrationTests.csproj" />
+    <Project Path="tests/Messaging/Tarol.Messaging.SignalR.Tests/Tarol.Messaging.SignalR.Tests.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.Tests/Tarol.Messaging.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Sagas/">
