@@ -160,6 +160,29 @@ public abstract class StoreContract
     }
 
     [Fact]
+    public async Task A_keys_fingerprint_is_stored_with_its_outcome_and_not_part_of_its_identity()
+    {
+        var key = new IdempotencyKey(_tenant, "http", "k-1") { Fingerprint = "sha256:abc" };
+        var member = NewMember("a@x");
+        (await Store.Append(member, 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
+
+        (await Store.Seen(key, Ct)).ShouldBe(new StoredOutcome(member.Id.Value, 1, 1, "sha256:abc"));
+        (await Store.Seen(new IdempotencyKey(_tenant, "http", "k-1") { Fingerprint = "sha256:other" }, Ct)).GetValueOrThrow().Fingerprint
+            .ShouldBe("sha256:abc");                                                    // found by (tenant, scope, key)
+        (await Store.Seen(new IdempotencyKey(_tenant, "http", "k-1"), Ct)).IsSome.ShouldBeTrue();
+        (await Store.Append(NewMember("b@x"), 0, Alice, key with { Fingerprint = "sha256:other" }, Ct))
+            .ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key with { Fingerprint = "sha256:other" })));
+    }
+
+    [Fact]
+    public async Task A_key_without_a_fingerprint_stores_none()
+    {
+        var key = new IdempotencyKey(_tenant, "payments", "evt_3");
+        (await Store.Append(NewMember("a@x"), 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
+        (await Store.Seen(key, Ct)).GetValueOrThrow().Fingerprint.IsNone.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task Keys_are_scoped_by_tenant_and_scope()
     {
         var key = new IdempotencyKey(_tenant, "payments", "evt_1");

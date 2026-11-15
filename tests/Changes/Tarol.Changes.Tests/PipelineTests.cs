@@ -267,6 +267,26 @@ public sealed class PipelineTests
         Failure(then.Result).ShouldBe(StoreErrors.VersionConflict(3, 0));
     }
 
+    [Fact]
+    public async Task A_key_presented_again_with_another_fingerprint_is_refused_and_runs_nothing()
+    {
+        var test = Test();
+        var create = new CreateAuction("L-1", new Title("Sunflowers"), new Amount(10), Start.AddDays(7));
+        var key = new IdempotencyKey(Option.None, "http", "k-1") { Fingerprint = "POST /auctions #1" };
+
+        var first = await test.When(create, Actor.User("alice"), new ChangeOptions(key));
+        var again = await test.When(create, Actor.User("alice"), new ChangeOptions(key));
+        var reused = await test.When(create with { Lot = "L-2" }, Actor.User("alice"), new ChangeOptions(key with { Fingerprint = "POST /auctions #2" }));
+        var unmarked = await test.When(create with { Lot = "L-3" }, Actor.User("alice"), new ChangeOptions(new IdempotencyKey(Option.None, "http", "k-1")));
+
+        first.Result.GetValueOrThrow().Replayed.ShouldBeFalse();
+        again.Result.GetValueOrThrow().ShouldBe(first.Result.GetValueOrThrow() with { Replayed = true });
+        Failure(reused.Result).ShouldBe(StoreErrors.KeyReused(key with { Fingerprint = "POST /auctions #2" }));
+        Failure(reused.Result).ShouldBeOfType<Error>().Type.ShouldBe(ErrorType.UnprocessableEntity);
+        unmarked.Result.GetValueOrThrow().Replayed.ShouldBeTrue();                      // nothing to compare: the first outcome
+        test.Store.Recorded.Count.ShouldBe(1);
+    }
+
     private static ClaimsPrincipal Principal(string subject) => new(new ClaimsIdentity([new Claim("sub", subject)], "test"));
 
     [Fact]

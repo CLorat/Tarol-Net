@@ -31,7 +31,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
     private readonly IOutbox _outboxPort;
     private readonly Lock _gate = new();
     private readonly Dictionary<StreamKey, Stream> _streams = [];
-    private readonly Dictionary<IdempotencyKey, StoredOutcome> _keys = [];
+    private readonly Dictionary<(Option<Id<ITenant>> Tenant, string Scope, string Key), StoredOutcome> _keys = [];
     private readonly Dictionary<(Guid Tenant, string Type, string Lookup, string Key), Guid> _lookups = [];
     private readonly List<PositionedEvent> _recorded = [];
     private ulong _commits;
@@ -189,7 +189,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
             var actual = stream?.Events.Count ?? 0;
             if (actual != expectedVersion)
                 return ValueTask.FromResult<Result>(StoreErrors.VersionConflict(expectedVersion, actual));
-            if (key.TryGetValue(out IdempotencyKey idempotency) && _keys.ContainsKey(idempotency))
+            if (key.TryGetValue(out IdempotencyKey idempotency) && _keys.ContainsKey(Identity(idempotency)))
                 return ValueTask.FromResult<Result>(StoreErrors.DuplicateKey(idempotency));
             foreach (var (lookup, newKey) in keys)
             {
@@ -221,7 +221,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
                 stream.Lookups[lookup] = newKey;
             }
             if (key.TryGetValue(out idempotency))
-                _keys[idempotency] = new StoredOutcome(aggregate.Id.Value, changes[^1].Version, changes.Length);
+                _keys[Identity(idempotency)] = new StoredOutcome(aggregate.Id.Value, changes[^1].Version, changes.Length, idempotency.Fingerprint);
         }
         return ValueTask.FromResult(Result.Success());
     }
@@ -246,8 +246,11 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
     {
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate)
-            return ValueTask.FromResult<Option<StoredOutcome>>(_keys.TryGetValue(key, out var outcome) ? outcome : Option.None);
+            return ValueTask.FromResult<Option<StoredOutcome>>(_keys.TryGetValue(Identity(key), out var outcome) ? outcome : Option.None);
     }
+
+    /// <summary>A key is (tenant, scope, key); its fingerprint is stored with the outcome, not part of the identity.</summary>
+    private static (Option<Id<ITenant>>, string, string) Identity(IdempotencyKey key) => (key.Tenant, key.Scope, key.Key);
 
     /// <inheritdoc />
     public async IAsyncEnumerable<PositionedEvent> ReadAll(GlobalPosition after, int limit, [EnumeratorCancellation] CancellationToken cancellationToken)

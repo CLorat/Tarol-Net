@@ -59,7 +59,7 @@ public sealed class ChangePipeline
         if (change is IValidatable validatable && Invalidity(validatable) is { } invalid)
             return invalid;                                                                     // 400, before any read
         if (await Seen(options, cancellationToken) is { } replayed)
-            return replayed;
+            return replayed;                                                                    // the first outcome, or KeyReused
 
         var (missing, loadedReads) = await LoadReads(change, context, cancellationToken);
         if (missing is not null)
@@ -165,13 +165,15 @@ public sealed class ChangePipeline
     /// <summary>The code of the refusal when a principal is passed to a pipeline without an <see cref="IChangeAuthorization"/>.</summary>
     public const string NotConfiguredCode = "Auth.NotConfigured";
 
-    private async ValueTask<ChangeOutcome?> Seen(ChangeOptions options, CancellationToken cancellationToken)
+    private async ValueTask<Result<ChangeOutcome>?> Seen(ChangeOptions options, CancellationToken cancellationToken)
     {
         if (!options.Key.TryGetValue(out IdempotencyKey key))
             return null;
-        return (await _store.Seen(key, cancellationToken)).TryGetValue(out StoredOutcome stored)
-            ? new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true)
-            : null;
+        if (!(await _store.Seen(key, cancellationToken)).TryGetValue(out StoredOutcome stored))
+            return null;
+        if (stored.Fingerprint.TryGetValue(out string? first) && key.Fingerprint.TryGetValue(out string? now) && !string.Equals(first, now, StringComparison.Ordinal))
+            return StoreErrors.KeyReused(key);                                                  // R-9: another request under the key
+        return new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true);
     }
 
     private async ValueTask<(Violation? Missing, Reads? Reads)> LoadReads(object change, OperationContext context, CancellationToken cancellationToken)
