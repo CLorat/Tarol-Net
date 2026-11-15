@@ -1,0 +1,176 @@
+# SDK 11.0.100, 2026-11-14, x86_64, 4 cores, postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1)
+
+## App (JIT): store contract, metadata, lookups L-A/L-B, keys, outbox rows, [LoadByReplay], schema change, upcaster, ReadAll gaps, outbox claims
+# JIT mode=functional postgres=17.12 (Debian 17.12-1.pgdg13+1)
+PASS create appends 3 events: Success
+PASS load from stored state
+PASS stored state == replay
+PASS value object in payload is a plain string
+PASS state jsonb is queryable
+PASS expected 0 on an existing stream → Stream.VersionConflict: Failure(Error { Conflict, Stream.VersionConflict })
+PASS stale expected version → conflict, first wins: Failure(Error { Conflict, Stream.VersionConflict })
+PASS conflict detail carries the actual version: expected version 3, found 4
+PASS nothing of the loser written
+PASS wrong expected → ArgumentException
+PASS another tenant: load → None
+PASS no tenant ≠ a tenant
+PASS lookup is found in its tenant
+PASS lookup is not found in another tenant
+PASS same id and lot in another tenant commits
+PASS taken lookup key → Lookup.Taken, nothing written: Failure(Error { Conflict, Lookup.Taken })
+PASS relot commits
+PASS lookup moved
+PASS undefined lookup throws
+PASS append with a key
+PASS Seen returns the first outcome
+PASS key stored meanwhile → Idempotency.DuplicateKey, nothing written: Failure(Error { Conflict, Idempotency.DuplicateKey })
+PASS failed commit stores no key
+PASS keys are tenant-scoped
+PASS retention purge deletes old keys in batches
+PASS ReadAll returns RecordedEvents in commit order: 7
+PASS one RecordedAt per commit
+PASS event ids are UUIDv7 and distinct
+PASS actor, tenant, correlation stored per event
+PASS entity id and parent id round-trip
+PASS causation and system actor stored
+PASS one outbox row per (event, reaction): 7
+PASS no outbox rows of the failed commits
+PASS [LoadByReplay] replays, schema 0, no state
+PASS another schema → replay
+PASS next change rewrites the row with the current schema
+PASS RebuildStates rewrites every stale row: 2
+PASS v1 payload upcast on load
+PASS v1 without an upcaster throws: No event of 'auction' is stored as 'auction.opened' v1 and no upcaster moves it: pin the old alias with [EventType] or register an IEventUpcaster.
+PASS unknown alias throws: No event of 'auction' is stored as 'auction.renamed' v1 and no upcaster moves it: pin the old alias with [EventType] or register an IEventUpcaster.
+PASS missing metadata throws at registration: No JSON metadata for Opened, Relotted, Closed, Placed: add [JsonSerializable(typeof(…))] to your context.
+PASS L-B: Find through the state index
+PASS L-B: duplicate → 23505 on the index → Lookup.Taken: Failure(Error { Conflict, Lookup.Taken })
+PASS L-B: Find uses the expression index: Index Scan using lookup_auction_lot on streams  (cost=0.14..8.16 rows=1 width=16) |   Index Cond: ((tenant = '00000000-0000-0000-0000-000000000000'::uuid) AND ((state ->> 'lot'::text) = 'LOT-1'::text))
+PASS StreamRow: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS UniqueEvents: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS SelectForUpdate: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS FailFast: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS ReadAll naive (position > checkpoint): late commit is skipped: first read 1, second read 0
+PASS ReadAll safe (xmin, (tx, position)): late commit is not skipped: first read 0, second read 2
+PASS ReadAll safe: older xid with later position is returned first: 1
+PASS ReadAll: (tx, position) checkpoint returns the late commit: 1
+PASS ReadAll: a position-only checkpoint would have skipped it: 0
+PASS O-1: 4 workers with SKIP LOCKED claim every row exactly once: 50
+PASS O-2: every row once, per stream in version order, one in flight per stream: 50, max 1
+  O-2 plan: Limit  (cost=0.29..10.70 rows=10 width=8) |   ->  Nested Loop Anti Join  (cost=0.29..125.10 rows=120 width=8) |         ->  Index Scan using outbox_pkey on outbox o  (cost=0.15..55.55 rows=123 width=104) |               Filter: (due_at <= now()) | 
+ALL CHECKS PASSED
+
+## App (JIT, Release): contention, N writers on one stream, each load → Relot → append
+| guard | writers | attempts | ok | conflict | other | thrown | gapless | attempts/s | p50 ms | p99 ms |
+|---|---|---|---|---|---|---|---|---|---|---|
+| StreamRow       |   1 |   200 |   200 |     0 | 0 | 0 | yes |      371 |   2.45 |   6.50 |
+| StreamRow       |   4 |   100 |    32 |    68 | 0 | 0 | yes |      665 |   4.86 |  26.70 |
+| StreamRow       |  16 |   400 |    37 |   363 | 0 | 0 | yes |      677 |  22.76 |  59.02 |
+| StreamRow       |  64 |  1600 |    92 |  1508 | 0 | 0 | yes |      752 |  84.60 | 250.20 |
+| UniqueEvents    |   1 |   200 |   200 |     0 | 0 | 0 | yes |      356 |   2.71 |   5.71 |
+| UniqueEvents    |   4 |   100 |    32 |    68 | 0 | 0 | yes |      640 |   5.56 |  15.82 |
+| UniqueEvents    |  16 |   400 |    41 |   359 | 0 | 0 | yes |     1284 |  10.50 |  26.41 |
+| UniqueEvents    |  64 |  1600 |    68 |  1532 | 0 | 0 | yes |     1430 |  34.17 | 203.80 |
+| SelectForUpdate |   1 |   200 |   200 |     0 | 0 | 0 | yes |      287 |   3.25 |   7.81 |
+| SelectForUpdate |   4 |   100 |    25 |    75 | 0 | 0 | yes |      831 |   4.50 |   8.33 |
+| SelectForUpdate |  16 |   400 |    49 |   351 | 0 | 0 | yes |      938 |  15.52 |  42.24 |
+| SelectForUpdate |  64 |  1600 |   136 |  1464 | 0 | 0 | yes |     1451 |  39.09 | 111.07 |
+| FailFast        |   1 |   200 |   200 |     0 | 0 | 0 | yes |      356 |   2.50 |   6.78 |
+| FailFast        |   4 |   100 |    26 |    74 | 0 | 0 | yes |      693 |   5.10 |  11.57 |
+| FailFast        |  16 |   400 |    36 |   364 | 0 | 0 | yes |     1264 |   9.73 |  43.37 |
+| FailFast        |  64 |  1600 |    39 |  1561 | 0 | 0 | yes |     1591 |  31.04 | 146.66 |
+ALL CHECKS PASSED
+
+## App (Native AOT): publish warnings, then the native run
+IL warnings: 0
+native binary: 7937336 bytes
+# Native AOT mode=functional postgres=17.12 (Debian 17.12-1.pgdg13+1)
+PASS create appends 3 events: Success
+PASS load from stored state
+PASS stored state == replay
+PASS value object in payload is a plain string
+PASS state jsonb is queryable
+PASS expected 0 on an existing stream → Stream.VersionConflict: Failure(Error { Conflict, Stream.VersionConflict })
+PASS stale expected version → conflict, first wins: Failure(Error { Conflict, Stream.VersionConflict })
+PASS conflict detail carries the actual version: expected version 3, found 4
+PASS nothing of the loser written
+PASS wrong expected → ArgumentException
+PASS another tenant: load → None
+PASS no tenant ≠ a tenant
+PASS lookup is found in its tenant
+PASS lookup is not found in another tenant
+PASS same id and lot in another tenant commits
+PASS taken lookup key → Lookup.Taken, nothing written: Failure(Error { Conflict, Lookup.Taken })
+PASS relot commits
+PASS lookup moved
+PASS undefined lookup throws
+PASS append with a key
+PASS Seen returns the first outcome
+PASS key stored meanwhile → Idempotency.DuplicateKey, nothing written: Failure(Error { Conflict, Idempotency.DuplicateKey })
+PASS failed commit stores no key
+PASS keys are tenant-scoped
+PASS retention purge deletes old keys in batches
+PASS ReadAll returns RecordedEvents in commit order: 7
+PASS one RecordedAt per commit
+PASS event ids are UUIDv7 and distinct
+PASS actor, tenant, correlation stored per event
+PASS entity id and parent id round-trip
+PASS causation and system actor stored
+PASS one outbox row per (event, reaction): 7
+PASS no outbox rows of the failed commits
+PASS [LoadByReplay] replays, schema 0, no state
+PASS another schema → replay
+PASS next change rewrites the row with the current schema
+PASS RebuildStates rewrites every stale row: 2
+PASS v1 payload upcast on load
+PASS v1 without an upcaster throws: No event of 'auction' is stored as 'auction.opened' v1 and no upcaster moves it: pin the old alias with [EventType] or register an IEventUpcaster.
+PASS unknown alias throws: No event of 'auction' is stored as 'auction.renamed' v1 and no upcaster moves it: pin the old alias with [EventType] or register an IEventUpcaster.
+PASS missing metadata throws at registration: No JSON metadata for Opened, Relotted, Closed, Placed: add [JsonSerializable(typeof(…))] to your context.
+PASS L-B: Find through the state index
+PASS L-B: duplicate → 23505 on the index → Lookup.Taken: Failure(Error { Conflict, Lookup.Taken })
+PASS L-B: Find uses the expression index: Index Scan using lookup_auction_lot on streams  (cost=0.14..8.16 rows=1 width=16) |   Index Cond: ((tenant = '00000000-0000-0000-0000-000000000000'::uuid) AND ((state ->> 'lot'::text) = 'LOT-1'::text))
+PASS StreamRow: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS UniqueEvents: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS SelectForUpdate: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS FailFast: duplicate creation and stale append → VersionConflict: Failure(Error { Conflict, Stream.VersionConflict }) / Failure(Error { Conflict, Stream.VersionConflict })
+PASS ReadAll naive (position > checkpoint): late commit is skipped: first read 1, second read 0
+PASS ReadAll safe (xmin, (tx, position)): late commit is not skipped: first read 0, second read 2
+PASS ReadAll safe: older xid with later position is returned first: 1
+PASS ReadAll: (tx, position) checkpoint returns the late commit: 1
+PASS ReadAll: a position-only checkpoint would have skipped it: 0
+PASS O-1: 4 workers with SKIP LOCKED claim every row exactly once: 50
+PASS O-2: every row once, per stream in version order, one in flight per stream: 50, max 1
+  O-2 plan: Limit  (cost=0.29..10.70 rows=10 width=8) |   ->  Nested Loop Anti Join  (cost=0.29..125.10 rows=120 width=8) |         ->  Index Scan using outbox_pkey on outbox o  (cost=0.15..55.55 rows=123 width=104) |               Filter: (due_at <= now()) | 
+ALL CHECKS PASSED
+
+## Contract: one suite, InMemoryAggregateStore and the Npgsql store (Testcontainers postgres:17)
+Probe.Persistence.Contract  Total: 20, Errors: 0, Failed: 0, Skipped: 0, Not Run: 0, Time: 3.915s
+
+## Bench: BenchmarkDotNet --job short --inProcess
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+// Runtime=.NET 11.0.0 (11.0.0, 11.0.26.53018), X64 RyuJIT x86-64-v4
+BenchmarkDotNet v0.16.0-preview.2, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+| Method               | Events | Mean         | Error        | StdDev     | Gen0    | Gen1    | Gen2    | Allocated  |
+|--------------------- |------- |-------------:|-------------:|-----------:|--------:|--------:|--------:|-----------:|
+| Load_InMemory_State  | 10     |     3.995 us |     2.776 us |  0.1522 us |  0.0305 |       - |       - |    4.52 KB |
+| Load_InMemory_Replay | 10     |     1.310 us |     1.886 us |  0.1034 us |  0.0286 |       - |       - |    4.03 KB |
+| Load_Npgsql_State    | 10     |   276.768 us |   316.597 us | 17.3538 us |       - |       - |       - |    7.43 KB |
+| Load_Npgsql_Replay   | 10     |   284.887 us |   482.659 us | 26.4562 us |       - |       - |       - |    11.5 KB |
+| Change_InMemory      | 10     |   354.442 us | 1,339.407 us | 73.4174 us | 70.5566 | 70.5566 | 70.5566 | 1638.97 KB |
+| Change_Npgsql        | 10     | 2,160.137 us |   446.002 us | 24.4469 us |       - |       - |       - |    22.4 KB |
+| Load_InMemory_State  | 100    |    33.875 us |    35.784 us |  1.9614 us |  0.3052 |       - |       - |   42.71 KB |
+| Load_InMemory_Replay | 100    |     9.678 us |     6.239 us |  0.3420 us |  0.2899 |  0.0458 |       - |   39.41 KB |
+| Load_Npgsql_State    | 100    |   407.396 us |   154.370 us |  8.4615 us |       - |       - |       - |   48.34 KB |
+| Load_Npgsql_Replay   | 100    |   565.052 us | 1,176.796 us | 64.5042 us |       - |       - |       - |   82.07 KB |
+| Change_InMemory      | 100    |   389.587 us | 1,296.784 us | 71.0811 us | 62.0117 | 62.0117 | 62.0117 | 1638.88 KB |
+| Change_Npgsql        | 100    | 2,294.306 us | 1,171.527 us | 64.2153 us |       - |       - |       - |    22.4 KB |

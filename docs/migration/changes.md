@@ -473,8 +473,8 @@ Probes: `probes/changes/all.sh` → [`output.txt`](probes/changes/output.txt) (6
 
 ## 13. Open items
 
-* Retention of idempotency keys and outbox rows (step 8).
-* Order of one stream's outbox rows across several workers (steps 8–9).
+* Retention of idempotency keys and outbox rows (step 8): **decided** P-11 (persistence.md §15): `PurgeKeys`, 7 days; outbox rows are deleted when completed.
+* Order of one stream's outbox rows across several workers (steps 8–9): **decided** P-10: head per (stream, reaction), probed.
 * Unknown version of a known webhook type: dead-letter proposed (step 10).
 * Whether `ChangeOutcome` should carry the committed `RecordedEvent`s for the caller (e.g. to return a created child's
   id): not needed by any scenario here.

@@ -2,7 +2,8 @@
 
 Package guide: [Tarol.Persistence](../../src/Persistence/Tarol.Persistence/README.md).
 Agent skill: [tarol-persistence](../../src/Persistence/Tarol.Persistence/skills/tarol-persistence/SKILL.md).
-Concept: [docs/architecture/changes.md](../architecture/changes.md) §2, §7. Design decisions and migration notes:
+Concept: [docs/architecture/changes.md](../architecture/changes.md) §2, §7; the PostgreSQL store (step 8):
+[docs/architecture/persistence.md](../architecture/persistence.md). Design decisions and migration notes:
 [docs/migration/changes.md](../migration/changes.md) (C-6, C-8, C-16) and [docs/migration/persistence.md](../migration/persistence.md).
 
 ## Design in five points

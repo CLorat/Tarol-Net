@@ -82,8 +82,8 @@ Labels and probes as in [time.md](time.md).
 
 ## Open questions
 
-* Store `traceparent` as text (55 chars) or as the 16-byte trace id + 8-byte span id? Step 8 (text is simpler and
-  readable; size is irrelevant against the payload).
+* Store `traceparent` as text (55 chars) or as the 16-byte trace id + 8-byte span id? **Decided in step 8 (P-9): text**,
+  a nullable `traceparent` column per event ([persistence.md](persistence.md) §5).
 * Should the outbox worker continue the trace for short delays (seconds) and link only for long ones? Default: always
   link; revisit with real traces in step 9.
 * Baggage for tenant propagation across services: no (tenant is security data, §security.md; baggage is untrusted).
