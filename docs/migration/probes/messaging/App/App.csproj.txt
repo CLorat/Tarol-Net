@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- ArtFlow and billing (two systems, two stores) on the real Tarol packages + the probe messaging libraries. Modes:
+       selftest <memory|postgres|nats|rabbit>, security <postgres|nats|rabbit>, bench <transport> …, legacy, startup,
+       and the Aspire roles api | worker | billing. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors><EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <PublishAot>true</PublishAot><TrimmerSingleWarn>false</TrimmerSingleWarn><InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <AssemblyName>Probe.Messaging.App</AssemblyName><RootNamespace>ArtFlow</RootNamespace>
+    <NoWarn>TVAL006</NoWarn><!-- probe: the self-test builds inputs as a message would -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry" Version="1.21.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.21.0" />
+    <ProjectReference Include="../Messaging/Messaging.csproj" />
+    <ProjectReference Include="../Nats/Nats.csproj" />
+    <ProjectReference Include="../Rabbit/Rabbit.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

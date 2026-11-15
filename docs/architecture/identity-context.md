@@ -22,7 +22,7 @@ Labels and probes as in [time.md](time.md). Authorization is in [security.md](se
 | Aggregate | **nothing** (an aggregate does not know who calls it; permissions are not invariants, [security.md](security.md) §4) | — |
 | Unit of work / store (step 8) | actor, tenant, correlation, causation at commit | event metadata columns; tenant in the stream key |
 | Saga engine (step 9) | the context of the triggering message | the context into outbox rows and the messages it sends; a **system actor on behalf of** the original actor |
-| Messaging (step 11) | envelope headers | envelope headers (actor, tenant, correlation, causation, traceparent) |
+| Messaging (step 11) | envelope headers: tenant (allow-listed per source), correlation; the actor only as "on behalf of" ([messaging.md](messaging.md) §3, M-6, M-13) | CloudEvents headers (`ce-tenant`, `ce-correlation`, `ce-causation`, `ce-actor`, `traceparent`) |
 | Tests | — | construct the context directly |
 
 ## 3. What .NET 11 / ASP.NET Core already provide

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- One transport per binary, to see what a broker client adds under Native AOT. ProbeTransport: postgres | nats | rabbit -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors><PublishAot>true</PublishAot><InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <AssemblyName>Probe.Messaging.Size</AssemblyName>
+    <ProbeTransport Condition="'$(ProbeTransport)' == ''">postgres</ProbeTransport>
+    <DefineConstants Condition="'$(ProbeTransport)' == 'nats'">$(DefineConstants);NATS</DefineConstants>
+    <DefineConstants Condition="'$(ProbeTransport)' == 'rabbit'">$(DefineConstants);RABBIT</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Messaging/Messaging.csproj" />
+    <ProjectReference Include="../Nats/Nats.csproj" Condition="'$(ProbeTransport)' == 'nats'" />
+    <ProjectReference Include="../Rabbit/Rabbit.csproj" Condition="'$(ProbeTransport)' == 'rabbit'" />
+  </ItemGroup>
+</Project>

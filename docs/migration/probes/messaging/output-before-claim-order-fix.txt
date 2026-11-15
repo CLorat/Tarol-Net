@@ -1,0 +1,224 @@
+# SDK 11.0.100, 2026-11-15, x86_64, 4 cores, postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1), NATS nats-server: v2.11.17, RabbitMQ 4.4.0
+
+## 1. JIT: consumers, publications, context, keys, order — per transport (both systems on the Npgsql store, in-memory for 'memory')
+# selftest: transport memory, store in-memory, JIT
+## consumers through the pipeline
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03da4e87ec3973a4786e8e6c9e4, attempt 1
+PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
+INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
+PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
+PASS rule SystemOnBehalf: System Consumers.IssueInvoice on behalf of alice, and the next hop keeps it  — System:Consumers.IssueInvoice (for alice) → System:Reactions.RemindBuyer (for alice)
+PASS publisher crash after publish: published twice, one invoice  — deliveries to IssueInvoice 2 (Done, replayed); no broker dedup
+PASS unknown contract: not delivered (subscriptions filter by contract); acknowledged and dropped when it arrives anyway
+PASS unknown version: buried by both consumers  — Messaging.UnknownVersion: artflow.auction-settled v3
+PASS invalid mapping (price 0): IssueInvoice buried at attempt 1, RecordSale committed  — Invalid Amount Range
+PASS Conflict (Auction.NotSettled): retried, then committed once the auction is settled  — attempts 1 Conflict Auction.NotSettled → 2 Done
+PASS NotFound: retried 4 times (Quick policy), then dead-lettered  — NotFound Auction.NotFound
+PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Messaging.Malformed: the data does not match the contract
+PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
+PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
+## context across systems
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03d-a40d-7798-8bad-48d360e75fb2
+PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
+PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
+INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
+## keys, versions, re-drive
+PASS key scope consumer:<contract>: the second consumer of the contract replays the first's outcome and never runs  — IssueInvoice committed, RecordSale replayed: with consumer:<name> both commit
+PASS dual publish v1 + v2 (same message id): IssueInvoice (reads both) commits once  — IssueInvoice: v1 Done, v2 replayed
+INFO RecordSale reads v1 only: v1 Done, v2 Messaging.UnknownVersion: artflow.auction-settled v2
+PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, re-driven → committed
+## order per stream
+PASS publication order per stream = version order (head per (stream, publication))  — 50 published, 2 publisher loops
+PASS consumed in order per stream with concurrency 1  — 50 received
+INFO concurrency 4 (handler sleeps 5 ms): 0 inversions per stream in 50 messages
+INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
+ALL CHECKS PASSED
+# selftest: transport postgres, store Npgsql, JIT
+## consumers through the pipeline
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03dc22f751bbbf780c0a96cbc12, attempt 1
+PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
+INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
+PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
+PASS rule SystemOnBehalf: System Consumers.IssueInvoice on behalf of alice, and the next hop keeps it  — System:Consumers.IssueInvoice (for alice) → System:Reactions.RemindBuyer (for alice)
+PASS publisher crash after publish: published twice, one invoice  — deliveries to IssueInvoice 1 (Done); bus: ON CONFLICT (id, type, version)
+PASS unknown contract: not delivered (subscriptions filter by contract); acknowledged and dropped when it arrives anyway
+PASS unknown version: buried by both consumers  — Messaging.UnknownVersion: artflow.auction-settled v3
+PASS invalid mapping (price 0): IssueInvoice buried at attempt 1, RecordSale committed  — Invalid Amount Range
+PASS Conflict (Auction.NotSettled): retried, then committed once the auction is settled  — attempts 1 Conflict Auction.NotSettled → 2 Done
+PASS NotFound: retried 4 times (Quick policy), then dead-lettered  — NotFound Auction.NotFound
+PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Messaging.Malformed: the data does not match the contract
+PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
+PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
+## context across systems
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03d-bf6e-71c7-a8cb-7aabc3f9de69
+PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
+PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
+INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
+## keys, versions, re-drive
+PASS key scope consumer:<contract>: the second consumer of the contract replays the first's outcome and never runs  — IssueInvoice committed, RecordSale replayed: with consumer:<name> both commit
+PASS dual publish v1 + v2 (same message id): IssueInvoice (reads both) commits once  — IssueInvoice: v1 Done, v2 replayed
+INFO RecordSale reads v1 only: v1 Done, v2 Messaging.UnknownVersion: artflow.auction-settled v2
+PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, re-driven → committed
+## order per stream
+PASS publication order per stream = version order (head per (stream, publication))  — 50 published, 2 publisher loops
+PASS consumed in order per stream with concurrency 1  — 50 received
+INFO concurrency 4 (handler sleeps 5 ms): 14 inversions per stream in 50 messages
+INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
+ALL CHECKS PASSED
+# selftest: transport postgres+notify, store Npgsql, JIT
+## consumers through the pipeline
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03de679719c9d5051bf7a33f118, attempt 1
+PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
+INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
+PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
+PASS rule SystemOnBehalf: System Consumers.IssueInvoice on behalf of alice, and the next hop keeps it  — System:Consumers.IssueInvoice (for alice) → System:Reactions.RemindBuyer (for alice)
+PASS publisher crash after publish: published twice, one invoice  — deliveries to IssueInvoice 1 (Done); bus: ON CONFLICT (id, type, version)
+PASS unknown contract: not delivered (subscriptions filter by contract); acknowledged and dropped when it arrives anyway
+PASS unknown version: buried by both consumers  — Messaging.UnknownVersion: artflow.auction-settled v3
+PASS invalid mapping (price 0): IssueInvoice buried at attempt 1, RecordSale committed  — Invalid Amount Range
+PASS Conflict (Auction.NotSettled): retried, then committed once the auction is settled  — attempts 1 Conflict Auction.NotSettled → 2 Done
+PASS NotFound: retried 4 times (Quick policy), then dead-lettered  — NotFound Auction.NotFound
+PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Messaging.Malformed: the data does not match the contract
+PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
+PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
+## context across systems
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03d-e414-75f1-849d-2bc25f6bf46c
+PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
+PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
+INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
+## keys, versions, re-drive
+PASS key scope consumer:<contract>: the second consumer of the contract replays the first's outcome and never runs  — IssueInvoice committed, RecordSale replayed: with consumer:<name> both commit
+PASS dual publish v1 + v2 (same message id): IssueInvoice (reads both) commits once  — IssueInvoice: v1 Done, v2 replayed
+INFO RecordSale reads v1 only: v1 Done, v2 Messaging.UnknownVersion: artflow.auction-settled v2
+PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, re-driven → committed
+## order per stream
+PASS publication order per stream = version order (head per (stream, publication))  — 50 published, 2 publisher loops
+PASS consumed in order per stream with concurrency 1  — 50 received
+INFO concurrency 4 (handler sleeps 5 ms): 0 inversions per stream in 50 messages
+INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
+ALL CHECKS PASSED
+# selftest: transport nats, store Npgsql, JIT
+## consumers through the pipeline
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03e099e7734a899ecf49ce6eb27, attempt 1
+PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
+INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
+PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
+PASS rule SystemOnBehalf: System Consumers.IssueInvoice on behalf of alice, and the next hop keeps it  — System:Consumers.IssueInvoice (for alice) → System:Reactions.RemindBuyer (for alice)
+PASS publisher crash after publish: published twice, one invoice  — deliveries to IssueInvoice 1 (Done); JetStream reported 1 duplicate(s) (Nats-Msg-Id)
+PASS unknown contract: not delivered (subscriptions filter by contract); acknowledged and dropped when it arrives anyway
+PASS unknown version: buried by both consumers  — Messaging.UnknownVersion: artflow.auction-settled v3
+PASS invalid mapping (price 0): IssueInvoice buried at attempt 1, RecordSale committed  — Invalid Amount Range
+PASS Conflict (Auction.NotSettled): retried, then committed once the auction is settled  — attempts 1 Conflict Auction.NotSettled → 2 Done
+PASS NotFound: retried 4 times (Quick policy), then dead-lettered  — NotFound Auction.NotFound
+PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Messaging.Malformed: the data does not match the contract
+PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
+PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
+## context across systems
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03e-0628-7f4c-9956-f34d38567f16
+PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
+PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
+INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
+## keys, versions, re-drive
+PASS key scope consumer:<contract>: the second consumer of the contract replays the first's outcome and never runs  — IssueInvoice replayed, RecordSale committed: with consumer:<name> both commit
+PASS dual publish v1 + v2 (same message id): IssueInvoice (reads both) commits once  — IssueInvoice: v1 Done, v2 replayed
+INFO RecordSale reads v1 only: v1 Done, v2 Messaging.UnknownVersion: artflow.auction-settled v2
+PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, re-driven → committed
+## order per stream
+PASS publication order per stream = version order (head per (stream, publication))  — 50 published, 2 publisher loops
+PASS consumed in order per stream with concurrency 1  — 50 received
+INFO concurrency 4 (handler sleeps 5 ms): 1 inversions per stream in 50 messages
+INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
+ALL CHECKS PASSED
+# selftest: transport rabbit, store Npgsql, JIT
+## consumers through the pipeline
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03e29357ad3aa31d4e0240134e3, attempt 1
+PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
+INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
+PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
+PASS rule SystemOnBehalf: System Consumers.IssueInvoice on behalf of alice, and the next hop keeps it  — System:Consumers.IssueInvoice (for alice) → System:Reactions.RemindBuyer (for alice)
+PASS publisher crash after publish: published twice, one invoice  — deliveries to IssueInvoice 2 (Done, replayed); no broker dedup
+INFO publishing a contract nobody subscribed: PublishReturnException: 312 NO_ROUTE Exchange: artflow Routing Key: artflow.auction-renamed
+PASS unknown contract: not delivered (subscriptions filter by contract); acknowledged and dropped when it arrives anyway
+PASS unknown version: buried by both consumers  — Messaging.UnknownVersion: artflow.auction-settled v3
+PASS invalid mapping (price 0): IssueInvoice buried at attempt 1, RecordSale committed  — Invalid Amount Range
+PASS Conflict (Auction.NotSettled): retried, then committed once the auction is settled  — attempts 1 Conflict Auction.NotSettled → 2 Done
+PASS NotFound: retried 4 times (Quick policy), then dead-lettered  — NotFound Auction.NotFound
+PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Messaging.Malformed: the data does not match the contract
+PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
+PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
+## context across systems
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03e-25f0-7b1d-aaa4-e0e13398a37f
+PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
+PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
+INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
+## keys, versions, re-drive
+PASS key scope consumer:<contract>: the second consumer of the contract replays the first's outcome and never runs  — IssueInvoice committed, RecordSale replayed: with consumer:<name> both commit
+PASS dual publish v1 + v2 (same message id): IssueInvoice (reads both) commits once  — IssueInvoice: v1 Done, v2 replayed
+INFO RecordSale reads v1 only: v1 Done, v2 Messaging.UnknownVersion: artflow.auction-settled v2
+PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, re-driven → committed
+## order per stream
+PASS publication order per stream = version order (head per (stream, publication))  — 50 published, 2 publisher loops
+PASS consumed in order per stream with concurrency 1  — 50 received
+INFO concurrency 4 (handler sleeps 5 ms): 1 inversions per stream in 50 messages
+INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
+ALL CHECKS PASSED
+
+## 2. JIT: who may publish under a contract prefix (NATS users, RabbitMQ users, PostgreSQL roles + row-level security)
+# security: transport nats, JIT
+PASS NATS: user billing publishes on artflow.auction-settled → refused by the server's subject permissions  — refused: TaskCanceledException: A task was canceled.
+PASS NATS: user billing publishes on billing.invoice-paid → accepted  — accepted (stream BILLING)
+INFO NATS stamps no publisher identity on a message: the subject prefix (enforced per user) is the authenticated source
+PASS NATS: Nats-Msg-Id = event id drops v2 of a dual publish as a duplicate; (event, contract, version) keeps both  — event id only: 1 stored, 1 duplicate; DedupId: 2 stored
+ALL CHECKS PASSED
+# security: transport rabbit, JIT
+PASS RabbitMQ: user billing publishes to exchange artflow → refused (write permission)  — refused: AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=403, text='ACCESS_REFUSED - write access to exchange 'artflow' in vhost '/' refused for user 'billing'', classId=60, methodId=40
+PASS RabbitMQ: user billing sets user_id artflow → refused by the broker  — refused: AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=406, text='PRECONDITION_FAILED - user_id property set to 'artflow' but authenticated user was 'billing'', classId=60, methodId=40
+PASS RabbitMQ: user billing publishes to exchange billing with user_id billing → accepted  — accepted
+INFO RabbitMQ validates user_id when it is set; a publisher that omits it is identified only by the exchange it may write
+ALL CHECKS PASSED
+# security: transport postgres, JIT
+PASS PostgreSQL: role billing inserts artflow.auction-settled → refused by row-level security  — refused: 42501 new row violates row-level security policy for table "messages"
+PASS PostgreSQL without the policy: the bus stamps the publisher's role, so the consumer sees billing, not artflow  — ce-source artflow, contract artflow.auction-settled, authenticated billing → the consumer buries it (Messaging.SourceMismatch, selftest)
+ALL CHECKS PASSED
+
+## 3. JIT: candidate T-D, the old backplane shape (copied from CLorat/Tarol@6a62f81)
+# legacy: the old backplane shape (T-D), JIT
+PASS a handler that throws once: the message is lost (no ack, no redelivery) and the next waits for the back-off  — received [next], 'next' after 2.5 s, Start called 2x
+PASS two runners (two nodes) on one in-memory backplane: each message reaches one of them  — runner A 50, runner B 50
+PASS a stream that ends: the runner restarts without a delay (busy spin)  — 8,065,700 restarts in 1 s
+INFO what T-A adds to this shape: an envelope (Message), a durable subscription per consumer, an answer per message (Ack/Retry), dead letters; Gateway and SignalR stay for the UI push (11D)
+ALL CHECKS PASSED
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+
+## 4. Native AOT publish (all transports in one app): warnings, size, the same checks natively
+IL warnings: 0
+native binary: 26075144 bytes
+# selftest: transport memory, store in-memory, Native AOT
+ALL CHECKS PASSED
+# selftest: transport postgres, store Npgsql, Native AOT
+FAIL consumed in order per stream with concurrency 1  — 50 received
+1 CHECK(S) FAILED
+# selftest: transport postgres+notify, store Npgsql, Native AOT
+ALL CHECKS PASSED
+# selftest: transport nats, store Npgsql, Native AOT
+ALL CHECKS PASSED
+# selftest: transport rabbit, store Npgsql, Native AOT
+INFO publishing a contract nobody subscribed: PublishReturnException: 312 NO_ROUTE Exchange: artflow Routing Key: artflow.auction-renamed
+ALL CHECKS PASSED
+# security: transport nats, Native AOT
+ALL CHECKS PASSED
+# security: transport rabbit, Native AOT
+PASS RabbitMQ: user billing sets user_id artflow → refused by the broker  — refused: AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=406, text='PRECONDITION_FAILED - user_id property set to 'artflow' but authenticated user was 'billing'', classId=60, methodId=40
+ALL CHECKS PASSED
+# security: transport postgres, Native AOT
+ALL CHECKS PASSED
+# legacy: the old backplane shape (T-D), Native AOT
+ALL CHECKS PASSED
+
+## 5. Native AOT: one transport per binary (what a broker client adds)
+postgres: IL warnings 0, 5829992 bytes; postgres: round trip ok
+nats: IL warnings 0, 10879776 bytes; nats: round trip ok
+rabbit: IL warnings 0, 7147224 bytes; rabbitmq: round trip ok
