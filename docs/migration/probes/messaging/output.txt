@@ -251,3 +251,86 @@ rabbit: IL warnings 0, 7147224 bytes; rabbitmq: round trip ok
 | rabbitmq | NOTIFY | 6.1 / 9.7 ms | 2.8 / 5.0 ms | 8.9 / 14.0 ms | 590 | 590 |
 
 
+
+## 8. Aspire AppHost 13.6.5: PostgreSQL (artflow, billing) + NATS (JetStream) + api + worker + billing (JIT projects)
+Build succeeded.
+api /health: 200 after 10 s
+POST /auctions: 01a1e06aab6c71559fbe3498fb4b834d
+POST /auctions: 01a1e06aabe37e51ade726527bcd288f
+POST /auctions: 01a1e06aabf276358412cbf6478c800b
+POST /auctions: 01a1e06aac007d359efc7737ceebd925
+POST /auctions: 01a1e06aac0d7c9f91967de83aa0943d
+resources: nats:2.14 nats-rfmcmjjw;postgres:18.3 pg-fnaksjva;
+artflow events (alias: count/with traceparent): auction.opened 5/5, auction.payment_recorded 5/5, auction.settled 5/5
+billing events (alias: count/with traceparent): invoice.issued 5/5, invoice.paid 5/5, invoice.reminded 5/5, ledger.sale_recorded 5/5
+invoice actor (billing): System Consumers.IssueInvoice for alice
+payment actor (artflow): System Consumers.RecordPayment for psp
+payments: 5 with 5 correlations (the payment provider started each conversation)
+reminder actor (billing, the next hop): System Reactions.RemindBuyer for alice
+outbox rows left: artflow 0, billing 0
+dashboard resources: [('api', True), ('billing', True), ('worker', True)]
+dashboard spans: GET /health 3, POST /auctions 5, POST /auctions (open and settle) 5, POST /webhooks/psp (invoice paid) 5, consume artflow.auction-settled 10, consume billing.invoice-paid 5, reaction RemindBuyer 5, reaction publish:artflow.auction-settled@1 5, reaction publish:billing.invoice-paid@1 5
+spans with an ActivityLink: consume artflow.auction-settled 10, consume billing.invoice-paid 5, reaction RemindBuyer 5, reaction publish:artflow.auction-settled@1 5, reaction publish:billing.invoice-paid@1 5
+      Distributed application started. Press Ctrl+C to shut down.
+
+## 9. Aspire AppHost: the same with the Native AOT app as all three resources (AddExecutable)
+api /health: 200 after 10 s
+POST /auctions: 01a1e06b0ad0781d96628bf0d14e17f1
+POST /auctions: 01a1e06b0ae175b3aacd189922d91ecc
+POST /auctions: 01a1e06b0aeb7f5c986a2cd4d57cacf9
+POST /auctions: 01a1e06b0afb747d93bfa46f2dc55a7c
+POST /auctions: 01a1e06b0b077d24bdcfa0f110555cc8
+resources: nats:2.14 nats-dejqqhrt;postgres:18.3 pg-dkqexehv;
+artflow events (alias: count/with traceparent): auction.opened 5/5, auction.payment_recorded 5/5, auction.settled 5/5
+billing events (alias: count/with traceparent): invoice.issued 5/5, invoice.paid 5/5, invoice.reminded 5/5, ledger.sale_recorded 5/5
+invoice actor (billing): System Consumers.IssueInvoice for alice
+payment actor (artflow): System Consumers.RecordPayment for psp
+payments: 5 with 5 correlations (the payment provider started each conversation)
+reminder actor (billing, the next hop): System Reactions.RemindBuyer for alice
+outbox rows left: artflow 0, billing 0
+dashboard resources: [('api', True), ('billing', True), ('worker', True)]
+dashboard spans: GET /health 3, POST /auctions 5, POST /auctions (open and settle) 5, POST /webhooks/psp (invoice paid) 5, consume artflow.auction-settled 10, consume billing.invoice-paid 5, reaction RemindBuyer 5, reaction publish:artflow.auction-settled@1 5, reaction publish:billing.invoice-paid@1 5
+spans with an ActivityLink: consume artflow.auction-settled 10, consume billing.invoice-paid 5, reaction RemindBuyer 5, reaction publish:artflow.auction-settled@1 5, reaction publish:billing.invoice-paid@1 5
+      Distributed application started. Press Ctrl+C to shut down.
+
+## 10. The old Messaging tests on this SDK (CLorat/Tarol@6a62f81)
+Messaging.Backplane.UnitTests: build 0 errors, warning NU1510 | Total: 3, Errors: 0, Failed: 0
+Messaging.Gateway.SignalR.UnitTests: build 0 errors, warning NU1510 | Total: 1, Errors: 0, Failed: 0
+Messaging.IntegrationTests: build 0 errors, warning NU1510 | Total: 12, Errors: 0, Failed: 12
+Messaging.Protocol.Json.UnitTests: build 0 errors, | Total: 7, Errors: 0, Failed: 0
+Messaging.SignalR.Hub.UnitTests: build 0 errors, warning NU1510 | Total: 2, Errors: 0, Failed: 0
+Messaging.Transport.SignalR.UnitTests: build 0 errors, | Total: 9, Errors: 0, Failed: 0
+Messaging.UnitTests: build 0 errors, | Total: 0
+Messaging.Backplane.InMemory.UnitTests: build 0 errors, warning NU1510 | Total: 4, Errors: 0, Failed: 0
+     12 System.InvalidOperationException : Reflection-based serialization has been disabled for this application.
+     12 at Microsoft.AspNetCore.SignalR.Client.HubConnection.SendHubMessage
+     12 at Microsoft.AspNetCore.SignalR.Protocol.JsonHubProtocol.WriteArguments
+### MessageBackplaneRunnerTests, 6 runs (the flaky test)
+      6 Failed: 1
+### F1 fixed in a copy (AddJsonProtocol with a source-generated context for string and byte[], client and server): does F2 appear?
+Total: 12, Errors: 0, Failed: 0
+
+## 11. UPDATE … RETURNING order: the claim of a batch (Brokers/claim-order.sql), and its plan
+          variant           | batches | out_of_order 
+----------------------------+---------+--------------
+ WITH claimed … ORDER BY id |      20 |            0
+ UPDATE … RETURNING         |      20 |            0
+(2 rows)
+
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Update on deliveries d
+   ->  Nested Loop
+         ->  Hash Join
+               Hash Cond: (d.id = c.id)
+               ->  Seq Scan on deliveries d
+               ->  Hash
+                     ->  Subquery Scan on c
+                           ->  Limit
+                                 ->  LockRows
+                                       ->  Index Scan using deliveries_subscription_due_at_id_idx on deliveries
+                                             Index Cond: ((subscription = 'n'::text) AND (due_at <= now()))
+         ->  Index Scan using messages_pkey on messages m
+               Index Cond: ((id = d.message_id) AND (type = d.type) AND (version = d.version))
+(13 rows)
+

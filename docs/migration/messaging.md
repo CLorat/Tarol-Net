@@ -50,7 +50,7 @@ review finding with its status, ROADMAP Phase 5) is [`probes/messaging/inventory
 
 Tests on SDK 11.0.100 **[verified]**: 38 tests; 12 of 12 integration tests fail with `Reflection-based serialization has
 been disabled` from `JsonHubProtocol.WriteArguments` (F1); with `AddJsonProtocol` + a context for `string`/`byte[]` on both
-sides **12 of 12 pass** (so a `CancellationToken` on the hub methods binds, F2 refuted); the runner test fails in 11 of 12 runs (two runs of 6);
+sides **12 of 12 pass** (so a `CancellationToken` on the hub methods binds, F2 refuted); the runner test fails in 17 of 18 runs (three runs of 6);
 `Messaging.UnitTests` has 0 tests. Restore at 11.0.0 reports no NU1903 (F4's vulnerability is gone, the unused reference
 stays) and a new NU1510 for `Hosting.Abstractions` (.NET 11 base framework).
 
