@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The would-be Tarol.Messaging (step 11): envelope, transport port, consumers, publications from the outbox, the
+       in-memory and the PostgreSQL transport. Built on the real Tarol packages of this repository (TarolRoot). -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <IsAotCompatible>true</IsAotCompatible><TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AssemblyName>Probe.Tarol.Messaging</AssemblyName><RootNamespace>Tarol.Messaging</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+  </ItemGroup>
+</Project>
