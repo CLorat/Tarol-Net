@@ -50,7 +50,7 @@ review finding with its status, ROADMAP Phase 5) is [`probes/messaging/inventory
 
 Tests on SDK 11.0.100 **[verified]**: 38 tests; 12 of 12 integration tests fail with `Reflection-based serialization has
 been disabled` from `JsonHubProtocol.WriteArguments` (F1); with `AddJsonProtocol` + a context for `string`/`byte[]` on both
-sides **12 of 12 pass** (so a `CancellationToken` on the hub methods binds, F2 refuted); the runner test fails in 5 of 6 runs;
+sides **12 of 12 pass** (so a `CancellationToken` on the hub methods binds, F2 refuted); the runner test fails in 11 of 12 runs (two runs of 6);
 `Messaging.UnitTests` has 0 tests. Restore at 11.0.0 reports no NU1903 (F4's vulnerability is gone, the unused reference
 stays) and a new NU1510 for `Hosting.Abstractions` (.NET 11 base framework).
 
@@ -260,8 +260,9 @@ One transport per binary, everything else equal (Tarol + Npgsql + the probe's me
 
 AppHost 13.6.5: PostgreSQL (`postgres:18.3`, databases `artflow` and `billing`), NATS (`nats:2.14`, JetStream), ArtFlow's
 api and worker and billing as three resources of the probe app. Five auctions through `POST /auctions`: 5 settled → 5
-invoices, 5 sales, 5 reminders, 5 paid → 5 payments recorded in ArtFlow; every event with a `traceparent`; invoices
-recorded by ArtFlow's consumer actor, payments by billing's; both outboxes empty; the dashboard lists `api`, `worker` and
+invoices, 5 sales, 5 reminders, 5 paid → 5 payments recorded in ArtFlow; every event with a `traceparent`; actors as
+decided (M-6): invoice `System Consumers.IssueInvoice for alice`, the next hop `System Reactions.RemindBuyer for alice`,
+payment `System Consumers.RecordPayment for psp`; both outboxes empty; the dashboard lists `api`, `worker` and
 `billing` with the publish, consume and reaction spans, each linked. The same with the Native AOT binary as all three
 resources.
 
@@ -301,7 +302,10 @@ resources.
 10. **NATS.Net adds 5 MB to a native binary**, also with only `NATS.Client.JetStream` **[verified]**; RabbitMQ.Client 1.3 MB.
 11. **Aspire resource names are global**: a database `billing` and a project `billing` collide at startup **[verified]**;
     `WithHttpHealthCheck` needs a declared endpoint **[verified]**.
-12. **RabbitMQ 4 sometimes fails its first boot** in a fresh container (Erlang prelaunch) **[verified]** once in six
+12. **A caller that drops a version conflict loses the change** (C-7): the probe's stand-in payment provider ignored
+    `PayInvoice`'s result and lost 1 of 5 payments when `RemindBuyer` committed on the same invoice at the same moment
+    **[verified]**; retried like a webhook sender after a 503, 5 of 5. The sample's webhook path already answers 503.
+13. **RabbitMQ 4 sometimes fails its first boot** in a fresh container (Erlang prelaunch) **[verified]** once in six
     starts; the probe restarts it; Testcontainers' wait strategy must tolerate it (11D).
 
 ## 6. Generator and diagnostics (11A, 11B; numbers final in the PRs)

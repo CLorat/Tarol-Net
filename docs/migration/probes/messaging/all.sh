@@ -90,7 +90,7 @@ echo; echo "## 10. The old Messaging tests on this SDK (CLorat/Tarol@$(git -C "$
 rm -rf "$w/old" && mkdir -p "$w/old"
 for p in "$old"/tests/Messaging/*/ "$old"/src/Messaging/Messaging.Backplane.InMemory.UnitTests/; do
   n=$(basename "$p"); dotnet build "$p" -o "$w/old/$n" > "$w/old/$n.log" 2>&1
-  exe=$(ls "$w/old/$n" | grep -E "Tests$" | head -1)
+  exe=$(ls "$w/old/$n" | grep -E "^Tarol\..*Tests$" | head -1)
   echo "$n: build $(grep -cE ' error ' "$w/old/$n.log") errors, $(grep -oE 'warning NU[0-9]+' "$w/old/$n.log" | sort -u | tr '\n' ' ')| $(cd "$w/old/$n" && timeout 300 "./$exe" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -oE 'Total: [0-9]+(, Errors: [0-9]+, Failed: [0-9]+)?' | tail -1)"
 done
 (cd "$w/old/Messaging.IntegrationTests" && ./Tarol.Messaging.IntegrationTests 2>&1) | sed 's/\x1b\[[0-9;]*m//g' | grep -oE "System\.[A-Za-z.]+Exception : [^.]*\.|at Microsoft[^ ]+(WriteArguments|SendHubMessage)" | sort | uniq -c

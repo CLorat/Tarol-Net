@@ -31,7 +31,7 @@ No project outside `src/Messaging` and `tests/Messaging` references a `Tarol.Mes
 | Project | Tests | Result | Note |
 |---|---:|---|---|
 | `Messaging.Backplane.InMemory.UnitTests` (under `src/`) | 4 | pass | |
-| `Messaging.Backplane.UnitTests` | 3 | **1 fails in 5 of 6 runs** | `ExecuteAsync_Should_SetConnected_When_BackplaneStartsSuccessfully` (MessageBackplaneRunner.Tests.cs:50-56: `StartAsync` then `Task.Yield()`); the other two assert nothing (review §5) |
+| `Messaging.Backplane.UnitTests` | 3 | **1 fails in 11 of 12 runs** (5 of 6, then 6 of 6) | `ExecuteAsync_Should_SetConnected_When_BackplaneStartsSuccessfully` (MessageBackplaneRunner.Tests.cs:50-56: `StartAsync` then `Task.Yield()`); the other two assert nothing (review §5) |
 | `Messaging.Gateway.SignalR.UnitTests` | 1 | pass | group send only |
 | `Messaging.SignalR.Hub.UnitTests` | 2 | pass | Subscribe, Publish |
 | `Messaging.Transport.SignalR.UnitTests` | 9 | pass | mocked `ISignalRConnection` |

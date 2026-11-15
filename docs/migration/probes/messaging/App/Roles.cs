@@ -40,7 +40,7 @@ internal static class Roles
         {
             await using var billing = await Sys.Create("billing", "aspire", true, time, nats, Billing.GeneratedPublications.Create(), Billing.GeneratedConsumers.Set,
                 Billing.BillingJson.Default.Options, c => c.Add<Billing.Invoice>().Add<Billing.Ledger>(), [Probe.Messaging.App.GeneratedReactions.Set],
-                o => o.Sources["artflow"] = new SourceTrust { AnyTenant = true }, db: db, fresh: false);
+                o => { o.Sources["artflow"] = new SourceTrust { AnyTenant = true }; o.ActorRule = ActorRule.SystemOnBehalf; }, db: db, fresh: false);   // M-6
             await nats.Prepare(billing.Publications.Topics, billing.Consumers.Subscriptions(), stop.Token);
             billing.Start(publishers: 2, concurrency: 4);
             Console.WriteLine("billing: consuming artflow.auction-settled, paying invoices, publishing billing.invoice-paid");
@@ -54,7 +54,15 @@ internal static class Roles
                     if (e.Event.Event.Event is not Billing.Invoice.Issued)
                         continue;
                     using var activity = Http.StartActivity("POST /webhooks/psp (invoice paid)", ActivityKind.Server);
-                    _ = await billing.Pipeline.Run(new Billing.PayInvoice((Id<Billing.Invoice>)e.Event.StreamId), OperationContext.Start(psp, Tenant, time));
+                    // the caller retries a version conflict (C-7), as a webhook sender does after a 503: here RemindBuyer
+                    // commits on the same invoice at the same time
+                    for (var attempt = 1; attempt <= 5; attempt++)
+                    {
+                        var paid = await billing.Pipeline.Run(new Billing.PayInvoice((Id<Billing.Invoice>)e.Event.StreamId), OperationContext.Start(psp, Tenant, time));
+                        if (Tarol.Changes.Delivery.Classify(paid) != Tarol.Changes.Verdict.Retry)
+                            break;
+                        await Task.Delay(50 * attempt, stop.Token);
+                    }
                 }
                 try { await Task.Delay(200, stop.Token); } catch (OperationCanceledException) { }
             }
@@ -63,7 +71,7 @@ internal static class Roles
         }
 
         await using var artflow = await Sys.Create("artflow", "aspire", true, time, nats, GeneratedPublications.Create(), GeneratedConsumers.Set,
-            ArtFlowJson.Default.Options, c => c.Add<Auction>(), [], o => o.Sources["billing"] = new SourceTrust { AnyTenant = true }, db: db, fresh: false);
+            ArtFlowJson.Default.Options, c => c.Add<Auction>(), [], o => { o.Sources["billing"] = new SourceTrust { AnyTenant = true }; o.ActorRule = ActorRule.SystemOnBehalf; }, db: db, fresh: false);   // M-6
         if (role == "worker")
         {
             await nats.Prepare(artflow.Publications.Topics, artflow.Consumers.Subscriptions(), stop.Token);

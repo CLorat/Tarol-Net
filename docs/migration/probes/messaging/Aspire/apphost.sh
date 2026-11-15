@@ -20,9 +20,10 @@ for i in $(seq 1 90); do n=$(q artflow "SELECT count(*) FROM artflow_aspire.even
 echo "resources: $(docker ps --format '{{.Image}} {{.Names}}' | awk '$2 ~ /^(pg|nats)-/' | sort | tr '\n' ';')"
 echo "artflow events (alias: count/with traceparent): $(q artflow "SELECT string_agg(alias || ' ' || c || '/' || t, ', ' ORDER BY alias) FROM (SELECT alias, count(*) c, count(traceparent) t FROM artflow_aspire.events GROUP BY alias) x")"
 echo "billing events (alias: count/with traceparent): $(q billing "SELECT string_agg(alias || ' ' || c || '/' || t, ', ' ORDER BY alias) FROM (SELECT alias, count(*) c, count(traceparent) t FROM billing_aspire.events GROUP BY alias) x")"
-echo "invoice actor (billing): $(q billing "SELECT DISTINCT actor_kind || ' ' || actor_id FROM billing_aspire.events WHERE alias = 'invoice.issued'")"
-echo "payment actor (artflow): $(q artflow "SELECT DISTINCT actor_kind || ' ' || actor_id FROM artflow_aspire.events WHERE alias = 'auction.payment_recorded'")"
+echo "invoice actor (billing): $(q billing "SELECT DISTINCT actor_kind || ' ' || actor_id || ' for ' || coalesce(on_behalf_of, '-') FROM billing_aspire.events WHERE alias = 'invoice.issued'")"
+echo "payment actor (artflow): $(q artflow "SELECT DISTINCT actor_kind || ' ' || actor_id || ' for ' || coalesce(on_behalf_of, '-') FROM artflow_aspire.events WHERE alias = 'auction.payment_recorded'")"
 echo "payments: $(q artflow "SELECT count(*) || ' with ' || count(DISTINCT correlation_id) || ' correlations (the payment provider started each conversation)' FROM artflow_aspire.events WHERE alias = 'auction.payment_recorded'")"
+echo "reminder actor (billing, the next hop): $(q billing "SELECT DISTINCT actor_kind || ' ' || actor_id || ' for ' || coalesce(on_behalf_of, '-') FROM billing_aspire.events WHERE alias = 'invoice.reminded'")"
 echo "outbox rows left: artflow $(q artflow "SELECT count(*) FROM artflow_aspire.outbox"), billing $(q billing "SELECT count(*) FROM billing_aspire.outbox WHERE reaction NOT LIKE 'publish:%' AND reaction <> 'RemindBuyer'")"
 sleep 6   # the OTLP exporters' batch interval
 curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; print("dashboard resources:", sorted((r["name"], r["hasTraces"]) for r in json.load(sys.stdin)))'

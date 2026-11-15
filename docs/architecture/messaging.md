@@ -27,7 +27,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 | a message that can never succeed | dead letter with its reason and bytes, re-drive by a human | `messages_dead` (M-9) |
 | test both systems without a broker | in-memory stores and transport | `InMemoryTransport`, `MessageTest` |
 
-## 2. One message, end to end **[verified]** (Aspire: 5 of 5 round trips, JIT and Native AOT)
+## 2. One message, end to end **[verified]** (Aspire: 5 of 5 round trips, JIT and Native AOT; actors as decided in M-6)
 
 ```text
 ArtFlow api      POST /auctions → SettleAuction → commit: events + outbox row "publish:artflow.auction-settled@1"
