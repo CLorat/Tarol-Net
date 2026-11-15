@@ -18,7 +18,8 @@ var project = builder.Configuration["Zitadel:Project"]
               ?? throw new InvalidOperationException("No Zitadel project (run it through the AppHost).");
 
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>())
-    .WithReactions(GeneratedReactions.Set)                     // the API's commits write the worker's outbox rows
+    .WithReactions(GeneratedReactions.Set)                     // the API's commits write the worker's outbox rows …
+    .WithOutboxRows(GeneratedPublications.Set)                 // … and its publication rows (the worker publishes them)
     .UseNpgsqlStore(connectionString)
     .AddSecurity(roles =>
     {

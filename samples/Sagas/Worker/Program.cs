@@ -1,4 +1,5 @@
 using ArtFlow;
+using ArtFlow.Samples;
 using ArtFlow.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,8 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Tarol.Changes;
 using Tarol.Kernel;
+using Tarol.Messaging;
+using Tarol.Messaging.Npgsql;
 using Tarol.Options;
 using Tarol.Persistence;
 using Tarol.Persistence.Npgsql;
@@ -20,11 +23,17 @@ var connectionString = builder.Configuration.GetConnectionString("tarol")
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>())
     .WithReactions(GeneratedReactions.Set)
     .UseNpgsqlStore(connectionString)                              // EnsureSchema when the host starts
-    .AddReactionWorker();                                          // the store's key purge is used
+    .AddReactionWorker()                                           // reactions and publications; the store's key purge is used
+    .AddMessaging("artflow", m => m
+        .Publish(GeneratedPublications.Set)                        // artflow.auction-settled
+        .Consume(GeneratedConsumers.Set)                           // billing.invoice-paid → RecordPayment
+        .Trust("billing", t => t.AnyTenant())                      // the company's own billing serves every tenant
+        .UseBroker(builder.Configuration)
+        .UseNpgsqlDeadLetters());
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("worker"))
         // not "Npgsql": every idle claim (every 100 ms per worker) would be a span and bury the reactions in the dashboard
-        .WithTracing(t => t.AddSource(ReactionWorker.ActivitySourceName, Producer.SourceName).AddOtlpExporter());
+        .WithTracing(t => t.AddSource([.. Broker.Sources, Producer.SourceName]).AddOtlpExporter());
 
 using var host = builder.Build();
 await host.StartAsync();

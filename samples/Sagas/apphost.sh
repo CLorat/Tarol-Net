@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs the built AppHost (PostgreSQL, Zitadel, zitadel-setup, api, worker, dashboard), drives the API over HTTP with
-# Zitadel tokens (alice the seller, bob the bidder), and reads the result from the database and the dashboard.
-# usage: apphost.sh <AppHost build dir> [auctions, default 5]   [ARTFLOW_API_NATIVE / ARTFLOW_WORKER_NATIVE=<binary>]
+# Runs the built AppHost (PostgreSQL, Zitadel, NATS or RabbitMQ, zitadel-setup, api, worker, billing, dashboard), drives the
+# API over HTTP with Zitadel tokens (alice the seller, bob the bidder), and reads the result from both databases and the
+# dashboard. usage: apphost.sh <AppHost build dir> [auctions, default 5]
+#   [ARTFLOW_BROKER=rabbitmq] [ARTFLOW_API_NATIVE / ARTFLOW_WORKER_NATIVE / ARTFLOW_BILLING_NATIVE=<binary>]
 set -uo pipefail
 dir="$1"; count="${2:-5}"; log="$(mktemp)"; traces="$(mktemp)"; zt="${TMPDIR:-/tmp}/artflow-zitadel"
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -22,12 +23,18 @@ for n in $(seq 1 "$count"); do
   settle=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/auctions/$id/settle" -H "Authorization: Bearer $alice")
   [ "$n" = 1 ] && echo "auction 1: bid $bid, settle by bob $wrong, settle by alice $settle; view: $(curl -s "$api/auctions/$id" -H "Authorization: Bearer $bob")"
 done
-q() { docker exec -e PGPASSWORD="$pw" "$pg" psql -h localhost -U postgres -d tarol -tAc "$1" 2>/dev/null; }
+q() { docker exec -e PGPASSWORD="$pw" "$pg" psql -h localhost -U postgres -d "${2:-tarol}" -tAc "$1" 2>/dev/null; }
 pg=$(docker ps --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^pg-/ {print $1}' | head -1); pw=$(docker exec "$pg" printenv POSTGRES_PASSWORD)
 for i in $(seq 1 60); do n=$(q "SELECT count(*) FROM tarol.events WHERE type = 'payout'"); [ "${n:-0}" -ge "$count" ] && break; sleep 1; done
 echo "events by stream type (count/with traceparent): $(q "SELECT string_agg(type || ' ' || c || '/' || t, ', ' ORDER BY type) FROM (SELECT type, count(*) c, count(traceparent) t FROM tarol.events GROUP BY type) x")"
 echo "payout actor: $(q "SELECT DISTINCT actor_kind || ' ' || actor_id || ' on behalf of <alice''s Zitadel user id>' FROM tarol.events WHERE type = 'payout'")"
-echo "outbox rows left: $(q "SELECT count(*) FROM tarol.outbox") (the $count settlement deadlines, due in 3 days)"
+for i in $(seq 1 60); do n=$(q "SELECT count(*) FROM tarol.events WHERE actor_id = 'Consumers.RecordPayment'"); [ "${n:-0}" -ge "$count" ] && break; sleep 1; done
+echo "billing events (count/with traceparent): $(q "SELECT string_agg(alias || ' ' || c || '/' || t, ', ' ORDER BY alias) FROM (SELECT alias, count(*) c, count(traceparent) t FROM tarol.events GROUP BY alias) x" billingdb)"
+echo "billing actors: $(q "SELECT string_agg(DISTINCT actor_kind || ' ' || actor_id || coalesce(' for ' || CASE WHEN on_behalf_of LIKE 'alice%' OR length(on_behalf_of) > 12 THEN '<alice>' ELSE on_behalf_of END, ''), ', ') FROM tarol.events" billingdb)"
+echo "payments recorded in ArtFlow from billing: $(q "SELECT count(*) FROM tarol.events WHERE actor_id = 'Consumers.RecordPayment'") by $(q "SELECT DISTINCT actor_kind || ' ' || actor_id || ' for ' || on_behalf_of FROM tarol.events WHERE actor_id = 'Consumers.RecordPayment'")"
+echo "settlement sagas completed: $(q "SELECT count(*) FROM tarol.events WHERE type = 'settlement' AND alias LIKE '%ompleted%'")"
+echo "outbox rows left: $(q "SELECT count(*) FROM tarol.outbox") (the $count settlement deadlines, due in 3 days); billing: $(q "SELECT count(*) FROM tarol.outbox" billingdb)"
+echo "dead letters: outbox $(q "SELECT count(*) FROM tarol.outbox_dead")/$(q "SELECT count(*) FROM tarol.outbox_dead" billingdb), messages $(q "SELECT count(*) FROM tarol.messages_dead")/$(q "SELECT count(*) FROM tarol.messages_dead" billingdb)"
 sleep 6
 curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; print("dashboard resources with traces:", sorted(r["name"] for r in json.load(sys.stdin) if r["hasTraces"]))'
 curl -s "http://localhost:18888/api/telemetry/traces?limit=5000" > "$traces"
@@ -48,5 +55,5 @@ print("spans with an ActivityLink: %s" % (", ".join("%s %d" % kv for kv in sorte
 PY
 kill $apphost 2>/dev/null; wait $apphost 2>/dev/null
 grep -iE ' error|fail:|unhandled' "$log" | cut -c1-220 | head -5
-for c in $(docker ps -aq --filter "name=^pg-") $(docker ps -aq --filter "name=^zitadel-"); do docker rm -f "$c" >/dev/null; done
+for c in $(docker ps -aq --filter "name=^pg-") $(docker ps -aq --filter "name=^zitadel-") $(docker ps -aq --filter "name=^nats-") $(docker ps -aq --filter "name=^rabbitmq-"); do docker rm -f "$c" >/dev/null; done
 rm -f "$log" "$traces"

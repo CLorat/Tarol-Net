@@ -36,7 +36,7 @@ public partial class Auction : AggregateRoot<Auction>
             return Error.Conflict("Auction.Settled");
         var winner = Bids.OrderByDescending(b => b.Amount).FirstOrDefault();
         _ = winner?.Win();
-        return Raise(new Settled());
+        return Raise(new Settled(winner?.Bidder ?? "", winner?.Amount ?? 0m));
     }
 
     public Result RecordPayment(decimal amount, string paymentId) => Raise(new PaymentRecorded(amount, paymentId));
@@ -50,7 +50,7 @@ public partial class Auction : AggregateRoot<Auction>
     public Result Acknowledge(string text) => text == "poison" ? Error.Conflict("Note.Poison") : Raise(new NoteAcknowledged(text));
 
     public sealed record Opened(string Seller, decimal Reserve) : Event;
-    public sealed record Settled : Event;
+    public sealed record Settled(string Buyer, decimal Price) : Event;
     public sealed record PaymentRecorded(decimal Amount, string PaymentId) : Event;
     public sealed record Reopened : Event;
     public sealed record Noted(string Text) : Event;
@@ -151,6 +151,8 @@ public partial class Settlement : AggregateRoot<Settlement>
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(AuctionSettledV1))]
+[JsonSerializable(typeof(InvoicePaidV1))]
 [JsonSerializable(typeof(Auction.Opened))]
 [JsonSerializable(typeof(Auction.Settled))]
 [JsonSerializable(typeof(Auction.PaymentRecorded))]

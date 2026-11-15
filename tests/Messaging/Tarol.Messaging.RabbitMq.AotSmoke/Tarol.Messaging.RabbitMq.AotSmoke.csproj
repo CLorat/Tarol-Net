@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native-AOT smoke test of Tarol.Messaging.RabbitMq: the transport's names and options, and with TAROL_RABBITMQ=<url> a round trip
+    on a real broker (declare, publish, consume, retry after a delay, acknowledge, a duplicate). Publish with
+      dotnet publish tests/Messaging/Tarol.Messaging.RabbitMq.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Messaging/Tarol.Messaging.RabbitMq/Tarol.Messaging.RabbitMq.csproj" />
+  </ItemGroup>
+</Project>
