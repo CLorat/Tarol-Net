@@ -35,6 +35,9 @@ Labels and probes as in [time.md](time.md).
 * **But no listener, no activity**: with logging `None` and no OpenTelemetry, `Activity.Current` is `null` in the endpoint,
   and the incoming `traceparent` is dropped **[verified]** (`web/`). `ActivitySource.StartActivity` returns `null` when
   nothing listens **[verified]** (`authz/`).
+* **With OpenTelemetry, an app span inside a request is dropped unless `Microsoft.AspNetCore` is traced too**: the request
+  activity created for logging is unsampled, and the default parent-based sampler drops its children **[verified]** in
+  step 11 ([migration/messaging.md](../migration/messaging.md) §5 item 9).
 * **`HttpContext.TraceIdentifier`** (`<connection>:<n>`) exists always but is Kestrel-local and not W3C **[verified]**.
 
 ## 4. What Tarol must add on top

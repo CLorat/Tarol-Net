@@ -3,7 +3,7 @@
 ## 1. JIT: consumers, publications, context, keys, order — per transport (both systems on the Npgsql store, in-memory for 'memory')
 # selftest: transport memory, store in-memory, JIT
 ## consumers through the pipeline
-PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03da4e87ec3973a4786e8e6c9e4, attempt 1
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e05830867687978b6bb782769b9a, attempt 1
 PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
 INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
 PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
@@ -18,7 +18,7 @@ PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Me
 PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
 PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
 ## context across systems
-PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03d-a40d-7798-8bad-48d360e75fb2
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e058-2fb9-784b-9bb8-9323971eba76
 PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
 PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
 INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
@@ -35,7 +35,7 @@ INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
 ALL CHECKS PASSED
 # selftest: transport postgres, store Npgsql, JIT
 ## consumers through the pipeline
-PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03dc22f751bbbf780c0a96cbc12, attempt 1
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e0584da973e49a5db3a40780f7d7, attempt 1
 PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
 INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
 PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
@@ -50,7 +50,7 @@ PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Me
 PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
 PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
 ## context across systems
-PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03d-bf6e-71c7-a8cb-7aabc3f9de69
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e058-4afd-78e6-85a8-84d9708cf652
 PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
 PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
 INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
@@ -62,12 +62,12 @@ PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, r
 ## order per stream
 PASS publication order per stream = version order (head per (stream, publication))  — 50 published, 2 publisher loops
 PASS consumed in order per stream with concurrency 1  — 50 received
-INFO concurrency 4 (handler sleeps 5 ms): 14 inversions per stream in 50 messages
+INFO concurrency 4 (handler sleeps 5 ms): 5 inversions per stream in 50 messages
 INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
 ALL CHECKS PASSED
 # selftest: transport postgres+notify, store Npgsql, JIT
 ## consumers through the pipeline
-PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03de679719c9d5051bf7a33f118, attempt 1
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e05870b77819ad6af5cc30fb6a89, attempt 1
 PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
 INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
 PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
@@ -82,7 +82,7 @@ PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Me
 PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
 PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
 ## context across systems
-PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03d-e414-75f1-849d-2bc25f6bf46c
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e058-6e5a-7586-bd12-141c4f5e0665
 PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
 PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
 INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
@@ -99,7 +99,7 @@ INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
 ALL CHECKS PASSED
 # selftest: transport nats, store Npgsql, JIT
 ## consumers through the pipeline
-PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03e099e7734a899ecf49ce6eb27, attempt 1
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e05893e77f8aabc385d21e4a7d15, attempt 1
 PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
 INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
 PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
@@ -114,12 +114,12 @@ PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Me
 PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
 PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
 ## context across systems
-PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03e-0628-7f4c-9956-f34d38567f16
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e058-90b3-75fc-8cf8-a9c11982ad82
 PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
 PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
 INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
 ## keys, versions, re-drive
-PASS key scope consumer:<contract>: the second consumer of the contract replays the first's outcome and never runs  — IssueInvoice replayed, RecordSale committed: with consumer:<name> both commit
+PASS key scope consumer:<contract>: the second consumer of the contract replays the first's outcome and never runs  — IssueInvoice committed, RecordSale replayed: with consumer:<name> both commit
 PASS dual publish v1 + v2 (same message id): IssueInvoice (reads both) commits once  — IssueInvoice: v1 Done, v2 replayed
 INFO RecordSale reads v1 only: v1 Done, v2 Messaging.UnknownVersion: artflow.auction-settled v2
 PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, re-driven → committed
@@ -131,7 +131,7 @@ INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
 ALL CHECKS PASSED
 # selftest: transport rabbit, store Npgsql, JIT
 ## consumers through the pipeline
-PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e03e29357ad3aa31d4e0240134e3, attempt 1
+PASS valid message: IssueInvoice and RecordSale committed (one subscription each)  — invoice 01a1e058b33c734e8ffc8d53567e6606, attempt 1
 PASS context (rule Service): Service(artflow), the envelope's tenant and correlation, causation = message id  — Service:artflow, causation = event id of Settled
 INFO rule Service: the next hop in billing (reaction RemindBuyer) records System:Reactions.RemindBuyer
 PASS redelivery after a lost ack: replayed by the key, nothing written twice  — attempts 1 committed, 2 replayed, invoices 1
@@ -147,7 +147,7 @@ PASS poison (data is not JSON): buried at attempt 1, kept with its bytes  — Me
 PASS the loop: invoice paid in billing → payment recorded in ArtFlow as Service(billing), with billing's correlation  — Service:billing
 PASS effect SendReceipt: provider down once, crash after sending once → 3 calls, 1 key, 1 mail delivered  — calls 3, keys 1, delivered 1
 ## context across systems
-PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e03e-25f0-7b1d-aaa4-e0e13398a37f
+PASS forged tenant: billing may act only for its tenant → buried  — Messaging.TenantNotAllowed: billing may not act for tenant 01a1e058-b04e-7c72-ae57-b643bf2a357d
 PASS forged source (ce-source artflow on billing's contract) → buried  — Messaging.SourceMismatch: type billing.invoice-paid, ce-source artflow, authenticated -
 PASS forged actor User:admin: recorded as Service(billing), never as the user  — Service:billing
 INFO with the envelope's actor trusted (what not to do) the payment is recorded as User:admin
@@ -159,7 +159,7 @@ PASS re-drive: a Conflict dead-lettered after 4 attempts, the auction settled, r
 ## order per stream
 PASS publication order per stream = version order (head per (stream, publication))  — 50 published, 2 publisher loops
 PASS consumed in order per stream with concurrency 1  — 50 received
-INFO concurrency 4 (handler sleeps 5 ms): 1 inversions per stream in 50 messages
+INFO concurrency 4 (handler sleeps 5 ms): 0 inversions per stream in 50 messages
 INFO published: artflow 60, billing 1; dead letters: artflow 4, billing 4
 ALL CHECKS PASSED
 
@@ -183,15 +183,11 @@ ALL CHECKS PASSED
 
 ## 3. JIT: candidate T-D, the old backplane shape (copied from CLorat/Tarol@6a62f81)
 # legacy: the old backplane shape (T-D), JIT
-PASS a handler that throws once: the message is lost (no ack, no redelivery) and the next waits for the back-off  — received [next], 'next' after 2.5 s, Start called 2x
-PASS two runners (two nodes) on one in-memory backplane: each message reaches one of them  — runner A 50, runner B 50
-PASS a stream that ends: the runner restarts without a delay (busy spin)  — 8,065,700 restarts in 1 s
+PASS a handler that throws once: the message is lost (no ack, no redelivery) and the next waits for the back-off  — received [next], 'next' after 1.5 s, Start called 2x
+PASS two runners (two nodes) on one in-memory backplane: each message reaches one of them  — runner A 51, runner B 49
+PASS a stream that ends: the runner restarts without a delay (busy spin)  — 8,194,065 restarts in 1 s
 INFO what T-A adds to this shape: an envelope (Message), a durable subscription per consumer, an answer per message (Ack/Retry), dead letters; Gateway and SignalR stay for the UI push (11D)
 ALL CHECKS PASSED
-Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
-Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
-Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
-Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 
 ## 4. Native AOT publish (all transports in one app): warnings, size, the same checks natively
 IL warnings: 0
@@ -199,8 +195,7 @@ native binary: 26075144 bytes
 # selftest: transport memory, store in-memory, Native AOT
 ALL CHECKS PASSED
 # selftest: transport postgres, store Npgsql, Native AOT
-FAIL consumed in order per stream with concurrency 1  — 50 received
-1 CHECK(S) FAILED
+ALL CHECKS PASSED
 # selftest: transport postgres+notify, store Npgsql, Native AOT
 ALL CHECKS PASSED
 # selftest: transport nats, store Npgsql, Native AOT
@@ -219,6 +214,3 @@ ALL CHECKS PASSED
 ALL CHECKS PASSED
 
 ## 5. Native AOT: one transport per binary (what a broker client adds)
-postgres: IL warnings 0, 5829992 bytes; postgres: round trip ok
-nats: IL warnings 0, 10879776 bytes; nats: round trip ok
-rabbit: IL warnings 0, 7147224 bytes; rabbitmq: round trip ok
