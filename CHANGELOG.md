@@ -86,6 +86,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   (`NpgsqlStoreOptions.Reactions`) and `NpgsqlAggregateStore.Outbox` (`Claim` with `FOR UPDATE SKIP LOCKED`, the event,
   a lease and a claim id; `Complete`, `Fail`, `Pending`); one stream's rows reach a reaction in version order.
 
+* Changes step 9A (reactions to own events): `[OnEvent<T>]` on a static factory of a change (`Name`, `DueAt`),
+  `ReactionSet` (table, schedule, runner, `Combine`, the reaction's `Context` and `Options`: system actor on behalf of
+  the user, causation = event id, key (reaction, event id)); the generator emits a public `GeneratedReactions.Set` per
+  assembly, diagnostics TCHG006–TCHG008. Validations: TVAL006 no longer fires inside a static entry factory of an
+  `IValidatable` change (C-13). Design: docs/architecture/sagas.md, docs/migration/sagas.md §16.
+
 ### Changed
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and

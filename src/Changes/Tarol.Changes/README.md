@@ -76,6 +76,21 @@ public sealed partial record CloseByLot(string Lot) : ILoads<Auction>
 }
 ```
 
+## Reactions to own events
+
+```csharp
+public sealed partial record MarkPayoutDue(Guid Auction, decimal Amount) : ICreation<Payout>
+{
+    [OnEvent<Bid.Won>]                                   // Name = "…" pins the stored name; DueAt = nameof(…) schedules it
+    public static MarkPayoutDue From(Bid.Won e, RecordedEvent recorded) => new(recorded.StreamId, e.Amount);
+    public Result<Payout> Execute(ChangeContext context) => Payout.Due(Id<Payout>.New(context.Now), Amount);
+}
+```
+
+The store writes one outbox row per (event, reaction) in the event's commit; the worker (`Tarol.Sagas`) runs
+`GeneratedReactions.Set.Run(pipeline, row.Reaction, row.Event)`. A reaction is effect-once by its key; answer late or
+repeated events with `Result.Success()` (a Conflict is retried, then dead-lettered). See docs/architecture/sagas.md.
+
 ## Generated
 
 * `IChange<T>.Target` from the record's only `Id<T>` member (TCHG001 when there is none or several; implement it yourself
@@ -83,6 +98,10 @@ public sealed partial record CloseByLot(string Lot) : ILoads<Auction>
 * `IHasReads.LoadReads` for `[Read]` members.
 * Per assembly: `internal static class GeneratedChanges` (namespace = assembly name) with
   `pipeline.Dispatch(object change, context, …)`, a typed switch for outbox rows and tests, without reflection.
+* Per assembly with `[OnEvent<T>]` factories: `public static class GeneratedReactions` with `Set` (a `ReactionSet`): the
+  store's reaction table (static arrays per event type), the schedule of `DueAt` reactions, and the runner
+  (name, event) → factory → `pipeline.Run` as `Actor.System("Reactions.<name>")` on behalf of the user, caused by the
+  event, with the key (reaction, event id). `ReactionSet.Combine(a, b)` joins assemblies.
 
 | Diagnostic | When |
 |---|---|
@@ -91,6 +110,9 @@ public sealed partial record CloseByLot(string Lot) : ILoads<Auction>
 | TCHG003 | generic, file-local, or both `IChange<T>` and `ICreation<T>` |
 | TCHG004 | `[Read]` on something that is not an `Id<X>` of an aggregate, or on the own target |
 | TCHG005 (warning) | members with validation rules, but the change is not `IValidatable` |
+| TCHG006 | an `[OnEvent<T>]` factory that is not static, private, generic, not on a change, not returning it, or not `(T)` / `(T, RecordedEvent)` |
+| TCHG007 | a reaction name used twice, or one change with two factories for one event |
+| TCHG008 | `DueAt` names no `DateTimeOffset` property of the event |
 
 ## Testing
 

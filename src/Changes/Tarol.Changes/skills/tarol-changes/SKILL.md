@@ -4,8 +4,9 @@ description: >-
   Use when writing a Tarol change (the input record an actor sends to change an aggregate) or running one: IChange<T>,
   ICreation<T>, ILoads<T>, [Read], ChangeContext (Operation, Now, Read<T>), ChangePipeline.Run, ChangeOptions
   (idempotency key, expected version), ChangeOutcome, IChangeAuthorization, the generated GeneratedChanges.Dispatch, the
-  ChangeTest helper, and fixing TCHG001-TCHG005. Do not decompile or web-search, do not hand-write a load/commit
-  handler, do not call Raise from a change, do not retry inside Execute.
+  ChangeTest helper, reactions to own events ([OnEvent<T>] factories, the generated GeneratedReactions.Set, ReactionSet),
+  and fixing TCHG001-TCHG008. Do not decompile or web-search, do not hand-write a load/commit handler or an event
+  handler class, do not call Raise from a change, do not retry inside Execute.
 ---
 # Tarol.Changes
 
@@ -27,6 +28,16 @@ description: >-
 7. **Run** with an explicit context: `await pipeline.Run(change, OperationContext.Start(actor, tenant, time), options, ct)`.
    `ChangeOptions(Key: new IdempotencyKey(tenant, scope, key))` for redeliverable work. `ExpectedVersion:` for If-Match.
 8. **A version conflict is returned** (`StoreErrors.IsVersionConflict`), never retried by the pipeline. The caller retries.
+9. **A reaction to an own event is a change with a factory**: `[OnEvent<Bid.Won>] public static X From(Bid.Won e,
+   RecordedEvent recorded) => new(…);` on the change (static, non-private, returns the change, `(TEvent)` or
+   `(TEvent, RecordedEvent)`; TCHG006). It only maps; `new ValueObject(…)` is allowed there (no TVAL006), the pipeline
+   validates. Per assembly the generator emits `GeneratedReactions.Set` (a `ReactionSet`): the store's table, the
+   schedule and the runner; `ReactionSet.Combine(a, b)` for several assemblies. A reaction runs as
+   `Actor.System("Reactions." + name)` on behalf of the user, caused by the event, keyed (reaction, event id): a
+   redelivery replays. Its **name** is the change's type name, stored in outbox rows and keys: pin
+   `[OnEvent<T>(Name = "OldName")]` before renaming (TCHG007 for duplicates). A timeout: `DueAt = nameof(Ns.Event.Member)`
+   (a `DateTimeOffset` of the event, TCHG008). Answer late, repeated or stale events with `Result.Success()`, never a
+   Conflict: workers retry every Conflict and then dead-letter it.
 
 ## Example
 
@@ -60,6 +71,20 @@ twice.Result.TryGetValue(out Violation? conflict).ShouldBeTrue();      // Error.
 
 // a job
 var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.AuctionSettlement"), tenant, time), cancellationToken: ct);
+
+// a reaction to an own event
+public sealed partial record MarkPayoutDue(Guid Auction, decimal Amount) : ICreation<Payout>
+{
+    [OnEvent<Bid.Won>]
+    public static MarkPayoutDue From(Bid.Won e, RecordedEvent recorded) => new(recorded.StreamId, e.Amount);
+
+    public Result<Payout> Execute(ChangeContext context) => Payout.Due(Id<Payout>.New(context.Now), Amount);
+}
+
+// run it as the outbox worker does (store and worker take GeneratedReactions.Set)
+var won = test.Store.Recorded.Single(e => e.Event.Event is Bid.Won);
+var payout = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won, ct);
+var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won, ct);   // again.Value.Replayed
 ```
 
 ## Common mistakes
@@ -76,8 +101,13 @@ var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Ac
 | a factory that returns a loaded aggregate from `ICreation<T>.Execute` | `InvalidOperationException` |
 | expecting the pipeline to retry a `Stream.VersionConflict` | it returns it: retry in the caller with a new run |
 | an id member in a creation input | the factory chooses ids; send an `IdempotencyKey` to make retries safe |
+| `[OnEvent<T>]` on an instance, private or wrongly typed method | TCHG006 |
+| renaming a reaction's change without pinning `Name` | its waiting rows and keys use the old name: dead letters |
+| two changes with one reaction name, two factories of one change for one event | TCHG007 |
+| `DueAt = nameof(Settlement.DeadlineSet.DueAt)` in a change with a member `Settlement` | CS1061 (binds to the member): qualify the type |
+| `Error.Conflict` for an event that arrives late or twice | retried, then a dead letter; return `Result.Success()` |
 
 ## AOT
 
-No reflection: `Run<T>` is generic over the aggregate, `GeneratedChanges.Dispatch` is a generated `switch`, `[Read]`
-loads are generated. List your aggregates' state member types in your `JsonSerializerContext` for the stored state.
+No reflection: `Run<T>` is generic over the aggregate, `GeneratedChanges.Dispatch` and `GeneratedReactions` are generated
+`switch`es over static arrays, `[Read]` loads are generated. List your aggregates' state member types in your `JsonSerializerContext` for the stored state.

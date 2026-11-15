@@ -468,3 +468,71 @@ warnings; throughput, latency and NOTIFY tables; both Aspire runs), `probes/saga
 * Whether `ChangeOutcome` should say "no events, nothing stored" so a worker can log no-op reactions distinctly.
 * Priority between reactions, partitioning by tenant: not needed by a measured scenario.
 * Aspire: an optional thin integration package (D-15) only if the samples need more than `ConnectionStrings`.
+
+## 16. Implementation: PR 9A (2026-11-15)
+
+`changes: reactions to own events`, stacked on the design PR. As decided in §11 (S-2, S-3, S-6, S-14, C-13) and §12;
+differences below.
+
+### 16.1 Public API (new)
+
+| Package | Type | Members |
+|---|---|---|
+| `Tarol.Changes` | `OnEventAttribute<TEvent>` (`where TEvent : DomainEvent`, on methods) | `Name`, `DueAt` |
+| | `ReactionSet` | `Names`, `Table` (`ReactionTable`), `DueAt(e, name)`, `IsScheduled(name)`, `Run(pipeline, name, recorded, ct)`, `Combine(params ReactionSet[])`, static `Context(name, recorded)` and `Options(name, recorded)`; constructor for generated code |
+| | `ReactionRunner`, `ReactionSchedule` | delegates |
+| generated, per assembly with factories | `public static class GeneratedReactions` (namespace = assembly name, like `GeneratedChanges`) | `Set`, `ReactionsTo`, `DueAt`, `React` |
+| `Tarol.Validations` (analyzer) | TVAL006 | not reported inside a static method carrying `[OnEvent<T>]` (or the later `[Webhook]`/`[Consumes]`) of an `IValidatable` type |
+
+Diagnostics TCHG006 (factory shape: static, non-private, not generic, on a change, returns it, `(T)` or
+`(T, RecordedEvent)`, non-empty `Name`), TCHG007 (a name of two changes, or two factories of one change for one event),
+TCHG008 (`DueAt` is not a `DateTimeOffset` property of the event).
+
+### 16.2 Deliberate differences from §6, §7 and §12
+
+* **No TCHG009**: TCHG005 already warns for every change with ruled members that is not `IValidatable`, reactions
+  included; a second id for the same fact would only duplicate it.
+* **`ReactionSet` takes the scheduled names explicitly** (`IsScheduled`), because 9B's claim needs them (S-9) and the
+  schedule delegate alone cannot list them.
+* **`Context`/`Options` are static members of `ReactionSet`**, so the generated code and later workers share one
+  definition of the reaction's operation and key.
+* **The switch dispatches on (name, event type)** in descending inheritance depth of the event; an event subtype with its
+  own reactions does not also run its base type's (events are sealed records in practice).
+* **The generated namespace collision** (§5 item 6) is unchanged: `GeneratedReactions` lives where `GeneratedChanges`
+  lives. A diagnostic for it is left for the next generator change that touches both.
+* The store does not use `ReactionSet` yet: 9B switches `NpgsqlStoreOptions.Reactions` to it; until then pass
+  `GeneratedReactions.Set.Table`.
+
+### 16.3 Tests **[verified]**
+
+* `Tarol.Changes.Tests` (+10, 47): the generated set (names, table per event, schedule, `IsScheduled`); a reaction runs
+  as `Reactions.MarkPayoutDue` on behalf of alice, same tenant and correlation, causation = the `Bid.Won` id, key
+  stored; redelivery replays; a reaction to the same aggregate and a pinned name; the factory's input is validated before
+  any read (`Invalid`, loads unchanged); a scheduled reaction runs as an ordinary change; unknown name and unhandled event
+  throw; `Combine` (tables, schedules, duplicate name, duplicate in one set); the context of a reaction to a system's
+  event keeps the original user; the skill's reaction example verbatim. The validated reaction (`new Amount(…)` in its
+  factory) compiles without a suppression: the C-13 exemption is checked by the build itself.
+* `Tarol.Changes.Generators.Tests` (+19, 41): snapshot of `GeneratedReactions` (two events on one change, a pinned
+  name, a scheduled nested change); the generated code compiles without warnings with the Primitives generator; no set
+  without reactions; TCHG006 (six shapes, not on a change, empty name), TCHG007 (two changes, one change twice for one
+  event), one change for two events is fine, TCHG008 (missing, wrong type); incrementality: a factory body edit or a move
+  regenerates nothing, pinning a name regenerates only `GeneratedReactions`.
+* `Tarol.Validations.Generators.Tests` (+1): TVAL006 exempt in a static `[OnEvent<T>]` factory of an `IValidatable`
+  change, also inside a lambda; still reported in a non-entry method and in a factory of a change that is not validated.
+* AOT smoke (`Tarol.Changes.AotSmoke`): a scheduled reaction's table and due time, its run as the system caused by the
+  event, and its replay, natively.
+
+### 16.4 Suppressions and analyzer configuration
+
+None in `src/`. Tests: `#pragma warning disable TVAL006` in `ReactionTests.cs` (it builds the fixture auction with the trusting
+constructors of `Title` and `Amount`), as in the other pipeline test files.
+
+### 16.5 Verification (SDK 11.0.100, 2026-11-15)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` (Debug and `-c Release`) | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker running) | 882 total, 0 failed (852 before + 10 Changes + 19 generator + 1 Validations generator) |
+| `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK |
+| `TAROL_PG=… eng/aot-smoke.sh` | 9 apps, each 0 IL warnings, all checks natively (`Tarol.Changes.AotSmoke` with the reaction checks) |
