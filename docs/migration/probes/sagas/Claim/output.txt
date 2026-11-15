@@ -1,0 +1,78 @@
+# postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1), 4 cores, 2026-11-15
+
+## 0 future timeout rows (one stream each) + 2000 streams × 1 due rows
+-- O-2 as shipped (anti-join)
+->  Index Scan using outbox_pkey on outbox o (actual rows=32 loops=1)
+Execution Time: 0.109 ms
+-- H: maintained head flag, partial index (due_at, id) WHERE head
+->  Index Scan using outbox_heads on outbox o (actual rows=32 loops=1)
+Execution Time: 0.043 ms
+-- H: complete = delete the head and promote the next row of its (tenant, type, stream, reaction), one statement
+->  Index Scan using outbox_heads on outbox (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox outbox_1 (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox o (actual rows=0 loops=1)
+->  Index Scan using outbox_stream on outbox n (actual rows=0 loops=1)
+Rows Removed by Filter: 1
+Execution Time: 0.128 ms
+
+## 0 future timeout rows (one stream each) + 16 streams × 125 due rows
+-- O-2 as shipped (anti-join)
+->  Index Scan using outbox_pkey on outbox o (actual rows=2000 loops=1)
+Execution Time: 10.268 ms
+-- H: maintained head flag, partial index (due_at, id) WHERE head
+->  Index Scan using outbox_heads on outbox o (actual rows=16 loops=1)
+Execution Time: 0.045 ms
+-- H: complete = delete the head and promote the next row of its (tenant, type, stream, reaction), one statement
+->  Index Scan using outbox_heads on outbox (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox outbox_1 (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox o (actual rows=1 loops=1)
+->  Index Scan using outbox_stream on outbox n (actual rows=1 loops=1)
+Rows Removed by Filter: 1
+Execution Time: 0.600 ms
+
+## 0 future timeout rows (one stream each) + 16 streams × 6250 due rows
+-- O-2 as shipped (anti-join)
+->  Index Scan using outbox_pkey on outbox o (actual rows=100000 loops=1)
+Execution Time: 600.255 ms
+-- H: maintained head flag, partial index (due_at, id) WHERE head
+->  Index Scan using outbox_heads on outbox o (actual rows=16 loops=1)
+Execution Time: 0.048 ms
+-- H: complete = delete the head and promote the next row of its (tenant, type, stream, reaction), one statement
+->  Index Scan using outbox_heads on outbox (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox outbox_1 (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox o (actual rows=1 loops=1)
+->  Index Scan using outbox_stream on outbox n (actual rows=1 loops=1)
+Rows Removed by Filter: 1
+Execution Time: 0.148 ms
+
+## 100000 future timeout rows (one stream each) + 2000 streams × 1 due rows
+-- O-2 as shipped (anti-join)
+->  Index Scan using outbox_pkey on outbox o (actual rows=32 loops=1)
+Rows Removed by Filter: 100000
+Execution Time: 20.135 ms
+-- H: maintained head flag, partial index (due_at, id) WHERE head
+->  Index Scan using outbox_heads on outbox o (actual rows=32 loops=1)
+Execution Time: 0.066 ms
+-- H: complete = delete the head and promote the next row of its (tenant, type, stream, reaction), one statement
+->  Index Scan using outbox_heads on outbox (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox outbox_1 (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox o (actual rows=0 loops=1)
+->  Index Scan using outbox_stream on outbox n (actual rows=0 loops=1)
+Rows Removed by Filter: 1
+Execution Time: 0.195 ms
+
+## 100000 future timeout rows (one stream each) + 16 streams × 125 due rows
+-- O-2 as shipped (anti-join)
+->  Index Scan using outbox_pkey on outbox o (actual rows=2000 loops=1)
+Rows Removed by Filter: 100000
+Execution Time: 21.134 ms
+-- H: maintained head flag, partial index (due_at, id) WHERE head
+->  Index Scan using outbox_heads on outbox o (actual rows=16 loops=1)
+Execution Time: 0.047 ms
+-- H: complete = delete the head and promote the next row of its (tenant, type, stream, reaction), one statement
+->  Index Scan using outbox_heads on outbox (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox outbox_1 (actual rows=1 loops=1)
+->  Index Scan using outbox_pkey on outbox o (actual rows=1 loops=1)
+->  Index Scan using outbox_stream on outbox n (actual rows=1 loops=1)
+Rows Removed by Filter: 1
+Execution Time: 0.180 ms

@@ -1,0 +1,13 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+  <!-- D-15 probe: an Aspire AppHost on SDK 11 with a PostgreSQL resource and the reaction worker (App in "serve" mode).
+       The AppHost itself is not published with Native AOT; the worker it starts can be. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><UserSecretsId>tarol-sagas-probe</UserSecretsId>
+    <AssemblyName>Probe.Sagas.AppHost</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
+    <ProjectReference Include="../App/App.csproj" />
+  </ItemGroup>
+</Project>
