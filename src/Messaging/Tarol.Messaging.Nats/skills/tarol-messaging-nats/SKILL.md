@@ -50,4 +50,4 @@ services.AddTarol(ContractJson.Default, codec => codec.Add<Auction>().Add<Invoic
 ## AOT
 
 NATS.Net 3.3.2 is AOT-clean as used here (raw `byte[]` payloads, no serializer registry); a native binary grows by about
-5 MB.
+5.7 MB.

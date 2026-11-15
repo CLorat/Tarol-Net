@@ -49,4 +49,4 @@ services.AddTarol(ContractJson.Default, codec => codec.Add<Auction>().Add<Invoic
 
 ## AOT
 
-RabbitMQ.Client 7.2.2 is AOT-clean as used here; a native binary grows by about 1.3 MB.
+RabbitMQ.Client 7.2.2 is AOT-clean as used here; a native binary grows by about 2 MB.
