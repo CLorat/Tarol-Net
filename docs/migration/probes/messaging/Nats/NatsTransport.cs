@@ -73,7 +73,8 @@ public sealed class NatsTransport : IMessageTransport
             headers[k] = v;
         var ack = await _js.PublishAsync(message.Type, message.Data.ToArray(), headers: headers,
             opts: new NatsJSPubOpts { MsgId = DedupByEventIdOnly ? message.Id.ToString("N") : message.DedupId }, cancellationToken: cancellationToken).ConfigureAwait(false);
-        ack.EnsureSuccess();
+        if (ack.Error is { } error)                                    // not EnsureSuccess: it throws for a duplicate, which is a success here
+            throw new NatsJSApiException(error);
         if (ack.Duplicate)
             Duplicated++;
     }

@@ -17,6 +17,11 @@ public sealed class PgTransport(NpgsqlDataSource db, TimeProvider time, string s
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromMilliseconds(100);
     /// <summary>Send a NOTIFY with every publish and LISTEN while idle.</summary>
     public bool Notify { get; init; }
+    /// <summary>
+    /// The database roles of the publishing systems (role → source). Absent: every system connects as the same role, so the
+    /// stamped role proves nothing and <see cref="Incoming.AuthenticatedAs"/> stays <see langword="null"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? Roles { get; init; }
     /// <summary>Deliveries claimed per round.</summary>
     public int Batch { get; init; } = 32;
 
@@ -163,7 +168,7 @@ public sealed class PgTransport(NpgsqlDataSource db, TimeProvider time, string s
                 {
                     var headers = JsonSerializer.Deserialize(row.Headers, MessagingJson.Default.DictionaryStringString) ?? [];
                     var message = Message.From(h => headers.TryGetValue(h, out var v) ? v : null, row.Data);
-                    var handled = await handler(new Incoming(message, row.Attempts, row.Publisher, row.Data, row.Type), cancellationToken).ConfigureAwait(false);
+                    var handled = await handler(new Incoming(message, row.Attempts, Roles is null ? null : Roles.TryGetValue(row.Publisher, out var source) ? source : "role:" + row.Publisher, row.Data, row.Type), cancellationToken).ConfigureAwait(false);
                     await using var settle = handled.Ack == Ack.Ack
                         ? db.CreateCommand($"DELETE FROM {schema}.deliveries WHERE id = $1 AND claim_id = $2")
                         : db.CreateCommand($"UPDATE {schema}.deliveries SET due_at = $3, claim_id = NULL WHERE id = $1 AND claim_id = $2");
