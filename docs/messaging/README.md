@@ -183,7 +183,7 @@ role is not its prefix (`Messaging.SourceMismatch`). An unknown role arrives as 
 | who may publish under a prefix | subject permissions per user | write permission on the exchange per user; `user_id` validated → `AuthenticatedAs` |
 | forbidden publish | a timeout (the permission error is logged) | `ACCESS_REFUSED` |
 | a contract nobody subscribes | stored | returned, logged, counted as delivered |
-| native size | +5 MB | +1.3 MB |
+| native size (over `Tarol.Messaging` alone, measured 11D) | +5.7 MB | +2.0 MB |
 
 Both take a `Prefix` (a namespace in front of every name) for environments that share a server. With RabbitMQ name each
 system's user like its prefix, or set `StampUserId = false` when all systems share one user.

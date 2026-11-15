@@ -751,8 +751,8 @@ the loop.
 |---|---:|---|
 | `Tarol.Messaging.Nats.IntegrationTests` | 18 | the transport contract (14) on `nats:2.11 -js`, a prefix per test; subject permissions (`tests/…/Nats.cs`, the probe's `nats.conf`): billing refused on `artflow.*` with a `TimeoutException` and a logged permission error, accepted on its own prefix; v1 + v2 of one event are two messages and a republish a counted duplicate; one stream per subscription; the skill example verbatim |
 | `Tarol.Messaging.RabbitMq.IntegrationTests` | 18 | the transport contract (14) on `rabbitmq:4-management` (a failed first boot is retried with a fresh container), a prefix per test; the probe's users and permissions: billing refused on exchange `artflow` (`ACCESS_REFUSED`), its publish channel recovers, a forged `user_id` refused (`PRECONDITION_FAILED`), a consumer of artflow's exchange declares it passively and sees `AuthenticatedAs = artflow`; an unroutable message is counted as delivered; the skill example verbatim |
-| `Tarol.Messaging.Nats.AotSmoke` | 5 checks | names, options; with `TAROL_NATS` a duplicate, a retry after a delay, the envelope; Native AOT 0 IL warnings |
-| `Tarol.Messaging.RabbitMq.AotSmoke` | 5 checks | names, options; with `TAROL_RABBITMQ` an unroutable publish, a retry after a delay, the envelope; Native AOT 0 IL warnings |
+| `Tarol.Messaging.Nats.AotSmoke` | 5 checks | names, options; with `TAROL_NATS` a duplicate, a retry after a delay, the envelope; Native AOT 0 IL warnings, 11.1 MB (+5.7 MB over `Tarol.Messaging.AotSmoke`) |
+| `Tarol.Messaging.RabbitMq.AotSmoke` | 5 checks | names, options; with `TAROL_RABBITMQ` an unroutable publish, a retry after a delay, the envelope; Native AOT 0 IL warnings, 7.4 MB (+2.0 MB) |
 | `Tarol.Messaging.Nats.PackageTests`, `Tarol.Messaging.RabbitMq.PackageTests` | 1 each | the packed packages register and resolve |
 | `samples/Sagas` | `apphost.sh` | ArtFlow → billing → ArtFlow, 5 of 5, JIT with NATS, JIT with RabbitMQ, Native AOT with NATS (README) |
 
@@ -771,4 +771,10 @@ None.
 
 ### 18.7 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
 
-VERIFICATION_11D
+`dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker: **1244 of 1244** (1208 + 18 NATS + 18 RabbitMQ); `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`
+and `TAROL_RABBITMQ`: **17 apps** (15 + the two brokers'), 0 IL warnings each, all checks passed; `dotnet pack -c Release` +
+`eng/verify-packages.sh`: OK (both packages contain `lib/`, README, LICENSE and their skill; their package consumers run).
+`samples/Sagas/apphost.sh … 5`: 5 of 5 round trips with NATS (JIT), with RabbitMQ (JIT) and with the three Native AOT
+binaries (NATS), the README's result. The broker integration projects passed on their first full runs (17 + 17, before the
+skill tests were added) and again in the solution run.

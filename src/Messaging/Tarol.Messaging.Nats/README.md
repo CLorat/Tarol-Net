@@ -2,7 +2,7 @@
 
 The NATS JetStream transport of [Tarol.Messaging](https://github.com/CLorat/Tarol-Net): publications leave a system's
 outbox onto a JetStream stream, and consumers pull from durable consumers. Native-AOT ready (NATS.Net 3.3.2; it adds about
-5 MB to a native binary).
+5.7 MB to a native binary).
 
 ## Install
 

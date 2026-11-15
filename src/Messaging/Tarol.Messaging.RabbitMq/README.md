@@ -2,7 +2,7 @@
 
 The RabbitMQ transport of [Tarol.Messaging](https://github.com/CLorat/Tarol-Net): publications leave a system's outbox
 onto a topic exchange with publisher confirms, consumers read quorum queues. Native-AOT ready (RabbitMQ.Client 7.2.2; it
-adds about 1.3 MB to a native binary).
+adds about 2 MB to a native binary).
 
 ## Install
 
