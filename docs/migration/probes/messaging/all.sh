@@ -108,6 +108,11 @@ PY
 dotnet build "$w/oldfix/tests/Messaging/Messaging.IntegrationTests" -o "$w/oldfix/out" > "$w/oldfix.log" 2>&1
 (cd "$w/oldfix/out" && timeout 300 ./Tarol.Messaging.IntegrationTests 2>&1) | sed 's/\x1b\[[0-9;]*m//g' | grep -oE 'Total: [0-9]+, Errors: [0-9]+, Failed: [0-9]+' | tail -1
 fi
+if at 11; then
+echo; echo "## 11. UPDATE … RETURNING order: the claim of a batch (Brokers/claim-order.sql), and its plan"
+docker cp "$here/Brokers/claim-order.sql" tarol-probe-pg:/claim-order.sql
+docker exec tarol-probe-pg psql -U postgres -q -f /claim-order.sql 2>&1 | grep -vE "NOTICE|DETAIL|drop cascades"
+fi
 docker rm -f tarol-probe-pg tarol-probe-nats tarol-probe-nats-auth tarol-probe-rmq >/dev/null 2>&1
 } >> "$out" 2>&1
 echo "wrote $out"

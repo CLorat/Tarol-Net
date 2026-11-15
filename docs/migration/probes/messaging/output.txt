@@ -214,3 +214,6 @@ ALL CHECKS PASSED
 ALL CHECKS PASSED
 
 ## 5. Native AOT: one transport per binary (what a broker client adds)
+postgres: IL warnings 0, 5829992 bytes; postgres: round trip ok
+nats: IL warnings 0, 10879776 bytes; nats: round trip ok
+rabbit: IL warnings 0, 7147224 bytes; rabbitmq: round trip ok
