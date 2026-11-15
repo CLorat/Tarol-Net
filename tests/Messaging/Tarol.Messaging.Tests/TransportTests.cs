@@ -13,8 +13,13 @@ public sealed class TransportTests
 
     private static Message M(string type, int n) => new()
     {
-        Id = Guid.CreateVersion7(), Source = Message.SystemOf(type), Type = type, Version = 1, Time = DateTimeOffset.UnixEpoch,
-        Correlation = Id<ICorrelation>.New(), Data = new[] { (byte)n },
+        Id = Guid.CreateVersion7(),
+        Source = Message.SystemOf(type),
+        Type = type,
+        Version = 1,
+        Time = DateTimeOffset.UnixEpoch,
+        Correlation = Id<ICorrelation>.New(),
+        Data = new[] { (byte)n },
     };
 
     [Fact]

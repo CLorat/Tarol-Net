@@ -31,8 +31,13 @@ public sealed class HostingTests
 
         await transport.Publish(new Message
         {
-            Id = Guid.CreateVersion7(), Source = "artflow", Type = "artflow.auction-settled", Version = 1, Time = TimeProvider.System.GetUtcNow(),
-            Correlation = Id<ICorrelation>.New(), Data = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new AuctionSettledV1(Guid.NewGuid(), 80m), ShopJson.Default.AuctionSettledV1),
+            Id = Guid.CreateVersion7(),
+            Source = "artflow",
+            Type = "artflow.auction-settled",
+            Version = 1,
+            Time = TimeProvider.System.GetUtcNow(),
+            Correlation = Id<ICorrelation>.New(),
+            Data = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new AuctionSettledV1(Guid.NewGuid(), 80m), ShopJson.Default.AuctionSettledV1),
         }, TestContext.Current.CancellationToken);
         var deadline = Stopwatch.StartNew();
         while (feed.Recorded.Count < 2 && deadline.Elapsed < TimeSpan.FromSeconds(10))
@@ -72,7 +77,8 @@ public sealed class HostingTests
         ActivitySource.AddActivityListener(listener);
         var test = MessageTest.At(DateTimeOffset.UnixEpoch, GeneratedConsumers.Set, ShopJson.Default.Options, "shop").Trust("artflow", t => t.AnyTenant());
         var message = test.Message("artflow.auction-settled", 1, new AuctionSettledV1(Guid.NewGuid(), 80m), ShopJson.Default.AuctionSettledV1)
-            with { Traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" };
+            with
+        { Traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" };
 
         await test.Send(message);
         await test.Drain();

@@ -465,3 +465,71 @@ passed; `dotnet format --verify-no-changes` clean; `dotnet pack -c Release` + `e
 * Order per key at higher consumer concurrency (partitioned subjects, single active consumer): not needed yet.
 * Contract documents (AsyncAPI) and a schema check in CI: later, if asked.
 * RabbitMQ topic permissions per routing key (finer than an exchange per source): 11D documents both.
+
+## 15. Implementation: PR 11A (2026-11-15)
+
+`messaging: consumers through the change pipeline`: the new package `Tarol.Messaging` with its generator.
+
+### 15.1 Public API (new package `Tarol.Messaging`, depends on `Tarol.Sagas`)
+
+| Type | Role |
+|---|---|
+| `Message`, `MessageHeaders` | the envelope, CloudEvents 1.0 binary mode (M-5): `Headers()`, `From(header, data)` (null = poison), `DedupId` (event, contract, version), `ActorSubject`, `SystemOf(contract)` |
+| `IMessageTransport`, `Subscription`, `Incoming`, `Handled`, `Ack`, `MessageHandler` | the transport port (§2.1, T-A) |
+| `InMemoryTransport` | fan-out per subscription, redelivery at a due time on the `TimeProvider`, `RunDue`, `Published`, `Pending` |
+| `ConsumesAttribute` (`Name`) | the consumer factory (K-A) |
+| `ConsumerSet` (+ `Combine`), `ConsumerInfo`, `ConsumerRunner`, `ConsumerRun`, `Mapped`, `MessageScope` | the generated set and its switch |
+| `MessagingOptions` (`Application`, `Policy`, `Concurrency`, `Lease`, `Trust`), `SourceTrust` (`Tenants`, `AnyTenant`, `Allows`) | configuration and trust (M-13) |
+| `MessageConsumers` (`Handle`, `Run`, `Redrive`, `Subscriptions`, `DeadLetters`, `ActivitySourceName`), `ConsumerAttempt` | the consumers (M-6, M-12) |
+| `IMessageDeadLetters`, `InMemoryMessageDeadLetters`, `DeadMessage` | dead letters (M-9) |
+| `MessagingHost`, `MessagingBuilder`, `MessagingTarolBuilderExtensions.AddMessaging` | hosting on the `TarolBuilder` |
+| `MessageTest` | consumers in memory with a standing clock |
+| generator | `GeneratedConsumers.Set`; TMSG001, TMSG002, TMSG003, TMSG006 (warning), TMSG007 |
+
+### 15.2 Deliberate differences from §6, §7 and §11
+
+* **TMSG004/TMSG005** (publications) come with 11B; the ids stay reserved.
+* **`AddMessaging(application, configure)`** takes the application name as a parameter (it is required: every subscription
+  is named after it) instead of `m.Options.Application`. A transport **and** a dead-letter store must be chosen
+  explicitly; in-memory dead letters lose data at a restart, so there is no default until 11C.
+* **The actor's "on behalf of"** is the envelope actor's *original* subject: `Kind:id:for` → `for`, else `id`
+  (`Message.ActorSubject`), so a message published by a reaction that acted for alice is consumed "for alice", not "for
+  Reactions.X".
+* **`MessagingHost` declares only subscriptions** (`Prepare([], subscriptions)`); the topics a system publishes are
+  declared by the publisher in 11B.
+* **The worker's row handlers** (§10) are 11B; nothing in `Tarol.Sagas` or `Tarol.Changes` changed here except the
+  Validations analyzer (below).
+* **`InMemoryTransport.Consume` waits on a signal or the poll interval** of the `TimeProvider`; tests drive `RunDue`
+  through `MessageTest.Drain` instead, so a standing clock never blocks.
+
+### 15.3 Changes against steps 7–10
+
+* `Tarol.Validations` analyzer: TVAL006 is exempt inside `[Consumes]` factories of `Tarol.Messaging` (the namespace was
+  added to the entry-factory check; test `TVAL006_Exempt_In_A_Consumer_Factory_Of_Messaging`). No public API change.
+
+### 15.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Messaging.Generators.Tests` | 18 | snapshot `consumers` (two consumers, two versions, a pinned name, the envelope parameter), the generated code compiles warning-free, nothing without consumers, incrementality (unrelated file, factory body), TMSG001 (5 shapes + not a change + name), TMSG002, TMSG003 (4), TMSG006 (missing, listed, no context), TMSG007 (two names, a shared name) |
+| `Tarol.Messaging.Tests` | 61 | every row of §3.1 on the in-memory transport (valid, context, redelivery, two consumers of one contract, v1 + v2 of one event, unknown version, unknown contract, invalid mapping, Conflict retried, NotFound dead-lettered, poison, no envelope, forged tenant/source/authenticated publisher, unknown source, forged actor, re-drive, an exception in a factory, a failing dead-letter store); the envelope (headers, round trip, 9 malformed headers, optional headers, dedup id, actor subject, system of a contract); the transport (fan-out and order, due time, a throwing handler loses nothing, `Consume`); sets and options; `AddMessaging` with a real host; the consumer span and its link; the skill example verbatim |
+| `Tarol.Validations.Generators.Tests` | +1 | the TVAL006 exemption |
+| `Tarol.Messaging.AotSmoke` | 5 checks | envelope, `MessageTest` (commit, replay, invalid), context, the hosted consumers; Native AOT 0 IL warnings, 5.2 MB |
+| `Tarol.Messaging.PackageTests` | 1 | the packed package: its generator and the Changes generator flow, a consumer runs through `MessageTest` |
+
+### 15.5 Skill evaluation checklist (`tarol-messaging`, consumers part)
+
+As §12, rows "consume another system's event", "add v2 of a contract", "a second consumer of a contract", "accept a
+partner system", "a message keeps failing", "test two systems". The publication rows follow with 11B.
+
+### 15.6 Suppressions and analyzer configuration
+
+None.
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
+
+`dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker: **1129 of 1129** (1049 + 18 generator + 61 runtime + 1 analyzer); `eng/aot-smoke.sh` with
+`TAROL_PG`: **14 apps** (13 + `Tarol.Messaging.AotSmoke`), 0 IL warnings, all checks passed; `dotnet pack -c Release` +
+`eng/verify-packages.sh`: OK (`Tarol.Messaging` contains `lib/`, the generator under `analyzers/dotnet/cs/`, README,
+LICENSE and `skills/tarol-messaging/SKILL.md`; its package consumer runs and lists the skill).

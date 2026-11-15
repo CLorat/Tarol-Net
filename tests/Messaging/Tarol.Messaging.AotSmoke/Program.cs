@@ -25,8 +25,14 @@ var account = Guid.Parse("0193a000-0000-7000-8000-000000000001");
 // the envelope: CloudEvents binary mode, read back
 var sample = new Message
 {
-    Id = Guid.CreateVersion7(), Source = "billing", Type = "billing.paid", Version = 1, Time = TimeProvider.System.GetUtcNow(),
-    Correlation = Id<ICorrelation>.New(), Actor = "User:alice", Data = JsonSerializer.SerializeToUtf8Bytes(new PaidV1(account, 5m), SmokeJson.Default.PaidV1),
+    Id = Guid.CreateVersion7(),
+    Source = "billing",
+    Type = "billing.paid",
+    Version = 1,
+    Time = TimeProvider.System.GetUtcNow(),
+    Correlation = Id<ICorrelation>.New(),
+    Actor = "User:alice",
+    Data = JsonSerializer.SerializeToUtf8Bytes(new PaidV1(account, 5m), SmokeJson.Default.PaidV1),
 };
 var headers = sample.Headers().ToDictionary();
 Check("envelope round trip", Message.From(h => headers.TryGetValue(h, out var v) ? v : null, sample.Data) is { Type: "billing.paid", ActorSubject: "alice" });

@@ -82,8 +82,13 @@ public sealed class EnvelopeTests
     {
         var minimal = new Dictionary<string, string>
         {
-            ["ce-specversion"] = "1.0", ["ce-id"] = Guid.NewGuid().ToString(), ["ce-source"] = "billing", ["ce-type"] = "billing.invoice-paid",
-            ["ce-contractversion"] = "1", ["ce-time"] = "2026-11-15T16:01:59Z", ["ce-correlation"] = Guid.NewGuid().ToString(),
+            ["ce-specversion"] = "1.0",
+            ["ce-id"] = Guid.NewGuid().ToString(),
+            ["ce-source"] = "billing",
+            ["ce-type"] = "billing.invoice-paid",
+            ["ce-contractversion"] = "1",
+            ["ce-time"] = "2026-11-15T16:01:59Z",
+            ["ce-correlation"] = Guid.NewGuid().ToString(),
         };
 
         var read = Message.From(h => minimal.TryGetValue(h, out var v) ? v : null, ReadOnlyMemory<byte>.Empty)!;
