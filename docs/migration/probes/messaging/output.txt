@@ -188,3 +188,37 @@ PASS two runners (two nodes) on one in-memory backplane: each message reaches on
 PASS a stream that ends: the runner restarts without a delay (busy spin)  — 8,065,700 restarts in 1 s
 INFO what T-A adds to this shape: an envelope (Message), a durable subscription per consumer, an answer per message (Ack/Retry), dead letters; Gateway and SignalR stay for the UI push (11D)
 ALL CHECKS PASSED
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+
+## 4. Native AOT publish (all transports in one app): warnings, size, the same checks natively
+IL warnings: 0
+native binary: 26075144 bytes
+# selftest: transport memory, store in-memory, Native AOT
+ALL CHECKS PASSED
+# selftest: transport postgres, store Npgsql, Native AOT
+FAIL consumed in order per stream with concurrency 1  — 50 received
+1 CHECK(S) FAILED
+# selftest: transport postgres+notify, store Npgsql, Native AOT
+ALL CHECKS PASSED
+# selftest: transport nats, store Npgsql, Native AOT
+ALL CHECKS PASSED
+# selftest: transport rabbit, store Npgsql, Native AOT
+INFO publishing a contract nobody subscribed: PublishReturnException: 312 NO_ROUTE Exchange: artflow Routing Key: artflow.auction-renamed
+ALL CHECKS PASSED
+# security: transport nats, Native AOT
+ALL CHECKS PASSED
+# security: transport rabbit, Native AOT
+PASS RabbitMQ: user billing sets user_id artflow → refused by the broker  — refused: AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=406, text='PRECONDITION_FAILED - user_id property set to 'artflow' but authenticated user was 'billing'', classId=60, methodId=40
+ALL CHECKS PASSED
+# security: transport postgres, Native AOT
+ALL CHECKS PASSED
+# legacy: the old backplane shape (T-D), Native AOT
+ALL CHECKS PASSED
+
+## 5. Native AOT: one transport per binary (what a broker client adds)
+postgres: IL warnings 0, 5829992 bytes; postgres: round trip ok
+nats: IL warnings 0, 10879776 bytes; nats: round trip ok
+rabbit: IL warnings 0, 7147224 bytes; rabbitmq: round trip ok

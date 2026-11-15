@@ -127,12 +127,16 @@ public sealed class PgTransport(NpgsqlDataSource db, TimeProvider time, string s
 
     private async Task Loop(Subscription subscription, MessageHandler handler, SemaphoreSlim signal, CancellationToken cancellationToken)
     {
+        // UPDATE … RETURNING has no order (the subquery's ORDER BY does not carry through): order the batch afterwards, by the
+        // delivery id = the publish order of the subscription, or one stream's messages are handled out of order
         var claim = $"""
-            UPDATE {schema}.deliveries d SET attempts = d.attempts + 1, claim_id = $3, due_at = $4
-            FROM (SELECT id FROM {schema}.deliveries WHERE subscription = $1 AND due_at <= $5
-                  ORDER BY due_at, id LIMIT $2 FOR UPDATE SKIP LOCKED) c, {schema}.messages m
-            WHERE d.id = c.id AND m.id = d.message_id AND m.type = d.type AND m.version = d.version
-            RETURNING d.id, d.attempts, m.headers::text, m.data, m.publisher, m.type
+            WITH claimed AS (
+                UPDATE {schema}.deliveries d SET attempts = d.attempts + 1, claim_id = $3, due_at = $4
+                FROM (SELECT id FROM {schema}.deliveries WHERE subscription = $1 AND due_at <= $5
+                      ORDER BY due_at, id LIMIT $2 FOR UPDATE SKIP LOCKED) c, {schema}.messages m
+                WHERE d.id = c.id AND m.id = d.message_id AND m.type = d.type AND m.version = d.version
+                RETURNING d.id, d.attempts, m.headers::text AS headers, m.data, m.publisher, m.type)
+            SELECT * FROM claimed ORDER BY id
             """;
         while (!cancellationToken.IsCancellationRequested)
         {
