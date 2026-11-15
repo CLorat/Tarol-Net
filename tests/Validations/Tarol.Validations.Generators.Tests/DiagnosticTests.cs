@@ -134,6 +134,28 @@ public class DiagnosticTests
     }
 
     [Fact]
+    public void TVAL006_Exempt_In_A_Webhook_Factory_Of_The_Http_Entries()
+    {
+        // step 10: [Webhook] ships in Tarol.Changes.AspNetCore; the factory maps a foreign payload, the pipeline validates it.
+        var found = Of("TVAL006", """
+            namespace Tarol.Changes.AspNetCore { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class WebhookAttribute(string s, string t) : System.Attribute; }
+            namespace Elsewhere { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class WebhookAttribute(string s, string t) : System.Attribute; }
+            public readonly partial record struct Q([Range(1, 2)] int Value);
+            public sealed record Paid(int Amount);
+            public sealed partial record Validated(Q Amount) : IValidatable
+            {
+                [Tarol.Changes.AspNetCore.Webhook("payments", "paid")]
+                public static Validated From(Paid p) => new(new Q(p.Amount));                       // exempt
+                [Elsewhere.Webhook("payments", "paid")]
+                public static Validated Foreign(Paid p) => new(new Q(p.Amount));                    // reported: not Tarol's attribute
+            }
+            """);
+
+        found.Length.ShouldBe(1);
+        found[0].Location.GetLineSpan().StartLinePosition.Line.ShouldBe(10);
+    }
+
+    [Fact]
     public void TVAL007_DataAnnotations_Attributes_Have_No_Effect()
     {
         var found = Of("TVAL007",
