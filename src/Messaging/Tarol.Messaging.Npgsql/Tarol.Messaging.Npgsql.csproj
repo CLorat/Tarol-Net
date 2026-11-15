@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The in-database message bus of Tarol.Messaging on plain Npgsql: a bus schema every system reaches, publish in one statement (deduplicated by event, contract and version, one delivery per subscription), claim with FOR UPDATE SKIP LOCKED in publish order, retry at a due time, the publisher's database role stamped by PostgreSQL and mapped to its source (row-level security binds a role to its contract prefix), NOTIFY opt-in; dead letters in the consumer's messages_dead table. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;messaging;postgresql;npgsql;message-bus;outbox;inbox;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <ProjectReference Include="../Tarol.Messaging/Tarol.Messaging.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="Tarol.Messaging.Npgsql.IntegrationTests" />
+  </ItemGroup>
+</Project>

@@ -28,6 +28,7 @@
   <Folder Name="/src/Messaging/">
     <Project Path="src/Messaging/Tarol.Messaging/Tarol.Messaging.csproj" />
     <Project Path="src/Messaging/Tarol.Messaging.Generators/Tarol.Messaging.Generators.csproj" />
+    <Project Path="src/Messaging/Tarol.Messaging.Npgsql/Tarol.Messaging.Npgsql.csproj" />
   </Folder>
   <Folder Name="/src/Sagas/">
     <Project Path="src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
@@ -80,6 +81,7 @@
   <Folder Name="/tests/Messaging/">
     <Project Path="tests/Messaging/Tarol.Messaging.AotSmoke/Tarol.Messaging.AotSmoke.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.Generators.Tests/Tarol.Messaging.Generators.Tests.csproj" />
+    <Project Path="tests/Messaging/Tarol.Messaging.Npgsql.IntegrationTests/Tarol.Messaging.Npgsql.IntegrationTests.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.Tests/Tarol.Messaging.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Sagas/">
