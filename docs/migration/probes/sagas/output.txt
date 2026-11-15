@@ -1,0 +1,208 @@
+# SDK 11.0.100, 2026-11-15, x86_64, 4 cores, postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1)
+
+## App (JIT): functional checks
+# mode functional, runtime JIT
+## composition and policy (S-3, C-9 table)
+ok   Combine: names of both assemblies
+ok   Combine: the table concatenates per event
+ok   one set: its own span (no copy)
+ok   Combine: a duplicate name throws
+ok   classify: success / replayed → Done
+ok   classify: Invalid → Bury
+ok   classify: any Conflict (guard, version, duplicate key) → Retry
+ok   classify: NotFound / 422 → Retry (ordering), Forbidden → Bury, Unavailable → Retry
+ok   backoff: 1, 2, 4 … s ±20 %, capped at 5 min, deterministic per (row, attempt)  — 0.9, 2.0, 4.1, 8.1, 17.5, 28.0, 53.1, 105.8, 208.5, 293.1, 339.4, 348.3
+## chain: commit → outbox row → worker → reaction change → its commit (Npgsql, DL-B)
+ok   no rows for events without reactions
+ok   settle commits Bid.Won → two rows in the same commit (MarkPayoutDue, StartSettlement)
+ok   worker ran both reactions  — (MarkPayoutDue, Done),(StartSettlement, Done)
+ok   payout context: System actor on behalf of alice, same tenant and correlation, causation = Bid.Won event id  — OperationContext { Tenant = Some(01a1ddfb-f645-7543-8ee1-03d82cc9b340), CorrelationId = 01a1de6f-5280-7979-8c1c-38785aca3ed2, CausationId = Some(01a1de6f-5280-7e3f-8f56-ddd623624d11),
+ok   key (tenant, reaction:MarkPayoutDue, event id) stored with the payout's commit  — reaction:MarkPayoutDue 01a1de6f52807e3f8f56ddd623624d11
+ok   the saga started: Settlement with the auction's id, deadline row waits (due in 3 days)
+ok   tracing: one Consumer activity per row, linked (not parented) to the committing request  — link 892f12e1cfd939f2d121a24fe2575c7e, own abf5b6ddd726dbe0e5587630c1b385fa
+ok   tracing: the reaction's commit stores the worker activity's traceparent (the next hop links to it)
+ok   tracing: tags
+ok   payment → ConfirmSettlementPayment → Completed
+ok   the timeout after completion is a no-op success (no Expired, no Reopened, row completed)
+## saga timeout with a fake TimeProvider, compensation (Npgsql)
+ok   2 days later: nothing due
+ok   3 days later: ExpireSettlement → Expired → ReopenAuction → Reopened (2 rows)
+ok   compensation context: System on behalf of alice through three hops, correlation kept, causation = Expired
+ok   Expire ran with now from the TimeProvider (RecordedAt = T0 + 3 d)
+ok   a late payment after expiry: Pay is a no-op success, not a Conflict that would dead-letter
+ok   restart: a second Bid.Won restarts the ended saga in place (load-or-create), round 2 awaits payment  — (MarkPayoutDue, Done),(StartSettlement, Done)
+ok   a second start while running is a no-op success (old N1: the start handler ran again)
+## a shortened deadline: head per (stream, reaction) (T-1) vs scheduled reactions ordered by time only (T-2)
+ok   T-1 (head rule for every reaction): the 1-day timeout waits behind the 3-day row: nothing runs at +1 d
+ok   T-1: at +3 d exactly one Expired, recorded at 11-18
+ok   T-2 (scheduled reactions by time only): the 1-day timeout fires at +1 d; the 3-day row later is a stale no-op
+ok   T-2: at +3 d exactly one Expired, recorded at 11-16
+## redelivery: run, no Complete, lease expires → runs again, commits once (Npgsql)
+ok   second delivery: attempts 2, the key returns the first outcome without running
+ok   the first worker's Complete fails (lease lost); the second completes
+ok   one payout
+## crash: a worker process dies between run and Complete (Environment.FailFast)
+ok   child ran the reaction and died before Complete  — exit code 134, child said: committed True
+ok   after the crash: one payout committed, its row still claimed
+ok   another worker claims it after the lease (attempt 2) and completes it  — after 3.1 s: (MarkPayoutDue, 2, Done),(StartSettlement, 2, Done)
+ok   still one payout: delivered twice, committed once
+## C-9: Conflict retries with backoff, dead letter after N, the stream is unblocked (DL-A column)
+ok   attempt 1: only the head (poison) is claimable
+ok   attempt 2: only the head (poison) is claimable
+ok   attempt 3: only the head (poison) is claimable
+ok   attempt 4: only the head (poison) is claimable
+ok   three retries with growing backoff, then buried at attempt 4  — retry delays (s): 0.97, 2.15, 4.57
+ok   dead letter visible with attempts and the guard's code  — DeadLetter { Id = 1, Reaction = AcknowledgeNote, EventId = 01a1de6f-5280-71c6-acb6-1912004510b6, StreamId = 01a1de6f-5280-776e-8797-6aef7586f4e3, Attempts = 4, LastError = Conflict Note.Poison, DeadAt = 11/15/2026 09:00:30 +00:00 }
+ok   the stream is unblocked: 'ok' acknowledged after the burial
+ok   re-drive
+ok   DL-A: the re-driven row keeps its id: it is the head again and blocks 'later'  — poison
+## C-9: Conflict retries with backoff, dead letter after N, the stream is unblocked (DL-B table)
+ok   attempt 1: only the head (poison) is claimable
+ok   attempt 2: only the head (poison) is claimable
+ok   attempt 3: only the head (poison) is claimable
+ok   attempt 4: only the head (poison) is claimable
+ok   three retries with growing backoff, then buried at attempt 4  — retry delays (s): 0.97, 2.15, 4.57
+ok   dead letter visible with attempts and the guard's code  — DeadLetter { Id = 1, Reaction = AcknowledgeNote, EventId = 01a1de6f-5280-75b0-994e-444ea0961204, StreamId = 01a1de6f-5280-732b-b2ee-c7bb6bf1a06b, Attempts = 4, LastError = Conflict Note.Poison, DeadAt = 11/15/2026 09:00:30 +00:00 }
+ok   the stream is unblocked: 'ok' acknowledged after the burial
+ok   re-drive
+ok   DL-B: the re-driven row is new: 'later' runs first, the re-driven row waits behind it  — later
+## ordering across streams: NotFound for a target another reaction creates (Npgsql)
+ok   ConfirmSettlementPayment: NotFound → Retry, then Done once StartSettlement created the saga  — (ConfirmSettlementPayment, Retry, ) | (MarkPayoutDue, Done, ) | (StartSettlement, Done, ) | (ConfirmSettlementPayment, Done, NotFound Settlement.NotFound)
+## a row of a reaction that no longer exists (renamed without a pin)
+ok   an unknown name throws in Run → retried like an exception, then buried with the message  — InvalidOperationException: No reaction named 'RenamedAway' is registered (removed or renamed? pin it with Name = "…").
+## in-memory parity: InMemoryAggregateStore + InMemoryOutbox, same chain and timeout
+ok   in memory: settle → 2 reactions → payout and saga
+ok   in memory: 2 days later nothing due
+ok   in memory: 3 days later the timeout and its compensation run
+ok   in memory: a redelivery is replayed by the key
+## SA-B: commands stored in the saga's event need generated polymorphism metadata
+ok   without metadata the commands serialize empty (data loss, no exception)  — {"state":"{\u0022amount\u0022:120}","commands":[{},{}]}
+ok   with a generated modifier they round-trip  — {"state":"{\u0022amount\u0022:120}","commands":[{"$type":"request-payment","auction":"00000000-0000-0000-0000-000000000000","buyer":"bob","amount":120},{"$type":"cancel-sale","auction":"00000000-0000-0000-0000-000000000000"}]}
+ALL CHECKS PASSED
+
+## App (JIT, Release): throughput and latency
+# mode throughput, runtime JIT
+## throughput: drain N preloaded rows (AcknowledgeNote: load the auction, append one event), batch 32, poll 50 ms
+| streams × rows | workers | rows | seconds | rows/s | max in flight |
+|---|---|---|---|---|---|
+| 2000 × 1 | 1 | 2000 | 6.97 | 287 | 32 |
+| 2000 × 1 | 4 | 2000 | 2.58 | 777 | 125 |
+| 2000 × 1 | 16 | 2000 | 1.64 | 1218 | 510 |
+| 16 × 125 | 1 | 2000 | 8.43 | 237 | 16 |
+| 16 × 125 | 4 | 2000 | 4.69 | 426 | 16 |
+| 16 × 125 | 16 | 2000 | 5.40 | 370 | 16 |
+## latency: 4 workers, a producer commits 100 new auctions/s with one Noted each for 10 s; commit → reaction done
+| wake-up | rows | p50 ms | p90 ms | p99 ms | max ms |
+|---|---|---|---|---|---|
+| poll 1 s | 1000/1000 | 488.5 | 856.4 | 975.1 | 1014.0 |
+| poll 100 ms | 1001/1001 | 28.7 | 66.9 | 93.9 | 106.5 |
+| LISTEN/NOTIFY (fallback poll 1 s) | 1000/1000 | 7.2 | 8.7 | 11.8 | 33.1 |
+## commit cost of NOTIFY: 16 writers × 250 commits of a new auction with one Noted (one outbox row each)
+| trigger | commits | seconds | commits/s |
+|---|---|---|---|
+| none | 4000 | 1.65 | 2429 |
+| NOTIFY per statement | 4000 | 2.36 | 1693 |
+
+## App (Native AOT): publish warnings, then the native run
+IL warnings: 0
+native binary: 15305688 bytes
+# mode functional, runtime Native AOT
+## composition and policy (S-3, C-9 table)
+ok   Combine: names of both assemblies
+ok   Combine: the table concatenates per event
+ok   one set: its own span (no copy)
+ok   Combine: a duplicate name throws
+ok   classify: success / replayed → Done
+ok   classify: Invalid → Bury
+ok   classify: any Conflict (guard, version, duplicate key) → Retry
+ok   classify: NotFound / 422 → Retry (ordering), Forbidden → Bury, Unavailable → Retry
+ok   backoff: 1, 2, 4 … s ±20 %, capped at 5 min, deterministic per (row, attempt)  — 0.9, 2.0, 4.1, 8.1, 17.5, 28.0, 53.1, 105.8, 208.5, 293.1, 339.4, 348.3
+## chain: commit → outbox row → worker → reaction change → its commit (Npgsql, DL-B)
+ok   no rows for events without reactions
+ok   settle commits Bid.Won → two rows in the same commit (MarkPayoutDue, StartSettlement)
+ok   worker ran both reactions  — (MarkPayoutDue, Done),(StartSettlement, Done)
+ok   payout context: System actor on behalf of alice, same tenant and correlation, causation = Bid.Won event id  — OperationContext { Tenant = Some(01a1ddfd-c1a9-7a30-a499-7454e375d695), CorrelationId = 01a1de6f-5280-78b8-b322-1a782b7ad477, CausationId = Some(01a1de6f-5280-73ca-8c46-38b04b27cf48),
+ok   key (tenant, reaction:MarkPayoutDue, event id) stored with the payout's commit  — reaction:MarkPayoutDue 01a1de6f528073ca8c4638b04b27cf48
+ok   the saga started: Settlement with the auction's id, deadline row waits (due in 3 days)
+ok   tracing: one Consumer activity per row, linked (not parented) to the committing request  — link 2d55cd1d4310e6263b3370607244455f, own 62599e73e5dd7405aff16f457b519d3e
+ok   tracing: the reaction's commit stores the worker activity's traceparent (the next hop links to it)
+ok   tracing: tags
+ok   payment → ConfirmSettlementPayment → Completed
+ok   the timeout after completion is a no-op success (no Expired, no Reopened, row completed)
+## saga timeout with a fake TimeProvider, compensation (Npgsql)
+ok   2 days later: nothing due
+ok   3 days later: ExpireSettlement → Expired → ReopenAuction → Reopened (2 rows)
+ok   compensation context: System on behalf of alice through three hops, correlation kept, causation = Expired
+ok   Expire ran with now from the TimeProvider (RecordedAt = T0 + 3 d)
+ok   a late payment after expiry: Pay is a no-op success, not a Conflict that would dead-letter
+ok   restart: a second Bid.Won restarts the ended saga in place (load-or-create), round 2 awaits payment  — (MarkPayoutDue, Done),(StartSettlement, Done)
+ok   a second start while running is a no-op success (old N1: the start handler ran again)
+## a shortened deadline: head per (stream, reaction) (T-1) vs scheduled reactions ordered by time only (T-2)
+ok   T-1 (head rule for every reaction): the 1-day timeout waits behind the 3-day row: nothing runs at +1 d
+ok   T-1: at +3 d exactly one Expired, recorded at 11-18
+ok   T-2 (scheduled reactions by time only): the 1-day timeout fires at +1 d; the 3-day row later is a stale no-op
+ok   T-2: at +3 d exactly one Expired, recorded at 11-16
+## redelivery: run, no Complete, lease expires → runs again, commits once (Npgsql)
+ok   second delivery: attempts 2, the key returns the first outcome without running
+ok   the first worker's Complete fails (lease lost); the second completes
+ok   one payout
+## crash: a worker process dies between run and Complete (Environment.FailFast)
+ok   child ran the reaction and died before Complete  — exit code 134, child said: committed True
+ok   after the crash: one payout committed, its row still claimed
+ok   another worker claims it after the lease (attempt 2) and completes it  — after 3.2 s: (MarkPayoutDue, 2, Done),(StartSettlement, 2, Done)
+ok   still one payout: delivered twice, committed once
+## C-9: Conflict retries with backoff, dead letter after N, the stream is unblocked (DL-A column)
+ok   attempt 1: only the head (poison) is claimable
+ok   attempt 2: only the head (poison) is claimable
+ok   attempt 3: only the head (poison) is claimable
+ok   attempt 4: only the head (poison) is claimable
+ok   three retries with growing backoff, then buried at attempt 4  — retry delays (s): 0.97, 2.15, 4.57
+ok   dead letter visible with attempts and the guard's code  — DeadLetter { Id = 1, Reaction = AcknowledgeNote, EventId = 01a1de6f-5280-7f00-95cc-6a9d31183bac, StreamId = 01a1de6f-5280-7946-835f-99d004bb7489, Attempts = 4, LastError = Conflict Note.Poison, DeadAt = 11/15/2026 09:00:30 +00:00 }
+ok   the stream is unblocked: 'ok' acknowledged after the burial
+ok   re-drive
+ok   DL-A: the re-driven row keeps its id: it is the head again and blocks 'later'  — poison
+## C-9: Conflict retries with backoff, dead letter after N, the stream is unblocked (DL-B table)
+ok   attempt 1: only the head (poison) is claimable
+ok   attempt 2: only the head (poison) is claimable
+ok   attempt 3: only the head (poison) is claimable
+ok   attempt 4: only the head (poison) is claimable
+ok   three retries with growing backoff, then buried at attempt 4  — retry delays (s): 0.97, 2.15, 4.57
+ok   dead letter visible with attempts and the guard's code  — DeadLetter { Id = 1, Reaction = AcknowledgeNote, EventId = 01a1de6f-5280-79ef-892f-9420edd0b586, StreamId = 01a1de6f-5280-75e1-9146-416674061356, Attempts = 4, LastError = Conflict Note.Poison, DeadAt = 11/15/2026 09:00:30 +00:00 }
+ok   the stream is unblocked: 'ok' acknowledged after the burial
+ok   re-drive
+ok   DL-B: the re-driven row is new: 'later' runs first, the re-driven row waits behind it  — later
+## ordering across streams: NotFound for a target another reaction creates (Npgsql)
+ok   ConfirmSettlementPayment: NotFound → Retry, then Done once StartSettlement created the saga  — (ConfirmSettlementPayment, Retry, ) | (MarkPayoutDue, Done, ) | (StartSettlement, Done, ) | (ConfirmSettlementPayment, Done, NotFound Settlement.NotFound)
+## a row of a reaction that no longer exists (renamed without a pin)
+ok   an unknown name throws in Run → retried like an exception, then buried with the message  — InvalidOperationException: No reaction named 'RenamedAway' is registered (removed or renamed? pin it with Name = "…").
+## in-memory parity: InMemoryAggregateStore + InMemoryOutbox, same chain and timeout
+ok   in memory: settle → 2 reactions → payout and saga
+ok   in memory: 2 days later nothing due
+ok   in memory: 3 days later the timeout and its compensation run
+ok   in memory: a redelivery is replayed by the key
+## SA-B: commands stored in the saga's event need generated polymorphism metadata
+ok   without metadata the commands serialize empty (data loss, no exception)  — {"state":"{\u0022amount\u0022:120}","commands":[{},{}]}
+ok   with a generated modifier they round-trip  — {"state":"{\u0022amount\u0022:120}","commands":[{"$type":"request-payment","auction":"00000000-0000-0000-0000-000000000000","buyer":"bob","amount":120},{"$type":"cancel-sale","auction":"00000000-0000-0000-0000-000000000000"}]}
+ALL CHECKS PASSED
+
+## Aspire AppHost 13.6.5 on SDK 11: PostgreSQL resource + worker project (JIT), dashboard
+Build succeeded.
+aspire.hosting.apphost/13.6.5/build/Aspire.Hosting.AppHost.targets(157,5): warning ASPIRE010: AppHost is configured with AspireUseCliBundle=false. Some Aspire features require the Aspire CLI bundle. Set AspireUseCliBundle=true to enable those features, or suppress ASPIRE010 to continue without the b
+postgres resource: postgres:18.3 pg-pzxekvvu
+events by stream type (count, with traceparent): auction 80/80, payout 20/20, settlement 40/40
+outbox rows left: 20 (the 20 settlement timeouts, due in 3 days)
+dashboard resources: [('worker', True)]
+dashboard spans (totalCount 190): CONNECT tarol 5, POST /auctions/{id}/settle 20, postgresql 326, reaction MarkPayoutDue 20, reaction StartSettlement 20
+spans with an ActivityLink: reaction MarkPayoutDue 20, reaction StartSettlement 20
+      Aspire AppHost version: 13.6.5+b33d222049f1ecc3bc7257ec07b622fe550b2580
+      Distributed application started. Press Ctrl+C to shut down.
+
+## Aspire AppHost: the same with the Native AOT worker (AddExecutable)
+postgres resource: postgres:18.3 pg-xxmjmmkr
+events by stream type (count, with traceparent): auction 80/80, payout 20/20, settlement 40/40
+outbox rows left: 20 (the 20 settlement timeouts, due in 3 days)
+dashboard resources: [('worker', True)]
+dashboard spans (totalCount 189): CONNECT tarol 5, POST /auctions/{id}/settle 20, postgresql 324, reaction MarkPayoutDue 20, reaction StartSettlement 20
+spans with an ActivityLink: reaction MarkPayoutDue 20, reaction StartSettlement 20
+      Aspire AppHost version: 13.6.5+b33d222049f1ecc3bc7257ec07b622fe550b2580
+      Distributed application started. Press Ctrl+C to shut down.

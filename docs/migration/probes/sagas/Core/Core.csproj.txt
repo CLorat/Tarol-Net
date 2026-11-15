@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Prototype of Tarol.Sagas (step 9 design): the reaction attribute and reaction sets (what the generator emits per
+       assembly, composed across assemblies, S-3), the outbox port with both dead-letter candidates (DL-A column, DL-B table),
+       the worker with the C-9 delivery policy, poll or LISTEN/NOTIFY, the in-memory outbox, tracing links. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><IsAotCompatible>true</IsAotCompatible>
+    <RootNamespace>Tarol.Sagas</RootNamespace><AssemblyName>Probe.Sagas.Core</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+  </ItemGroup>
+</Project>
