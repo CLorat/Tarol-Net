@@ -217,3 +217,35 @@ ALL CHECKS PASSED
 postgres: IL warnings 0, 5829992 bytes; postgres: round trip ok
 nats: IL warnings 0, 10879776 bytes; nats: round trip ok
 rabbit: IL warnings 0, 7147224 bytes; rabbitmq: round trip ok
+
+## 6. Startup: process start → transport connected, subscription declared, first message received (median of 5)
+| transport | JIT (Release) | Native AOT |
+|---|---:|---:|
+| postgres | 388 ms | 142 ms |
+| nats | 411 ms | 39 ms |
+| rabbit | 254 ms | 59 ms |
+
+## 7. Latency and throughput: commit of Auction.Settled → published → IssueInvoice committed in billing (JIT, Release)
+# bench: JIT, 4 cores, 10 s at 50/s after a warm-up, backlog 2000; publisher: 2 loops (4 for the backlog), consumer concurrency 4 (8)
+| transport | outbox wake-up | commit → published p50 / p99 | published → committed p50 / p99 | end to end p50 / p99 | backlog: published/s | backlog: consumed/s |
+|---|---|---:|---:|---:|---:|---:|
+| postgres | poll 100 ms | 42.7 / 102.5 ms | 20.3 / 84.6 ms | 67.6 / 129.7 ms | 589 | 589 |
+| postgres | NOTIFY | 5.3 / 8.1 ms | 42.0 / 96.9 ms | 47.9 / 101.7 ms | 591 | 591 |
+| postgres+notify | poll 100 ms | 47.5 / 102.1 ms | 4.0 / 7.8 ms | 51.4 / 105.7 ms | 455 | 453 |
+| postgres+notify | NOTIFY | 5.7 / 11.4 ms | 4.0 / 6.9 ms | 9.8 / 18.0 ms | 480 | 480 |
+| nats | poll 100 ms | 48.1 / 102.4 ms | 2.8 / 5.9 ms | 50.8 / 105.8 ms | 722 | 706 |
+| nats | NOTIFY | 5.1 / 8.8 ms | 2.8 / 5.0 ms | 7.9 / 12.4 ms | 710 | 691 |
+| rabbitmq | poll 100 ms | 45.9 / 102.1 ms | 2.6 / 5.9 ms | 48.7 / 105.4 ms | 591 | 591 |
+| rabbitmq | NOTIFY | 5.8 / 8.8 ms | 2.5 / 4.8 ms | 8.4 / 12.2 ms | 591 | 591 |
+### the same, Native AOT
+# bench: Native AOT, 4 cores, 10 s at 50/s after a warm-up, backlog 2000; publisher: 2 loops (4 for the backlog), consumer concurrency 4 (8)
+| transport | outbox wake-up | commit → published p50 / p99 | published → committed p50 / p99 | end to end p50 / p99 | backlog: published/s | backlog: consumed/s |
+|---|---|---:|---:|---:|---:|---:|
+| postgres | poll 100 ms | 47.2 / 101.5 ms | 14.9 / 58.6 ms | 66.7 / 138.1 ms | 575 | 571 |
+| postgres | NOTIFY | 5.6 / 9.8 ms | 38.1 / 94.0 ms | 44.7 / 99.1 ms | 615 | 611 |
+| postgres+notify | poll 100 ms | 47.8 / 100.8 ms | 4.3 / 9.0 ms | 51.9 / 106.8 ms | 471 | 471 |
+| postgres+notify | NOTIFY | 5.8 / 17.6 ms | 3.9 / 7.4 ms | 9.8 / 22.3 ms | 476 | 474 |
+| nats | poll 100 ms | 45.9 / 100.8 ms | 2.8 / 6.1 ms | 49.2 / 103.8 ms | 730 | 714 |
+| nats | NOTIFY | 5.0 / 8.6 ms | 2.7 / 4.8 ms | 7.7 / 11.9 ms | 723 | 703 |
+| rabbitmq | poll 100 ms | 47.5 / 102.2 ms | 2.8 / 6.1 ms | 50.5 / 106.1 ms | 601 | 601 |
+| rabbitmq | NOTIFY | 6.1 / 9.7 ms | 2.8 / 5.0 ms | 8.9 / 14.0 ms | 590 | 590 |
