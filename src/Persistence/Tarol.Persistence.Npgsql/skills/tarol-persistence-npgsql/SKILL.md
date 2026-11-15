@@ -4,7 +4,7 @@ description: >-
   Use when storing Tarol aggregates in PostgreSQL, wiring NpgsqlAggregateStore, creating its schema, reading the global
   event feed for a projection, rebuilding stored states after a model change, purging idempotency keys, or testing
   against a real database. Covers NpgsqlAggregateStore, NpgsqlStoreOptions, NpgsqlSchema, EnsureSchema, ReadAll,
-  RebuildStates, PurgeKeys and the tables. Do not add an ORM, do not write your own SQL for appends or loads, do not
+  RebuildStates, PurgeKeys, the outbox (Reactions, ReactionTable, Outbox.Claim/Complete/Fail, OutboxRow) and the tables. Do not add an ORM, do not write your own SQL for appends or loads, do not
   page the events table by position, do not decompile or web-search.
 ---
 # Tarol.Persistence.Npgsql
@@ -25,7 +25,11 @@ description: >-
    The feed waits for every older transaction: keep transactions short, set `idle_in_transaction_session_timeout`.
 7. **Model changed?** Loads replay old states automatically; `RebuildStates<T>(ct)` rewrites them ahead of time.
 8. **Keys**: call `PurgeKeys(now - window, batch, ct)` periodically (default window 7 days) until it returns less than `batch`.
-9. **Query** the state with SQL on `tarol.streams` (`state->>'lot'`), always with `tenant = …` and `type = '<StreamType>'`.
+9. **Outbox**: set `NpgsqlStoreOptions.Reactions` (a `ReactionTable` returning spans over static arrays); a worker
+   loops `Outbox.Claim(max, lease, ct)` → run the reaction for `row.Event` → `Outbox.Complete(row, ct)`, or
+   `Outbox.Fail(row, retryAt, error, ct)`. Claims are exclusive and per (stream, reaction) in version order. Make the
+   reaction idempotent with the key (reaction, event id): a lease can expire and the row run twice.
+10. **Query** the state with SQL on `tarol.streams` (`state->>'lot'`), always with `tenant = …` and `type = '<StreamType>'`.
 
 ## Example
 
@@ -66,6 +70,9 @@ _ = await store.PurgeKeys(TimeProvider.System.GetUtcNow() - TimeSpan.FromDays(7)
 | `SELECT … FROM tarol.events WHERE position > @last` in a projection | skips late commits; use `ReadAll` and `GlobalPosition` |
 | a projection that never sees new events | an idle transaction holds the feed back (`pg_stat_activity`, `state = 'idle in transaction'`) |
 | catching the exception of an unknown alias | data is hidden; pin the alias with `[EventType]` or add an `IEventUpcaster` |
+| `e => e is Bid.Placed ? ["Notify"] : []` as the `ReactionTable` | CS9203: return spans over `static readonly string[]` |
+| one reaction listed twice for an event | `InvalidOperationException` (unique (reaction, event_id)); nothing is committed |
+| completing a row after its lease expired | `Complete` returns `false`: another worker owns it now |
 | deleting rows of `tarol.events` | the stream no longer replays; events are append-only |
 
 ## AOT

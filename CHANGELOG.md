@@ -82,6 +82,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `PurgeKeys`, `RebuildStates<T>`, the (transaction, position) feed, `NpgsqlSchema.Script` and `EnsureSchema`;
   integration tests on Testcontainers PostgreSQL and the CI `integration` job; agent skill `tarol-persistence-npgsql`.
 
+* Persistence step 8C: `ReactionTable` (`Tarol.Persistence`); outbox rows per (event, reaction) in the commit
+  (`NpgsqlStoreOptions.Reactions`) and `NpgsqlAggregateStore.Outbox` (`Claim` with `FOR UPDATE SKIP LOCKED`, the event,
+  a lease and a claim id; `Complete`, `Fail`, `Pending`); one stream's rows reach a reaction in version order.
+
 ### Changed
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and

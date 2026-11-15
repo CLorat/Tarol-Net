@@ -80,6 +80,24 @@ public static partial class NpgsqlSchema
                 PRIMARY KEY (tenant, scope, key));
             CREATE INDEX IF NOT EXISTS idempotency_keys_stored_at ON {s}.idempotency_keys (stored_at);
 
+            -- one row per (event, reaction), written in the event's commit; deleted when the reaction completed
+            CREATE TABLE IF NOT EXISTS {s}.outbox (
+                id           bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                tenant       uuid        NOT NULL,
+                reaction     text        NOT NULL,
+                type         text        NOT NULL,
+                stream_id    uuid        NOT NULL,
+                version      bigint      NOT NULL,
+                event_id     uuid        NOT NULL,
+                due_at       timestamptz NOT NULL,
+                attempts     integer     NOT NULL DEFAULT 0,
+                claim_id     uuid        NULL,             -- the current claim; Complete and Fail must present it
+                lease_until  timestamptz NULL,
+                last_error   text        NULL,
+                UNIQUE (reaction, event_id));
+            CREATE INDEX IF NOT EXISTS outbox_due ON {s}.outbox (due_at, id);
+            CREATE INDEX IF NOT EXISTS outbox_stream ON {s}.outbox (tenant, type, stream_id, reaction, id);
+
             CREATE TABLE IF NOT EXISTS {s}.schema_version (version integer NOT NULL);
             INSERT INTO {s}.schema_version SELECT {Version} WHERE NOT EXISTS (SELECT 1 FROM {s}.schema_version);
             """;

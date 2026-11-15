@@ -37,10 +37,14 @@ public sealed class Postgres : IAsyncLifetime
         => new(DataSource, codec ?? Codec(), time, new NpgsqlStoreOptions { Lookups = lookups ?? new StoreLookups() });
 
     /// <summary>A store on a fresh schema of its own, created.</summary>
-    public async Task<NpgsqlAggregateStore> IsolatedStore(TimeProvider time, StoreLookups? lookups = null, EventCodec? codec = null)
+    public async Task<NpgsqlAggregateStore> IsolatedStore(TimeProvider time, StoreLookups? lookups = null, EventCodec? codec = null, ReactionTable? reactions = null)
     {
-        var store = new NpgsqlAggregateStore(DataSource, codec ?? Codec(), time,
-            new NpgsqlStoreOptions { Schema = $"t{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}", Lookups = lookups ?? new StoreLookups() });
+        var store = new NpgsqlAggregateStore(DataSource, codec ?? Codec(), time, new NpgsqlStoreOptions
+        {
+            Schema = $"t{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}",
+            Lookups = lookups ?? new StoreLookups(),
+            Reactions = reactions,
+        });
         await store.EnsureSchema(default);
         return store;
     }

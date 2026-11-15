@@ -33,6 +33,20 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         return events;
     }
 
+    // The feed returns a commit once every older transaction of the cluster has ended (P-14), and other tests hold
+    // transactions open: wait until at least `count` events are final.
+    private static async Task<List<PositionedEvent>> Eventually(NpgsqlAggregateStore feed, int count, GlobalPosition after = default)
+    {
+        var waited = Stopwatch.StartNew();
+        while (true)
+        {
+            var events = await ReadAll(feed, after);
+            if (events.Count >= count || waited.Elapsed > TimeSpan.FromSeconds(30))
+                return events;
+            await Task.Delay(20, Ct);
+        }
+    }
+
     private static async Task<T> Committed<T>(NpgsqlAggregateStore store, T aggregate, OperationContext context, long expected = 0)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
@@ -173,7 +187,7 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         }
         await Committed(store, Tally.Start(Id<Tally>.New(_time)), Context(Option.None, "bob"));
 
-        var events = await ReadAll(store);
+        var events = await Eventually(store, 3);
 
         events.Count.ShouldBe(3);
         events.Select(e => e.Position).ShouldBeInOrder();
@@ -211,10 +225,10 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         await Sql(newer, "COMMIT");
         (await ReadAll(store)).ShouldBeEmpty();   // not final while the older one runs
         await Sql(older, "COMMIT");
-        (await ReadAll(store)).Count.ShouldBe(2);
+        (await Eventually(store, 2)).Count.ShouldBe(2);
 
         // an older transaction id with a later position: returned first, then the late commit is still found
-        var first = await ReadAll(store);
+        var first = await Eventually(store, 2);
         await Sql(newer, "BEGIN");
         await Sql(newer, "SELECT pg_current_xact_id()");
         await Sql(older, "BEGIN");
@@ -222,10 +236,10 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         await Sql(older, Row(Guid.NewGuid()));
         await Sql(newer, Row(Guid.NewGuid()));
         await Sql(newer, "COMMIT");
-        var page = await ReadAll(store, first[^1].Position);
+        var page = await Eventually(store, 1, first[^1].Position);
         page.Count.ShouldBe(1);
         await Sql(older, "COMMIT");
-        var late = await ReadAll(store, page[0].Position);
+        var late = await Eventually(store, 1, page[0].Position);
         late.Count.ShouldBe(1);
         late[0].Position.Position.ShouldBeLessThan(page[0].Position.Position);   // a position-only checkpoint would have lost it
     }
@@ -254,8 +268,16 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         }
         await writing.CancelAsync();
         await Task.WhenAll(writers);
-        while ((await ReadAll(store, after, limit: 7)) is { Count: > 0 } rest)
+        var total = Convert.ToInt32(await postgres.Scalar($"SELECT count(*) FROM {store.Schema}.events"), System.Globalization.CultureInfo.InvariantCulture);
+        var waited = Stopwatch.StartNew();
+        while (seen.Count < total && waited.Elapsed < TimeSpan.FromSeconds(30))
         {
+            var rest = await ReadAll(store, after, limit: 7);
+            if (rest.Count == 0)
+            {
+                await Task.Delay(20, Ct);   // the tail is final once older transactions elsewhere end
+                continue;
+            }
             seen.AddRange(rest);
             after = rest[^1].Position;
         }
