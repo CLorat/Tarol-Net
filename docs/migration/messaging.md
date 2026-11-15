@@ -698,3 +698,77 @@ alone **10 times in a row in Release, 36 of 36 each** (before the skill test was
 **15 apps** (14 + `Tarol.Messaging.Npgsql.AotSmoke`), 0 IL warnings each, all checks passed; `dotnet pack -c Release` +
 `eng/verify-packages.sh`: OK (`Tarol.Messaging.Npgsql` contains `lib/`, README, LICENSE and
 `skills/tarol-messaging-npgsql/SKILL.md`; its package consumer runs and lists the skill).
+
+## 18. Implementation: PR 11D (2026-11-15)
+
+`messaging: NATS JetStream and RabbitMQ transports, the two-system sample`: the new packages `Tarol.Messaging.Nats`
+(NATS.Net 3.3.2) and `Tarol.Messaging.RabbitMq` (RabbitMQ.Client 7.2.2), and billing as a second system in
+`samples/Sagas` (M-15).
+
+### 18.1 Public API
+
+| Type | Package | Role |
+|---|---|---|
+| `NatsTransport` (`IMessageTransport`, `IAsyncDisposable`) | Tarol.Messaging.Nats | `Prepare`, `Publish`, `Consume`, `StreamOf`, `Duplicates` |
+| `NatsTransportOptions` | Tarol.Messaging.Nats | `Url`, `Username`, `Password`, `Prefix`, `DuplicateWindow` (2 min), `PublishTimeout` (5 s), `ClientName` |
+| `NatsMessagingBuilderExtensions` | Tarol.Messaging.Nats | `UseNats(url)`, `UseNats(options)` |
+| `RabbitMqTransport` (`IMessageTransport`, `IAsyncDisposable`) | Tarol.Messaging.RabbitMq | `Prepare`, `Publish`, `Consume`, `ExchangeOf`, `QueueOf`, `Unroutable` |
+| `RabbitMqTransportOptions` | Tarol.Messaging.RabbitMq | `Uri`, `Prefix`, `StampUserId` (true), `ClientName` |
+| `RabbitMqMessagingBuilderExtensions` | Tarol.Messaging.RabbitMq | `UseRabbitMq(uri)`, `UseRabbitMq(options)` |
+
+### 18.2 Deliberate differences from §6, §7 and §11
+
+* **`Prefix`** on both transports: a namespace in front of subjects, streams and durable consumers (NATS) or exchanges and
+  queues (RabbitMQ). The contract suite runs every test in a namespace of its own on one broker; environments that share a
+  broker use it the same way.
+* **NATS: a subscription reads one stream.** A consumer whose contracts span two sources is refused at `Prepare`
+  (`ArgumentException`); the probe took the first topic's stream silently.
+* **NATS: a publish without an acknowledgement** (no stream, or a forbidden subject) is a `TimeoutException` with a hint;
+  the connection's `-ERR Permissions Violation` is logged (11201). `PublishTimeout` defaults to 5 s.
+* **RabbitMQ: `StampUserId`** (default true) sets `user_id` to the connection's user, which the broker validates, so
+  `Incoming.AuthenticatedAs` is the publishing user: name each system's user like its prefix. With one shared user (the
+  sample's Aspire broker) it is turned off.
+* **RabbitMQ: another system's exchange** is declared actively when the user may configure it, otherwise passively (it must
+  exist: its publisher declares it; until then `Prepare` fails with 404 and the host retries). The probe declared every
+  exchange actively, which per-user permissions refuse.
+* **RabbitMQ: a broken consumer channel** ends `Consume` with an exception (the host consumes again after its delay); a
+  failed acknowledgement is logged (11302) and the broker delivers again.
+* **The sample's billing pays in a reaction** (`PayInvoice`), not with a stand-in provider that runs a change and ignores its
+  result: the probe's loop lost one payment that way (§5 item 12, C-7). The README states the rule.
+* **`Auction.Settled` carries the buyer and the price** in the sample (the publication maps them); an auction without a bid
+  publishes nothing (the mapping returns `null`).
+
+### 18.3 Changes against steps 7–10
+
+None in the packages. The CI `integration` job runs both new integration projects; the `aot-smoke` job gets RabbitMQ as a
+service and NATS with JetStream as a container (`TAROL_NATS`, `TAROL_RABBITMQ`). `samples/Sagas`: `Billing/`,
+`Worker/Messaging.cs`, `Shared/Broker.cs`; the AppHost adds NATS (or RabbitMQ), `billingdb` and billing; `apphost.sh` checks
+the loop.
+
+### 18.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Messaging.Nats.IntegrationTests` | 18 | the transport contract (14) on `nats:2.11 -js`, a prefix per test; subject permissions (`tests/…/Nats.cs`, the probe's `nats.conf`): billing refused on `artflow.*` with a `TimeoutException` and a logged permission error, accepted on its own prefix; v1 + v2 of one event are two messages and a republish a counted duplicate; one stream per subscription; the skill example verbatim |
+| `Tarol.Messaging.RabbitMq.IntegrationTests` | 18 | the transport contract (14) on `rabbitmq:4-management` (a failed first boot is retried with a fresh container), a prefix per test; the probe's users and permissions: billing refused on exchange `artflow` (`ACCESS_REFUSED`), its publish channel recovers, a forged `user_id` refused (`PRECONDITION_FAILED`), a consumer of artflow's exchange declares it passively and sees `AuthenticatedAs = artflow`; an unroutable message is counted as delivered; the skill example verbatim |
+| `Tarol.Messaging.Nats.AotSmoke` | 5 checks | names, options; with `TAROL_NATS` a duplicate, a retry after a delay, the envelope; Native AOT 0 IL warnings |
+| `Tarol.Messaging.RabbitMq.AotSmoke` | 5 checks | names, options; with `TAROL_RABBITMQ` an unroutable publish, a retry after a delay, the envelope; Native AOT 0 IL warnings |
+| `Tarol.Messaging.Nats.PackageTests`, `Tarol.Messaging.RabbitMq.PackageTests` | 1 each | the packed packages register and resolve |
+| `samples/Sagas` | `apphost.sh` | ArtFlow → billing → ArtFlow, 5 of 5, JIT with NATS, JIT with RabbitMQ, Native AOT with NATS (README) |
+
+### 18.5 Skill evaluation checklist (`tarol-messaging-nats`, `tarol-messaging-rabbitmq`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| connect two systems over NATS | `UseNats(new NatsTransportOptions { Url, Username, Password })`, one user per system with publish on `<prefix>.>` | `EnsureSuccess()` on an ack; `Nats-Msg-Id` = event id; one consumer over two sources |
+| connect two systems over RabbitMQ | `UseRabbitMq(uri)` with a user named like the prefix; write only on its exchange | one shared user with `StampUserId = true`; a delayed-message plugin |
+| a publish to NATS times out | check the user's subject permissions (log 11201) | raising the timeout |
+| the sample with RabbitMQ | `ARTFLOW_BROKER=rabbitmq` | a database and a project of the same name in the AppHost |
+
+### 18.6 Suppressions and analyzer configuration
+
+None.
+
+### 18.7 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
+
+VERIFICATION_11D
