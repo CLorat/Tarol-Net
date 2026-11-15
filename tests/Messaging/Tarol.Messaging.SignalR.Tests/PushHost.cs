@@ -146,13 +146,15 @@ public sealed class Inbox
     }
 }
 
-/// <summary>Authenticates by headers: X-User (sub), X-Tenant (tenant), X-Roles (comma-separated). No X-User: not authenticated.</summary>
+/// <summary>Authenticates by headers: X-User (sub; or a bearer token as the user), X-Tenant (tenant), X-Roles (comma-separated). Neither: not authenticated.</summary>
 public sealed class HeaderAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (Request.Headers["X-User"].ToString() is not { Length: > 0 } user)
+        var bearer = Request.Headers.Authorization.ToString() is { Length: > 7 } header && header.StartsWith("Bearer ", StringComparison.Ordinal) ? header[7..]
+            : Request.Query["access_token"].ToString();
+        if ((Request.Headers["X-User"].ToString() is { Length: > 0 } named ? named : bearer) is not { Length: > 0 } user)
             return Task.FromResult(AuthenticateResult.NoResult());
         var claims = new List<Claim> { new("sub", user), new(ClaimTypes.NameIdentifier, user) };
         if (Request.Headers["X-Tenant"].ToString() is { Length: > 0 } tenant)
