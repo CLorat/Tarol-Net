@@ -92,6 +92,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   assembly, diagnostics TCHG006–TCHG008. Validations: TVAL006 no longer fires inside a static entry factory of an
   `IValidatable` change (C-13). Design: docs/architecture/sagas.md, docs/migration/sagas.md §16.
 
+* Persistence step 9B: the outbox port `IOutbox` (`Claim`, `Complete`, `Retry`, `Bury`, `DeadLetters`, `Redrive`,
+  `Pending`, `WaitForRows`) on both stores, `IOutboxReactions` (implemented by `ReactionSet`), `DeadLetter`; the
+  in-memory store writes outbox rows; the Npgsql claim uses a maintained `head` flag (constant cost per claim), scheduled
+  reactions run by due time, dead letters move to `outbox_dead`, claims carry the `traceparent`, `Notify` is opt-in.
+  Changed: `OutboxRow` moved to `Tarol.Persistence`; `NpgsqlStoreOptions.Reactions` takes `IOutboxReactions`;
+  `NpgsqlOutbox.Fail` is `Retry`. Design: docs/migration/sagas.md §17.
+
 ### Changed
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and
