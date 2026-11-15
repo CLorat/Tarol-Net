@@ -6,9 +6,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Tarol.Messaging.Generators;
 
 /// <summary>
-///     Generates the consumers of an assembly (docs/architecture/messaging.md §3): for every <c>[Consumes]</c> factory a
-///     case of the switch in <c>GeneratedConsumers.Set</c>. Diagnostics TMSG001–TMSG003, TMSG006, TMSG007. Models are
-///     symbol-free; a body edit or an unrelated file regenerates nothing.
+///     Generates the consumers and publications of an assembly (docs/architecture/messaging.md §3, §4): for every
+///     <c>[Consumes]</c> factory a case of the switch in <c>GeneratedConsumers.Set</c>; for every <c>[Publishes&lt;T&gt;]</c>
+///     method a row of <c>GeneratedPublications.Set</c>. Diagnostics TMSG001–TMSG007. Models are symbol-free; a body edit or
+///     an unrelated file regenerates nothing.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class ConsumerGenerator : IIncrementalGenerator
@@ -32,6 +33,36 @@ public sealed class ConsumerGenerator : IIncrementalGenerator
             .WithTrackingName("JsonTypes");
 
         var assembly = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
+
+        var publications = context.SyntaxProvider
+            .ForAttributeWithMetadataName(Discovery.PublishesAttribute, static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, ct) => Discovery.Publications(ctx, ct))
+            .SelectMany(static (results, _) => results)
+            .WithTrackingName("Publications");
+        context.RegisterSourceOutput(publications.Where(static r => r.Diagnostic is not null), static (spc, r) => spc.ReportDiagnostic(r.Diagnostic!.ToDiagnostic()));
+        var publicationModels = publications.Where(static r => r.Model is not null).Select(static (r, _) => r.Model!).Collect();
+
+        context.RegisterSourceOutput(publicationModels.Combine(json).Combine(assembly), static (spc, all) =>
+        {
+            var ((models, jsonTypes), name) = all;
+            if (models.IsEmpty)
+                return;
+            if (!jsonTypes.IsEmpty)
+            {
+                var listed = jsonTypes.ToImmutableHashSet();
+                foreach (var model in models.Where(p => !listed.Contains(p.Record)))
+                    spc.ReportDiagnostic(DiagnosticInfo.Create(Diagnostics.NoJson, model.Location, model.Record.Replace("global::", ""), model.Contract,
+                        model.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToDiagnostic());
+            }
+            if (Discovery.TwoPrefixes(models) is { } prefixes)
+                spc.ReportDiagnostic(prefixes.ToDiagnostic());
+            var collisions = Discovery.PublicationCollisions(models).ToArray();
+            foreach (var diagnostic in collisions)
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
+            if (collisions.Length > 0)
+                return;
+            spc.AddSource("GeneratedPublications.g.cs", Emitter.Publications(models, name));
+        });
 
         context.RegisterSourceOutput(models.Combine(json).Combine(assembly), static (spc, all) =>
         {

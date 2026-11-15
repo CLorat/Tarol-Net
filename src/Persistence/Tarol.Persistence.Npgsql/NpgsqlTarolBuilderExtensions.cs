@@ -40,7 +40,7 @@ public static class NpgsqlTarolBuilderExtensions
             var configured = options ?? new NpgsqlStoreOptions();
             return new NpgsqlAggregateStore(dataSource(provider), builder.Codec, provider.GetRequiredService<TimeProvider>(), configured with
             {
-                Reactions = configured.Reactions ?? builder.Reactions,
+                Reactions = configured.Reactions ?? builder.OutboxTable,
                 StateOptions = configured.StateOptions ?? builder.Json,
             });
         }, static store => store.Outbox);

@@ -10,6 +10,7 @@ namespace Tarol.Messaging.Generators;
 internal static class Discovery
 {
     public const string ConsumesAttribute = "Tarol.Messaging.ConsumesAttribute";
+    public const string PublishesAttribute = "Tarol.Messaging.PublishesAttribute`1";
     public const string JsonSerializableAttribute = "System.Text.Json.Serialization.JsonSerializableAttribute";
 
     private static readonly SymbolDisplayFormat Fq = SymbolDisplayFormat.FullyQualifiedFormat;
@@ -31,7 +32,8 @@ internal static class Discovery
 
             if (ContractProblem(contract, version) is { } badContract)
             {
-                results.Add(new ConsumerResult(null, DiagnosticInfo.Create(Diagnostics.BadContract, location, contract, versionText, method.Name, badContract)));
+                results.Add(new ConsumerResult(null, DiagnosticInfo.Create(Diagnostics.BadContract, location, $"[Consumes(\"{contract}\", {versionText})]",
+                    method.Name, badContract)));
                 continue;
             }
             string? why = null;
@@ -53,6 +55,82 @@ internal static class Discovery
                     method.Name, method.Parameters.Length == 2, location), null));
         }
         return results.ToImmutable();
+    }
+
+    public static ImmutableArray<PublicationResult> Publications(GeneratorAttributeSyntaxContext context, CancellationToken ct)
+    {
+        var method = (IMethodSymbol)context.TargetSymbol;
+        var location = LocationInfo.From(method.Locations.FirstOrDefault() ?? Location.None);
+        var results = ImmutableArray.CreateBuilder<PublicationResult>();
+        foreach (var attribute in context.Attributes)
+        {
+            ct.ThrowIfCancellationRequested();
+            var domainEvent = attribute.AttributeClass?.TypeArguments.FirstOrDefault() as INamedTypeSymbol;
+            var contract = attribute.ConstructorArguments.Length > 0 ? attribute.ConstructorArguments[0].Value as string ?? "" : "";
+            var version = attribute.ConstructorArguments.Length > 1 && attribute.ConstructorArguments[1].Value is int v ? v : 0;
+            var versionText = version.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var eventName = domainEvent?.Name ?? "?";
+            if (ContractProblem(contract, version) is { } badContract)
+            {
+                results.Add(new PublicationResult(null, DiagnosticInfo.Create(Diagnostics.BadContract, location,
+                    $"[Publishes<{eventName}>(\"{contract}\", {versionText})]", method.Name, badContract)));
+                continue;
+            }
+            string? why = null;
+            if (domainEvent is null)
+                why = "the event type is not known";
+            else if (!method.IsStatic || method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) || method.IsGenericMethod
+                     || method.Parameters.Length is < 1 or > 2 || Hidden(method.ContainingType))
+                why = "the publication is a public or internal static method of a visible type, taking the event, or the event and the RecordedEvent";
+            else if (!SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, domainEvent))
+                why = $"the first parameter is the event, {domainEvent.Name}";
+            else if (method.Parameters.Length == 2 && method.Parameters[1].Type.ToDisplayString() != "Tarol.Primitives.RecordedEvent")
+                why = "the second parameter is the RecordedEvent (Tarol.Primitives.RecordedEvent)";
+            else if (method.ReturnsVoid || method.ReturnType is not INamedTypeSymbol { TypeKind: TypeKind.Class } returned || returned.SpecialType == SpecialType.System_String
+                     || returned.IsAbstract || returned.IsGenericType && returned.ToDisplayString().StartsWith("System.Threading.Tasks.", StringComparison.Ordinal))
+                why = "the publication returns the contract record, a class (null publishes nothing)";
+            if (why is not null)
+            {
+                results.Add(new PublicationResult(null, DiagnosticInfo.Create(Diagnostics.BadPublication, location, eventName, contract, versionText, method.Name, why)));
+                continue;
+            }
+            var bases = ImmutableArray.CreateBuilder<string>();
+            for (var b = domainEvent!.BaseType; b is not null && b.SpecialType != SpecialType.System_Object; b = b.BaseType)
+                bases.Add(b.ToDisplayString(Fq));
+            var record = method.ReturnType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(Fq);
+            results.Add(new PublicationResult(new PublicationModel(contract, version, domainEvent.ToDisplayString(Fq), new EquatableArray<string>(bases.ToImmutable()),
+                record, method.ContainingType.ToDisplayString(Fq), method.Name, method.Parameters.Length == 2, location), null));
+        }
+        return results.ToImmutable();
+    }
+
+    public static IEnumerable<DiagnosticInfo> PublicationCollisions(ImmutableArray<PublicationModel> publications)
+    {
+        foreach (var group in publications.GroupBy(p => (p.Contract, p.Version)).Where(g => g.Count() > 1))
+        {
+            var all = group.OrderBy(p => p.Type, StringComparer.Ordinal).ThenBy(p => p.Method, StringComparer.Ordinal).ToArray();
+            yield return DiagnosticInfo.Create(Diagnostics.PublicationCollision, all[1].Location,
+                $"{group.Key.Contract} v{group.Key.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)} is published by two methods, '{Simple(all[0].Type)}.{all[0].Method}' and '{Simple(all[1].Type)}.{all[1].Method}'; one publication per contract version");
+        }
+    }
+
+    public static DiagnosticInfo? TwoPrefixes(ImmutableArray<PublicationModel> publications)
+    {
+        var prefixes = publications.Select(p => p.Contract.Substring(0, p.Contract.IndexOf('.'))).Distinct().OrderBy(p => p, StringComparer.Ordinal).ToArray();
+        if (prefixes.Length < 2)
+            return null;
+        var first = publications.OrderBy(p => p.Contract, StringComparer.Ordinal).ThenBy(p => p.Version)
+            .First(p => p.Contract.StartsWith(prefixes[1] + ".", StringComparison.Ordinal));
+        return DiagnosticInfo.AsWarning(Diagnostics.PublicationCollision, first.Location,
+            $"This assembly publishes under {prefixes.Length} system prefixes ({string.Join(", ", prefixes)}); a system publishes under its own prefix, which consumers trust as the source");
+    }
+
+    private static bool Hidden(INamedTypeSymbol type)
+    {
+        for (var t = type; t is not null; t = t.ContainingType)
+            if (t.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal) || t.IsGenericType)
+                return true;
+        return false;
     }
 
     /// <summary>The types a JsonSerializerContext of this compilation lists.</summary>

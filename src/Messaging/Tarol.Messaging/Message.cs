@@ -1,6 +1,7 @@
 using System.Globalization;
 using Tarol.Kernel;
 using Tarol.Options;
+using Tarol.Primitives;
 using Tarol.StronglyTypedId;
 
 namespace Tarol.Messaging;
@@ -142,6 +143,45 @@ public sealed record Message
             Causation = causation,
             Actor = header(MessageHeaders.Actor),
             Traceparent = header(MessageHeaders.Traceparent),
+            Data = data,
+        };
+    }
+
+    /// <summary>
+    /// The message of a committed event for one publication: id = the event id (the same for every contract version, so a
+    /// consumer of both commits once), source = the contract's prefix, time = when it was recorded, subject = the stream id,
+    /// tenant, correlation and causation of the event's operation, actor <c>Kind:id[:onBehalfOf]</c>.
+    /// </summary>
+    /// <param name="recorded">The committed event.</param>
+    /// <param name="contract">The contract, prefixed by this system.</param>
+    /// <param name="version">The contract version.</param>
+    /// <param name="data">The contract's JSON.</param>
+    /// <param name="traceparent">The publishing activity (W3C), or <see langword="null"/>.</param>
+    /// <returns>The message.</returns>
+    /// <exception cref="ArgumentException">The contract has no system prefix, or the version is below 1.</exception>
+    public static Message Of(RecordedEvent recorded, string contract, int version, ReadOnlyMemory<byte> data, string? traceparent)
+    {
+        ArgumentNullException.ThrowIfNull(recorded);
+        ArgumentNullException.ThrowIfNull(contract);
+        var source = SystemOf(contract);
+        if (source.Length == 0)
+            throw new ArgumentException($"The contract '{contract}' has no system prefix (<system>.<name>).", nameof(contract));
+        ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
+        var context = recorded.Context;
+        var actor = context.Actor;
+        return new Message
+        {
+            Id = recorded.EventId,
+            Source = source,
+            Type = contract,
+            Version = version,
+            Time = recorded.RecordedAt,
+            Subject = recorded.StreamId.ToString("D", CultureInfo.InvariantCulture),
+            Tenant = context.Tenant,
+            Correlation = context.CorrelationId,
+            Causation = context.CausationId,
+            Actor = actor.OnBehalfOf.TryGetValue(out string? behalf) ? $"{actor.Kind}:{actor.Id}:{behalf}" : $"{actor.Kind}:{actor.Id}",
+            Traceparent = traceparent,
             Data = data,
         };
     }

@@ -23,16 +23,30 @@ internal static class Diagnostics
     /// <summary>TMSG003: a contract name or version that is not valid.</summary>
     public static readonly DiagnosticDescriptor BadContract = new(
         "TMSG003", "Contract is not <system>.<name> with a version of 1 or more",
-        "[Consumes(\"{0}\", {1})] on '{2}': {3}",
+        "{0} on '{1}': {2}",
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "A contract is prefixed by the system that owns it (lowercase letters, digits and '-', then a dot), e.g. \"billing.invoice-paid\"; the prefix is the source a consumer trusts. Versions start at 1.");
+
+    /// <summary>TMSG004: a [Publishes&lt;T&gt;] method that cannot map.</summary>
+    public static readonly DiagnosticDescriptor BadPublication = new(
+        "TMSG004", "Publication is not a static mapping method",
+        "[Publishes<{0}>(\"{1}\", {2})] on '{3}': {4}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "[Publishes<TEvent>] goes on a static (public or internal) method that takes the event, or the event and the RecordedEvent, and returns the contract record (a class); null publishes nothing.");
+
+    /// <summary>TMSG005: publications that collide, or an assembly that publishes for two systems.</summary>
+    public static readonly DiagnosticDescriptor PublicationCollision = new(
+        "TMSG005", "Publications collide",
+        "{0}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "One method per (contract, version) in an assembly: it is the outbox row's name. An assembly publishes under its own system's prefix; two prefixes are reported as a warning (the consumers trust a prefix as its source).");
 
     /// <summary>TMSG006: a contract record without JSON metadata.</summary>
     public static readonly DiagnosticDescriptor NoJson = new(
         "TMSG006", "Contract record is not in a JSON context",
-        "'{0}' (the payload of {1} v{2}) is listed in no [JsonSerializable] of this compilation's JsonSerializerContext; the consumer will fail at runtime",
+        "'{0}' (the record of {1} v{2}) is listed in no [JsonSerializable] of this compilation's JsonSerializerContext; it will fail at runtime",
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
-        description: "Consumers read the payload through the application's source-generated JSON context (Native AOT): add [JsonSerializable(typeof(TPayload))] to it. Reported only when the compilation declares a context.");
+        description: "Consumers read and publications write the contract record through the application's source-generated JSON context (Native AOT): add [JsonSerializable(typeof(TPayload))] to it. Reported only when the compilation declares a context.");
 
     /// <summary>TMSG007: consumer names that collide.</summary>
     public static readonly DiagnosticDescriptor Name = new(
@@ -46,6 +60,8 @@ internal static class Diagnostics
         "TMSG001" => BadFactory,
         "TMSG002" => Duplicate,
         "TMSG003" => BadContract,
+        "TMSG004" => BadPublication,
+        "TMSG005" => PublicationCollision,
         "TMSG006" => NoJson,
         _ => Name,
     };
