@@ -1,0 +1,12 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+  <!-- D-15: the AppHost of the reaction worker: a PostgreSQL resource, the worker, the dashboard. Not published with AOT. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>tarol-sagas-sample</UserSecretsId>
+    <AssemblyName>ArtFlow.AppHost</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <ProjectReference Include="../Worker/Worker.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Project>
+  <!-- The sample stands alone (no repository Directory.Build.props): it is not a package and not in Tarol.slnx. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TarolRoot>$(MSBuildThisFileDirectory)../../</TarolRoot>
+  </PropertyGroup>
+</Project>
