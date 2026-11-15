@@ -12,9 +12,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Tarol.Changes;
 using Tarol.Kernel;
 using Tarol.Options;
-using Tarol.Changes;
 using Tarol.StronglyTypedId;
 
 namespace Tarol.Messaging.SignalR.Tests;
