@@ -281,3 +281,52 @@ dashboard resources: [('api', True), ('worker', True)]
 dashboard spans: POST /auctions 1, POST /auctions/{auction}/close 1, reaction MarkPayoutDue 1
 spans with an ActivityLink: reaction MarkPayoutDue 1
       Distributed application started. Press Ctrl+C to shut down.
+
+## 11. A real identity provider: Zitadel (container) on PostgreSQL 17, JIT and Native AOT
+zitadel v4.20.3 ready after 4 s
+provisioned: project artflow, roles seller bidder reader admin dealer service, machine users alice bob rita nora billing 
+# OIDC JIT, store in-memory, issuer http://localhost:8080
+PASS alice (Zitadel roles seller, bidder): create 201; keys from discovery + JWKS (RS256): 201 {"id":"01a1df75-3e03-723d-b1bf-02e2139beb3e","version":1}
+PASS actor = User(<Zitadel user id>) by the app's actor rule: User:399724483734142979
+PASS tenant = the user's organisation (resourceowner claim), mapped to an Id<ITenant> by the claims transformation: Some(0bfc1df2-3bba-8a69-910b-720c792fcda8)
+PASS bob (bidder): bid 204: 204
+PASS bob (seller of other auctions): close alice's 403 Auction.NotSeller (row rule): 403 {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","title":"Auction.NotSeller","status":403,"code":"Auction.NotSeller","traceId":"0HNQ33R5LSBF5:00000003"}
+PASS nora (no project role): create 403: 403
+PASS rita (reader): GET 200; nora (same organisation, no role): 403: 200/403
+PASS machine user with role service: Actor.Service(client_id): 204 Service:billing
+PASS token without this project in aud: 401: 401
+PASS tampered signature: 401: 401
+PASS alice closes her own auction: 204: 204
+ALL PASS
+IL warnings (publish with the OIDC mode): 0
+# OIDC Native AOT, store in-memory, issuer http://localhost:8080
+PASS alice (Zitadel roles seller, bidder): create 201; keys from discovery + JWKS (RS256): 201 {"id":"01a1df75-dd00-7afd-b3f0-593b6ea8e87b","version":1}
+PASS actor = User(<Zitadel user id>) by the app's actor rule: User:399724483734142979
+PASS tenant = the user's organisation (resourceowner claim), mapped to an Id<ITenant> by the claims transformation: Some(0bfc1df2-3bba-8a69-910b-720c792fcda8)
+PASS bob (bidder): bid 204: 204
+PASS bob (seller of other auctions): close alice's 403 Auction.NotSeller (row rule): 403 {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","title":"Auction.NotSeller","status":403,"code":"Auction.NotSeller","traceId":"0HNQ33RHROU9G:00000003"}
+PASS nora (no project role): create 403: 403
+PASS rita (reader): GET 200; nora (same organisation, no role): 403: 200/403
+PASS machine user with role service: Actor.Service(client_id): 204 Service:billing
+PASS token without this project in aud: 401: 401
+PASS tampered signature: 401: 401
+PASS alice closes her own auction: 204: 204
+ALL PASS
+### an access token's claims (alice, machine user; the secret part of the token not shown)
+header: {'alg': 'RS256', 'kid': '399724478164107267', 'typ': 'JWT'}
+payload: {"aud": ["399724483650256899"], "client_id": "alice", "exp": 1794793605, "iat": 1794750405, "iss": "http://localhost:8080", "jti": "V2_399724563140771843-at_399724563140837379", "nbf": 1794750405, "sub": "399724483734142979", "urn:zitadel:iam:org:project:399724483650256899:roles": {"bidder": {"399724476671000579": "zitadel.localhost"}, "seller": {"399724476671000579": "zitadel.localhost"}}, "urn:zitadel:iam:user:resourceowner:id": "399724476671000579", "urn:zitadel:iam:user:resourceowner:name": "ZITADEL", "urn:zitadel:iam:user:resourceowner:primary_domain": "zitadel.localhost"}
+
+## 12. Aspire AppHost with Zitadel: PostgreSQL + zitadel (container) + zitadel-setup + api + worker
+Build succeeded.
+api /health: 200, worker /health: 200
+zitadel resource: ghcr.io/zitadel/zitadel:v4.20.3 zitadel-xzktkjcq; token for alice from http://localhost:8080 (1158 chars)
+POST /auctions: {"id":"01a1df76-2b99-7e17-84e6-6294418c14b0","version":1}
+POST /auctions/{id}/close: 204
+postgres resource: postgres:18.3 pg-ubeqdpjz
+events (stream type: count/with traceparent): auction 2/2, payout 1/1
+payout actor: System Reactions.MarkPayoutDue on behalf of 399724591947186179
+outbox rows left: 0
+dashboard resources: [('api', True), ('worker', True)]
+dashboard spans: POST /auctions 1, POST /auctions/{auction}/close 1, reaction MarkPayoutDue 1
+spans with an ActivityLink: reaction MarkPayoutDue 1
+      Distributed application started. Press Ctrl+C to shut down.

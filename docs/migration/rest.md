@@ -27,6 +27,9 @@ Labels as in the [conventions](../architecture/conventions.md). Old code: `CLora
 * **OpenAPI under AOT works only with the delegate's `MethodInfo` as metadata** **[verified]**; 10B generates complete
   metadata (R-12).
 * **Aspire**: API and worker as two resources of one app, HTTP span → reaction span linked, natively too **[verified]**.
+* **A real IdP** (owner's addition): Zitadel v4.20.3 in a container, standalone and as an AppHost resource; the app validates
+  its RS256 tokens through discovery + JWKS, JIT and natively (0 IL warnings), 11 of 11 checks **[verified]**. It needs two
+  edge hooks (actor rule, tenant mapping) and a claims transformation; R-16 adds `Tarol.Security.Zitadel` as optional sugar.
 * **Plan** (R-15): two PRs, **10A** core changes + `Tarol.Security`, **10B** `Tarol.Changes.AspNetCore` (endpoints,
   reads, OpenAPI, webhooks, sample).
 
@@ -232,6 +235,15 @@ the warm-up was lengthened. One commit per request dominates on Npgsql.
 | as C-12 generates them (`RequestDelegate`, `AcceptsMetadata`, `ProducesResponseTypeMetadata`) | **none** (2 paths: `/health` and the hand-written endpoint) |
 | + `((RequestDelegate)Run_X).Method` | all 16, schemas `CreateAuction`, `PlaceBid`, `AuctionSummary`, …; but no path parameters, `200` instead of `204`, route members in the body schema, no security, `Amount {}`, `Title {}`, `IdOfAuction` without a type |
 
+### 4.6 Zitadel (§11, §12)
+
+| | Result |
+|---|---|
+| container start → ready (`/debug/ready`, first instance) | 3–5 s, then provisioning (setup.py retries the first 503s) |
+| app validating Zitadel tokens: JIT / Native AOT | 11/11 / 11/11 checks; publish with the OIDC mode 0 IL warnings |
+| AppHost: `pg` + `zitadel` + `zitadel-setup` + `api` + `worker` | `api` and `worker` start after the setup completed; create 201, close 204, payout `on behalf of <alice's Zitadel user id>`, linked spans |
+| network | ghcr.io serves its layers from `pkg-containers.githubusercontent.com` (added to the session environment for this probe) |
+
 ### 4.5 Aspire (§9, §10)
 
 AppHost 13.6.5 (one ASPIRE010 warning, as in step 9): a PostgreSQL resource (Aspire's default image, 18.3), `api` (the app in `serve` mode) and `worker`
@@ -262,6 +274,17 @@ the Native AOT binary as both resources (`AddExecutable`).
 11. **A failed member read leaves the reader where STJ stopped**: the probe binder skips after a `JsonException`; 10B reads
     each value on a copy of the reader and skips on the original **[unverified]** (the probe's malformed cases passed).
 12. **Business duplicates** must be successes in the domain (rest.md insight 5) **[verified]**.
+13. **Zitadel's roles are one JSON-object claim** per project (`urn:zitadel:iam:org:project:<id>:roles`), not `role` claims
+    **[verified]**: without a claims transformation the AZ-D role map sees no role.
+14. **Machine users have `sub ≠ client_id`** in Zitadel **[verified]**: the default edge rule ("`client_id` alone →
+    service") records them as users; R-16 adds the actor hook.
+15. **Organisation ids are numeric**, the tenant is an `Id<ITenant>` (a `Guid`) **[verified]**: a tenant mapping hook; taking
+    the tenant from role grants left users without grants tenant-less (404 where 403 was right), the organisation claim
+    (`urn:zitadel:iam:user:resourceowner:id`) is the source.
+16. **No `scope` claim** in Zitadel access tokens **[verified]**: scope-based endpoint policies are IdP-specific; with AZ-D the
+    endpoint policy only authenticates.
+17. **The issuer is the external URL**: under the AppHost Zitadel's port is fixed (`isProxied: false`, 8080) so the issuer,
+    discovery and the tokens agree **[verified]**.
 
 ## 6. Generator and diagnostics (10B; numbers final in the PR)
 
@@ -308,7 +331,8 @@ their own prefix in their own package.
 ## 9. Owner answers (2026-11-15)
 
 Round 1 (scope, before probing): R-1 … R-4. Round 2 (after the first measurements): R-5 … R-8. Round 3: R-5 confirmed
-(AZ-D), R-9, R-10, R-12. Round 4: R-11, R-13 … R-15. Not asked (answered by existing decisions): generated
+(AZ-D), R-9, R-10, R-12. Round 4: R-11, R-13 … R-15. Round 5 (the owner's addition after the PR was opened: "maybe an
+addition for the start: we could use Zitadel in a container for Aspire as testing", probed in §4.6): R-16, R-17. Not asked (answered by existing decisions): generated
 `RequestDelegate`s (C-12), context as a parameter and fail closed (C-11), authorization as ASP.NET Core handlers and
 cross-tenant 404 (security.md), Conflict retries for webhooks (C-9, S-7), no caller-provided correlation (tracing.md
 insight 2), no trace field in the context (kernel decision 2), 409 for a stale `If-Match` (changes.md §6).
@@ -330,6 +354,8 @@ insight 2), no trace field in the context (kernel decision 2), 409 for a stale `
 | R-13 | Packages | **Two**: `Tarol.Security` and `Tarol.Changes.AspNetCore` (+ generator, depends on Security); classification moves from Sagas to Changes; no meta-package |
 | R-14 | Registration | **One builder**: `AddTarol(…)` → `TarolBuilder`, each package adds its part |
 | R-15 | PR split | **Two PRs** (against the recommendation of four): 10A core + `Tarol.Security`, 10B everything web |
+| R-16 | Zitadel's place | **IdP-neutral hooks + the sample AppHost, and an optional `Tarol.Security.Zitadel`** (owner: "1 and additionally 2 as sugar"): `ChangeEndpointOptions.Actor`/`Tenant` hooks in `Tarol.Changes.AspNetCore`; `Tarol.Security.Zitadel` (10B) = the claims transformation + `AddZitadel(…)`; Zitadel container + setup in `samples/Sagas`' AppHost and step 18 |
+| R-17 | Zitadel in CI | **Test key in CI, Zitadel in the AppHost**: endpoint tests use a symmetric key; one OIDC integration class against a Zitadel Testcontainer in the `integration` job |
 
 Consequence of R-15 against the recommendation: 10B is large (generator, runtime, OpenAPI metadata, webhooks, sample).
 It stays one feature ("the HTTP entries") and must build and pass on its own; its commits follow the order of §10 so
@@ -367,8 +393,15 @@ review can go commit by commit.
 3. Tests: `WebApplicationFactory` per row of changes.md §6 and rest.md §3/§8 (both stores for keys and `If-Match`),
    generator snapshots, diagnostics, incrementality; AOT smoke that serves and calls itself (the probe's self-test, 0 IL
    warnings); a new integration project is added to the CI `integration` job.
-4. `samples/Sagas` → API + worker under the AppHost (JIT and native), as in `probes/rest/Aspire`.
-5. README, skill `tarol-endpoints` (§11.2), `docs/changes/README.md` (HTTP section), CHANGELOG, plan status.
+4. `samples/Sagas` → API + worker under the AppHost (JIT and native), as in `probes/rest/Aspire`, with Zitadel as the
+   default identity provider (container, setup resource, `WaitForCompletion`; `probes/rest/Zitadel`) (R-16).
+5. Edge hooks `ChangeEndpointOptions.Actor` and `.Tenant` (R-16); `src/Security/Tarol.Security.Zitadel`: an
+   `IClaimsTransformation` (project roles → `role`, `urn:zitadel:iam:user:resourceowner:id` → tenant via a stable
+   mapping, a configurable service role → `Actor.Service(client_id)`) and `AddZitadel(authority, projectId, …)` that also
+   sets `JwtBearer` (`Authority`, `Audience`, `MapInboundClaims = false`); tests with captured Zitadel token payloads
+   (unit) and one OIDC integration class against a Zitadel Testcontainer (R-17; the CI job needs ghcr.io); README, skill
+   `tarol-zitadel`, AOT smoke.
+6. README, skill `tarol-endpoints` (§11.2), `docs/changes/README.md` (HTTP section), CHANGELOG, plan status.
 
 ## 11. Skill evaluation checklists
 
@@ -398,7 +431,7 @@ review can go commit by commit.
 Docs only (this note, rest.md, updates of security.md, identity-context.md, changes.md, plan.md, the probes). See the PR
 body for `dotnet format --verify-no-changes`, build and tests (with Docker); `output.txt` holds the probe runs: sections 1–6
 from one full run, 7–8 and 9–10 resumed with `ALL_FROM` on the same builds after session worker restarts (the script keeps
-the work directory and appends).
+the work directory and appends), 11–12 (Zitadel) added afterwards with `ALL_FROM=11`.
 
 ## 13. Open items
 

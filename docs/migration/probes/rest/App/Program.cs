@@ -25,12 +25,15 @@ var url = Environment.GetEnvironmentVariable("PROBE_URL") ?? "http://127.0.0.1:5
 builder.WebHost.UseUrls(url);
 var pg = Environment.GetEnvironmentVariable("PROBE_PG") is { Length: > 0 } e ? e : builder.Configuration.GetConnectionString("tarol");
 
+var oidc = Environment.GetEnvironmentVariable("PROBE_OIDC");                 // e.g. http://localhost:8080 (Zitadel)
+var audience = Environment.GetEnvironmentVariable("PROBE_OIDC_AUDIENCE") is { Length: > 0 } aud ? aud
+    : Environment.GetEnvironmentVariable("PROBE_OIDC_AUDIENCE_FILE") is { } file ? File.ReadAllText(file).Trim() : null;
 // ── one registration (question 7) ──────────────────────────────────────────────────────────────────────────────────
 var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>())
     .WithReactions(GeneratedReactions.Set);
 if (pg is null) tarol.UseInMemoryStore(); else tarol.UseNpgsqlStore(pg);
 if (mode == "worker") tarol.AddReactionWorker();
-tarol.AddEndpoints();
+tarol.AddEndpoints(o => { if (oidc is not null) o.Actor = ZitadelClaims.Actor; });
 builder.Services.AddTarolSecurity(roles =>                                   // AZ-D: the app's roles mapped onto changes and reads
 {
     roles.Role("seller").May<CreateAuction>().May<CloseAuction>();
@@ -52,6 +55,15 @@ builder.Services.Configure<WebhookOptions>(o =>
 // ── authentication and coarse policies stay the app's (R-3) ─────────────────────────────────────────────────────────
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
 {
+    if (oidc is not null)
+    {
+        o.Authority = oidc;                                                    // discovery + JWKS (RS256, kid)
+        o.Audience = audience;                                                 // the Zitadel project id
+        o.RequireHttpsMetadata = false;                                        // test container without TLS
+        o.MapInboundClaims = false;
+        o.TokenValidationParameters = new TokenValidationParameters { NameClaimType = "sub", RoleClaimType = "role" };
+        return;
+    }
     o.MapInboundClaims = false;
     o.TokenValidationParameters = new TokenValidationParameters
     {
@@ -59,10 +71,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         NameClaimType = "sub", RoleClaimType = "role",
     };
 });
+if (oidc is not null)
+    builder.Services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, ZitadelClaims>();
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("auctions:read", p => p.RequireAuthenticatedUser())
-    .AddPolicy("auctions:write", p => p.RequireAuthenticatedUser().RequireAssertion(c => Tokens.HasScope(c.User, "auctions:write")))
-    .AddPolicy("auctions:bid", p => p.RequireAuthenticatedUser().RequireAssertion(c => Tokens.HasScope(c.User, "auctions:bid")));
+    // Zitadel's access tokens carry no "scope" claim: with an IdP the role map (AZ-D) decides, the endpoint only authenticates
+    .AddPolicy("auctions:write", p => p.RequireAuthenticatedUser().RequireAssertion(c => oidc is not null || Tokens.HasScope(c.User, "auctions:write")))
+    .AddPolicy("auctions:bid", p => p.RequireAuthenticatedUser().RequireAssertion(c => oidc is not null || Tokens.HasScope(c.User, "auctions:bid")));
 builder.Services.AddOpenApi();
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)              // under the Aspire AppHost
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService(mode == "worker" ? "worker" : "api"))
@@ -89,6 +104,11 @@ app.MapPost("/hand/auctions/{auction}/watch", async (Id<Auction> auction, [FromB
 
 switch (mode)
 {
+    case "oidc-selftest":
+        await app.StartAsync();
+        var oidcFails = await OidcSelfTest.Run(app, url, oidc!, audience!, Environment.GetEnvironmentVariable("PROBE_OIDC_CLIENTS")!);
+        await app.StopAsync();
+        return oidcFails;
     case "selftest":
         await app.StartAsync();
         var fails = await SelfTest.Run(app, url);

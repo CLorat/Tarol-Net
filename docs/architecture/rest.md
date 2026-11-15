@@ -12,7 +12,7 @@ questions.
 
 Labels as in the [conventions](conventions.md): **[verified]** = reproduced in the probe (JIT and Native AOT, in-memory
 and Npgsql store unless a row says otherwise); **[verified by reading]** = read in the named code; **[unverified]** =
-reasoned, not run. Owner decisions R-1 … R-15 are in [migration/rest.md](../migration/rest.md) §9.
+reasoned, not run. Owner decisions R-1 … R-17 are in [migration/rest.md](../migration/rest.md) §9.
 
 **Status: designed** (2026-11-15). Built in two PRs (R-15): **10A** core changes + `Tarol.Security`, **10B**
 `Tarol.Changes.AspNetCore` (endpoints, reads, OpenAPI, webhooks, sample).
@@ -139,8 +139,8 @@ reports `reserve: Required, endsAt: Required`.
 
 | Part | Source | Notes |
 |---|---|---|
-| actor | `sub` → `Actor.User(sub)`; `client_id` (and no other `sub`) → `Actor.Service(client_id)`; else `Anonymous` | claim names in `ChangeEndpointOptions`; no names or e-mails recorded **[verified]** |
-| tenant | a claim (default `tenant`, an `Id<ITenant>`; malformed → 401); a `{tenant}` route value must equal it (else 404); no claim = `Option.None` | no header; webhooks: the sender entry's tenant |
+| actor | `sub` → `Actor.User(sub)`; `client_id` (and no other `sub`) → `Actor.Service(client_id)`; else `Anonymous`; **an app rule** `ChangeEndpointOptions.Actor` replaces it (R-16) | claim names in `ChangeEndpointOptions`; no names or e-mails recorded **[verified]**; an IdP's machine users can have `sub ≠ client_id` (Zitadel), so the default rule records them as users **[verified]** |
+| tenant | a claim (default `tenant`, an `Id<ITenant>`; malformed → 401); **an app mapping** `ChangeEndpointOptions.Tenant` turns another value into an `Id<ITenant>` (R-16); a `{tenant}` route value must equal it (else 404); no claim = `Option.None` | no header; webhooks: the sender entry's tenant; Zitadel organisation ids are numeric **[verified]** |
 | correlation | new per request | a caller's id is not accepted (tracing.md insight 2) **[verified]** |
 | trace | ASP.NET Core continues `traceparent` in `Activity.Current`; the store writes it **only if something listens** to `Microsoft.AspNetCore` (OpenTelemetry) | **[verified]**: no listener → NULL column; with a listener the caller's trace id is stored |
 | time | the pipeline's `TimeProvider` | — |
@@ -228,7 +228,35 @@ app.MapChanges();
 resources of one app: `POST …/close` in the API, `reaction MarkPayoutDue` in the worker with an `ActivityLink`, recorded as
 `System Reactions.MarkPayoutDue on behalf of alice` **[verified]** (JIT projects and the native binary).
 
-## 11. Testing
+## 11. A real identity provider: Zitadel (R-16, R-17) **[verified]**
+
+The test key hides what a real IdP does. The probe runs **Zitadel v4.20.3** in a container on PostgreSQL (standalone, and
+as an Aspire resource on the AppHost's PostgreSQL resource), provisions it through its management API (project
+`artflow`, the app's roles, machine users with client secrets and role grants, JWT access tokens) and lets the same app
+validate its tokens with `JwtBearer` `Authority` (discovery + JWKS, RS256), JIT and Native AOT (0 IL warnings):
+
+| Seen in a real token | Consequence |
+|---|---|
+| roles in **one JSON-object claim** `urn:zitadel:iam:org:project:<projectId>:roles` → `{"seller":{"<orgId>":"<domain>"}}` | an `IClaimsTransformation` turns them into `role` claims, or the AZ-D role map sees nothing |
+| a machine user: `sub` = its user id, `client_id` = its name | the default actor rule says `User`; an app rule (`ChangeEndpointOptions.Actor`, here: role `service` → `Actor.Service(client_id)`) |
+| the organisation `urn:zitadel:iam:user:resourceowner:id` (scope `urn:zitadel:iam:user:resourceowner`), numeric | the tenant mapping (`ChangeEndpointOptions.Tenant`) to an `Id<ITenant>` (probe: a stable version-8 Guid from the id); taking it from the role grants instead left users without grants without a tenant (404 instead of 403) |
+| no `scope` claim in access tokens | scope-based endpoint policies do not carry over; the role map decides, the endpoint policy authenticates |
+| `aud` = the project id (only when the scope `urn:zitadel:iam:org:project:id:<id>:aud` is requested) | `JwtBearer.Audience` = the project id; a token without it → 401 |
+
+Checks **[verified]** (JIT and native): create 201 with keys from discovery, actor `User(<zitadel user id>)`, tenant from
+the organisation, bid 204, another seller's close 403 `Auction.NotSeller`, no role 403 (create and GET), reader GET 200,
+machine user with role `service` → `Actor.Service(billing)`, foreign `aud` 401, tampered signature 401, own close 204.
+Under the AppHost: `zitadel` (container, `/debug/ready` health check, fixed port 8080 because the issuer is
+`http://localhost:8080`), `zitadel-setup` (provisioning), `api` and `worker` `WaitForCompletion(setup)`; the reaction is
+recorded `on behalf of <alice's Zitadel user id>`.
+
+Decided: Tarol ships IdP-neutral hooks (actor rule, tenant mapping) in `Tarol.Changes.AspNetCore`; **`Tarol.Security.Zitadel`**
+(optional sugar, 10B) packages the claims transformation (project roles → `role`, organisation → tenant, a configurable
+service role → `Actor.Service`) behind `AddZitadel(…)`; the Zitadel container and setup live in the sample AppHost and
+step 18's end-to-end tests. CI keeps the symmetric test key for endpoint tests and runs one OIDC integration class against
+a Zitadel Testcontainer (R-17). No package depends on Aspire (D-15).
+
+## 12. Testing
 
 | Level | Tool |
 |---|---|
@@ -238,7 +266,7 @@ resources of one app: `POST …/close` in the API, `reaction MarkPayoutDue` in t
 | generator | snapshots of the binder, a read, a webhook switch; diagnostics; incrementality |
 | native | an AOT smoke app that serves and calls itself over HTTP (the probe's `selftest`) |
 
-## 12. Packages (R-13)
+## 13. Packages (R-13, R-16)
 
 | Package | Contents | Depends on |
 |---|---|---|
@@ -246,7 +274,8 @@ resources of one app: `POST …/close` in the API, `reaction MarkPayoutDue` in t
 | `Tarol.Persistence(.Npgsql)` (10A) | key fingerprint column, `UseInMemoryStore` / `UseNpgsqlStore` | unchanged |
 | `Tarol.Sagas` (10A) | `AddReactionWorker` on the builder; `Classify` forwarded | unchanged |
 | **`Tarol.Security`** (10A) | `ChangeRequirement`, `ChangeHandler<,>`, `ChangeRoles`, `ChangeAuthorization`, `Read<T>`, audit | `Tarol.Changes`, ASP.NET Core framework reference |
-| **`Tarol.Changes.AspNetCore`** (+ generator, 10B) | `[Endpoint]`, `[Webhook]`, `IView<,>`, edge context, binder runtime, problem details (owned here), reads, webhooks, OpenAPI metadata | `Tarol.Security` |
+| **`Tarol.Changes.AspNetCore`** (+ generator, 10B) | `[Endpoint]`, `[Webhook]`, `IView<,>`, edge context (with actor and tenant hooks), binder runtime, problem details (owned here), reads, webhooks, OpenAPI metadata | `Tarol.Security` |
+| **`Tarol.Security.Zitadel`** (10B, optional) | Zitadel claims transformation + `AddZitadel(…)` (sets the hooks) | `Tarol.Changes.AspNetCore` |
 
 No meta-package (D-8 stays at step 17).
 
@@ -261,7 +290,9 @@ No meta-package (D-8 stays at step 17).
 4. **Endpoint names are global**: generated names collide when the same entries are mapped twice (route groups).
 5. **Business duplicates are the domain's job**: delivery ids stop redeliveries, but a provider that sends the same payment
    under a new id is only safe if the behaviour treats it as a success.
-6. **The generated endpoint costs nothing measurable** against a hand-written minimal-API endpoint once both are warm
+6. **A real IdP's token shape is app work, not a Tarol rule**: roles as a JSON-object claim, machine users with their own
+   `sub`, numeric organisations, no `scope` claim; Tarol needs two hooks (actor, tenant), the mapping is IdP-specific.
+7. **The generated endpoint costs nothing measurable** against a hand-written minimal-API endpoint once both are warm
    (Native AOT: equal throughput and p99).
 
 ## Decisions taken (owner, 2026-11-15; migration/rest.md §9)
@@ -269,7 +300,8 @@ No meta-package (D-8 stays at step 17).
 R-1 GET by id in step 10; R-2 core changes allowed; R-3 authentication stays the app's; R-4 OpenAPI probed, then R-12
 complete metadata; R-5 AZ-D (app roles mapped onto changes and reads + row rules); R-6 the principal decides; R-7 B2
 member binder; R-8 view records; R-9 key fingerprint + 422; R-10 unknown version 422; R-11 tenant claim checked against
-the route; R-13 two packages, classification into Changes; R-14 one builder; R-15 two PRs.
+the route; R-13 two packages, classification into Changes; R-14 one builder; R-15 two PRs; R-16 IdP-neutral hooks +
+`Tarol.Security.Zitadel` sugar, Zitadel in the sample AppHost; R-17 test key in CI + one Zitadel integration class.
 
 ## Open questions
 

@@ -27,6 +27,9 @@ public sealed record ChangeEndpointOptions
     public string ClientClaim { get; set; } = "client_id";
     public string TenantClaim { get; set; } = "tenant";
 
+    /// <summary>The app's actor rule (an identity provider's machine users are services); null = the sub/client_id default.</summary>
+    public Func<ClaimsPrincipal, Actor>? Actor { get; set; }
+
     /// <summary>Largest accepted body (bytes) for member binding and webhooks.</summary>
     public int MaxBody { get; set; } = 64 * 1024;
 
@@ -53,12 +56,14 @@ public sealed class ChangeEndpoints(ChangeEndpointOptions options, ChangePipelin
     public (OperationContext Context, ChangeOptions Options, Violation? Bad) Edge(HttpContext http)
     {
         var user = http.User;
-        var actor = Actor.Anonymous;
-        if (user.Identity?.IsAuthenticated == true)
+        var actor = Tarol.Kernel.Actor.Anonymous;
+        if (user.Identity?.IsAuthenticated == true && Options.Actor is { } rule)
+            actor = rule(user);
+        else if (user.Identity?.IsAuthenticated == true)
         {
             var client = user.FindFirst(Options.ClientClaim)?.Value;
             var sub = user.FindFirst(Options.SubjectClaim)?.Value;
-            actor = sub is not null && sub != client ? Actor.User(sub) : client is not null ? Actor.Service(client) : Actor.Anonymous;
+            actor = sub is not null && sub != client ? Tarol.Kernel.Actor.User(sub) : client is not null ? Tarol.Kernel.Actor.Service(client) : Tarol.Kernel.Actor.Anonymous;
         }
         Option<Id<ITenant>> tenant = Option.None;
         if (user.FindFirst(Options.TenantClaim)?.Value is { } t)

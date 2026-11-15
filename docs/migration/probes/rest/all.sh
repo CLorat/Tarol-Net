@@ -87,6 +87,27 @@ if at 10; then
 echo; echo "## 10. Aspire AppHost: the same with the Native AOT app as both resources (AddExecutable)"
 PROBE_APP_NATIVE="$w/c/out/Probe.Rest.App" "$here/Aspire/apphost.sh" "$(dirname "$(find "$w/f/src/Aspire/bin" -name Probe.Rest.AppHost.dll | head -1)")" 2>&1 | clean
 fi
+if at 11; then
+echo; echo "## 11. A real identity provider: Zitadel (container) on PostgreSQL 17, JIT and Native AOT"
+"$here/Zitadel/start.sh" "$w/zt" 2>&1 | clean
+"$here/run.sh" "$w/g" App build > "$w/g.log" 2>&1; grep -E ' error ' "$w/g.log" | clean | sort -u
+oidc() { PROBE_OIDC=http://localhost:8080 PROBE_OIDC_AUDIENCE_FILE="$w/zt/project.txt" PROBE_OIDC_CLIENTS="$w/zt/clients.txt" "$@" oidc-selftest 2>&1 | selftest; }
+(cd "$w/g/src/App" && oidc dotnet run --no-build --)
+"$here/run.sh" "$w/h" App publish -c Release -r linux-x64 -o "$w/h/out" > "$w/h.log" 2>&1
+echo "IL warnings (publish with the OIDC mode): $(grep -cE 'IL[23][0-9]{3}' "$w/h.log")"
+PROBE_RUNTIME="Native AOT" oidc "$w/h/out/Probe.Rest.App"
+echo "### an access token's claims (alice, machine user; the secret part of the token not shown)"
+read -r _ _ cid sec _ < <(grep '^client alice ' "$w/zt/clients.txt"); pid=$(cat "$w/zt/project.txt")
+curl -s -u "$cid:$sec" -d grant_type=client_credentials --data-urlencode "scope=openid urn:zitadel:iam:org:projects:roles urn:zitadel:iam:user:resourceowner urn:zitadel:iam:org:project:id:$pid:aud" http://localhost:8080/oauth/v2/token \
+  | python3 -c 'import base64,json,sys; t=json.load(sys.stdin)["access_token"].split("."); d=lambda s: json.loads(base64.urlsafe_b64decode(s+"="*(-len(s)%4))); print("header:", d(t[0])); print("payload:", json.dumps(d(t[1])))'
+docker rm -f zt ztpg >/dev/null 2>&1
+fi
+if at 12; then
+echo; echo "## 12. Aspire AppHost with Zitadel: PostgreSQL + zitadel (container) + zitadel-setup + api + worker"
+"$here/run.sh" "$w/i" Aspire build > "$w/i.log" 2>&1; grep -E ' error|Build succeeded' "$w/i.log" | clean | sort -u
+mkdir -p "$w/zta"; chmod 777 "$w/zta"
+PROBE_ZITADEL_DIR="$w/zta" PROBE_ZITADEL_SETUP="$here/Zitadel/setup.py" "$here/Aspire/apphost.sh" "$(dirname "$(find "$w/i/src/Aspire/bin" -name Probe.Rest.AppHost.dll | head -1)")" 2>&1 | clean
+fi
 } > "$out.part" 2>&1
 if at 1; then mv "$out.part" "$out"; else cat "$out.part" >> "$out"; rm "$out.part"; fi
 docker rm -f tarol-probe-pg >/dev/null 2>&1
