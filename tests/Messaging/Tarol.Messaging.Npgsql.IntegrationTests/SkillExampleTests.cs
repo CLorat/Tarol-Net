@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Tarol.Changes;
 using Tarol.Messaging.Contract;
+using Tarol.Persistence.Npgsql;
 using Tarol.Sagas;
 
 namespace Tarol.Messaging.Npgsql.IntegrationTests;
