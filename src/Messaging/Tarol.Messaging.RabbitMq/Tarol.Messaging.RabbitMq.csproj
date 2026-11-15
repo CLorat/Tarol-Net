@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>RabbitMQ transport of Tarol.Messaging: one durable topic exchange per source system, one quorum queue per subscription, publisher confirms (an unroutable message is logged and counts as delivered), delayed retries through a retry queue with a per-message TTL, user_id validated by the broker as the authenticated publisher, exchange permissions per user decide who may publish under a prefix. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;messaging;rabbitmq;amqp;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RabbitMQ.Client" />
+    <ProjectReference Include="../Tarol.Messaging/Tarol.Messaging.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
