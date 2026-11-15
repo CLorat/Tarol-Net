@@ -151,7 +151,7 @@ public interface IMessageTransport : IAsyncDisposable
 | forbidden publish | — | `42501` at once | **a timeout** (no ack) | `ACCESS_REFUSED` at once |
 | unroutable publish | dropped | stored, no delivery | stored | returned (`mandatory`) → retried by the publisher |
 | native size (one transport) | — | 5.8 MB | 10.9 MB | 7.1 MB |
-| end to end p50/p99 (outbox NOTIFY) | — | see §7 | 7.7 / 22 ms | 8.9 / 13 ms |
+| end to end p50/p99 (NOTIFY, native) | — | 9.8 / 22.3 ms (bus NOTIFY) | 7.7 / 11.9 ms | 8.9 / 14.0 ms |
 
 All four pass the same 24 scenario checks, JIT and Native AOT, 0 IL warnings **[verified]**. NATS.Net 3.3.2 and
 RabbitMQ.Client 7.2.2 are AOT-clean as used here **[verified]** (publish, not docs).
@@ -159,9 +159,9 @@ RabbitMQ.Client 7.2.2 are AOT-clean as used here **[verified]** (publish, not do
 ## 7. Measurements **[verified]** (4 cores, both systems + PostgreSQL 17 + the broker on one machine; [`output.txt`](../migration/probes/messaging/output.txt) §7)
 
 The outbox wake-up dominates: with the 100 ms poll, commit → published is ~45 ms p50 / ~100 ms p99 on every transport;
-with the outbox's NOTIFY (S-10, opt-in) 5–6 ms. Published → committed in billing: 2.5–3 ms on the brokers, 16–40 ms on
-the PostgreSQL bus with its own 100 ms poll. A backlog of 2,000 drained at 490–700 messages/s end to end. Numbers per
-row in the migration note §4.
+with the outbox's NOTIFY (S-10, opt-in) 5–6 ms. Published → committed in billing: 2.5–3 ms on the brokers, 4 ms on the
+PostgreSQL bus with its NOTIFY, 15–40 ms with its 100 ms poll. A backlog of 2,000 drained at 470–710 messages/s end to end;
+native startup to the first message 39 ms (NATS), 59 ms (RabbitMQ), 142 ms (bus). Numbers per row in the migration note §4.
 
 ## 8. Testing
 

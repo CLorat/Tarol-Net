@@ -249,3 +249,5 @@ rabbit: IL warnings 0, 7147224 bytes; rabbitmq: round trip ok
 | nats | NOTIFY | 5.0 / 8.6 ms | 2.7 / 4.8 ms | 7.7 / 11.9 ms | 723 | 703 |
 | rabbitmq | poll 100 ms | 47.5 / 102.2 ms | 2.8 / 6.1 ms | 50.5 / 106.1 ms | 601 | 601 |
 | rabbitmq | NOTIFY | 6.1 / 9.7 ms | 2.8 / 5.0 ms | 8.9 / 14.0 ms | 590 | 590 |
+
+## 8. Aspire AppHost 13.6.5: PostgreSQL (artflow, billing) + NATS (JetStream) + api + worker + billing (JIT projects)

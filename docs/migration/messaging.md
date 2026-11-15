@@ -24,8 +24,8 @@ the [conventions](../architecture/conventions.md). Source of the old code: `CLor
   permission checks, JIT and Native AOT, 0 IL warnings **[verified]**: in-memory, the PostgreSQL bus
   (`Tarol.Messaging.Npgsql`), NATS JetStream (`Tarol.Messaging.Nats`), RabbitMQ (`Tarol.Messaging.RabbitMq`).
 * **Measured** (4 cores, everything on one machine): end to end commit → published → committed in the other system
-  p50 7.7 ms (NATS) / 8.9 ms (RabbitMQ) with the outbox's NOTIFY, about 50 ms with the 100 ms poll; backlog 490–700
-  messages/s; native size 5.8 MB (PostgreSQL bus) / 7.1 MB (+RabbitMQ.Client) / 10.9 MB (+NATS.Net) **[verified]**.
+  p50/p99 7.7/11.9 ms (NATS), 8.9/14.0 ms (RabbitMQ), 9.8/22.3 ms (PostgreSQL bus) with NOTIFY on both sides, about
+  50 ms p50 with the outbox's 100 ms poll; backlog 470–710 messages/s; native startup to the first message 39–142 ms; native size 5.8 MB (PostgreSQL bus) / 7.1 MB (+RabbitMQ.Client) / 10.9 MB (+NATS.Net) **[verified]**.
 * **Found** (§5): a key scoped by contract makes the second consumer of a contract a silent replay; the broker's dedup id
   is not the message id (JetStream drops v2 of a dual publish); NATS.Net's `EnsureSuccess` treats a duplicate as an
   error; the Kernel's `OnBehalfOf` is System-only; `UPDATE … RETURNING` has no order (a native run handled a stream out of
@@ -219,7 +219,42 @@ only `NATS.Client.JetStream` gives the same size), 7.1 MB (RabbitMQ.Client 7.2.2
 
 ## 4. Measurements **[verified]** ([`output.txt`](probes/messaging/output.txt) §5–§9; 4 cores, SDK 11.0.100, PostgreSQL 17.12, NATS 2.11, RabbitMQ 4.4, all in local Docker; both systems in one process, one clock)
 
-MEASUREMENTS
+### 4.1 Latency and throughput (§7: 50 settlements/s for 10 s after a 2 s warm-up; then a backlog of 2,000 drained by 4 publisher loops and consumer concurrency 8)
+
+Commit of `Auction.Settled` (ArtFlow) → published → `IssueInvoice` committed (billing), Native AOT (JIT within ±1 ms
+except where noted):
+
+| Transport | Outbox wake-up | commit → published p50 / p99 | published → committed p50 / p99 | end to end p50 / p99 | backlog consumed/s |
+|---|---|---:|---:|---:|---:|
+| PostgreSQL bus, poll 100 ms | poll 100 ms | 47.2 / 101.5 ms | 14.9 / 58.6 ms | 66.7 / 138.1 ms | 571 |
+| PostgreSQL bus, poll 100 ms | NOTIFY | 5.6 / 9.8 ms | 38.1 / 94.0 ms | 44.7 / 99.1 ms | 611 |
+| PostgreSQL bus + NOTIFY | poll 100 ms | 47.8 / 100.8 ms | 4.3 / 9.0 ms | 51.9 / 106.8 ms | 471 |
+| PostgreSQL bus + NOTIFY | NOTIFY | 5.8 / 17.6 ms | 3.9 / 7.4 ms | **9.8 / 22.3 ms** | 474 |
+| NATS JetStream | poll 100 ms | 45.9 / 100.8 ms | 2.8 / 6.1 ms | 49.2 / 103.8 ms | 714 |
+| NATS JetStream | NOTIFY | 5.0 / 8.6 ms | 2.7 / 4.8 ms | **7.7 / 11.9 ms** | 703 |
+| RabbitMQ | poll 100 ms | 47.5 / 102.2 ms | 2.8 / 6.1 ms | 50.5 / 106.1 ms | 601 |
+| RabbitMQ | NOTIFY | 6.1 / 9.7 ms | 2.8 / 5.0 ms | **8.9 / 14.0 ms** | 590 |
+
+* The outbox's wake-up dominates: the 100 ms poll costs ~45 ms p50 and ~100 ms p99 on every transport; NOTIFY (S-10,
+  opt-in, it costs writers commits/s) brings commit → published to 5–6 ms.
+* On the brokers, delivery + the consumer's commit take 2.5–3 ms; the bus with its own NOTIFY 4 ms, without it its poll.
+* Throughput is bound by the two systems' commits on one 4-core machine (both stores, the broker and the load generator
+  share it): 470–720 messages/s; NATS highest, the bus with NOTIFY lowest (a NOTIFY per publish serializes commits).
+* The interactive run before the round 2 question (JIT) gave the same picture (NATS 7.7/22.2 ms, RabbitMQ 8.9/12.8 ms,
+  702 and 491 messages/s); the numbers in M-4's question are from it.
+
+### 4.2 Startup: process start → connected, subscription declared, first message received (§6, median of 5)
+
+| Transport | JIT (Release) | Native AOT |
+|---|---:|---:|
+| PostgreSQL bus | 388 ms | 142 ms |
+| NATS JetStream | 411 ms | 39 ms |
+| RabbitMQ | 254 ms | 59 ms |
+
+### 4.3 Native AOT size (§4, §5)
+
+One transport per binary, everything else equal (Tarol + Npgsql + the probe's messaging library): PostgreSQL bus
+5,829,992 bytes; NATS 10,879,776 (+5.0 MB); RabbitMQ 7,147,224 (+1.3 MB). All 0 IL warnings.
 
 ### 4.4 Aspire (§8, §9)
 
