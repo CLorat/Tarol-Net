@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Sagas package (no ProjectReference). Proves that the package works and that the Changes
+    generator (the reaction set) and the Primitives generator flow from its dependencies to a package consumer.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Sagas" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckSagasAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolChangesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Changes.Generators'" />
+      <_TarolPrimitivesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Primitives.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolChangesGenerator)' == '' or '@(_TarolPrimitivesGenerator)' == ''" Text="The Changes / Primitives generators did not flow from Tarol.Sagas' dependencies." />
+    <Message Importance="high" Text="Tarol.Sagas analyzers: @(_TarolChangesGenerator);@(_TarolPrimitivesGenerator)" />
+  </Target>
+</Project>
