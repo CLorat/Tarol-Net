@@ -58,7 +58,8 @@ public sealed class WorkerTests
 
         Activity[] reactions;
         lock (stopped)
-            reactions = [.. stopped.Where(a => a.Source.Name == ReactionWorker.ActivitySourceName)];
+            // the listener is process-wide: other tests' reactions run in parallel, so keep the ones of this request
+            reactions = [.. stopped.Where(a => a.Source.Name == ReactionWorker.ActivitySourceName && a.Links.Any(l => l.Context.TraceId == request))];
         reactions.Length.ShouldBe(2);
         var payout = reactions.Single(a => a.DisplayName == "reaction MarkPayoutDue");
         payout.Kind.ShouldBe(ActivityKind.Consumer);
@@ -164,6 +165,52 @@ public sealed class WorkerTests
         store.Recorded.ShouldContain(e => e.Event.Event is Payout.Due);
     }
 
+    private sealed class RecordsVerdictTokens(IOutbox inner) : IOutbox
+    {
+        public List<bool> Cancellable { get; } = [];
+
+        public Task<IReadOnlyList<OutboxRow>> Claim(int max, TimeSpan lease, CancellationToken cancellationToken) => inner.Claim(max, lease, cancellationToken);
+
+        public Task<bool> Complete(OutboxRow row, CancellationToken cancellationToken)
+        {
+            Cancellable.Add(cancellationToken.CanBeCanceled);
+            return inner.Complete(row, cancellationToken);
+        }
+
+        public Task<bool> Retry(OutboxRow row, DateTimeOffset retryAt, string reason, CancellationToken cancellationToken)
+        {
+            Cancellable.Add(cancellationToken.CanBeCanceled);
+            return inner.Retry(row, retryAt, reason, cancellationToken);
+        }
+
+        public Task<bool> Bury(OutboxRow row, string reason, CancellationToken cancellationToken)
+        {
+            Cancellable.Add(cancellationToken.CanBeCanceled);
+            return inner.Bury(row, reason, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<DeadLetter>> DeadLetters(int max, CancellationToken cancellationToken) => inner.DeadLetters(max, cancellationToken);
+        public Task<bool> Redrive(long id, CancellationToken cancellationToken) => inner.Redrive(id, cancellationToken);
+        public Task<long> Pending(CancellationToken cancellationToken) => inner.Pending(cancellationToken);
+        public Task WaitForRows(TimeSpan timeout, CancellationToken cancellationToken) => inner.WaitForRows(timeout, cancellationToken);
+    }
+
+    [Fact]
+    public async Task A_reaction_that_ran_has_its_verdict_recorded_even_if_shutdown_begins()
+    {
+        // shutdown cancels the loop's token; a reaction that already committed must still be completed, not redelivered
+        var (store, pipeline, alice) = Setup(TimeProvider.System);
+        _ = await Won(store, alice, TimeProvider.System);
+        var outbox = new RecordsVerdictTokens(store.Outbox);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+
+        var attempts = await new ReactionWorker(outbox, GeneratedReactions.Set, pipeline, TimeProvider.System).RunOnce(stop.Token);
+
+        attempts.Count.ShouldBe(2);
+        outbox.Cancellable.ShouldBe([false, false]);                           // Complete got no cancellable token
+        (await store.Outbox.Pending(Ct)).ShouldBe(1);                          // only the 3-day deadline
+    }
+
     [Fact]
     public async Task AddTarolReactions_hosts_the_workers_and_purges_keys()
     {
@@ -186,10 +233,12 @@ public sealed class WorkerTests
         var clock = Stopwatch.StartNew();
         while (await store.Outbox.Pending(Ct) > 1 && clock.Elapsed < TimeSpan.FromSeconds(10))
             await Task.Delay(10, Ct);
+        // ExecuteAsync runs on the thread pool: wait for the purge's first round before stopping the host
+        var olderThan = await purged.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
         await host.StopAsync(Ct);
 
         store.Recorded.ShouldContain(e => e.Event.Event is Payout.Due);
-        (await purged.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct)).ShouldBeLessThan(TimeProvider.System.GetUtcNow().AddDays(-6));
+        olderThan.ShouldBeLessThan(TimeProvider.System.GetUtcNow().AddDays(-6));
         Should.Throw<InvalidOperationException>(() => services.AddTarolReactions(GeneratedReactions.Set));
     }
 }

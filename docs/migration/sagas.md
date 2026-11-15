@@ -657,6 +657,15 @@ Logs (`[LoggerMessage]`): 9001 retry (Warning), 9002 dead letter (Error), 9003 l
    `postgresql` spans beside 40 reaction spans in the dashboard). The sample leaves it out; the guide says so.
 3. A `Drain` round can hold more than the head: when the head is buried, the next row of the stream runs in the same
    drain (a test expected one row per round).
+4. **After the merge, CI found three timing races** that local runs had passed by chance (repeated Release runs then
+   failed 12 of 15 times): the tracing test counted reaction activities of tests running in parallel (the
+   `ActivityListener` is process-wide); the host test could stop the host before `ExecuteAsync`, which `BackgroundService`
+   starts on the thread pool, reached the purge loop; the AOT smoke stopped the host when the reaction had committed but
+   before its row was completed. The last one was also a worker defect: on shutdown it passed the stopping token to
+   `Complete`, so a reaction that had already committed could be cancelled and redelivered after the lease (the key kept
+   the effect single). **Behaviour change**: the verdict (`Complete`/`Retry`/`Bury`) of a reaction that ran is recorded
+   with `CancellationToken.None`. Repeated runs after the fix: unit tests 25/25 (Release), integration 5/5, native
+   smoke 5/5.
 
 ### 18.4 Tests **[verified]**
 

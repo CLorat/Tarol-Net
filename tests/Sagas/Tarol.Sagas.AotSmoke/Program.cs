@@ -56,7 +56,8 @@ else
         var placed = Order.Place(TimeProvider.System.GetUtcNow());
         Check("commit with outbox rows", (await store.Append(placed, 0, context, Option.None, default)).IsSuccess);
         var waited = System.Diagnostics.Stopwatch.StartNew();
-        while (!(await store.Load(placed.Id, context, default)).GetValueOrThrow().Shipped && waited.Elapsed < TimeSpan.FromSeconds(15))
+        // done = the reaction committed and its row was completed (only the scheduled row is left)
+        while (await store.Outbox.Pending(default) > 1 && waited.Elapsed < TimeSpan.FromSeconds(15))
             await Task.Delay(20);
         await host.StopAsync(default);
         Check("hosted worker ran the reaction on PostgreSQL", (await store.Load(placed.Id, context, default)).GetValueOrThrow().Shipped);

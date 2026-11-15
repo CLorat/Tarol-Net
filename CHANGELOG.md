@@ -105,6 +105,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   purge), `AddTarolReactions`, `ReactionTest`; agent skill `tarol-sagas`; integration tests on PostgreSQL; an Aspire
   AppHost sample (`samples/Sagas`). Design: docs/architecture/sagas.md, docs/migration/sagas.md §18.
 
+### Fixed
+
+* `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
+  token) and ran again after its lease; the verdict is now recorded regardless. Three timing-dependent tests made
+  deterministic (docs/migration/sagas.md §18.3).
+
 ### Changed
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and
