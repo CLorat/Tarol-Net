@@ -28,14 +28,15 @@ internal sealed class TestApp : IAsyncDisposable
     public HttpClient Client { get; }
     public InMemoryAggregateStore Store => App.Services.GetRequiredService<InMemoryAggregateStore>();
 
-    public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null)
+    public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
+        Action<TarolBuilder>? store = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
         builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>())
             .WithReactions(GeneratedReactions.Set)
-            .UseInMemoryStore()
+            .Store(store)
             .AddSecurity(roles =>
             {
                 roles.Role("seller").May<CreateAuction>().May<CloseAuction>().May<RenameAuction>();
@@ -147,6 +148,17 @@ internal sealed class TestApp : IAsyncDisposable
             var identity = new ClaimsIdentity(claims, "test", "sub", "role");
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), "test")));
         }
+    }
+}
+
+internal static class TestStores
+{
+    public static TarolBuilder Store(this TarolBuilder builder, Action<TarolBuilder>? store)
+    {
+        if (store is null)
+            return builder.UseInMemoryStore();
+        store(builder);
+        return builder;
     }
 }
 
