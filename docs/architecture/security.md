@@ -1,6 +1,8 @@
 # Security and authorization
 
-Concept note for step 4 (see [kernel.md](../migration/kernel.md)), designed as a topic of its own. Who is allowed to do
+Concept note for step 4 (see [kernel.md](../migration/kernel.md)), designed as a topic of its own. **Step 10 specifies
+how it is built**: [rest.md](rest.md) §3 (owner decisions R-1 … R-15, [migration/rest.md](../migration/rest.md) §9) — the
+app's roles mapped onto changes and reads plus row rules on the aggregate (AZ-D), checked only when a principal is passed. Who is allowed to do
 what, where checks run, how a denial is reported, audit, multi-tenancy, testing, and the package boundary.
 Labels and probes as in [time.md](time.md); the experiments are in [`probes/kernel/authz`](../migration/probes/kernel/authz)
 and [`probes/kernel/web`](../migration/probes/kernel/web).
@@ -118,8 +120,8 @@ fixed by construction (every new type is in `Tarol.*`).
 | `Actor`, `ActorKind`, `TenantId`, `OperationContext` (the recorded data) | `Tarol.Kernel` | 4 (now) |
 | actor/tenant/correlation in event metadata, tenant in stream keys and queries | `Tarol.Persistence*` | 6 (event envelope), 8 (store) |
 | system actor on behalf of, context in outbox rows and messages | `Tarol.Sagas` | 9 |
-| resource permission in the command pipeline, `AuthorizationResult` → `Error.*`, system principal | **`Tarol.Security`** (depends on Kernel, Results, `Microsoft.AspNetCore.Authorization`) | 10, with CQRS (designed here, built with the pipeline it plugs into) |
-| endpoint: context from `ClaimsPrincipal`, problem details for `Error.*`, tenant resolution | later web package | after 10 |
+| resource permission in the command pipeline, `AuthorizationResult` → `Error.*`, role map onto changes and reads (rest.md §3) | **`Tarol.Security`** (depends on `Tarol.Changes` and the ASP.NET Core framework reference, R-13) | 10 (PR 10A) |
+| endpoint: context from `ClaimsPrincipal`, problem details for `Error.*`, tenant resolution | `Tarol.Changes.AspNetCore` (rest.md) | 10 (PR 10B) |
 | hub/topic authorization with tenant-prefixed groups | `Tarol.Messaging` | 11 |
 
 Why `Tarol.Security` is not built now: its only job is to run in a pipeline that does not exist yet (step 10). Built now,
@@ -157,5 +159,8 @@ it would be an unused abstraction, which is what the old `IAuthorizer` was.
 ## Open questions
 
 * ~~Style (a) or (b)?~~ Decided: (a).
-* Should denials be audited (log/metric), and where? Not as events (nothing changed). Step 10.
-* Field-level authorization of query results (e.g. hide `ReservePrice`)? A read-model concern, step 10 or the web package.
+* ~~Should denials be audited (log/metric), and where?~~ Decided in step 10 (rest.md §3): a warning log (event 1001) and
+  the counter `tarol.authorization.denied` in `Tarol.Security`; not events.
+* ~~Field-level authorization of query results (e.g. hide `ReservePrice`)?~~ Step 10 (R-8): a view record decides what it
+  shows; a caller-specific view is a second view with its own `Read<T>` grant.
+* Sagas and jobs (§3): settled by R-6: the check runs only when a principal is passed; internal entries pass none.

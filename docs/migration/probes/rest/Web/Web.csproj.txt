@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The would-be Tarol.Changes.AspNetCore (step 10): edge context, body reading, outcome -> HTTP, problem details,
+       webhooks, registration. Built on the real Tarol packages of this repository (TarolRoot). -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <IsAotCompatible>true</IsAotCompatible><TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AssemblyName>Probe.Tarol.Changes.AspNetCore</AssemblyName><RootNamespace>Tarol.Changes.AspNetCore</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+  </ItemGroup>
+</Project>

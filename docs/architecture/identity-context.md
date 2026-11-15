@@ -114,3 +114,5 @@ process) and `System` (Tarol itself acting later), because audit and policy trea
 * ~~Should `OperationContext` be a parameter of handlers (explicit) or a scoped service (`IOperationContext`)?~~ Decided in step 7 (changes.md C-11): a parameter of `ChangePipeline.Run`. Was: Step 10
   decides with the pipeline; the Kernel type works for both.
 * Accept a client-provided correlation id (e.g. `X-Correlation-Id`)? Off by default (tracing.md insight 2).
+* ~~Tenant at the HTTP edge?~~ Decided in step 10 (R-11, [rest.md](rest.md) §5): a claim (`tenant`, an `Id<ITenant>`),
+  checked against a `{tenant}` route value when the route has one; no header; webhooks take the sender entry's tenant.
