@@ -1,5 +1,5 @@
 <Project Sdk="Aspire.AppHost.Sdk/13.6.5">
-  <!-- D-15: the AppHost of the reaction worker: a PostgreSQL resource, the worker, the dashboard. Not published with AOT. -->
+  <!-- D-15: ArtFlow under Aspire: PostgreSQL and Zitadel resources, zitadel-setup, the API, the reaction worker, the dashboard. Not published with AOT. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <UserSecretsId>tarol-sagas-sample</UserSecretsId>
@@ -8,5 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <ProjectReference Include="../Worker/Worker.csproj" />
+    <ProjectReference Include="../Api/Api.csproj" />
+    <ProjectReference Include="../ZitadelSetup/ZitadelSetup.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- ArtFlow's HTTP API: the worker's domain and changes plus their HTTP entries, authenticated by Zitadel. -->
+  <PropertyGroup>
+    <AssemblyName>ArtFlow.Api</AssemblyName>
+    <RootNamespace>ArtFlow</RootNamespace>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <ProjectReference Include="$(TarolRoot)src/Security/Tarol.Security.Zitadel/Tarol.Security.Zitadel.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- one domain for the API and the worker -->
+    <Compile Include="../Worker/Domain.cs;../Worker/Changes.cs" LinkBase="Domain" />
+  </ItemGroup>
+</Project>
