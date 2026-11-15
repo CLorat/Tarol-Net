@@ -71,7 +71,7 @@ write `{"value":40}`: use `ValueObjectJson.Options(MyJson.Default)` (TVAL009 poi
 | TVAL003 | Error | rule attribute outside a record's primary constructor |
 | TVAL004 | Error | rule does not fit the type (or is on a value-object / input member) |
 | TVAL005 | Error | invalid rule arguments (`Min > Max`, a bound the type cannot hold, a pattern that does not parse) |
-| TVAL006 | Warning | `new X(…)` / `with` on a value object outside it: use `Create` |
+| TVAL006 | Warning | `new X(…)` / `with` on a value object outside it: use `Create` (not reported inside a static entry factory such as `[OnEvent<T>]` of an `IValidatable` change: the pipeline validates its result) |
 | TVAL007 | Warning | DataAnnotations attribute on a value object or input: no effect |
 | TVAL008 | Warning | input member type that cannot be validated (only `null` is checked) |
 | TVAL009 | Warning | same-assembly source-generated context used directly: use `ValueObjectJson.Options` |

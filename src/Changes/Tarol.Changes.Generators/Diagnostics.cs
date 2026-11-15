@@ -41,8 +41,32 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
         description: "Inputs built from JSON, routes or messages use the value objects' trusting constructors. Declare the change IValidatable so Tarol.Validations generates Validate and the pipeline returns all field errors as Invalid before any read.");
 
+    /// <summary>TCHG006: an [OnEvent&lt;T&gt;] factory of the wrong shape.</summary>
+    public static readonly DiagnosticDescriptor ReactionShape = new(
+        "TCHG006", "Unsupported reaction factory",
+        "[OnEvent<{0}>] on '{1}': {2}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A reaction factory is a static, non-private method of a change that returns that change and takes (TEvent) or (TEvent, RecordedEvent). It maps the committed event to the change's input and does nothing else.");
+
+    /// <summary>TCHG007: two reactions with one name, or two factories of one change for one event.</summary>
+    public static readonly DiagnosticDescriptor ReactionName = new(
+        "TCHG007", "Duplicate reaction",
+        "The reaction '{0}' is declared more than once ({1}); reaction names are stored in outbox rows and idempotency keys and must be unique",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A reaction's name is the change's type name, or the Name of its [OnEvent<T>]. Two changes cannot share a name, and one change has at most one factory per event type.");
+
+    /// <summary>TCHG008: DueAt does not name a DateTimeOffset property of the event.</summary>
+    public static readonly DiagnosticDescriptor ReactionDueAt = new(
+        "TCHG008", "Reaction due time is not a DateTimeOffset of the event",
+        "[OnEvent<{0}>(DueAt = \"{1}\")] on '{2}': {0} has no DateTimeOffset property '{1}'",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "DueAt names the event member that holds when the reaction is due (a saga timeout), e.g. DueAt = nameof(MyApp.Settlement.DeadlineSet.DueAt). Qualify the type when a member of the change has the same name.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
+        "TCHG006" => ReactionShape,
+        "TCHG007" => ReactionName,
+        "TCHG008" => ReactionDueAt,
         "TCHG001" => NoTarget,
         "TCHG002" => NotPartial,
         "TCHG003" => Unsupported,

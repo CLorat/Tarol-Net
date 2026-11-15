@@ -43,5 +43,15 @@ var again = await test.When(new OpenOrder("O-2"), options: key);
 Check("idempotency key replays", again.Result.TryGetValue(out ChangeOutcome replay) && replay.Replayed && replay.StreamId == first.Result.GetValueOrThrow().StreamId);
 Check("recorded context", test.Store.Recorded.All(r => r.Context.Actor.Kind == ActorKind.User));
 
+var wasClosed = test.Store.Recorded.Single(r => r.Event.Event is Order.WasClosed);
+Check("generated reaction table and schedule", GeneratedReactions.Set.Table(wasClosed.Event.Event).ToArray() is ["OpenFollowUp"]
+                                              && GeneratedReactions.Set.DueAt(wasClosed.Event.Event, "OpenFollowUp") == start);
+var reacted = await GeneratedReactions.Set.Run(test.Pipeline, "OpenFollowUp", wasClosed);
+var followUp = test.Store.Recorded[^1];
+Check("reaction runs as the system, caused by the event", reacted.IsSuccess && followUp.Context.Actor.Id == "Reactions.OpenFollowUp"
+                                                         && followUp.Context.CausationId == (Id<ICausation>)wasClosed.EventId);
+Check("reaction redelivery replays", (await GeneratedReactions.Set.Run(test.Pipeline, "OpenFollowUp", wasClosed)).TryGetValue(out ChangeOutcome replayed)
+                                     && replayed.Replayed);
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;

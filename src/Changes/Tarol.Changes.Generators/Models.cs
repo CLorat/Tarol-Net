@@ -52,3 +52,28 @@ internal sealed record Discovered(ChangeModel? Model, EquatableArray<DiagnosticI
 {
     public static readonly Discovered None = new(null, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
 }
+
+/// <summary>One [OnEvent&lt;T&gt;] factory: what the reaction set is emitted from (no locations).</summary>
+internal sealed record ReactionModel(
+    string Name,
+    string Change,
+    string Event,
+    int EventDepth,
+    string Factory,
+    bool WithRecorded,
+    string? DueAt) : System.IComparable<ReactionModel>
+{
+    public int CompareTo(ReactionModel? other)
+    {
+        if (other is null)
+            return 1;
+        var byName = string.CompareOrdinal(Name, other.Name);
+        return byName != 0 ? byName : string.CompareOrdinal(Event, other.Event);
+    }
+}
+
+/// <summary>Where a reaction is declared, for TCHG007 only (kept apart from the emitted models).</summary>
+internal sealed record ReactionSite(string Name, string Change, string Event, LocationInfo? Location);
+
+/// <summary>The transform's result for one factory.</summary>
+internal sealed record DiscoveredReaction(ReactionModel? Model, ReactionSite? Site, EquatableArray<DiagnosticInfo> Diagnostics);

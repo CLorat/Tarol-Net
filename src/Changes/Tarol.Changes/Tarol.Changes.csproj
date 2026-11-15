@@ -7,7 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="../../Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
     <ProjectReference Include="../../Validations/Tarol.Validations/Tarol.Validations.csproj" />
-    <!-- D-10: the changes generator (Target, LoadReads, Dispatch; TCHG001-TCHG005) ships inside this package. -->
+    <!-- D-10: the changes generator (Target, LoadReads, Dispatch, reactions; TCHG001-TCHG008) ships inside this package. -->
     <ProjectReference Include="../Tarol.Changes.Generators/Tarol.Changes.Generators.csproj"
                       ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
     <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->

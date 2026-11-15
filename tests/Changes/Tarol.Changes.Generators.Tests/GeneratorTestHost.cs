@@ -65,7 +65,9 @@ internal static class GeneratorTestHost
         {
             public bool Blocked { get; private set; }
             public sealed record Registered : Event;
+            public sealed record ReminderSet(System.DateTimeOffset DueAt, string Note) : Event;
             private void On(Registered e) => Blocked = false;
+            private void On(ReminderSet e) { }
         }
         """;
 

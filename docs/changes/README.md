@@ -23,3 +23,8 @@ implementation notes: [docs/migration/changes.md](../migration/changes.md). The 
    Never the pipeline itself, never input records (other generators could not see them).
 6. **Tests run the real thing.** `ChangeTest` runs your change through the pipeline on the in-memory store, with a
    clock that stands still.
+7. **A reaction to an own event is a change with a factory.** `[OnEvent<Bid.Won>] public static MarkPayoutDue From(Bid.Won e,
+   RecordedEvent recorded)` maps the committed event to the input; the generated `GeneratedReactions.Set` gives the store
+   its outbox table and the worker its runner, which runs the change as the system on behalf of the user, caused by the
+   event, keyed (reaction, event id). Sagas are aggregates whose steps are such reactions
+   ([sagas.md](../architecture/sagas.md)).

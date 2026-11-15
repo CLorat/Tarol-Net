@@ -127,4 +127,113 @@ public sealed class DiagnosticTests
             public interface IChange<T>;
             public sealed record NotAChange : IChange<int>;
             """).ShouldBeEmpty();
+
+    // ── reactions ──────────────────────────────────────────────────────────────────────────────────────────────────
+
+    private const string ReactionBody = "public Result Execute(Order o, ChangeContext c) => o.Close();";
+
+    [Theory]
+    [InlineData("public CloseOn From(Customer.Registered e) => new(Id<Order>.Empty);", "the factory must be static")]
+    [InlineData("public static string From(Customer.Registered e) => \"\";", "the factory must return CloseOn")]
+    [InlineData("public static CloseOn From(Order.Opened e) => new(Id<Order>.Empty);", "the parameters must be (Registered) or (Registered, RecordedEvent)")]
+    [InlineData("public static CloseOn From(Customer.Registered e, string s) => new(Id<Order>.Empty);", "the second parameter must be RecordedEvent, not String")]
+    [InlineData("public static CloseOn From() => new(Id<Order>.Empty);", "the parameters must be (Registered) or (Registered, RecordedEvent)")]
+    [InlineData("private static CloseOn From(Customer.Registered e) => new(Id<Order>.Empty);", "the factory (or a type containing it) is private; generated code must call it")]
+    public void TCHG006_factory_shape(string factory, string why)
+        => Message($$"""
+            public sealed partial record CloseOn(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.Registered>]
+                {{factory}}
+                {{ReactionBody}}
+            }
+            """, "TCHG006").ShouldBe("[OnEvent<Registered>] on 'CloseOn.From': " + why);
+
+    [Fact]
+    public void TCHG006_not_on_a_change()
+        => Message("""
+            public static class Helpers
+            {
+                [OnEvent<Customer.Registered>]
+                public static int From(Customer.Registered e) => 1;
+            }
+            """, "TCHG006").ShouldBe("[OnEvent<Registered>] on 'Helpers.From': Helpers is not a change (IChange<T>, ICreation<T> or ILoads<T>)");
+
+    [Fact]
+    public void TCHG006_empty_name()
+        => Message($$"""
+            public sealed partial record CloseOn(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.Registered>(Name = " ")]
+                public static CloseOn From(Customer.Registered e) => new(Id<Order>.Empty);
+                {{ReactionBody}}
+            }
+            """, "TCHG006").ShouldEndWith("Name is empty");
+
+    [Fact]
+    public void TCHG007_two_changes_with_one_name()
+        => Message($$"""
+            public sealed partial record CloseA(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.Registered>(Name = "Close")]
+                public static CloseA From(Customer.Registered e) => new(Id<Order>.Empty);
+                {{ReactionBody}}
+            }
+            public sealed partial record CloseB(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Order.Opened>(Name = "Close")]
+                public static CloseB From(Order.Opened e) => new(Id<Order>.Empty);
+                {{ReactionBody}}
+            }
+            """, "TCHG007").ShouldBe("The reaction 'Close' is declared more than once (CloseA on Registered, CloseB on Opened); reaction names are stored in outbox rows and idempotency keys and must be unique");
+
+    [Fact]
+    public void TCHG007_one_change_two_factories_for_one_event()
+        => Diagnose($$"""
+            public sealed partial record CloseOn(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.Registered>]
+                public static CloseOn From(Customer.Registered e) => new(Id<Order>.Empty);
+                [OnEvent<Customer.Registered>]
+                public static CloseOn Other(Customer.Registered e) => new(Id<Order>.Empty);
+                {{ReactionBody}}
+            }
+            """).ShouldContain("TCHG007");
+
+    [Fact]
+    public void One_change_may_react_to_two_events_under_one_name()
+        => Diagnose($$"""
+            public sealed partial record CloseOn(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.Registered>]
+                public static CloseOn From(Customer.Registered e) => new(Id<Order>.Empty);
+                [OnEvent<Order.Opened>]
+                public static CloseOn From(Order.Opened e) => new(Id<Order>.Empty);
+                {{ReactionBody}}
+            }
+            """).ShouldBeEmpty();
+
+    [Theory]
+    [InlineData("Note", "Registered has no DateTimeOffset property 'Note'")]
+    [InlineData("Missing", "Registered has no DateTimeOffset property 'Missing'")]
+    public void TCHG008_due_at(string member, string why)
+        => Message($$"""
+            public sealed partial record CloseOn(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.Registered>(DueAt = "{{member}}")]
+                public static CloseOn From(Customer.Registered e) => new(Id<Order>.Empty);
+                {{ReactionBody}}
+            }
+            """, "TCHG008").ShouldBe($"[OnEvent<Registered>(DueAt = \"{member}\")] on 'CloseOn.From': " + why);
+
+    [Fact]
+    public void TCHG008_a_string_member_is_not_a_due_time()
+        => Message($$"""
+            public sealed partial record CloseOn(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.ReminderSet>(DueAt = nameof(Customer.ReminderSet.Note))]
+                public static CloseOn From(Customer.ReminderSet e) => new(Id<Order>.Empty);
+                {{ReactionBody}}
+            }
+            """, "TCHG008").ShouldContain("ReminderSet has no DateTimeOffset property 'Note'");
 }

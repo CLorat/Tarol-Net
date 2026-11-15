@@ -36,4 +36,41 @@ internal static class Sources
             }
         }
         """;
+
+    public const string Reactions = GeneratorTestHost.Usings + """
+        namespace Shop;
+
+        // a change reacting to two events (one name), with and without the RecordedEvent
+        public sealed partial record CloseOrderOnEvent(Id<Order> Order) : IChange<Order>
+        {
+            [OnEvent<Customer.Registered>]
+            public static CloseOrderOnEvent From(Customer.Registered e, RecordedEvent recorded) => new((Id<Order>)recorded.StreamId);
+
+            [OnEvent<Order.WasClosed>]
+            internal static CloseOrderOnEvent Again(Order.WasClosed e) => new(Id<Order>.Empty);
+
+            public Result Execute(Order order, ChangeContext context) => order.Close();
+        }
+
+        // a creation with a pinned name
+        public sealed partial record OpenOrderForCustomer : ICreation<Order>
+        {
+            [OnEvent<Customer.Registered>(Name = "Orders.OpenForNewCustomer")]
+            public static OpenOrderForCustomer From(Customer.Registered e) => new();
+
+            public Result<Order> Execute(ChangeContext context) => Order.Open();
+        }
+
+        // a scheduled reaction
+        public static partial class Reminders
+        {
+            public sealed partial record RemindCustomer(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.ReminderSet>(DueAt = nameof(Customer.ReminderSet.DueAt))]
+                public static RemindCustomer From(Customer.ReminderSet e, RecordedEvent recorded) => new((Id<Order>)recorded.StreamId);
+
+                public Result Execute(Order order, ChangeContext context) => order.Close();
+            }
+        }
+        """;
 }
