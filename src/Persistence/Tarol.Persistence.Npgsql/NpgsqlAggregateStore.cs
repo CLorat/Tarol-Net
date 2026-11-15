@@ -40,7 +40,7 @@ namespace Tarol.Persistence.Npgsql;
 /// (<see cref="NpgsqlSlimDataSourceBuilder"/>: <c>EnableArrays()</c>).
 /// </para>
 /// </remarks>
-public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
+public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempotencyKeyPurge
 {
     private static readonly Guid NoTenant = Guid.Empty;
     private readonly NpgsqlDataSource _db;

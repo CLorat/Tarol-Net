@@ -116,21 +116,52 @@ public static class ReactionServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(reactions);
-        if (services.Any(static d => d.ServiceType == typeof(ReactionSet)))
+        if (services.Any(static d => d.ServiceType == typeof(Marker)))
             throw new InvalidOperationException("AddTarolReactions was called twice; pass one ReactionSet (ReactionSet.Combine for several assemblies).");
+        services.AddSingleton<Marker>();
         var options = new ReactionOptions();
         configure?.Invoke(options);
         options.Validate();
         services.AddSingleton(reactions);
         services.AddSingleton(options);
         services.TryAddSingleton(TimeProvider.System);
-        services.AddHostedService(static provider => new ReactionHost(
-            provider.GetRequiredService<IOutbox>(),
-            provider.GetRequiredService<ReactionSet>(),
-            provider.GetRequiredService<ChangePipeline>(),
-            provider.GetRequiredService<TimeProvider>(),
-            provider.GetRequiredService<ReactionOptions>(),
-            provider.GetService<ILogger<ReactionHost>>()));
+        services.AddHostedService(static provider =>
+        {
+            var options = provider.GetRequiredService<ReactionOptions>();
+            if (options.PurgeKeys is null && provider.GetService<IIdempotencyKeyPurge>() is { } purge)
+                options.PurgeKeys = purge.PurgeKeys;                                // the store's, when it has one
+            return new ReactionHost(
+                provider.GetRequiredService<IOutbox>(),
+                provider.GetRequiredService<ReactionSet>(),
+                provider.GetRequiredService<ChangePipeline>(),
+                provider.GetRequiredService<TimeProvider>(),
+                options,
+                provider.GetService<ILogger<ReactionHost>>());
+        });
         return services;
     }
+
+    /// <summary>
+    /// Hosts the reaction worker for the builder's reactions (<see cref="TarolBuilder.WithReactions"/>, a
+    /// <see cref="ReactionSet"/>): <see cref="AddTarolReactions"/> on the builder's services. The store's key purge is used
+    /// unless <paramref name="configure"/> sets <see cref="ReactionOptions.PurgeKeys"/>.
+    /// </summary>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configure">Workers, policy, key purge.</param>
+    /// <param name="reactions">The reactions, when <see cref="TarolBuilder.WithReactions"/> was not called (it is then called).</param>
+    /// <returns>The builder.</returns>
+    /// <exception cref="InvalidOperationException">The builder has no <see cref="ReactionSet"/>.</exception>
+    public static TarolBuilder AddReactionWorker(this TarolBuilder builder, Action<ReactionOptions>? configure = null, ReactionSet? reactions = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        if (reactions is not null)
+            builder.WithReactions(reactions);
+        if (builder.Reactions is not ReactionSet set)
+            throw new InvalidOperationException("The worker runs a ReactionSet: call WithReactions(GeneratedReactions.Set) first, or pass it.");
+        reactions = set;
+        builder.Services.AddTarolReactions(reactions, configure);
+        return builder;
+    }
+
+    private sealed class Marker;
 }
