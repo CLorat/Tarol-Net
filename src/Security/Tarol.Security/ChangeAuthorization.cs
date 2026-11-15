@@ -1,0 +1,78 @@
+using System.Diagnostics.Metrics;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Tarol.Changes;
+using Tarol.Kernel;
+using Tarol.Primitives;
+using Tarol.Results;
+
+namespace Tarol.Security;
+
+/// <summary>
+/// <see cref="IChangeAuthorization"/> over ASP.NET Core's <see cref="IAuthorizationService"/>: the change is the
+/// <see cref="ChangeRequirement"/>, the aggregate the resource. Allowed when a handler (the role map, a row rule) succeeded
+/// and none failed; otherwise <c>Error.Unauthorized("Auth.Required")</c> for an anonymous caller, else
+/// <c>Error.Forbidden</c> with the first denial's code (<see cref="ChangeHandler{TChange, TAggregate}.Deny"/>), or
+/// <c>"Auth.Forbidden"</c> when nothing granted it. Every denial is logged (event 1001, a warning) and counted
+/// (<c>tarol.authorization.denied</c> on the meter <see cref="MeterName"/>); neither carries personal data.
+/// </summary>
+/// <remarks>The pipeline asks only for runs that carry a principal (jobs and reactions are not checked). It is a singleton
+/// over the root <see cref="IAuthorizationService"/>: register handlers as singletons.</remarks>
+public sealed partial class ChangeAuthorization : IChangeAuthorization
+{
+    /// <summary>The meter of the denial counter.</summary>
+    public const string MeterName = "Tarol.Security";
+
+    /// <summary>The code of a refusal for an anonymous caller.</summary>
+    public const string RequiredCode = "Auth.Required";
+
+    /// <summary>The code of a refusal no rule explained (nothing granted the change).</summary>
+    public const string ForbiddenCode = "Auth.Forbidden";
+
+    private static readonly Meter Meter = new(MeterName);
+    private static readonly Counter<long> Denied = Meter.CreateCounter<long>("tarol.authorization.denied", description: "Changes and reads refused by authorization.");
+
+    private readonly IAuthorizationService _authorization;
+    private readonly ILogger _log;
+
+    /// <summary>Creates the authorization.</summary>
+    /// <param name="authorization">ASP.NET Core's authorization service (<c>AddAuthorizationCore</c>).</param>
+    /// <param name="logger">The denial log.</param>
+    public ChangeAuthorization(IAuthorizationService authorization, ILogger<ChangeAuthorization>? logger = null)
+    {
+        ArgumentNullException.ThrowIfNull(authorization);
+        _authorization = authorization;
+        _log = (ILogger?)logger ?? NullLogger.Instance;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        ArgumentNullException.ThrowIfNull(aggregate);
+        ArgumentNullException.ThrowIfNull(principal);
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = await _authorization.AuthorizeAsync(principal, aggregate, new ChangeRequirement(change, context)).ConfigureAwait(false);
+        if (result.Succeeded)
+            return Result.Success();
+        var reason = result.Failure?.FailureReasons.FirstOrDefault()?.Message;
+        var anonymous = principal.Identity?.IsAuthenticated != true;
+        var code = anonymous ? RequiredCode : reason ?? ForbiddenCode;
+        var name = Name(change);
+        var actor = context.Operation.Actor;
+        Denied.Add(1, new KeyValuePair<string, object?>("change", name), new KeyValuePair<string, object?>("reason", code),
+            new KeyValuePair<string, object?>("actor.kind", actor.Kind.ToString()));
+        Refused(_log, name, typeof(T).Name, aggregate.Id.Value, actor.Kind, actor.Id, code);
+        return anonymous ? Error.Unauthorized(RequiredCode) : Error.Forbidden(code);
+    }
+
+    private static string Name(object change) => change.GetType() is { IsGenericType: true } generic && generic.GetGenericTypeDefinition() == typeof(Read<>)
+        ? change.ToString()!
+        : change.GetType().Name;
+
+    [LoggerMessage(EventId = 1001, Level = LogLevel.Warning, Message = "Refused {Change} on {Aggregate} {Id} for {ActorKind} {ActorId}: {Reason}")]
+    private static partial void Refused(ILogger logger, string change, string aggregate, Guid id, ActorKind actorKind, string actorId, string reason);
+}
