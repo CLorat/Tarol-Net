@@ -25,6 +25,9 @@ description: >-
    `Find<T>(name, key, context, ct)` → `Option<Id<T>>`. Empty or `null` key = not indexed.
 6. **Tests**: `new InMemoryAggregateStore(fakeTime, MyJson.Default.Options)` exercises the stored state like production;
    assert on `Recorded` (`RecordedEvent.Context`, `RecordedAt`, `Event.Version`) and `History<T>(id, tenant)`.
+7. **Outbox** (`IOutbox`, both stores): `InMemoryStoreOptions { Reactions = GeneratedReactions.Set }` writes one row per
+   (event, reaction) in the commit; `store.Outbox.Claim` returns heads (oldest per stream and reaction; scheduled ones by
+   due time), then `Complete`, `Retry(row, at, reason)` or `Bury(row, reason)`; all `false` after a lost lease.
 
 ## Example
 

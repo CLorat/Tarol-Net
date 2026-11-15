@@ -77,10 +77,24 @@ that no upcaster moves throws on load (events are the truth); a stored state tha
 replay. Both stores implement `IEventFeed`: `ReadAll(GlobalPosition after, int limit, ct)` returns every committed
 event in commit order with its `GlobalPosition` (transaction, position), the checkpoint of a projection.
 
-## Reactions
+## Reactions and the outbox
 
-`ReactionTable` (`DomainEvent → ReadOnlySpan<string>`) names the reactions to an event; a database store writes one
-outbox row per (event, reaction) in the event's commit (`Tarol.Persistence.Npgsql`). Step 9 generates the table.
+`IOutboxReactions` tells a store which reactions an event has, when a scheduled one is due and which reactions are
+scheduled; the generated `GeneratedReactions.Set` of `Tarol.Changes` implements it, `OutboxReactions.From(ReactionTable)`
+wraps a hand-written table. With `InMemoryStoreOptions.Reactions` (or `NpgsqlStoreOptions.Reactions`) every commit writes
+one outbox row per (event, reaction), and `store.Outbox` (`IOutbox`) serves them to a worker:
+
+| Call | Effect |
+|---|---|
+| `Claim(max, lease, ct)` | due **heads** with their event and `Traceparent`: the oldest row of a (tenant, type, stream, reaction), or any row of a scheduled reaction (by due time) |
+| `Complete(row, ct)` | removes it; the next row of its stream becomes the head |
+| `Retry(row, at, reason, ct)` | due again at `at`, stays the head (later rows wait) |
+| `Bury(row, reason, ct)` | moves it to the dead letters; the next row runs |
+| `DeadLetters(max, ct)`, `Redrive(id, ct)` | read them; re-drive one behind the rows that waited |
+| `Pending(ct)`, `WaitForRows(timeout, ct)` | live rows; wait for a commit or the poll interval |
+
+Each returns `false` after a lost lease. The in-memory outbox follows the same rules, so tests see event → reaction →
+change → its reactions with a fake clock; the worker is `Tarol.Sagas`.
 
 ## AOT
 

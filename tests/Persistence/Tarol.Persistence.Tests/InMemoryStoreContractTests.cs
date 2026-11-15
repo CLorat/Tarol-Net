@@ -15,3 +15,15 @@ public sealed class InMemoryStoreWithCodecContractTests : StoreContract
     protected override IAggregateStore CreateStore(TimeProvider time, StoreLookups lookups)
         => new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = CreateCodec(), Lookups = lookups });
 }
+
+/// <summary>The outbox contract on the in-memory store.</summary>
+public sealed class InMemoryOutboxContractTests : OutboxContract
+{
+    protected override Task<(IAggregateStore Store, IOutbox Outbox)> Create(TimeProvider time, IOutboxReactions reactions)
+    {
+        var store = new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = CreateCodec(), Reactions = reactions });
+        return Task.FromResult<(IAggregateStore, IOutbox)>((store, store.Outbox));
+    }
+
+    private static EventCodec CreateCodec() => new EventCodec(new System.Text.Json.JsonSerializerOptions(ContractJson.Default.Options)).Add<Member>().Add<Tally>();
+}

@@ -27,6 +27,8 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
     private readonly JsonSerializerOptions? _stateOptions;
     private readonly EventCodec? _codec;
     private readonly StoreLookups _lookupDefinitions;
+    private readonly InMemoryOutbox? _outbox;
+    private readonly IOutbox _outboxPort;
     private readonly Lock _gate = new();
     private readonly Dictionary<StreamKey, Stream> _streams = [];
     private readonly Dictionary<IdempotencyKey, StoredOutcome> _keys = [];
@@ -55,7 +57,12 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         _codec = options.Codec;
         _stateOptions = options.StateOptions ?? options.Codec?.Options;
         _lookupDefinitions = options.Lookups ?? new StoreLookups();
+        _outbox = options.Reactions is { } reactions ? new InMemoryOutbox(time, reactions) : null;
+        _outboxPort = _outbox ?? new InMemoryOutbox(time, OutboxReactions.From(static _ => ReadOnlySpan<string>.Empty));
     }
+
+    /// <summary>The outbox: rows of <see cref="InMemoryStoreOptions.Reactions"/>, written in each commit (empty without reactions).</summary>
+    public IOutbox Outbox => _outboxPort;
 
     /// <summary>Every recorded event of every stream, in commit order.</summary>
     public IReadOnlyList<RecordedEvent> Recorded
@@ -173,6 +180,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         var tenant = TenantOf(context.Tenant);
         var type = T.StreamType;
         var keys = _lookupDefinitions.KeysOf(aggregate);
+        _outbox?.Check(changes);
 
         lock (_gate)
         {
@@ -194,12 +202,14 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
             stream ??= _streams[streamKey] = new Stream();
             var at = _time.GetUtcNow();
             var commit = ++_commits;
+            var first = _recorded.Count;
             foreach (var change in changes)
             {
                 stream.Events.Add(change);
                 var recorded = new RecordedEvent(aggregate.Id.Value, change, Guid.CreateVersion7(at), at, context);
                 _recorded.Add(new PositionedEvent(new GlobalPosition(commit, _recorded.Count + 1), type, recorded));
             }
+            _outbox?.Write(_recorded.GetRange(first, changes.Length));
             stream.State = state;
             foreach (var (lookup, newKey) in keys)
             {

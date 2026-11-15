@@ -536,3 +536,78 @@ constructors of `Title` and `Amount`), as in the other pipeline test files.
 | `dotnet test --solution Tarol.slnx` (Docker running) | 882 total, 0 failed (852 before + 10 Changes + 19 generator + 1 Validations generator) |
 | `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK |
 | `TAROL_PG=… eng/aot-smoke.sh` | 9 apps, each 0 IL warnings, all checks natively (`Tarol.Changes.AotSmoke` with the reaction checks) |
+
+## 17. Implementation: PR 9B (2026-11-15)
+
+`persistence: outbox port, head flag, scheduled rows and dead letters`, stacked on PR 9A. As decided in §11 (S-5, S-8,
+S-9, S-10) and §12; differences below.
+
+### 17.1 Public API
+
+| Package | Type | Members |
+|---|---|---|
+| `Tarol.Persistence` | `IOutboxReactions` (new) | `ReactionsTo(e)`, `DueAt(e, reaction)`, `IsScheduled(reaction)` |
+| | `OutboxReactions` (new) | `From(ReactionTable)` (unscheduled) |
+| | `IOutbox` (new) | `Claim`, `Complete`, `Retry`, `Bury`, `DeadLetters(max)`, `Redrive(id)`, `Pending`, `WaitForRows(timeout)` |
+| | `OutboxRow` (moved from `Tarol.Persistence.Npgsql`) | + `Traceparent` |
+| | `DeadLetter` (new) | `Id`, `Reaction`, `Tenant`, `StreamType`, `StreamId`, `EventId`, `Attempts`, `LastError`, `DeadAt` |
+| | `InMemoryStoreOptions.Reactions` (new), `InMemoryAggregateStore.Outbox` (new) | the in-memory outbox |
+| `Tarol.Changes` | `ReactionSet : IOutboxReactions` | + `ReactionsTo(e)` |
+| `Tarol.Persistence.Npgsql` | `NpgsqlStoreOptions.Reactions` | `ReactionTable?` → `IOutboxReactions?` |
+| | `NpgsqlStoreOptions.Notify` (new) | `NOTIFY` per commit with rows |
+| | `NpgsqlOutbox : IOutbox, IAsyncDisposable` | `Fail` → `Retry`; + `Bury`, `DeadLetters`, `Redrive`, `WaitForRows`, `Channel` |
+
+Schema (still version 1, nothing released): `outbox.head` + partial index `outbox_heads (due_at, id) WHERE head`; the
+`outbox_due` index is gone (no statement used it after S-8); `outbox_dead`.
+
+### 17.2 Deliberate differences from §7 and §12
+
+* **`IOutboxReactions` instead of `ReactionSet` in the store options**: `Tarol.Persistence.Npgsql` must not reference
+  `Tarol.Changes` (it sits below it), so the store takes the port and `ReactionSet` implements it.
+* **`WaitForRows` on the port**: the worker (9C) stays store-agnostic; the Npgsql outbox LISTENs only with `Notify`
+  (one connection per outbox, reconnects after a failure, disposed with the outbox), else it waits the timeout.
+* **`Retry`/`Bury` take a `reason`** (CA1716: `error` is a keyword in VB).
+* **Promotion** (`Complete`, `Bury`) is two statements in one transaction: `FOR SHARE` on the stream row, then delete +
+  promote in a fresh snapshot (one statement would keep the snapshot from before the lock wait). Re-drive takes
+  `FOR NO KEY UPDATE` instead, because two share locks would not serialize a re-drive with a promotion.
+* **A reaction listed twice for one event** throws `InvalidOperationException` before anything is written, in both
+  stores (the in-memory store checks before its commit; 8C's Npgsql store failed on the unique constraint).
+* No crash-between-run-and-Complete integration test here: it needs the worker and moves to 9C (the lease re-claim is
+  covered by the contract).
+
+### 17.3 Found while building
+
+1. **The promotion race is real** **[verified]**: with the `FOR SHARE` line removed, the race test (120 commits of one
+   stream against 4 completing workers, 5 rounds) left a stream without a head in 1 of 3 runs; with it, 25 of 25 runs
+   (125 rounds) passed.
+2. Data-modifying CTEs share one snapshot: the promotion's subquery still sees the row its `DELETE` removes, hence
+   `n.id <> d.id`.
+3. The commit batch reads the last row of every result set as the stream version; the `NOTIFY` statement therefore
+   returns a count and runs before the version query.
+
+### 17.4 Tests **[verified]**
+
+* `OutboxContract` (shared, 9 tests, both stores): rows per (event, reaction) with tenant, context and `Traceparent`;
+  heads in version order, one at a time; scheduled rows by due time, neither blocking nor waiting; `Retry` keeps the
+  head and the error; lease loss refuses `Complete`/`Retry`/`Bury`; `Bury` makes a dead letter (every field) and the
+  next row runs; `Redrive` goes behind the rows that waited, once; a reaction listed twice refuses the commit;
+  `WaitForRows` returns after the timeout.
+* `NpgsqlOutboxTests` (8 → 12): the 8C tests on the new claim; the promotion race; a claim with 20,000 rows behind 16
+  heads stays under 50 ms (median of 5); with `Notify` a waiting worker wakes at the commit (< 5 s, timeout 1 min);
+  with `Notify` the commit still reports success and writes its rows.
+* AOT smoke: the in-memory outbox (claim, bury, re-drive, complete) and the Npgsql dead-letter path, natively.
+
+### 17.5 Suppressions and analyzer configuration
+
+None.
+
+### 17.6 Verification (SDK 11.0.100, 2026-11-15)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` (Debug and `-c Release`) | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker running) | 904 total, 0 failed (882 + 9 in-memory contract + 9 Npgsql contract + 4 Npgsql outbox) |
+| the promotion race test alone, 25 runs | 25 passed (and 1 of 3 failed with the lock removed) |
+| `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK |
+| `TAROL_PG=… eng/aot-smoke.sh` | 9 apps, each 0 IL warnings, all checks natively |

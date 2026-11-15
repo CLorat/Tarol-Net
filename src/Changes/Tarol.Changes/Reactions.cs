@@ -65,9 +65,10 @@ public delegate DateTimeOffset? ReactionSchedule(DomainEvent domainEvent, string
 /// <summary>
 /// The reactions of an application: their names, the store's <see cref="ReactionTable"/>, the schedule of timed reactions
 /// and the runner. Each assembly with <see cref="OnEventAttribute{TEvent}"/> factories has a generated
-/// <c>GeneratedReactions.Set</c>; <see cref="Combine"/> joins several.
+/// <c>GeneratedReactions.Set</c>; <see cref="Combine"/> joins several. Pass it to the store
+/// (<c>NpgsqlStoreOptions.Reactions</c>, <see cref="InMemoryStoreOptions.Reactions"/>) and to the worker.
 /// </summary>
-public sealed class ReactionSet
+public sealed class ReactionSet : IOutboxReactions
 {
     private readonly Dictionary<string, ReactionRunner> _runners;
     private readonly ReactionTable[] _tables;
@@ -140,6 +141,9 @@ public sealed class ReactionSet
         }
         return new(runners, [.. sets.SelectMany(s => s._tables)], [.. sets.SelectMany(s => s._schedules)], scheduled);
     }
+
+    /// <inheritdoc />
+    public ReadOnlySpan<string> ReactionsTo(DomainEvent domainEvent) => Table(domainEvent);
 
     /// <summary>When the row of <paramref name="reaction"/> for <paramref name="domainEvent"/> is due.</summary>
     /// <param name="domainEvent">The committed event.</param>

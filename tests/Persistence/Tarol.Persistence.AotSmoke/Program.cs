@@ -49,5 +49,24 @@ await foreach (var e in coded.ReadAll(GlobalPosition.Start, 10, default))
     feed.Add(e);
 Check("feed", feed.Count == 2 && feed[0].StreamType == "wallet" && feed[0].Position < feed[1].Position);
 
+// step 9B: the in-memory outbox, natively
+var withOutbox = new InMemoryAggregateStore(TimeProvider.System, new InMemoryStoreOptions
+{
+    Reactions = OutboxReactions.From(e => e is Wallet.Opened ? OutboxNames.OnOpened : ReadOnlySpan<string>.Empty),
+});
+var third = Wallet.Open("carol");
+Check("append writes an outbox row", (await withOutbox.Append(third, 0, context, Option.None, default)).IsSuccess
+                                    && await withOutbox.Outbox.Pending(default) == 1);
+var row = (await withOutbox.Outbox.Claim(10, TimeSpan.FromMinutes(1), default)).Single();
+Check("claim, bury, re-drive, complete", row.Reaction == "Welcome" && await withOutbox.Outbox.Bury(row, "x", default)
+                                        && await withOutbox.Outbox.Redrive(row.Id, default)
+                                        && (await withOutbox.Outbox.Claim(10, TimeSpan.FromMinutes(1), default)) is [var redriven]
+                                        && await withOutbox.Outbox.Complete(redriven, default) && await withOutbox.Outbox.Pending(default) == 0);
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
+
+internal static class OutboxNames
+{
+    public static readonly string[] OnOpened = ["Welcome"];
+}

@@ -168,24 +168,130 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
         second.Id.ShouldBe(first.Id);
         second.Attempts.ShouldBe(2);
         (await store.Outbox.Complete(first, Ct)).ShouldBeFalse();
-        (await store.Outbox.Fail(first, _time.GetUtcNow(), "late", Ct)).ShouldBeFalse();
+        (await store.Outbox.Retry(first, _time.GetUtcNow(), "late", Ct)).ShouldBeFalse();
         (await store.Outbox.Complete(second, Ct)).ShouldBeTrue();
     }
 
     [Fact]
-    public async Task Fail_delays_the_row_and_keeps_the_error()
+    public async Task Retry_delays_the_row_and_keeps_the_error()
     {
         var store = await Store(e => e is Member.Joined ? OnJoined : ReadOnlySpan<string>.Empty);
         await Joined(store, Context, earnings: 0);
 
         var row = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).Single();
-        (await store.Outbox.Fail(row, _time.GetUtcNow().AddMinutes(5), "Auction.NotSettled", Ct)).ShouldBeTrue();
+        (await store.Outbox.Retry(row, _time.GetUtcNow().AddMinutes(5), "Auction.NotSettled", Ct)).ShouldBeTrue();
         (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).ShouldBeEmpty();
 
         _time.Advance(TimeSpan.FromMinutes(5));
         var retry = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).Single();
         retry.Attempts.ShouldBe(2);
         retry.LastError.ShouldBe("Auction.NotSettled");
+    }
+
+    private static ReadOnlySpan<string> NotifyOnEarned(DomainEvent e) => e is Member.Earned ? OnlyNotify : ReadOnlySpan<string>.Empty;
+
+    [Fact]
+    public async Task Commits_and_completions_of_one_stream_never_leave_it_without_a_head()
+    {
+        // S-8: the commit decides head for its new row while a worker promotes the next one; without the stream row lock in
+        // Complete, one of them can miss the other and the stream's rows wait forever.
+        for (var round = 0; round < 5; round++)
+        {
+            var store = await postgres.IsolatedStore(TimeProvider.System, OutboxReactions.From(NotifyOnEarned));
+            var context = Context;
+            var member = await Joined(store, context, earnings: 0);
+            const int commits = 120;
+            var claimed = new ConcurrentQueue<long>();
+            var committer = Task.Run(async () =>
+            {
+                for (var i = 0; i < commits; i++)
+                {
+                    var expected = member.Version;
+                    member.Earn(1).IsSuccess.ShouldBeTrue();
+                    (await store.Append(member, expected, context, Option.None, Ct)).ShouldBe(Result.Success());
+                    AggregateChanges.Committed(member);
+                }
+            }, Ct);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var workers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+            {
+                while (claimed.Count < commits && clock.Elapsed < TimeSpan.FromSeconds(60))
+                {
+                    var rows = await store.Outbox.Claim(8, TimeSpan.FromSeconds(30), Ct);
+                    foreach (var row in rows)
+                    {
+                        claimed.Enqueue(row.Event.Event.Event.Version);
+                        (await store.Outbox.Complete(row, Ct)).ShouldBeTrue();
+                    }
+                    if (rows.Count == 0)
+                        await Task.Delay(1, Ct);
+                }
+            }, Ct)).ToArray();
+            await committer;
+            await Task.WhenAll(workers);
+
+            claimed.Count.ShouldBe(commits, $"round {round}: rows left without a head");
+            claimed.ShouldBe(Enumerable.Range(2, commits).Select(v => (long)v));   // in version order, each once
+            (await store.Outbox.Pending(Ct)).ShouldBe(0);
+        }
+    }
+
+    [Fact]
+    public async Task A_claim_does_not_walk_the_backlog_behind_the_heads()
+    {
+        // S-8: 20,000 rows behind 16 heads; the 8C anti-join scanned every one of them per claim (≈ 600 ms for 100,000).
+        var store = await postgres.IsolatedStore(TimeProvider.System, OutboxReactions.From(NotifyOnEarned));
+        var context = Context;
+        for (var stream = 0; stream < 16; stream++)
+        {
+            var member = Member.Join(Id<Member>.New(), "");
+            for (var i = 0; i < 1250; i++)
+                member.Earn(1).IsSuccess.ShouldBeTrue();
+            (await store.Append(member, 0, context, Option.None, Ct)).ShouldBe(Result.Success());
+        }
+        await postgres.Execute($"ANALYZE {store.Schema}.outbox");
+
+        var timings = new List<double>();
+        for (var i = 0; i < 5; i++)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var rows = await store.Outbox.Claim(32, TimeSpan.FromMinutes(1), Ct);
+            timings.Add(clock.Elapsed.TotalMilliseconds);
+            rows.Count.ShouldBe(16);
+            foreach (var row in rows)
+                (await store.Outbox.Complete(row, Ct)).ShouldBeTrue();
+        }
+
+        timings.Order().ElementAt(2).ShouldBeLessThan(50, $"claims took {string.Join(", ", timings.Select(t => t.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)))} ms");
+    }
+
+    [Fact]
+    public async Task With_Notify_a_waiting_worker_wakes_at_the_commit()
+    {
+        var store = await postgres.IsolatedStore(TimeProvider.System, OutboxReactions.From(NotifyOnEarned), notify: true);
+        await using var outbox = store.Outbox;
+        var context = Context;
+        var member = await Joined(store, context, earnings: 0);
+        await outbox.WaitForRows(TimeSpan.FromSeconds(10), Ct);                                 // starts the listener
+
+        var wait = outbox.WaitForRows(TimeSpan.FromMinutes(1), Ct);
+        await Task.Delay(300, Ct);
+        wait.IsCompleted.ShouldBeFalse();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        member.Earn(1).IsSuccess.ShouldBeTrue();
+        (await store.Append(member, 1, context, Option.None, Ct)).ShouldBe(Result.Success());
+
+        (await Task.WhenAny(wait, Task.Delay(TimeSpan.FromSeconds(10), Ct))).ShouldBe(wait);
+        clock.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task With_Notify_a_commit_still_writes_its_rows_and_reports_success()
+    {
+        var store = await postgres.IsolatedStore(TimeProvider.System, OutboxReactions.From(NotifyOnEarned), notify: true);
+        var context = Context;
+        _ = await Joined(store, context, earnings: 2);
+        (await store.Outbox.Pending(Ct)).ShouldBe(2);                                         // the NOTIFY statement keeps the batch's answer
     }
 
     private static void InterlockedMax(ref int target, int value)
