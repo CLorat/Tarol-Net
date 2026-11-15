@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Integration tests of Tarol.Sagas on Tarol.Persistence.Npgsql against a real PostgreSQL 17 from Testcontainers (D-15):
+    the settlement saga through the hosted worker, LISTEN/NOTIFY, concurrent workers, redelivery after a lost lease.
+    Needs Docker; every class carries [Trait("Category", "Integration")]. The domain is linked from Tarol.Sagas.Tests.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
+    <ProjectReference Include="../../../src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="../../../src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- the host builder, for the skill example's host lines -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <Compile Include="../Tarol.Sagas.Tests/Domain.cs;../Tarol.Sagas.Tests/Changes.cs" LinkBase="ArtFlow" />
+  </ItemGroup>
+</Project>

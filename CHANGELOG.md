@@ -99,6 +99,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   Changed: `OutboxRow` moved to `Tarol.Persistence`; `NpgsqlStoreOptions.Reactions` takes `IOutboxReactions`;
   `NpgsqlOutbox.Fail` is `Retry`. Design: docs/migration/sagas.md §17.
 
+* `Tarol.Sagas` (step 9C): `ReactionWorker` (claim → `ReactionSet.Run` → complete, retry with backoff or bury; a Consumer
+  activity per row linked to the committing trace; source-generated logs), `DeliveryPolicy` (C-9 with NotFound retries,
+  10 attempts, 1 s … 5 min, deterministic jitter), `ReactionOptions`, `ReactionHost` (`BackgroundService` with the key
+  purge), `AddTarolReactions`, `ReactionTest`; agent skill `tarol-sagas`; integration tests on PostgreSQL; an Aspire
+  AppHost sample (`samples/Sagas`). Design: docs/architecture/sagas.md, docs/migration/sagas.md §18.
+
 ### Changed
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and

@@ -611,3 +611,90 @@ None.
 | the promotion race test alone, 25 runs | 25 passed (and 1 of 3 failed with the lock removed) |
 | `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK |
 | `TAROL_PG=… eng/aot-smoke.sh` | 9 apps, each 0 IL warnings, all checks natively |
+
+## 18. Implementation: PR 9C (2026-11-15)
+
+`sagas: the reaction worker, hosting and the saga guide`, stacked on PR 9B. As decided in §11 (S-4, S-7, S-10, S-11,
+S-13, S-15) and §12; differences below. Package guide: `src/Sagas/Tarol.Sagas/README.md`; user guide:
+[docs/sagas/README.md](../sagas/README.md).
+
+### 18.1 Public API (new package `Tarol.Sagas`, depends on `Tarol.Changes` only)
+
+| Type | Members |
+|---|---|
+| `Verdict` | `Done`, `Retry`, `Bury` |
+| `DeliveryPolicy` (record) | `MaxAttempts` 10, `FirstDelay` 1 s, `MaxDelay` 5 min; static `Classify(Result<ChangeOutcome>)`; `Backoff(rowId, attempt)` |
+| `ReactionOptions` (class) | `Workers` 4, `Batch` 32, `Lease` 1 min, `PollInterval` 100 ms, `Policy`, `PurgeKeys`, `KeyRetention` 7 d, `PurgeEvery` 1 h, `PurgeBatch` 1,000 |
+| `ReactionWorker` | `ActivitySourceName` = `"Tarol.Sagas"`; `RunOnce`, `Drain`, `Run` |
+| `ReactionAttempt` | `Row`, `Verdict`, `Reason`, `Kept` |
+| `ReactionHost : BackgroundService` | the worker loops and the key purge |
+| `ReactionServiceCollectionExtensions` | `AddTarolReactions(services, reactions, configure)` |
+| `ReactionTest` | `At(now, reactions, stateOptions, policy)`, `Given`, `At`, `Later`, `As`, `InTenant`, `When` (change, creation), `Drain`, `DeadLetters`, `Load`, `Context`, `Store`, `Outbox`, `Pipeline`, `Clock` |
+
+Logs (`[LoggerMessage]`): 9001 retry (Warning), 9002 dead letter (Error), 9003 lease lost (Warning), 9004 loop failure
+(Error), 9010 keys purged (Information), 9011 purge failed (Error).
+
+### 18.2 Deliberate differences from §7 and §12
+
+* **`ReactionOptions` is a mutable class** (the record of §7 could not be configured through `Action<ReactionOptions>`);
+  it is validated when a worker or the host is built.
+* **The key purge is a delegate** (`o.PurgeKeys = store.PurgeKeys`): only the Npgsql store purges, and a port member for
+  one store would be an unused abstraction elsewhere.
+* **`AddTarolReactions` resolves `IOutbox` and `ChangePipeline`** from the container (the application registers its
+  store's); a second call throws, because one host must run one combined set.
+* **`ReactionTest.Given` commits history without running its reactions**; `Later` (as in `ChangeTest`) instead of
+  `Advance`; `When` returns `ChangeTestOutcome`.
+* **The crash between run and `Complete`** is covered here by a stalled worker and lease expiry on PostgreSQL with a fake
+  clock (one payout, attempt 2 replays); the real process crash (`Environment.FailFast`) stays verified by the probe (§3).
+* **The Aspire AppHost prototype is `samples/Sagas`**, outside `Tarol.slnx` and CI (it needs Docker and the Aspire
+  orchestrator), with its own build props and package versions.
+
+### 18.3 Found while building
+
+1. **The DI container is not in the base framework**: only the abstractions are (`Microsoft.Extensions.*.Abstractions`,
+   `Options`, `Primitives`); the tests reference `Microsoft.Extensions.DependencyInjection` and `.Hosting` (test-only).
+2. **Npgsql's own `ActivitySource` makes idle workers noisy**: every claim of a 100 ms poll is a span (≈ 1,000
+   `postgresql` spans beside 40 reaction spans in the dashboard). The sample leaves it out; the guide says so.
+3. A `Drain` round can hold more than the head: when the head is buried, the next row of the stream runs in the same
+   drain (a test expected one row per round).
+
+### 18.4 Tests **[verified]**
+
+* `Tarol.Sagas.Tests` (22): the settlement saga on `ReactionTest`: payout and start as the system for the user; payment
+  completes, a later timeout is a no-op; expiry and compensation (context through three hops, `now` from the clock); a
+  late payment is Success; restart in place after an end; a second start changes nothing; a shortened deadline fires
+  on time; a payment before the saga retries `NotFound` until the saga starts; a poison reaction backs off, becomes a dead
+  letter and unblocks its stream; re-drive; `Given` history does not react. Policy: the whole verdict table, the backoff
+  curve and its bounds, the defaults, invalid settings. Worker: tracing (Consumer, linked, tags), lease loss and the
+  key, a row of a removed reaction, the loop runs and stops, survives a failing store, `AddTarolReactions` hosts the
+  workers and purges keys and refuses a second call. The skill's test example verbatim.
+* `Tarol.Sagas.IntegrationTests` (5, PostgreSQL 17 on Testcontainers): the saga through the hosted worker; with
+  `Notify` a reaction runs within seconds although the poll interval is a minute; 4 workers run 200 reactions over 20
+  streams once each and every stream in order; a stalled worker is redelivered and the key commits once; the skill's
+  host example verbatim (`Host.CreateApplicationBuilder`).
+* `Tarol.Sagas.AotSmoke`: the chain and a scheduled reaction on `ReactionTest`, the policy, and (with `TAROL_PG`) the
+  hosted worker on PostgreSQL, natively, 0 IL warnings.
+* `Tarol.Sagas.PackageTests`: the packed package with the Changes and Primitives generators flowing to a consumer.
+* `samples/Sagas`: the AppHost run of §4.5, now on the real packages (20 payouts, 20 sagas, 40 linked reaction spans; JIT
+  and Native AOT worker).
+
+### 18.5 Skill evaluation checklist (`tarol-sagas`)
+
+The checklist of §13 holds; the expected API is now: `services.AddTarolReactions(GeneratedReactions.Set, o => o.PurgeKeys
+= store.PurgeKeys)` after registering `IOutbox` and `ChangePipeline`; `ReactionTest.At(start, GeneratedReactions.Set,
+json).Given(…)`, `When`, `Drain()`, `Later(…)`, `DeadLetters()`; `outbox.DeadLetters(max, ct)` and `Redrive(id, ct)`.
+
+### 18.6 Suppressions and analyzer configuration
+
+None.
+
+### 18.7 Verification (SDK 11.0.100, 2026-11-15)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` (Debug and `-c Release`) | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker running) | 931 total, 0 failed (904 + 22 `Tarol.Sagas.Tests` + 5 `Tarol.Sagas.IntegrationTests`) |
+| `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK: `Tarol.Sagas` consumer 3/3, `skills/tarol-sagas/SKILL.md` listed |
+| `TAROL_PG=… eng/aot-smoke.sh` | 10 apps, each 0 IL warnings, all checks natively |
+| `samples/Sagas/apphost.sh` (JIT and Native AOT worker) | 20 payouts, 20 sagas, 40 reaction spans with links; native worker 0 IL warnings |

@@ -12,7 +12,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/sagas/`](../migration/probes/sagas/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions S-1 … S-15, [migration/sagas.md](../migration/sagas.md) §11). Built in PRs 9A–9C.
+**Status: implemented** (owner decisions S-1 … S-15, [migration/sagas.md](../migration/sagas.md) §11; PRs 9A–9C, §16–§18). User guide: [docs/sagas/README.md](../sagas/README.md).
 
 ## 1. What a user of Tarol needs
 
