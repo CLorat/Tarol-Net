@@ -7,6 +7,7 @@ using Tarol.Kernel;
 using Tarol.Messaging;
 using Tarol.Messaging.AotSmoke;
 using Tarol.Persistence;
+using Tarol.Sagas;
 using Tarol.StronglyTypedId;
 
 var failures = 0;
@@ -64,5 +65,44 @@ while (store.Recorded.Count == 0 && waited.Elapsed < TimeSpan.FromSeconds(10))
 await host.StopAsync();
 Check("hosted consumer committed", store.Recorded.Count == 1 && store.Recorded[0].Event.Event is Account.Credited { Amount: 5m });
 
+// publications and effects (11B): MessagingTest drains outbox → transport → consumers
+var two = MessagingTest.At(DateTimeOffset.UnixEpoch)
+    .System("smoke", SmokeJson.Default.Options, o =>
+    {
+        o.Consumers = GeneratedConsumers.Set;
+        o.Publications = GeneratedPublications.Set;
+        o.Effects = new EffectSet().Add<Account.Credited>("notify", static _ => new Notify(Notifiers.Test));
+        o.Trust("billing");
+    });
+await two.Transport.Publish(sample, default);
+var steps = await two.Drain();
+var credited = two["smoke"].Store.Recorded.Single();
+Check("published from the outbox", two.Transport.Published is [_, { Type: "smoke.account-credited", Source: "smoke" } m] && m.Id == credited.EventId);
+Check("effect keyed by the event id", Notifiers.Test.Keys is [var key] && key == credited.EventId.ToString("N") && steps.Count(s => s.Row is not null) == 2);
+
+// the hosted reaction worker publishes and runs the effect from DI
+var workerBuilder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
+workerBuilder.Services.AddSingleton<Notifier>();
+workerBuilder.Services.AddTarol(SmokeJson.Default, codec => codec.Add<Account>()).UseInMemoryStore()
+    .AddReactionWorker(o => o.PollInterval = TimeSpan.FromMilliseconds(10))
+    .AddMessaging("smoke", m => m.Consume(GeneratedConsumers.Set).Publish(GeneratedPublications.Set).Effect<Account.Credited, Notify>("notify")
+        .Trust("billing").UseInMemoryTransport().UseInMemoryDeadLetters());
+using var workerHost = workerBuilder.Build();
+await workerHost.StartAsync();
+await Task.Delay(100);
+var workerTransport = (InMemoryTransport)workerHost.Services.GetRequiredService<IMessageTransport>();
+await workerTransport.Publish(sample, default);
+var notifier = workerHost.Services.GetRequiredService<Notifier>();
+waited.Restart();
+while ((workerTransport.Published.Count < 2 || notifier.Keys.Count == 0) && waited.Elapsed < TimeSpan.FromSeconds(10))
+    await Task.Delay(20);
+await workerHost.StopAsync();
+Check("hosted publication and effect", workerTransport.Published.Count == 2 && notifier.Keys.Count == 1);
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
+
+internal static class Notifiers
+{
+    public static readonly Notifier Test = new();
+}

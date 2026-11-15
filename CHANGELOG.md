@@ -144,6 +144,17 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   (`MessageHeaders`); the transport port `IMessageTransport` with `InMemoryTransport`; `MessagingHost` and
   `AddMessaging(…)` on the `TarolBuilder`; `MessageTest`; `ActivitySource "Tarol.Messaging"`; agent skill
   `tarol-messaging`. TVAL006 is exempt inside `[Consumes]` factories.
+* `Tarol.Messaging` (step 11B, + generator TMSG004, TMSG005; TMSG006 also for contract records): publications and
+  effects from the outbox. `[Publishes<TEvent>(contract, version)]` on a static mapping method (`null` = not published);
+  the generated `GeneratedPublications.Set` (`PublicationSet`, `PublicationInfo`, rows `publish:<contract>@<version>`, the map
+  through the app's JSON options); `MessagePublisher` runs the rows on the reaction worker (`Message.Of`: message id = event
+  id, `traceparent` = the `publish <contract>` span); effects `IEffect<TEvent>` with `EffectContext` (key = the event id),
+  `EffectSet`, rows `effect:<name>`; `AddMessaging(…).Publish(…)`, `.Effect<TEvent, THandler>(name)`; `MessagingTest`
+  (several systems in memory). TVAL006 is exempt inside `[Publishes<T>]` methods.
+* `Tarol.Changes`: `IOutboxRowHandler` (an outbox row kind the reaction worker runs) and `OutboxRows` (handlers joined);
+  `ReactionSet` implements it (`ActivityName`), `ReactionSet.Empty`.
+* `Tarol.Persistence`: `OutboxReactions.Combine`, `TarolBuilder.WithOutboxRows` and `TarolBuilder.OutboxTable` (the
+  store's table: reactions and added rows).
 
 ### Fixed
 
@@ -152,6 +163,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   deterministic (docs/migration/sagas.md §18.3).
 
 ### Changed
+
+* Step 11B: the reaction worker (`ReactionWorker`, `ReactionHost`) takes an `IOutboxRowHandler` instead of a
+  `ReactionSet` (source compatible: a `ReactionSet` is one) and names each row's span by its handler; the hosted worker
+  joins every `IOutboxRowHandler` registered in DI with the reactions. `AddReactionWorker()` without reactions runs with
+  `ReactionSet.Empty` (it threw). The stores read `TarolBuilder.OutboxTable` (reactions + added rows). `AddMessaging`
+  needs a dead-letter store only with consumers. TMSG003's message names the attribute (`[Consumes(…)]` or
+  `[Publishes<T>(…)]`). Full list: docs/migration/messaging.md §16.
 
 * Changes (step 10A): `IChangeAuthorization.Check` takes the `ChangeContext` and a non-null principal and is called
   only for runs with `ChangeOptions.Principal`; it runs before the expected version is compared (a refused caller no

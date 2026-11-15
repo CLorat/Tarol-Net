@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shop;
 using Tarol.Changes;
 using Tarol.Kernel;
+using Tarol.Sagas;
 using Tarol.StronglyTypedId;
 
 namespace Tarol.Messaging.Tests;
@@ -38,5 +39,33 @@ public sealed class SkillExampleTests
         attempts.Single().Verdict.ShouldBe(Verdict.Done);
         test.Load(auction.Id).Paid.ShouldBe(150m);
         services.BuildServiceProvider().GetRequiredService<MessageConsumers>().Subscriptions.Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task The_skill_publication_example_runs()
+    {
+        var start = new DateTimeOffset(2026, 11, 15, 9, 0, 0, TimeSpan.Zero);
+        var open = Auction.Open(start);
+        var services = new ServiceCollection();
+        services.AddSingleton<Mailbox>();
+
+        services.AddTarol(ShopJson.Default, codec => codec.Add<Auction>())
+            .UseInMemoryStore()
+            .AddReactionWorker()
+            .AddMessaging("artflow", m => m
+                .Publish(GeneratedPublications.Set)
+                .Effect<Auction.PaymentRecorded, SendReceipt>("send-receipt")
+                .UseInMemoryTransport());
+
+        var test = MessagingTest.At(start)
+            .System("artflow", ShopJson.Default.Options, o => o.Publications = GeneratedPublications.Set)
+            .System("billing", ShopJson.Default.Options, o => { o.Consumers = GeneratedConsumers.Set; o.Trust("artflow", t => t.AnyTenant()); });
+        test["artflow"].Given(open);
+        (await test["artflow"].When(new SettleAuction(open.Id, 150m))).IsSuccess.ShouldBeTrue();
+        await test.Drain();
+
+        test.Transport.Published.Single().Type.ShouldBe("artflow.auction-settled");
+        test["billing"].Store.Recorded.Count(r => r.Event.Event is Invoice.Issued).ShouldBe(1);
+        services.BuildServiceProvider().GetServices<IOutboxRowHandler>().Count().ShouldBe(2);
     }
 }
