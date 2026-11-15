@@ -1,11 +1,13 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Tarol.Changes.Generators;
 
 /// <summary>
 ///     Generates, for every change (a type implementing <c>IChange&lt;T&gt;</c>, <c>ICreation&lt;T&gt;</c> or <c>ILoads&lt;T&gt;</c>),
 ///     <c>IChange&lt;T&gt;.Target</c> from its only <c>Id&lt;T&gt;</c> member and the loads of its <c>[Read]</c> members; and per
-///     assembly a typed <c>GeneratedChanges.Dispatch(object)</c>. Diagnostics TCHG001–TCHG005.
+///     assembly a typed <c>GeneratedChanges.Dispatch(object)</c> and, for <c>[OnEvent&lt;T&gt;]</c> factories, a public
+///     <c>GeneratedReactions.Set</c>. Diagnostics TCHG001–TCHG008.
 ///     <para>
 ///         The transform yields a symbol-free, location-free <see cref="ChangeModel"/> (names and types, never bodies), so
 ///         editing an <c>Execute</c> body or an unrelated file regenerates nothing (incrementality tests).
@@ -39,6 +41,29 @@ public sealed class ChangesGenerator : IIncrementalGenerator
             if (pair.Left.IsEmpty)
                 return;
             spc.AddSource("GeneratedChanges.g.cs", Emitter.Dispatch(pair.Left, pair.Right));
+        });
+
+        // reactions: [OnEvent<T>] factories → one public GeneratedReactions per assembly (step 9, sagas.md §2)
+        var reactions = context.SyntaxProvider
+            .ForAttributeWithMetadataName(ReactionDiscovery.AttributeName, static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, ct) => ReactionDiscovery.Transform(ctx, ct))
+            .SelectMany(static (found, _) => found);
+        context.RegisterSourceOutput(reactions.Where(static r => !r.Diagnostics.IsEmpty), static (spc, r) =>
+        {
+            foreach (var diagnostic in r.Diagnostics)
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
+        });
+        var reactionModels = reactions.Where(static r => r.Model is not null).Select(static (r, _) => r.Model!).WithTrackingName("ReactionModels").Collect();
+        context.RegisterSourceOutput(reactionModels.Combine(assembly), static (spc, pair) =>
+        {
+            if (!pair.Left.IsEmpty)
+                spc.AddSource("GeneratedReactions.g.cs", ReactionEmitter.Emit(pair.Left, pair.Right));
+        });
+        var sites = reactions.Where(static r => r.Site is not null).Select(static (r, _) => r.Site!).Collect();
+        context.RegisterSourceOutput(sites, static (spc, all) =>
+        {
+            foreach (var diagnostic in ReactionDiscovery.Duplicates(all))
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
         });
     }
 }
