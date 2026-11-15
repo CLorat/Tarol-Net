@@ -72,7 +72,11 @@ public sealed class HostingTests
         {
             ShouldListenTo = static source => source.Name == MessageConsumers.ActivitySourceName,
             Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = spans.Add,
+            ActivityStopped = a =>
+            {
+                lock (spans)
+                    spans.Add(a);
+            },
         };
         ActivitySource.AddActivityListener(listener);
         var test = MessageTest.At(DateTimeOffset.UnixEpoch, GeneratedConsumers.Set, ShopJson.Default.Options, "shop").Trust("artflow", t => t.AnyTenant());
@@ -83,7 +87,10 @@ public sealed class HostingTests
         await test.Send(message);
         await test.Drain();
 
-        var span = spans.First(s => s.GetTagItem("tarol.consumer") as string == "IssueInvoice");
+        Activity[] seen;
+        lock (spans)
+            seen = [.. spans];                                                   // listeners are process-wide: pick this test's span
+        var span = seen.First(s => s.GetTagItem("tarol.consumer") as string == "IssueInvoice" && s.GetTagItem("messaging.message.id") as string == message.Id.ToString());
         span.DisplayName.ShouldBe("consume artflow.auction-settled");
         span.Kind.ShouldBe(ActivityKind.Consumer);
         span.ParentId.ShouldBeNull();

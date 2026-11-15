@@ -31,6 +31,12 @@ public sealed class MessagingSystemOptions
     /// <summary>Attempts and backoff of rows and deliveries (default <see cref="DeliveryPolicy"/>).</summary>
     public DeliveryPolicy Policy { get; set; } = new();
 
+    /// <summary>
+    /// Wraps the transport this system publishes through, e.g. a decorator that fails after publishing (a crash between
+    /// publish and complete); <see langword="null"/> = the shared transport as is.
+    /// </summary>
+    public Func<IMessageTransport, IMessageTransport>? PublishThrough { get; set; }
+
     /// <summary>JSON options of the stored state; <see langword="null"/> = replay.</summary>
     public JsonSerializerOptions? StateOptions { get; set; }
 
@@ -191,7 +197,7 @@ public sealed class MessagingSystem
             Reactions = OutboxReactions.Combine(options.Reactions, options.Publications, options.Effects),
         });
         Pipeline = new ChangePipeline(Store, clock);
-        Publisher = new MessagePublisher(options.Publications, transport, json);
+        Publisher = new MessagePublisher(options.Publications, options.PublishThrough?.Invoke(transport) ?? transport, json);
         var rows = OutboxRows.Combine(options.Reactions, Publisher, options.Effects);
         Worker = new ReactionWorker(Store.Outbox, new SkipGiven(rows, _given), Pipeline, clock, new ReactionOptions { Policy = options.Policy });
         DeadLetters = new InMemoryMessageDeadLetters(clock);

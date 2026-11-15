@@ -46,6 +46,135 @@ public sealed class GeneratorTests
     }
 }
 
+public sealed class PublicationGeneratorTests
+{
+    [Fact]
+    public void Publications_get_their_set_table_and_map()
+        => Snapshot.Match("publications", GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Publications)));
+
+    [Fact]
+    public void The_generated_publications_compile_without_warnings()
+        => string.Join("\n", GeneratorTestHost.Diagnose(Sources.Publications).Select(d => d.ToString())).ShouldBeEmpty();
+
+    [Fact]
+    public void Consumers_and_publications_of_one_assembly_are_two_files()
+        => GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Consumers, Sources.Publications.Replace(GeneratorTestHost.Usings, "using System; using Tarol.Messaging; using Tarol.Primitives; using Tarol.Results;\n", StringComparison.Ordinal)
+                .Replace("public sealed record MoneyV2(decimal Amount, string Currency);", "", StringComparison.Ordinal)))
+            .GetRunResult().GeneratedTrees.Select(t => Path.GetFileName(t.FilePath)).Order(StringComparer.Ordinal).ShouldBe(["GeneratedConsumers.g.cs", "GeneratedPublications.g.cs"]);
+
+    private static (GeneratorDriver Driver, CSharpCompilation Compilation) First()
+    {
+        var compilation = GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Publications);
+        return (GeneratorTestHost.Run(compilation), compilation);
+    }
+
+    [Fact]
+    public void An_unrelated_file_regenerates_no_publication()
+    {
+        var (driver, compilation) = First();
+        var next = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText("namespace Shop; public sealed class Unrelated;", GeneratorTestHost.Parse, "Other.cs",
+            cancellationToken: TestContext.Current.CancellationToken));
+
+        Incrementality.RegeneratedOutputs(driver.RunGenerators(next, TestContext.Current.CancellationToken)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Editing_a_mapping_body_regenerates_no_publication()
+    {
+        var (driver, compilation) = First();
+        var edited = Sources.Publications.Replace("e.Amount > 0 ?", "e.Amount > 1 ?", StringComparison.Ordinal);
+        var next = compilation.ReplaceSyntaxTree(compilation.SyntaxTrees.Single(t => t.FilePath == "Source1.cs"),
+            CSharpSyntaxTree.ParseText(edited, GeneratorTestHost.Parse, "Source1.cs", cancellationToken: TestContext.Current.CancellationToken));
+
+        Incrementality.RegeneratedOutputs(driver.RunGenerators(next, TestContext.Current.CancellationToken)).ShouldBeEmpty();
+    }
+}
+
+public sealed class PublicationDiagnosticTests
+{
+    private const string Records = "namespace Shop;\npublic sealed record PaidV1(Guid Order, decimal Amount);\n";
+
+    private static System.Collections.Immutable.ImmutableArray<Diagnostic> Run(string body)
+        => GeneratorTestHost.Diagnose(GeneratorTestHost.Usings + Records + body);
+
+    private static string Message(string body, string id)
+        => Run(body).First(d => d.Id == id).GetMessage(System.Globalization.CultureInfo.InvariantCulture);
+
+    [Theory]
+    [InlineData("public static PaidV1 Map(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);", null)]
+    [InlineData("internal static PaidV1? Map(Order.PaymentRecorded e, RecordedEvent r) => null;", null)]
+    [InlineData("public PaidV1 Map(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);", "public or internal static method")]
+    [InlineData("private static PaidV1 Map(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);", "public or internal static method")]
+    [InlineData("public static PaidV1 Map(Order.PaymentRecorded e, int extra) => new(Guid.Empty, e.Amount);", "the second parameter is the RecordedEvent")]
+    [InlineData("public static PaidV1 Map(Order.Opened e) => new(Guid.Empty, 0);", "the first parameter is the event, PaymentRecorded")]
+    [InlineData("public static decimal Map(Order.PaymentRecorded e) => e.Amount;", "returns the contract record, a class")]
+    [InlineData("public static string Map(Order.PaymentRecorded e) => \"\";", "returns the contract record, a class")]
+    [InlineData("public static void Map(Order.PaymentRecorded e) { }", "returns the contract record, a class")]
+    public void TMSG004_the_publication_is_a_static_mapping_method(string method, string? message)
+    {
+        var body = "public static class Publications { [Publishes<Order.PaymentRecorded>(\"shop.paid\", 1)] " + method + " }";
+        if (message is null)
+            Run(body).Ids().ShouldNotContain("TMSG004");
+        else
+            Message(body, "TMSG004").ShouldContain(message);
+    }
+
+    [Fact]
+    public void TMSG004_the_containing_type_is_visible()
+        => Message("public static class Outer { private static class Publications { [Publishes<Order.PaymentRecorded>(\"shop.paid\", 1)] public static PaidV1 Map(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount); } }",
+            "TMSG004").ShouldContain("of a visible type");
+
+    [Theory]
+    [InlineData("\"paid\", 1", "<system>.<name>")]
+    [InlineData("\"shop.paid\", 0", "the version is 1 or more")]
+    public void TMSG003_applies_to_publications(string arguments, string message)
+    {
+        var text = Message("public static class Publications { [Publishes<Order.PaymentRecorded>(" + arguments + ")] public static PaidV1 Map(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount); }", "TMSG003");
+        text.ShouldContain("[Publishes<PaymentRecorded>(");
+        text.ShouldContain(message);
+    }
+
+    [Fact]
+    public void TMSG005_one_method_per_contract_version_is_an_error()
+    {
+        var found = Run("""
+            public static class Publications
+            {
+                [Publishes<Order.PaymentRecorded>("shop.paid", 1)] public static PaidV1 A(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);
+                [Publishes<Order.Opened>("shop.paid", 1)] public static PaidV1 B(Order.Opened e) => new(Guid.Empty, 0);
+            }
+            """).Where(d => d.Id == "TMSG005").ShouldHaveSingleItem();
+        found.Severity.ShouldBe(DiagnosticSeverity.Error);
+        found.GetMessage(System.Globalization.CultureInfo.InvariantCulture).ShouldContain("shop.paid v1 is published by two methods, 'Publications.A' and 'Publications.B'");
+    }
+
+    [Fact]
+    public void TMSG005_two_prefixes_in_one_assembly_is_a_warning()
+    {
+        var diagnostics = Run("""
+            public static class Publications
+            {
+                [Publishes<Order.PaymentRecorded>("shop.paid", 1)] public static PaidV1 A(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);
+                [Publishes<Order.Opened>("billing.opened", 1)] public static PaidV1 B(Order.Opened e) => new(Guid.Empty, 0);
+            }
+            """);
+        var found = diagnostics.Where(d => d.Id == "TMSG005").ShouldHaveSingleItem();
+        found.Severity.ShouldBe(DiagnosticSeverity.Warning);
+        found.GetMessage(System.Globalization.CultureInfo.InvariantCulture).ShouldContain("2 system prefixes (billing, shop)");
+        diagnostics.Ids().ShouldBe(["TMSG005"]);                                            // the set is still generated and compiles
+    }
+
+    [Fact]
+    public void TMSG006_a_contract_record_missing_from_the_JSON_context_is_a_warning()
+    {
+        const string body = "public static class Publications { [Publishes<Order.PaymentRecorded>(\"shop.paid\", 1)] public static PaidV1 Map(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount); }";
+        var missing = Run(body + "\n[JsonSerializable(typeof(string))] public sealed partial class ShopJson : JsonSerializerContext;").Single(d => d.Id == "TMSG006");
+        missing.Severity.ShouldBe(DiagnosticSeverity.Warning);
+        missing.GetMessage(System.Globalization.CultureInfo.InvariantCulture).ShouldContain("'Shop.PaidV1' (the record of shop.paid v1)");
+        Run(body + "\n[JsonSerializable(typeof(PaidV1))] public sealed partial class ShopJson : JsonSerializerContext;").Ids().ShouldNotContain("TMSG006");
+    }
+}
+
 public sealed class DiagnosticTests
 {
     private static System.Collections.Immutable.ImmutableArray<Diagnostic> Run(string body)
