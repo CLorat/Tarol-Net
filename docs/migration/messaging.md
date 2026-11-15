@@ -622,5 +622,11 @@ None.
 
 ### 16.7 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
 
-VERIFICATION_11B
+`dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker: **1171 of 1171** (1129 + 19 runtime + 20 generator + 2 Sagas + 1 analyzer; the new runtime tests
+also 6 times in a row); `eng/aot-smoke.sh` with `TAROL_PG`: **14 apps**, 0 IL warnings each, all checks passed
+(`Tarol.Messaging.AotSmoke` 8 checks, 5.4 MB); `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Messaging`
+contains `lib/`, the generator under `analyzers/dotnet/cs/`, README, LICENSE and `skills/tarol-messaging/SKILL.md`; its
+package consumer generates and runs a consumer, a publication and an effect). CI of `main` after #31 (run 89): `build`,
+`aot-smoke`, `integration` green.
 
