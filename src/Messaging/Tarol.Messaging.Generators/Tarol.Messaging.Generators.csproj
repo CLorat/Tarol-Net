@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Generator for Tarol.Messaging ([Consumes] factories → GeneratedConsumers.Set; TMSG001-TMSG007).
+       Settings inherited from src/Directory.Build.props (TarolIsGenerator): netstandard2.0, packed into Tarol.Messaging. -->
+</Project>

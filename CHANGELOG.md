@@ -133,6 +133,17 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   project and a claims transformation (project roles → roles, organisation → tenant via `ZitadelTenants.Of`, the
   service role → `Actor.Service`); agent skill `tarol-zitadel`.
 * `samples/Sagas`: ArtFlow's API and worker with Zitadel under the AppHost.
+* `Tarol.Messaging` (step 11A, + generator TMSG001–TMSG003, TMSG006, TMSG007): consumers of other systems' messages.
+  `[Consumes(contract, version)]` on a static `From` factory of a change, one per contract version (the anti-corruption
+  layer); the generated `GeneratedConsumers.Set` (a switch per consumer, contract and version; malformed data, an unknown
+  version and an unknown contract are distinguished); `MessageConsumers` checks the source against the contract prefix
+  and the tenant against the source's allow-list (`MessagingOptions.Trust`, `SourceTrust`), runs the change as
+  `System("Consumers.<name>")` on behalf of the sender's actor with the key `(tenant, consumer:<name>, message id)` (the
+  inbox), classifies with `Delivery.Classify` and the reaction worker's `DeliveryPolicy`, and keeps dead letters with
+  their headers and bytes (`IMessageDeadLetters`, `Redrive`); the envelope `Message` is CloudEvents 1.0 binary mode
+  (`MessageHeaders`); the transport port `IMessageTransport` with `InMemoryTransport`; `MessagingHost` and
+  `AddMessaging(…)` on the `TarolBuilder`; `MessageTest`; `ActivitySource "Tarol.Messaging"`; agent skill
+  `tarol-messaging`. TVAL006 is exempt inside `[Consumes]` factories.
 
 ### Fixed
 

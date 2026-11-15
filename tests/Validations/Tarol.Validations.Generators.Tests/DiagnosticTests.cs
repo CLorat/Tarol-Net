@@ -156,6 +156,28 @@ public class DiagnosticTests
     }
 
     [Fact]
+    public void TVAL006_Exempt_In_A_Consumer_Factory_Of_Messaging()
+    {
+        // step 11: [Consumes] ships in Tarol.Messaging; the factory maps another system's contract, the pipeline validates it.
+        var found = Of("TVAL006", """
+            namespace Tarol.Messaging { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class ConsumesAttribute(string c, int v) : System.Attribute; }
+            namespace Elsewhere { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class ConsumesAttribute(string c, int v) : System.Attribute; }
+            public readonly partial record struct Q([Range(1, 2)] int Value);
+            public sealed record PaidV1(int Amount);
+            public sealed partial record Validated(Q Amount) : IValidatable
+            {
+                [Tarol.Messaging.Consumes("billing.invoice-paid", 1)]
+                public static Validated From(PaidV1 p) => new(new Q(p.Amount));                     // exempt
+                [Elsewhere.Consumes("billing.invoice-paid", 1)]
+                public static Validated Foreign(PaidV1 p) => new(new Q(p.Amount));                  // reported: not Tarol's attribute
+            }
+            """);
+
+        found.Length.ShouldBe(1);
+        found[0].Location.GetLineSpan().StartLinePosition.Line.ShouldBe(10);
+    }
+
+    [Fact]
     public void TVAL007_DataAnnotations_Attributes_Have_No_Effect()
     {
         var found = Of("TVAL007",
