@@ -777,4 +777,4 @@ and `TAROL_RABBITMQ`: **17 apps** (15 + the two brokers'), 0 IL warnings each, a
 `eng/verify-packages.sh`: OK (both packages contain `lib/`, README, LICENSE and their skill; their package consumers run).
 `samples/Sagas/apphost.sh … 5`: 5 of 5 round trips with NATS (JIT), with RabbitMQ (JIT) and with the three Native AOT
 binaries (NATS), the README's result. The broker integration projects passed on their first full runs (17 + 17, before the
-skill tests were added) and again in the solution run.
+skill tests were added), in the solution run, and **10 times each in a row in Release (18 of 18 every time)**.
