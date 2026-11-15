@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Reactions to own events and sagas for Tarol: one outbox worker claims the rows a commit wrote, runs each reaction through the change pipeline as the system on behalf of the user (caused by the event, keyed by reaction and event id), retries conflicts with backoff and dead-letters what keeps failing; a hosted service with key purging, tracing links and logs; ReactionTest runs the whole chain in memory with a standing clock. Sagas are aggregates whose steps are reactions. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;saga;process-manager;outbox;reaction;worker;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hosting, DI and logging abstractions (and the LoggerMessage generator) are part of .NET 11's base framework. -->
+    <ProjectReference Include="../../Changes/Tarol.Changes/Tarol.Changes.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>
