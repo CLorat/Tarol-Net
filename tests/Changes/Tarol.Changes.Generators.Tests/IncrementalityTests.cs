@@ -56,4 +56,34 @@ public sealed class IncrementalityTests
         driver.RunGenerators(next, TestContext.Current.CancellationToken).GetRunResult().Results.Single().GeneratedSources.Single(s => s.HintName == "Shop.CloseOrder.Change.g.cs")
             .SourceText.ToString().ShouldContain("=> this.Id;");
     }
+
+    private static (GeneratorDriver Driver, CSharpCompilation Compilation) FirstWithReactions()
+    {
+        var compilation = GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Reactions);
+        return (GeneratorTestHost.Run(compilation), compilation);
+    }
+
+    [Fact]
+    public void Editing_a_reaction_factory_body_or_moving_it_regenerates_nothing()
+    {
+        var (driver, compilation) = FirstWithReactions();
+        var next = Replace(compilation, "Source1.cs", Sources.Reactions
+            .Replace("=> new((Id<Order>)recorded.StreamId);", "=> new( (Id<Order>)recorded.StreamId );", StringComparison.Ordinal)
+            .Replace("namespace Shop;", "namespace Shop;\n\n// moved", StringComparison.Ordinal));
+
+        Incrementality.RegeneratedOutputs(driver.RunGenerators(next, TestContext.Current.CancellationToken)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Pinning_a_reaction_name_regenerates_only_the_reaction_set()
+    {
+        var (driver, compilation) = FirstWithReactions();
+        var next = Replace(compilation, "Source1.cs", Sources.Reactions
+            .Replace("[OnEvent<Order.WasClosed>]", "[OnEvent<Order.WasClosed>(Name = \"Orders.CloseAgain\")]", StringComparison.Ordinal));
+
+        var run = driver.RunGenerators(next, TestContext.Current.CancellationToken);
+        Incrementality.RegeneratedOutputs(run).Count.ShouldBe(1);
+        run.GetRunResult().Results.Single().GeneratedSources.Single(s => s.HintName == "GeneratedReactions.g.cs")
+            .SourceText.ToString().ShouldContain("\"Orders.CloseAgain\"");
+    }
 }

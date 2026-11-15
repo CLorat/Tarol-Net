@@ -70,5 +70,14 @@ public sealed partial record CloseByNumber(string Number) : ILoads<Order>
     public Result Execute(Order order, ChangeContext context) => order.Close(context.Now);
 }
 
+/// <summary>A reaction (step 9A): a closed order opens a follow-up, due at the closing time.</summary>
+public sealed partial record OpenFollowUp(string Number) : ICreation<Order>
+{
+    [OnEvent<Order.WasClosed>(DueAt = nameof(Order.WasClosed.At))]
+    public static OpenFollowUp From(Order.WasClosed e, RecordedEvent recorded) => new("follow-up-" + recorded.StreamId.ToString("N")[..8]);
+
+    public Result<Order> Execute(ChangeContext context) => Order.Open(Number, context.Now);
+}
+
 [JsonSerializable(typeof(int))]
 internal sealed partial class SmokeJson : JsonSerializerContext;
