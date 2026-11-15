@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native-AOT smoke test of Tarol.Messaging.SignalR: a Kestrel server with the hub and the forwarder and a .NET client in one
+    process (subscribe, publish through the hub, a message forwarded from the transport, a refused subscribe). Publish with
+      dotnet publish tests/Messaging/Tarol.Messaging.SignalR.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SignalR's server under Native AOT: hub methods return Task, no custom awaitables (the package README says so). -->
+    <RuntimeHostConfigurationOption Include="Microsoft.AspNetCore.SignalR.Hub.IsCustomAwaitableSupported" Value="false" Trim="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../src/Messaging/Tarol.Messaging.SignalR/Tarol.Messaging.SignalR.csproj" />
+  </ItemGroup>
+</Project>

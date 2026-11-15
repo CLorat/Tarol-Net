@@ -152,7 +152,11 @@ public sealed partial class MessagePushClient : IAsyncDisposable
             {
                 await _connection.InvokeAsync(nameof(MessageHub.Subscribe), topic, cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception e) when (e is HubException or InvalidOperationException or IOException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
             {
                 ReplayFailed(_log, topic, e);                                             // the next reconnect tries again
             }
@@ -211,9 +215,9 @@ public sealed partial class MessagePushClient : IAsyncDisposable
         {
             await _connection.InvokeAsync(nameof(MessageHub.Unsubscribe), topic).ConfigureAwait(false);
         }
-        catch (Exception e) when (e is HubException or InvalidOperationException or IOException)
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
-            UnsubscribeFailed(_log, topic, e);
+            UnsubscribeFailed(_log, topic, e);                                                // best effort: a dead connection forgets it anyway
         }
     }
 

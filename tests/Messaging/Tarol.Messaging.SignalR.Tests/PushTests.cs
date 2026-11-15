@@ -245,6 +245,19 @@ public sealed class PushTests
     }
 
     [Fact]
+    public async Task Disposing_a_handle_after_the_server_went_away_does_not_throw()
+    {
+        var host = await PushHost.Start();
+        var (client, _, handle) = await Subscribed(host, "artflow.chat");
+        await using var _client = client;
+        await host.DisposeAsync();
+
+        await handle.DisposeAsync();                                                                 // the unsubscribe is best effort
+
+        client.Topics.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task Groups_are_tenant_and_topic_and_rules_match_prefixes_and_roles()
     {
         MessageHub.Group(PushHost.TenantA, "artflow.chat").ShouldBe("0193a000-0000-7000-8000-00000000000a/artflow.chat");
