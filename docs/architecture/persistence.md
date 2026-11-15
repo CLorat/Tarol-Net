@@ -166,7 +166,9 @@ redelivery after the window commits again (documented).
   dead-letters it.
 * The generated reaction table returns `ReadOnlySpan<string>` over **static arrays**: a collection expression in a
   span-returning lambda is CS9203 **[verified]**.
-* **Step 9** adds the worker loop, backoff and dead-letter (C-9), the trace link from `traceparent`.
+* **Step 9** adds the worker loop, backoff and dead-letter (C-9), the trace link from `traceparent`; designed in
+  [sagas.md](sagas.md): the order stays O-2, the claim becomes a maintained `head` flag (S-8: the anti-join is O(backlog)),
+  scheduled reactions are ordered by `due_at` only (S-9), dead letters move to `outbox_dead` (S-5).
 
 ## 9. The global feed (P-3, P-14)
 

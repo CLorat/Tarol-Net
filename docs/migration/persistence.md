@@ -432,7 +432,9 @@ All answers follow the recommendation. Consequences worth stating:
 ### Step 9 (designed here)
 
 The generated `ReactionsTo` as the `ReactionTable`; the worker on `OutboxClaims`; dead-letter that unblocks O-2; the host
-calls `PurgeKeys`; saga persistence on this store (old finding 23 disappears); DI registration.
+calls `PurgeKeys`; saga persistence on this store (old finding 23 disappears); DI registration. **Designed** in
+[sagas.md](sagas.md) §11–§12: PR 9B changes the 8C claim (head flag, S-8), adds scheduled rows (S-9), `outbox_dead` (S-5)
+and `traceparent` in claims; schema version stays 1 (nothing released).
 
 ## 17. Skill evaluation checklist (`tarol-persistence-npgsql`, for PR 8B)
 
