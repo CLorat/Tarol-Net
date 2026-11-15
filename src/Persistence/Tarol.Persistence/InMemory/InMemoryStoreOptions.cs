@@ -17,6 +17,12 @@ public sealed record InMemoryStoreOptions
     /// </summary>
     public EventCodec? Codec { get; init; }
 
+    /// <summary>
+    /// The reactions (a generated <c>GeneratedReactions.Set</c>): one outbox row per (event, reaction) in the commit, claimed
+    /// from <see cref="InMemoryAggregateStore.Outbox"/>; <see langword="null"/> = no rows.
+    /// </summary>
+    public IOutboxReactions? Reactions { get; init; }
+
     /// <summary>The unique lookups; share one instance with the production store.</summary>
     public StoreLookups Lookups { get; init; } = new();
 }
