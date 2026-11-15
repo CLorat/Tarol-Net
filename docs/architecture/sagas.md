@@ -208,7 +208,7 @@ builder.Services.AddTarolReactions(GeneratedReactions.Set, o =>     // Tarol.Sag
 * **Aspire** (D-15): an AppHost 13.6.5 builds and runs on SDK 11 with a PostgreSQL resource (`postgres:18.3`), the worker
   as a project or as its **Native AOT** binary (`AddExecutable` + `WithOtlpExporter`), connection string by reference,
   dashboard telemetry through OpenTelemetry 1.21 **[verified]**. No runtime package depends on Aspire; the AppHost is a
-  sample/prototype project (step 13), not published with AOT.
+  sample/prototype project (step 18), not published with AOT.
 
 ## 8. Testing (question 5)
 
@@ -267,6 +267,7 @@ S-14 reaction name = type name, pin to rename; S-15 sagas start load-or-create.
 ## Open questions
 
 * Logging: source-generated `LoggerMessage` for Retry/Bury/lease loss (old S10 found none); the event ids in PR 9C.
-* Metrics (`System.Diagnostics.Metrics`: rows/s, attempts, dead letters, lag) and a health check on `Pending`/dead letters.
+* Metrics (`System.Diagnostics.Metrics`: rows/s, attempts, dead letters, lag) and a health check on `Pending`/dead letters:
+  plan step 15 (Operations).
 * Priority between reactions (a slow reaction's backlog delays others in the same claim order): not needed by a scenario.
 * Partitioning work across processes by tenant: `SKIP LOCKED` suffices for the measured scale.

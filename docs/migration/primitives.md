@@ -403,7 +403,7 @@ package (and `Events_Are_Pure_Payload…`); F-15 `IncrementalityTests`; F-22 `F2
 
 ## 14. What later steps must do
 
-See [domain-core.md](../architecture/domain-core.md#what-later-steps-must-do) and the plan (rows 6–9, 13). Part B
+See [domain-core.md](../architecture/domain-core.md#what-later-steps-must-do) and the plan (rows 6–9, 18). Part B
 (stored state) is the next pull request of step 6.
 
 ## 15. Open items

@@ -343,7 +343,7 @@ event type ordered by name (deterministic output). TVAL006 is exempt inside a st
 * Packages: `Tarol.Sagas` only (S-11); the plan's `.Engine`, `.Testing`, `.Persistence.InMemory` are not created.
 * Row 9 rewritten (three PRs); row 11 reuses the worker, `DeliveryPolicy` and dead letters for consumers; D-8 still no
   meta-package.
-* Samples (step 13): the Aspire AppHost of this probe is the template for ArtFlow's.
+* Samples (step 18, was 13): the Aspire AppHost of this probe is the template for ArtFlow's.
 
 ## 9. Decisions asked
 

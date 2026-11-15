@@ -100,8 +100,8 @@ compiles `../vo/*.cs`, so copy both). Environment: SDK 11.0.100, .NET 11.0.0, li
 | 12 | incrementality broken | **fix**: `ForAttributeWithMetadataName`, equatable models, no `Collect`, tracked-step tests |
 | 13–15 | Changes / Primitives example issues | step 6/7 (listed) |
 | 16 | `RegexOptions.Compiled`, no timeout | **fix**: `[GeneratedRegex]` with a timeout (default 100 ms); timeout = field error, **[verified]** 99–107 ms |
-| 17 | inverted prerequisite | **moot**: guards are code in the behaviour (§5); recorded for step 13 (ArtFlow) |
-| 18 | ArtFlow `Description` always fails | step 13 |
+| 17 | inverted prerequisite | **moot**: guards are code in the behaviour (§5); recorded for step 18 (ArtFlow) |
+| 18 | ArtFlow `Description` always fails | step 18 |
 | 19–20 | dead `Range.Exclusive`, decimal ctor, `MinOnly`/`MaxOnly` | **fix**: `Range` takes `double`/`long` and strings for decimals (§7.2); named `Min`/`Max` properties instead of factories |
 | 21 | `IsString`/`IsNumeric` by display string; `[NotEmpty]` on `Guid` does not compile | **fix**: `SpecialType` / interface checks; `NotEmpty` on unsupported types is TVAL004 |
 | 22 | NRE on null nested values | **fix**: null member → `Required`; test |

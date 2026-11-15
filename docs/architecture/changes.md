@@ -284,4 +284,4 @@ factories; C-14 `ChangeTest`; C-15 two PRs; C-16 the pipeline loads the target a
 * Retention of idempotency keys: decided in step 8 (P-11, [persistence.md](persistence.md) §7): `PurgeKeys`, 7 days default.
 * Per-stream ordering of outbox rows across several workers: decided in step 8 (P-10, [persistence.md](persistence.md) §8).
 * Unknown versions of a known webhook type: dead-letter (proposed) or acknowledge? Step 10.
-* The read side (queries, projections) after C-3: a later decision.
+* The read side (queries, projections) after C-3: plan step 12 (queries and read models), caching step 13.

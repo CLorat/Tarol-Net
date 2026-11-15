@@ -7,7 +7,7 @@ worker settles 20 auctions, one per second: each `Bid.Won` marks a payout due an
 3-day deadline waits in the outbox.
 
 Not part of `Tarol.slnx` and not built by CI (the AppHost needs Docker and Aspire's orchestrator); it has its own
-`Directory.Build.props` and package versions. The full Aspire ArtFlow sample is step 13.
+`Directory.Build.props` and package versions. The full Aspire ArtFlow sample is step 18.
 
 ```bash
 dockerd > /tmp/dockerd.log 2>&1 &                        # if Docker is not running
