@@ -38,5 +38,9 @@
   <ItemGroup Label="Benchmarks (tests/*/*.Benchmarks, never run in CI)">
     <!-- 0.15.x throws "GetRuntimeVersion not implemented" on net11.0; 0.16.0-preview.2 is the first that runs. -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
+    <!-- ASP.NET Core packages that are not part of the shared framework (step 10) -->
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="11.0.0" />
   </ItemGroup>
 </Project>

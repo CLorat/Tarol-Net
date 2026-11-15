@@ -1,0 +1,70 @@
+using Tarol.Primitives;
+
+namespace Tarol.Changes.AspNetCore;
+
+/// <summary>
+/// An HTTP entry (docs/architecture/rest.md §2): on a change record (<c>"POST /auctions/{auction}/bids"</c>; POST, PUT,
+/// PATCH or DELETE) or on a view record (<c>"GET /auctions/{auction}"</c>, an <see cref="IView{TAggregate, TSelf}"/>).
+/// The generator writes one <c>RequestDelegate</c> per entry and <c>MapChanges()</c>.
+/// </summary>
+/// <param name="route">The verb, a space and the route pattern; route values bind the input members of the same name.</param>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+public sealed class EndpointAttribute(string route) : Attribute
+{
+    /// <summary>The verb and pattern.</summary>
+    public string Route { get; } = route;
+
+    /// <summary>The endpoint policy (<c>RequireAuthorization(Policy)</c>), e.g. a scope; absent: the default policy (an
+    /// authenticated caller). The change is still authorized on its aggregate (Tarol.Security).</summary>
+    public string? Policy { get; init; }
+
+    /// <summary>Lets unauthenticated callers reach the entry; the change is still authorized for the anonymous principal.</summary>
+    public bool Anonymous { get; init; }
+}
+
+/// <summary>
+/// A webhook entry on a static factory <c>From(TPayload)</c> of a change: the sender's event type (and contract version)
+/// mapped to the change (anti-corruption layer). Served at <c>POST /webhooks/{sender}</c> and
+/// <c>POST /webhooks/{sender}/{tenant}</c>; configured in <see cref="WebhookOptions"/>.
+/// </summary>
+/// <param name="sender">The sender's name, e.g. <c>"payments"</c>.</param>
+/// <param name="type">The envelope's <c>type</c>, e.g. <c>"payment.succeeded"</c>.</param>
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = false)]
+public sealed class WebhookAttribute(string sender, string type) : Attribute
+{
+    /// <summary>The sender.</summary>
+    public string Sender { get; } = sender;
+
+    /// <summary>The event type.</summary>
+    public string Type { get; } = type;
+
+    /// <summary>The envelope's contract <c>version</c> this factory reads; absent: deliveries without a version.</summary>
+    public string? Version { get; init; }
+}
+
+/// <summary>A read model of one aggregate, returned by <c>GET</c> by id (R-8): the API's contract, not the stored state.</summary>
+/// <typeparam name="TAggregate">The aggregate.</typeparam>
+/// <typeparam name="TSelf">The view.</typeparam>
+public interface IView<TAggregate, TSelf>
+    where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
+    where TSelf : IView<TAggregate, TSelf>
+{
+    /// <summary>Builds the view from the loaded (and authorized) aggregate.</summary>
+    /// <param name="aggregate">The aggregate.</param>
+    /// <returns>The view.</returns>
+    static abstract TSelf From(TAggregate aggregate);
+}
+
+/// <summary>What the generator knows about an entry, as endpoint metadata (read by the generated OpenAPI transformers).</summary>
+/// <param name="Kind">"change", "creation", "view" or "webhook".</param>
+/// <param name="Input">The input (change or view) type.</param>
+/// <param name="RouteValues">The route values the input binds.</param>
+/// <param name="BodyMembers">The JSON names of the members read from the body (empty: no body).</param>
+/// <param name="Policy">The endpoint policy, if any.</param>
+public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyList<RouteValue> RouteValues, IReadOnlyList<string> BodyMembers, string? Policy);
+
+/// <summary>A route value of an entry.</summary>
+/// <param name="Name">Its name in the pattern (<c>auction</c>).</param>
+/// <param name="Kind"><c>"id"</c> (an <c>Id&lt;T&gt;</c>, a UUID), <c>"guid"</c>, <c>"string"</c>, <c>"int"</c> or <c>"long"</c>.</param>
+/// <param name="Property">The JSON name of the input member it binds (not read from the body).</param>
+public sealed record RouteValue(string Name, string Kind, string Property);

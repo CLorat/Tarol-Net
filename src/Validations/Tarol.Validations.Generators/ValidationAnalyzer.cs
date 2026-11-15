@@ -228,7 +228,7 @@ public sealed class ValidationAnalyzer : DiagnosticAnalyzer
             if (current is not IMethodSymbol { IsStatic: true, MethodKind: MethodKind.Ordinary } method)
                 continue;
             var entry = method.GetAttributes().Any(static a => a.AttributeClass is { ContainingNamespace: { } ns } attribute
-                && ns.ToDisplayString() == "Tarol.Changes"
+                && ns.ToDisplayString() is "Tarol.Changes" or "Tarol.Changes.AspNetCore"      // [Webhook] ships with the HTTP entries (step 10)
                 && attribute.OriginalDefinition.MetadataName is "OnEventAttribute`1" or "WebhookAttribute" or "ConsumesAttribute");
             return entry && method.ContainingType.AllInterfaces.Any(static i => i.ToDisplayString() == "Tarol.Validations.IValidatable");
         }

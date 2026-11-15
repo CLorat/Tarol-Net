@@ -14,6 +14,8 @@
   <Folder Name="/src/Changes/">
     <Project Path="src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" />
     <Project Path="src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
+    <Project Path="src/Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <Project Path="src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj" />
   </Folder>
   <Folder Name="/src/Kernel/">
     <Project Path="src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj" />
@@ -52,6 +54,7 @@
   <Folder Name="/tests/" />
   <Folder Name="/tests/Changes/">
     <Project Path="tests/Changes/Tarol.Changes.AotSmoke/Tarol.Changes.AotSmoke.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.AspNetCore.Tests/Tarol.Changes.AspNetCore.Tests.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.Generators.Tests/Tarol.Changes.Generators.Tests.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.Tests/Tarol.Changes.Tests.csproj" />
   </Folder>
