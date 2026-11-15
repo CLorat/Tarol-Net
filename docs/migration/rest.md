@@ -611,3 +611,15 @@ None.
 | roles for the role map | project roles granted in Zitadel, `AddSecurity(roles => roles.Role("seller")…)` | roles of another project |
 | a service account | machine user with the `service` role | expecting `Actor.Service` without the role |
 | a local container | `RequireHttpsMetadata = false`, a fixed issuer port | a proxied random port (issuer mismatch) |
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-15)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker) | 1049 total, 0 failed (981 after 10A + 68) |
+| Release reruns | endpoint + Npgsql tests 20/20, Zitadel integration 3/3 |
+| `dotnet pack Tarol.slnx -c Release` + `eng/verify-packages.sh` | OK: 13 packages; `Tarol.Changes.AspNetCore` holds `lib/` (+ XML docs), `analyzers/dotnet/cs/Tarol.Changes.AspNetCore.Generators.dll`, `README.md`, `LICENSE`, `skills/tarol-endpoints/SKILL.md`; `Tarol.Security.Zitadel` holds `skills/tarol-zitadel/SKILL.md`; both consumers pass and list the skills |
+| `TAROL_PG=… eng/aot-smoke.sh` | 13 apps, each 0 IL warnings, all checks pass natively (the HTTP smoke app on PostgreSQL) |
+| `samples/Sagas` AppHost with Zitadel | JIT and Native AOT: see the sample's README |
