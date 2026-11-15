@@ -135,6 +135,7 @@ public partial class Job : AggregateRoot<Job>
 | `EntitySet<T> Lines { get; set; }` | TPRM008 |
 | `[Invariant] bool …` | TPRM009 |
 | two events with one `[EventType]` alias | TPRM010 |
+| two aggregates named alike in one project (`A.Order`, `B.Order`) | TPRM028: one stream type; pin `[StreamType("b_order")]` |
 | calling `Dispatch`, `CheckInvariants`, `__map0` | TPRM015 |
 | `DateTime.UtcNow` in the domain | TKRN001 (Tarol.Kernel): take `now` as a parameter |
 | replaying out of order / another stream / unknown entity | `InvalidOperationException` from `Rehydrate` |

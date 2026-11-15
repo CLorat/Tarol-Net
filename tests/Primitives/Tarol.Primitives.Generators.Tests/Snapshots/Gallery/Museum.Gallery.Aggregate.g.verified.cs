@@ -37,6 +37,17 @@ namespace Museum
             _ => global::Tarol.Primitives.ThrowHelper.UnknownEvent<global::Tarol.Primitives.EventType>(domainEvent?.GetType().Name ?? "null", "Gallery"),
         };
 
+        /// <summary>The stored stream type of this aggregate.</summary>
+        public static string StreamType => "gallery";
+
+        /// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>
+        public static global::Tarol.Primitives.EventCatalog EventTypes { get; } = new("gallery",
+            new global::Tarol.Primitives.EventCatalogEntry(new("gallery.artwork.hung", 1), typeof(global::Museum.Artwork.Hung)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("gallery.artwork.repriced", 1), typeof(global::Museum.Artwork.Repriced)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("gallery.opened", 1), typeof(global::Museum.Gallery.Opened)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("gallery.room.added", 1), typeof(global::Museum.Room.Added)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("gallery.room.closed", 1), typeof(global::Museum.Room.Closed)));
+
         /// <inheritdoc />
         protected override void Dispatch(in global::Tarol.Primitives.StreamEvent stream)
         {

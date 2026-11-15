@@ -459,3 +459,139 @@ Probes: `probes/persistence/all.sh` → [`output.txt`](probes/persistence/output
 * Row-level security as defense in depth for the tenant filter: not designed (the store filters in every statement).
 * Whether the outbox should reference `events.position` for a feed-ordered dispatch (column present, unused).
 * The attribution of the ≈ 2 ms per change to the durable commit is not profiled.
+
+## 20. Implementation: PR 8A (2026-11-14)
+
+`persistence: event codec, stream types, feed port and in-memory parity`, stacked on the design PR. As decided in §15
+and §16; differences below.
+
+### 20.1 Public API (new)
+
+| Package | Type | Members |
+|---|---|---|
+| `Tarol.Primitives` | `StreamTypeAttribute(string name)` | pins the stream type |
+| | `EventCatalog(string streamType, params EventCatalogEntry[] events)` | `StreamType`, `Events` |
+| | `EventCatalogEntry(EventType Type, Type ClrType)` | readonly record struct |
+| | `IAggregateRoot<TSelf>` | + `static abstract string StreamType`, `static abstract EventCatalog EventTypes` (generated) |
+| `Tarol.Persistence` | `EventCodec(JsonSerializerOptions)` | `Options`, `Add<T>()`, `Upcast<T>(IEventUpcaster)`, `IsRegistered<T>()`, `StreamTypeOf<T>()`, `Encode<T>(event, IBufferWriter<byte>) : EventType`, `Decode(streamType, EventType, ReadOnlySpan<byte>) : DomainEvent` |
+| | `IEventUpcaster` | `EventType From`, `EventType Into`, `void Upcast(JsonObject)` |
+| | `IEventFeed` | `ReadAll(GlobalPosition after, int limit, ct) : IAsyncEnumerable<PositionedEvent>` |
+| | `GlobalPosition(ulong Transaction, long Position)` | `Start`, `IComparable`, `<`, `>`, `<=`, `>=` |
+| | `PositionedEvent(GlobalPosition Position, string StreamType, RecordedEvent Event)` | |
+| | `StoreLookups` | `Define<T>(name, key)`, `IsDefined<T>(name)`, `KeysOf<T>(aggregate)` |
+| | `InMemoryStoreOptions` | `StateOptions`, `Codec`, `Lookups` |
+| | `InMemoryAggregateStore` | + `(TimeProvider, InMemoryStoreOptions)`, implements `IEventFeed` |
+
+Generator diagnostics: **TPRM028** two aggregates of one compilation with one stream type (Error), **TPRM029** an empty
+`[StreamType]` (Error).
+
+### 20.2 Behaviour changes and deliberate differences from §13/§16
+
+* **`IEventUpcaster.Into`**, not `To`: CA1716 refuses `To` (a reserved word in Visual Basic).
+* **`T.EventTypes`**, not `T.Events`: a static `Events` would collide with a user member of that common name.
+* **`EventCodec` takes the options and makes them read-only** (`MakeReadOnly()`; the overload that fills in a missing
+  resolver is `[RequiresUnreferencedCode]`), so pass a copy you do not mutate later: `new JsonSerializerOptions(AppJson.Default.Options)`
+  or `ValueObjectJson.Options(AppJson.Default)`.
+* **`InMemoryAggregateStore` keys streams by `T.StreamType`** instead of `typeof(T).FullName`, as the database will.
+* **A stored state that does not parse falls back to a replay** (P-12); before it threw `JsonException` from `Load`.
+* **The history is copied only to replay** (P-15): a state load of a 5,000-event stream allocates < 40 KB (tested).
+* `DefineLookup` stays; it defines on the store's `StoreLookups` (shared when passed in the options).
+* The contract suite (`tests/Persistence/Shared/`) is **new**; the 25 in-memory tests stay where they are (they also
+  check in-memory specifics: `StateLoads`, `Recorded`, `History`), so some cases are covered twice.
+* TPRM028 found two `Order` aggregates in `Tarol.Primitives.Tests`; one is now pinned `[StreamType("test_order")]`.
+
+### 20.3 Tests **[verified]**
+
+| Project | New | What |
+|---|---|---|
+| `Tarol.Primitives.Generators.Tests` | +3 (131) | TPRM028 fires (two same-named aggregates and a pin onto a taken name), a unique pin does not, TPRM029; four snapshots gained `StreamType`/`EventTypes` (reviewed diff: only those members) |
+| `Tarol.Primitives.Tests` | +4 (113) | default and pinned stream type, the catalog lists every concrete event, agrees with `EventTypeOf`, rejects an empty stream type |
+| `Tarol.Persistence.Tests` | +58 (83) | the store contract (19 tests) twice: objects and through the codec; codec (12: round trip, upcast, chain across a rename, unknown alias message, missing upcaster, unregistered stream type, malformed payload, missing metadata message, idempotent `Add`, unique upcasters, unregistered encode, frozen options); in-memory (7: feed order and paging, position order, codec copies and state with codec options, codec without the aggregate, replay fallback, state load allocations, shared lookups); the skill's codec example verbatim |
+| `Tarol.Persistence.AotSmoke` | +5 checks | codec append/load, catalog, upcast, feed; natively |
+| `Tarol.Persistence.PackageTests` | +2 checks | generated catalog and codec round trip from the packages |
+
+### 20.4 Suppressions and analyzer configuration
+
+None.
+
+### 20.5 Verification (SDK 11.0.100, 2026-11-14)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` | 808 total, 0 failed (743 before) |
+| `rm -rf artifacts`, `dotnet build Tarol.slnx -c Release`, `eng/verify-packages.sh` | OK; `Tarol.Persistence` consumer 9/9 (2 new), skills listed |
+| `eng/aot-smoke.sh` | 8 apps, each 0 IL warnings, all checks passed natively |
+
+## 21. Implementation: PR 8B (2026-11-14)
+
+`persistence: Tarol.Persistence.Npgsql`, stacked on PR 8A. As decided in §15 and §16; differences below.
+
+### 21.1 Public API (new package `Tarol.Persistence.Npgsql`, depends on `Tarol.Persistence` and `Npgsql` 10.0.3)
+
+| Type | Members |
+|---|---|
+| `NpgsqlAggregateStore : IAggregateStore, IEventFeed` | `(NpgsqlDataSource, EventCodec, TimeProvider, NpgsqlStoreOptions?)`, `Schema`, `EnsureSchema(ct)`, `Load`, `Find`, `Seen`, `Append`, `ReadAll`, `RebuildStates<T>(ct) : Task<int>`, `PurgeKeys(olderThan, batch, ct) : Task<int>` |
+| `NpgsqlStoreOptions` | `Schema` (validated identifier, default `tarol`), `StateOptions` (default: the codec's options), `Lookups` (`StoreLookups`) |
+| `NpgsqlSchema` | `Version` (1), `DefaultSchema`, `Script(schema)` |
+
+### 21.2 Deliberate differences from §13/§16
+
+* **No outbox table yet**: the script has streams, events, lookups, idempotency keys and `schema_version`; 8C adds the
+  outbox table (still schema version 1: nothing is released).
+* **No per-load logging** of the state fallback (P-12 said "logged"): the package has no logging dependency; a counter
+  or `ILogger` hook can come with step 9's host.
+* The feed index is `(tx_id, position)` (`events_feed`); the probe had one on `position` only.
+* `RebuildStates<T>` takes no `OperationContext` (it writes no events) and pages by `(tenant, id)`, 500 streams a page.
+* `EnsureSchema` refuses a database whose `schema_version` is newer than the package's.
+* The shared contract suite now creates its store on first use (a derived class's fixture is set by then) and waits up
+  to 30 s for its events in a database feed (see 21.3, item 2).
+
+### 21.3 Found while building
+
+1. **The feed sorted by the text output column** (`SELECT tx_id::text … ORDER BY tx_id`): a checkpoint skipped every
+   transaction id with fewer digits; 259 of 1,416 events missing in the new paging test with 8 concurrent writers
+   **[verified]**. Fixed (`AS tx_text`, `ORDER BY events.tx_id, events.position`), in the probe too; the probe's
+   `output.txt` was not affected (all its ids had three digits).
+2. **Any open transaction in the cluster holds the feed back** (cluster-wide `pg_snapshot_xmin`): the contract's feed
+   test saw nothing while another test held a transaction open **[verified]**. Documented in README and skill.
+3. A span (`UncommittedChanges`, the `Rehydrate` argument) cannot live across an `await` (CS4007): the store copies the
+   changes to an array and rehydrates in a non-async helper.
+
+### 21.4 Tests **[verified]**
+
+`Tarol.Persistence.Npgsql.IntegrationTests` (36, `[Trait("Category", "Integration")]`, one Testcontainers `postgres:17`
+assembly fixture, fresh tenant per test, own schema for cross-tenant tests): the shared contract (19); queryable state and
+event columns; tenant in lookups and keys; `[LoadByReplay]` stores no state; another schema → replay → rewrite; a state
+that does not parse → replay; `RebuildStates`; a v1 payload upcast and an unknown alias; every `RecordedEvent` column from
+the feed including `traceparent` under an `ActivityListener`; the two late-commit cases on two connections; paging the
+feed while 8 writers commit (no loss, no duplicate, ordered); 64 writers × 5 attempts gapless; 16 concurrent creations
+with one lookup key → one commits; `PurgeKeys` in batches; `EnsureSchema` idempotent and refusing a newer schema; schema
+name validation; an aggregate missing from the codec; the skill example verbatim. Stable in 8 consecutive runs.
+
+`Tarol.Persistence.Npgsql.AotSmoke`: offline check always; with `TAROL_PG` 10 database checks natively (append, state
+load, key, lookup, conflict, feed with context, rebuild, purge; own schema, dropped afterwards). The CI `aot-smoke` job gets
+a `postgres:17` service and `TAROL_PG`. `Tarol.Persistence.Npgsql.PackageTests`: schema script, stream type and schema
+validation from the packed package, without a database.
+
+### 21.5 CI
+
+`build` runs the unit tests with `-- --filter-not-trait "Category=Integration" --ignore-exit-code 8` (exit code 8: a
+project with no test left); the new `integration` job runs the integration tests on the hosted runner's Docker; to make
+required on `main` (plan.md "CI and release").
+
+### 21.6 Suppressions and analyzer configuration
+
+None.
+
+### 21.7 Verification (SDK 11.0.100, 2026-11-14)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker running) | 844 total, 0 failed (808 + 36 integration) |
+| `dotnet test --solution Tarol.slnx -- --filter-not-trait "Category=Integration" --ignore-exit-code 8` (Docker stopped) | 808 total, 0 failed; the integration project runs no test and starts no container |
+| `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK; `Tarol.Persistence.Npgsql` holds `lib/net11.0` (dll, xml), `README.md`, `LICENSE`, `skills/tarol-persistence-npgsql/SKILL.md`; the consumer passes 3/3 and lists the skills of the package and its dependencies |
+| `TAROL_PG=… eng/aot-smoke.sh` (local `postgres:17`) | 9 apps, each 0 IL warnings; `Tarol.Persistence.Npgsql.AotSmoke` 11/11 natively |

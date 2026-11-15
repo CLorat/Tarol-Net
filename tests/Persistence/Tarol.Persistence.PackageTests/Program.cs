@@ -34,6 +34,10 @@ _ = rival.Add(2);
 Check("first writer commits", (await store.Append(loaded, 2, context, Option.None, default)).IsSuccess);
 Check("second writer: version conflict", StoreErrors.IsVersionConflict(await store.Append(rival, 2, context, Option.None, default)));
 Check("recorded with context", store.Recorded.All(r => r.Context == context));
+var codec = new EventCodec(new System.Text.Json.JsonSerializerOptions(SmokeJson.Default.Options)).Add<Wallet>();
+var coded = new InMemoryAggregateStore(TimeProvider.System, new InMemoryStoreOptions { Codec = codec });
+Check("generated catalog from the package", Wallet.StreamType == "wallet" && Wallet.EventTypes.Events.Count == 2);
+Check("codec round trip from the package", (await coded.Append(Wallet.Open("bob"), 0, context, Option.None, default)).IsSuccess);
 
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;

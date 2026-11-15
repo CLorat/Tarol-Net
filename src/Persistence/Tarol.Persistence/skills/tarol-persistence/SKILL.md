@@ -3,8 +3,9 @@ name: tarol-persistence
 description: >-
   Use when loading or committing Tarol aggregates through the store port, writing tests with InMemoryAggregateStore, or
   implementing IAggregateStore for a database. Covers IAggregateReader (Load, Find), IAggregateStore (Append with
-  expected version and IdempotencyKey, Seen), StoredOutcome, StoreErrors, DefineLookup, RecordedEvent recording and
-  stored-state loads. Do not decompile or web-search, do not write your own in-memory event store, do not retry inside
+  expected version and IdempotencyKey, Seen), StoredOutcome, StoreErrors, DefineLookup and StoreLookups, RecordedEvent
+  recording, stored-state loads, the EventCodec (aliases, IEventUpcaster), StreamType and the IEventFeed (ReadAll,
+  GlobalPosition). Do not decompile or web-search, do not write your own in-memory event store, do not retry inside
   Append or call Committed before Append succeeded.
 ---
 # Tarol.Persistence
@@ -49,6 +50,45 @@ AggregateChanges.Committed(loaded);
 store.Recorded[^1].Context.ShouldBe(context);
 ```
 
+## Events in storage: codec, upcasters, feed
+
+7. **Stored names are generated**: `T.StreamType` (snake case of the aggregate name, or `[StreamType("…")]`) and
+   `T.EventTypes` (alias + version + type per event). Pin `[EventType("alias", version)]` before renaming an event and
+   `[StreamType]` before renaming an aggregate; two aggregates with one stream type are TPRM028.
+8. **`EventCodec`** writes payloads through your `JsonSerializerContext`: list every event with `[JsonSerializable]`,
+   use `ValueObjectJson.Options(context)` when events hold value objects. `Add<T>()` throws at once for a missing event.
+9. **Change a stored event** by raising its version and registering an `IEventUpcaster` from the old (alias, version);
+   upcasters chain, also across a renamed alias. An unknown alias or version throws on load: never catch it.
+10. **Tests catch serialization bugs** with `new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = codec,
+    Lookups = lookups })`: every event goes through JSON, the state uses the codec's options. Share `StoreLookups`
+    with the production store.
+11. **Projections** read `IEventFeed.ReadAll(checkpoint, limit, ct)` and store `PositionedEvent.Position`
+    (a `GlobalPosition`); never page by a sequence number of your own.
+
+```csharp
+public sealed class CancelledV1ToV2 : IEventUpcaster             // v1 had no reason
+{
+    public EventType From => new("subscription.cancelled", 1);
+    public EventType Into => new("subscription.cancelled", 2);
+    public void Upcast(JsonObject payload) => payload["reason"] = "unknown";
+}
+
+var codec = new EventCodec(new JsonSerializerOptions(CodecJson.Default.Options))
+    .Add<Subscription>()
+    .Upcast<Subscription>(new CancelledV1ToV2());
+var lookups = new StoreLookups().Define<Subscription>("plan", s => s.Plan);
+var store = new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = codec, Lookups = lookups });
+
+var subscription = Subscription.Start("pro");
+subscription.Cancel("price");
+(await store.Append(subscription, 0, context, Option.None, ct)).IsSuccess.ShouldBeTrue();
+
+codec.Decode(Subscription.StreamType, new EventType("subscription.cancelled", 1), "{}"u8)
+    .ShouldBe(new Subscription.Cancelled("unknown"));
+await foreach (var e in store.ReadAll(GlobalPosition.Start, 100, ct))
+    e.StreamType.ShouldBe("subscription");
+```
+
 ## Common mistakes
 
 | Mistake | Result |
@@ -60,8 +100,12 @@ store.Recorded[^1].Context.ShouldBe(context);
 | loading with another tenant's context | `None`, by design (a 404, never a 403) |
 | `Find<T>("iban", …)` without `DefineLookup<T>("iban", …)` | `InvalidOperationException` naming the missing definition |
 | a member type of the state missing from your JSON context | `NotSupportedException` from `WriteState` during `Append` |
+| an event missing from the context given to `EventCodec` | `InvalidOperationException` from `Add<T>()` listing the events |
+| a renamed event without `[EventType]` pin or upcaster | `InvalidOperationException` on load: "no upcaster moves it" |
+| `AppJson.Default.Options` with value objects in events | TVAL009; use `ValueObjectJson.Options(AppJson.Default)` |
 
 ## AOT
 
-No reflection: the store calls the aggregate's generated static members and writes JSON through the options you pass.
+No reflection: the store calls the aggregate's generated static members and writes JSON through the options you pass;
+the codec maps aliases with the generated `T.EventTypes` and source-generated metadata.
 Put the state's member types in your `JsonSerializerContext` (with `ValueObjectJson.Options(context)` for value objects).

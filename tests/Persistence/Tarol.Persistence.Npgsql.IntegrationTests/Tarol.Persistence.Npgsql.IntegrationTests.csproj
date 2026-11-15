@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Integration tests of Tarol.Persistence.Npgsql against a real PostgreSQL 17 from Testcontainers (D-15): the shared
+    store contract plus the store's own behaviour. Needs Docker. Every test class carries [Trait("Category", "Integration")],
+    so the build job excludes them (filter-not-trait) and the integration job runs them.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <Compile Include="../Shared/**/*.cs" LinkBase="Contract" />
+  </ItemGroup>
+</Project>

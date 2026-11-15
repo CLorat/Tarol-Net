@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The PostgreSQL store of Tarol on plain Npgsql: events, the aggregate's current state as queryable JSON, unique lookups and the idempotency key in one transaction per commit, the tenant in every key, version conflicts as results, a gap-free global feed, and a shipped SQL schema. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;event-store;postgresql;npgsql;multi-tenancy;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <ProjectReference Include="../Tarol.Persistence/Tarol.Persistence.csproj" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="Tarol.Persistence.Npgsql.IntegrationTests" />
+  </ItemGroup>
+</Project>

@@ -50,11 +50,32 @@ AggregateChanges.Committed(auction);
 
 ## In memory
 
-`InMemoryAggregateStore(TimeProvider, JsonSerializerOptions? stateOptions)` records every event as a `RecordedEvent`
+`InMemoryAggregateStore(TimeProvider, JsonSerializerOptions? stateOptions)` (or `(TimeProvider, InMemoryStoreOptions)`
+with state options, codec and lookups) records every event as a `RecordedEvent`
 (event id UUIDv7, `RecordedAt` = one time per commit from the clock, the `OperationContext`), exposes `Recorded`,
 `History<T>(id, tenant)` and `Loads`. With `stateOptions` it writes the stored state on every commit and loads from it
-(`T.ReadState`), falling back to a replay when the state is missing or of another schema; `[LoadByReplay]` aggregates
+(`T.ReadState`), falling back to a replay when the state is missing, of another schema or unreadable; `[LoadByReplay]` aggregates
 always replay. It is thread-safe; concurrent appends to one stream commit exactly one.
+
+## Events in storage (step 8)
+
+A database store keeps events as (stream type, alias, version, JSON payload). The names come from the Primitives
+generator: `T.StreamType` (`[StreamType]` or the snake-cased aggregate name) and `T.EventTypes` (alias, version and
+type of every event; `[EventType]` pins an alias). `EventCodec` turns events into payloads and back through your
+`JsonSerializerContext`, and upcasts old payloads:
+
+```csharp
+var codec = new EventCodec(ValueObjectJson.Options(AppJson.Default))   // every event listed with [JsonSerializable]
+    .Add<Auction>()                                                     // throws now if an event has no metadata
+    .Upcast<Auction>(new OpenedV1ToV2());                               // IEventUpcaster: (alias, v1) → (alias, v2)
+var lookups = new StoreLookups().Define<Auction>("lot", a => a.Lot);   // share with the production store
+var store = new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = codec, Lookups = lookups });
+```
+
+With a codec the in-memory store sends every event through JSON, as the database does. An unknown alias or version
+that no upcaster moves throws on load (events are the truth); a stored state that does not parse falls back to a
+replay. Both stores implement `IEventFeed`: `ReadAll(GlobalPosition after, int limit, ct)` returns every committed
+event in commit order with its `GlobalPosition` (transaction, position), the checkpoint of a projection.
 
 ## AOT
 

@@ -390,8 +390,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         var sql = naive
-            ? $"SELECT tx_id::text, position, type, stream_id, version, entity_id, parent_id, alias, alias_version, payload, event_id, recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, tenant FROM {_s}.events WHERE position > $2 AND $1::xid8 IS NOT NULL ORDER BY position LIMIT $3"
-            : $"SELECT tx_id::text, position, type, stream_id, version, entity_id, parent_id, alias, alias_version, payload, event_id, recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, tenant FROM {_s}.events WHERE (tx_id, position) > ($1::xid8, $2) AND tx_id < pg_snapshot_xmin(pg_current_snapshot()) ORDER BY tx_id, position LIMIT $3";
+            ? $"SELECT tx_id::text AS tx_text, position, type, stream_id, version, entity_id, parent_id, alias, alias_version, payload, event_id, recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, tenant FROM {_s}.events WHERE position > $2 AND $1::xid8 IS NOT NULL ORDER BY events.position LIMIT $3"
+            : $"SELECT tx_id::text AS tx_text, position, type, stream_id, version, entity_id, parent_id, alias, alias_version, payload, event_id, recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, tenant FROM {_s}.events WHERE (tx_id, position) > ($1::xid8, $2) AND tx_id < pg_snapshot_xmin(pg_current_snapshot()) ORDER BY events.tx_id, events.position LIMIT $3";
         await using var cmd = _db.CreateCommand(sql);
         cmd.Parameters.Add(new() { Value = after.Transaction.ToString(System.Globalization.CultureInfo.InvariantCulture) });
         cmd.Parameters.Add(new() { Value = after.Position });

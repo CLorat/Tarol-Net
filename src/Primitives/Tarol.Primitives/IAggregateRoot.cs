@@ -31,6 +31,15 @@ public interface IAggregateRoot<TSelf> : IAggregateRoot
     static abstract EventType EventTypeOf(DomainEvent domainEvent);
 
     /// <summary>
+    /// The stored stream type: <see cref="StreamTypeAttribute"/>, or the aggregate's name in snake case. The store keys
+    /// streams by (tenant, stream type, id); never the CLR name, so a namespace move keeps the data.
+    /// </summary>
+    static abstract string StreamType { get; }
+
+    /// <summary>The stream type and every concrete event with its stored alias, version and CLR type, for an event codec.</summary>
+    static abstract EventCatalog EventTypes { get; }
+
+    /// <summary>
     /// The shape of the stored state: a stable hash of the captured state names and types (the whole tree, nesting
     /// included). It changes when the shape changes; a stored state with another value is not read (the load replays).
     /// <c>0</c> when the aggregate loads by replay (<see cref="LoadByReplayAttribute"/>).

@@ -1,0 +1,97 @@
+using System.Text.RegularExpressions;
+
+namespace Tarol.Persistence.Npgsql;
+
+/// <summary>
+/// The store's SQL schema: one versioned, idempotent script (docs/architecture/persistence.md §2). Run it with
+/// <see cref="NpgsqlAggregateStore.EnsureSchema"/> or hand it to your migration tool: <c>NpgsqlSchema.Script("tarol")</c>.
+/// </summary>
+public static partial class NpgsqlSchema
+{
+    /// <summary>The version of the script; stored in <c>&lt;schema&gt;.schema_version</c>.</summary>
+    public const int Version = 1;
+
+    /// <summary>The default schema name.</summary>
+    public const string DefaultSchema = "tarol";
+
+    /// <summary>The script for <paramref name="schema"/>: creates what is missing, changes nothing that exists.</summary>
+    /// <param name="schema">The PostgreSQL schema name: lowercase letters, digits and <c>_</c>, starting with a letter or <c>_</c>.</param>
+    /// <returns>The SQL.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static string Script(string schema = DefaultSchema)
+    {
+        Validate(schema);
+        var s = schema;
+        return $"""
+            CREATE SCHEMA IF NOT EXISTS {s};
+
+            -- one row per stream: the concurrency guard (version) and the stored state
+            CREATE TABLE IF NOT EXISTS {s}.streams (
+                tenant      uuid        NOT NULL,          -- 00000000-0000-0000-0000-000000000000 = no tenant
+                type        text        NOT NULL,          -- T.StreamType
+                id          uuid        NOT NULL,
+                version     bigint      NOT NULL,
+                schema      integer     NOT NULL,          -- T.StateSchema; 0 = load by replay
+                state       jsonb       NULL,
+                updated_at  timestamptz NOT NULL,
+                PRIMARY KEY (tenant, type, id));
+
+            CREATE TABLE IF NOT EXISTS {s}.events (
+                position       bigint      GENERATED ALWAYS AS IDENTITY,
+                tenant         uuid        NOT NULL,
+                type           text        NOT NULL,
+                stream_id      uuid        NOT NULL,
+                version        bigint      NOT NULL,
+                event_id       uuid        NOT NULL,       -- UUIDv7 from the store's TimeProvider
+                alias          text        NOT NULL,
+                alias_version  integer     NOT NULL,
+                entity_id      uuid        NOT NULL,
+                parent_id      uuid        NULL,
+                payload        jsonb       NOT NULL,
+                recorded_at    timestamptz NOT NULL,       -- one value per commit
+                actor_kind     text        NOT NULL,
+                actor_id       text        NOT NULL,
+                on_behalf_of   text        NULL,
+                correlation_id uuid        NOT NULL,
+                causation_id   uuid        NULL,
+                traceparent    text        NULL,
+                tx_id          xid8        NOT NULL DEFAULT pg_current_xact_id(),
+                PRIMARY KEY (tenant, type, stream_id, version));
+            CREATE UNIQUE INDEX IF NOT EXISTS events_event_id ON {s}.events (event_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS events_feed ON {s}.events (tx_id, position);
+
+            CREATE TABLE IF NOT EXISTS {s}.lookups (
+                tenant    uuid NOT NULL,
+                type      text NOT NULL,
+                lookup    text NOT NULL,
+                key       text NOT NULL,
+                stream_id uuid NOT NULL,
+                PRIMARY KEY (tenant, type, lookup, key));
+            CREATE UNIQUE INDEX IF NOT EXISTS lookups_stream ON {s}.lookups (tenant, type, lookup, stream_id);
+
+            CREATE TABLE IF NOT EXISTS {s}.idempotency_keys (
+                tenant     uuid        NOT NULL,
+                scope      text        NOT NULL,
+                key        text        NOT NULL,
+                stream_id  uuid        NOT NULL,
+                version    bigint      NOT NULL,
+                events     integer     NOT NULL,
+                stored_at  timestamptz NOT NULL,
+                PRIMARY KEY (tenant, scope, key));
+            CREATE INDEX IF NOT EXISTS idempotency_keys_stored_at ON {s}.idempotency_keys (stored_at);
+
+            CREATE TABLE IF NOT EXISTS {s}.schema_version (version integer NOT NULL);
+            INSERT INTO {s}.schema_version SELECT {Version} WHERE NOT EXISTS (SELECT 1 FROM {s}.schema_version);
+            """;
+    }
+
+    internal static void Validate(string schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        if (!Identifier().IsMatch(schema))
+            throw new ArgumentException($"'{schema}' is not a plain PostgreSQL identifier (lowercase letters, digits and _, at most 63 characters).", nameof(schema));
+    }
+
+    [GeneratedRegex("^[a-z_][a-z0-9_]{0,62}$")]
+    private static partial Regex Identifier();
+}

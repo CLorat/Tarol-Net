@@ -127,12 +127,15 @@ internal static class Discovery
         if (kind == TypeKind.Entity && Symbols.HasAttribute(type, "LoadByReplayAttribute"))
             diagnostics.Add(DiagnosticInfo.Create(Diagnostics.StateAttributeIgnored, location, "[LoadByReplay]", type.Name, "it belongs on the aggregate root; an entity is stored or replayed with its root"));
 
+        // A root's Alias slot carries its stream type ([StreamType] or the snake-cased name, P-13).
+        var streamType = kind == TypeKind.Root ? StreamTypeOf(type, location, diagnostics) : "";
+
         return new TypeModel(
             kind, Symbols.FullName(root), Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
             Containers(type, ct), canEmit,
             Array(members), Array(handlers), Array(invariants), hasIdConstructor,
             Array(state), !stored, Array(lifecycle.Select(static f => f.Model).ToList()),
-            EventKind.None, null, null, type.IsAbstract, default, "", 0, location, Array(diagnostics));
+            EventKind.None, null, null, type.IsAbstract, default, streamType, 0, location, Array(diagnostics));
     }
 
     private static TypeModel? Event(INamedTypeSymbol type, CancellationToken ct)
@@ -164,6 +167,17 @@ internal static class Discovery
         }
 
         return null;
+    }
+
+    private static string StreamTypeOf(INamedTypeSymbol root, LocationInfo? location, List<DiagnosticInfo> diagnostics)
+    {
+        var attribute = root.GetAttributes().FirstOrDefault(static a => Symbols.Is(a.AttributeClass, "StreamTypeAttribute"));
+        if (attribute is null)
+            return Snake(root.Name);
+        if (attribute is { ConstructorArguments.Length: 1 } && attribute.ConstructorArguments[0].Value is string pinned && pinned.Trim().Length > 0)
+            return pinned;
+        diagnostics.Add(DiagnosticInfo.Create(Diagnostics.EmptyStreamType, location, root.Name));
+        return Snake(root.Name);
     }
 
     private static (string Alias, int Version) Alias(INamedTypeSymbol type, INamedTypeSymbol root)

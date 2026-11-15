@@ -191,6 +191,7 @@ internal sealed partial class Emitter
         Line();
 
         EmitEventTypeOf();
+        EmitCatalog();
         EmitApplyLive();
         EmitDispatch();
         EmitApply(_root);
@@ -199,6 +200,21 @@ internal sealed partial class Emitter
         EmitState();
         EmitRootAccessors();
         CloseType(_root);
+    }
+
+    private void EmitCatalog()
+    {
+        Line($"/// <summary>The stored stream type of this aggregate.</summary>");
+        Line($"public static string StreamType => {Literal(_root.Alias)};");
+        Line();
+        Line($"/// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>");
+        var events = _model.Events.Where(static e => !e.IsAbstract).OrderBy(static e => e.FullName, System.StringComparer.Ordinal).ToList();
+        Line($"public static {P}EventCatalog EventTypes {{ get; }} = new({Literal(_root.Alias)}{(events.Count == 0 ? ");" : ",")}");
+        _indent++;
+        for (var i = 0; i < events.Count; i++)
+            Line($"new {P}EventCatalogEntry(new({Literal(events[i].Alias)}, {events[i].AliasVersion}), typeof({events[i].FullName})){(i == events.Count - 1 ? ");" : ",")}");
+        _indent--;
+        Line();
     }
 
     private void EmitEventTypeOf()

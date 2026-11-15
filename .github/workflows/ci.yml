@@ -52,11 +52,13 @@ jobs:
       - name: Build
         run: dotnet build Tarol.slnx -c Release --no-restore
 
+      # Integration tests (Category=Integration, Docker) run in the integration job; exit code 8 = a project with no test left.
       - name: Unit tests
         run: >-
           dotnet test --solution Tarol.slnx -c Release --no-build
           --report-trx --coverage --coverage-output-format cobertura
           --results-directory artifacts/test-results
+          -- --filter-not-trait "Category=Integration" --ignore-exit-code 8
 
       - name: Pack and verify packages
         run: eng/verify-packages.sh
@@ -76,9 +78,52 @@ jobs:
           path: artifacts/package/release/
           retention-days: 14
 
+  integration:
+    name: integration
+    runs-on: ubuntu-latest   # Docker is available on the hosted runner; Testcontainers starts postgres:17 (D-15)
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: .nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Integration tests (PostgreSQL via Testcontainers)
+        run: >-
+          dotnet test --project tests/Persistence/Tarol.Persistence.Npgsql.IntegrationTests -c Release
+          --report-trx --results-directory artifacts/test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: artifacts/test-results/
+          retention-days: 14
+
   aot-smoke:
     name: aot-smoke
     runs-on: ubuntu-latest
+    # The Npgsql smoke app runs its database checks natively against this service (TAROL_PG).
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: smoke
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      TAROL_PG: Host=localhost;Port=5432;Username=postgres;Password=smoke
     steps:
       - uses: actions/checkout@v5
         with:

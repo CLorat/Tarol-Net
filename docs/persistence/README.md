@@ -1,7 +1,9 @@
 # Persistence
 
-Package guide: [Tarol.Persistence](../../src/Persistence/Tarol.Persistence/README.md).
-Agent skill: [tarol-persistence](../../src/Persistence/Tarol.Persistence/skills/tarol-persistence/SKILL.md).
+Package guides: [Tarol.Persistence](../../src/Persistence/Tarol.Persistence/README.md),
+[Tarol.Persistence.Npgsql](../../src/Persistence/Tarol.Persistence.Npgsql/README.md).
+Agent skills: [tarol-persistence](../../src/Persistence/Tarol.Persistence/skills/tarol-persistence/SKILL.md),
+[tarol-persistence-npgsql](../../src/Persistence/Tarol.Persistence.Npgsql/skills/tarol-persistence-npgsql/SKILL.md).
 Concept: [docs/architecture/changes.md](../architecture/changes.md) §2, §7; the PostgreSQL store (step 8):
 [docs/architecture/persistence.md](../architecture/persistence.md). Design decisions and migration notes:
 [docs/migration/changes.md](../migration/changes.md) (C-6, C-8, C-16) and [docs/migration/persistence.md](../migration/persistence.md).
@@ -9,8 +11,8 @@ Concept: [docs/architecture/changes.md](../architecture/changes.md) §2, §7; th
 ## Design in five points
 
 1. **One port, two implementations.** `IAggregateStore` is what the change pipeline (and your own code) loads and
-   commits through. `InMemoryAggregateStore` ships now for tests and samples; `Tarol.Persistence.Npgsql` (step 8)
-   implements the same contract against PostgreSQL.
+   commits through. `InMemoryAggregateStore` ships for tests and samples; `Tarol.Persistence.Npgsql`
+   implements the same contract against PostgreSQL, and one contract test suite runs against both.
 2. **The tenant comes from the operation.** Every call takes the `OperationContext`; a stream is (tenant, type, id), so
    another tenant's aggregate simply does not exist: a 404, never a 403.
 3. **Conflicts are results.** An append checks the expected version and returns `Stream.VersionConflict` instead of

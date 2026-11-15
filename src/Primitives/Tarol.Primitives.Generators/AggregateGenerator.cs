@@ -42,6 +42,19 @@ public sealed class AggregateGenerator : IIncrementalGenerator
 
         var aggregates = types.Collect().SelectMany(static (all, ct) => Group(all, ct));
 
+        // TPRM028: the stream type keys every stored stream; it must be unique in the compilation.
+        var streamTypes = types.Where(static t => t.Kind == TypeKind.Root)
+            .Select(static (t, _) => new StreamTypeModel(t.Alias, t.Name, t.FullName, t.Location)).Collect();
+        context.RegisterSourceOutput(streamTypes, static (spc, roots) =>
+        {
+            foreach (var group in roots.GroupBy(static r => r.StreamType).Where(static g => g.Count() > 1))
+            {
+                var ordered = group.OrderBy(static r => r.FullName, StringComparer.Ordinal).ToArray();
+                foreach (var other in ordered.Skip(1))
+                    spc.ReportDiagnostic(DiagnosticInfo.Create(Diagnostics.DuplicateStreamType, other.Location, ordered[0].Name, other.Name, group.Key).ToDiagnostic());
+            }
+        });
+
         // Diagnostics need locations; the source does not. Emitting from a location-free copy keeps the generated file
         // cached when an edit only moves text (incrementality tests).
         context.RegisterSourceOutput(aggregates, static (spc, aggregate) =>
@@ -136,6 +149,9 @@ public sealed class AggregateGenerator : IIncrementalGenerator
         return builder.ToImmutable();
     }
 }
+
+/// <summary>A root's stream type and where to report a duplicate.</summary>
+internal sealed record StreamTypeModel(string StreamType, string Name, string FullName, LocationInfo? Location);
 
 /// <summary>A <c>[Transition]</c> as a label of a declared edge, or its TPRM021.</summary>
 internal sealed record LabelOrDiagnostic(LifecycleLabel? Label, DiagnosticInfo? Diagnostic);

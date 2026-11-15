@@ -35,5 +35,19 @@ Check("first writer commits", (await store.Append(loaded, 2, context, Option.Non
 Check("second writer: version conflict", StoreErrors.IsVersionConflict(await store.Append(rival, 2, context, Option.None, default)));
 Check("recorded with context", store.Recorded.All(r => r.Context == context));
 
+// step 8A: the codec round trip, an upcaster and the feed, natively
+var codec = new EventCodec(new System.Text.Json.JsonSerializerOptions(SmokeJson.Default.Options)).Add<Wallet>().Upcast<Wallet>(new AddedV1ToV2());
+var coded = new InMemoryAggregateStore(TimeProvider.System, new InMemoryStoreOptions { Codec = codec });
+var second = Wallet.Open("bob");
+_ = second.Add(3);
+Check("append through the codec", (await coded.Append(second, 0, context, Option.None, default)).IsSuccess);
+Check("load through the codec", (await coded.Load(second.Id, context, default)).GetValueOrThrow().Total == 3);
+Check("stream type and catalog", Wallet.StreamType == "wallet" && Wallet.EventTypes.Events.Count == 2);
+Check("upcast v1", codec.Decode("wallet", new EventType("wallet.added", 1), """{"value":4}"""u8) is Wallet.Added { Amount: 4 });
+var feed = new List<PositionedEvent>();
+await foreach (var e in coded.ReadAll(GlobalPosition.Start, 10, default))
+    feed.Add(e);
+Check("feed", feed.Count == 2 && feed[0].StreamType == "wallet" && feed[0].Position < feed[1].Position);
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
