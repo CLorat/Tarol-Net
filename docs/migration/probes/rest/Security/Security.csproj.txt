@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The would-be Tarol.Security (step 10): IChangeAuthorization over IAuthorizationService. Microsoft.AspNetCore.Authorization
+       comes from the shared framework here (FrameworkReference); the worker gets it the same way (question 10). -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <IsAotCompatible>true</IsAotCompatible><TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AssemblyName>Probe.Tarol.Security</AssemblyName><RootNamespace>Tarol.Security</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+  <!-- D-15: one AppHost, three resources: PostgreSQL, the API (App "serve") and the reaction worker (App "worker"). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors><UserSecretsId>tarol-rest-probe</UserSecretsId>
+    <AssemblyName>Probe.Rest.AppHost</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
+    <ProjectReference Include="../App/App.csproj" />
+  </ItemGroup>
+</Project>
