@@ -6,81 +6,55 @@ using Tarol.StronglyTypedId;
 namespace Tarol.Persistence.Npgsql;
 
 /// <summary>
-/// A claimed outbox row: run <see cref="Reaction"/> for <see cref="Event"/>, then <see cref="NpgsqlOutbox.Complete"/> it,
-/// or <see cref="NpgsqlOutbox.Fail"/> it to retry later.
-/// </summary>
-/// <param name="Id">The row.</param>
-/// <param name="ClaimId">This claim; complete and fail must present it.</param>
-/// <param name="Reaction">The reaction's name (from the <see cref="ReactionTable"/>).</param>
-/// <param name="Tenant">The tenant of the event.</param>
-/// <param name="Attempts">How many times the row was claimed, this claim included.</param>
-/// <param name="LastError">The error of the previous attempt.</param>
-/// <param name="Event">The event with its commit facts.</param>
-public sealed record OutboxRow(long Id, Guid ClaimId, string Reaction, Option<Id<ITenant>> Tenant, int Attempts, Option<string> LastError, PositionedEvent Event);
-
-/// <summary>
-/// The outbox of an <see cref="NpgsqlAggregateStore"/> (P-1, P-10): workers claim due rows with <c>FOR UPDATE SKIP
-/// LOCKED</c>, so concurrent workers never claim one row twice. A row is claimable only when it is the oldest of its
-/// (tenant, stream, reaction): one stream's events reach a reaction in version order, one at a time. The worker loop,
-/// retries with backoff and dead-lettering belong to step 9.
+/// The outbox of an <see cref="NpgsqlAggregateStore"/> (P-1, P-10, S-5, S-8, S-9). Workers claim due <b>heads</b> with
+/// <c>FOR UPDATE SKIP LOCKED</c>: a row is the head when it is the oldest live row of its (tenant, type, stream, reaction)
+/// (kept in a <c>head</c> column, so a claim costs the same however long the backlog), or when its reaction is scheduled.
+/// <see cref="Complete"/> and <see cref="Bury"/> promote the next row of the stream under a lock on the stream's row, so a
+/// concurrent commit of that stream cannot leave it without a head. Dead letters move to <c>outbox_dead</c>.
 /// <code>
-/// foreach (var row in await store.Outbox.Claim(50, TimeSpan.FromMinutes(1), ct))
-///     _ = await Run(row) ? await store.Outbox.Complete(row, ct) : await store.Outbox.Fail(row, now + backoff, error, ct);
+/// foreach (var row in await store.Outbox.Claim(32, TimeSpan.FromMinutes(1), ct))
+///     _ = done ? await store.Outbox.Complete(row, ct) : await store.Outbox.Retry(row, now + backoff, reason, ct);
 /// </code>
 /// </summary>
 /// <remarks>
-/// A row whose lease expired is claimable again (at least once); a worker that lost its lease gets <see langword="false"/>
-/// from <see cref="Complete"/>. A row that keeps failing holds back its stream's later rows for that reaction only.
+/// With <see cref="NpgsqlStoreOptions.Notify"/>, commits that write rows send a <c>NOTIFY</c> and <see cref="WaitForRows"/>
+/// listens on one connection per outbox; it costs writers throughput (docs/migration/sagas.md §4.3), so it is opt-in.
+/// Dispose the outbox to close that connection.
 /// </remarks>
-public sealed class NpgsqlOutbox
+public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
 {
     private readonly NpgsqlDataSource _db;
     private readonly EventCodec _codec;
     private readonly TimeProvider _time;
-    private readonly string _claim;
-    private readonly string _complete;
-    private readonly string _fail;
-    private readonly string _pending;
+    private readonly IOutboxReactions? _reactions;
+    private readonly bool _notify;
+    private readonly Statements _sql;
+    private readonly Lock _gate = new();
+    private readonly CancellationTokenSource _stop = new();
+    private TaskCompletionSource _written = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private Task? _listener;
 
-    internal NpgsqlOutbox(NpgsqlDataSource dataSource, EventCodec codec, TimeProvider time, string schema)
+    internal NpgsqlOutbox(NpgsqlDataSource dataSource, EventCodec codec, TimeProvider time, string schema, IOutboxReactions? reactions, bool notify)
     {
         _db = dataSource;
         _codec = codec;
         _time = time;
-        _claim = $"""
-            WITH c AS (
-                SELECT o.id FROM {schema}.outbox o
-                WHERE o.due_at <= $1 AND (o.lease_until IS NULL OR o.lease_until <= $1)
-                  AND NOT EXISTS (SELECT 1 FROM {schema}.outbox p
-                                  WHERE p.tenant = o.tenant AND p.type = o.type AND p.stream_id = o.stream_id
-                                    AND p.reaction = o.reaction AND p.id < o.id)
-                ORDER BY o.id
-                LIMIT $2
-                FOR UPDATE SKIP LOCKED),
-            u AS (
-                UPDATE {schema}.outbox o SET claim_id = gen_random_uuid(), lease_until = $3, attempts = o.attempts + 1
-                FROM c WHERE o.id = c.id
-                RETURNING o.id, o.claim_id, o.reaction, o.attempts, o.last_error, o.event_id)
-            SELECT u.id, u.claim_id, u.reaction, u.attempts, u.last_error, {RecordedEvents.Columns("e")}
-            FROM u JOIN {schema}.events e ON e.event_id = u.event_id
-            ORDER BY u.id
-            """;
-        _complete = $"DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2";
-        _fail = $"UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4 WHERE id = $1 AND claim_id = $2";
-        _pending = $"SELECT count(*) FROM {schema}.outbox";
+        _reactions = reactions;
+        _notify = notify;
+        _sql = new Statements(schema);
+        Channel = schema + "_outbox";
     }
 
-    /// <summary>Claims up to <paramref name="max"/> due rows for <paramref name="lease"/>.</summary>
-    /// <param name="max">The most rows.</param>
-    /// <param name="lease">How long the rows stay with this worker; after it they are claimable again.</param>
-    /// <param name="cancellationToken">Cancels the call.</param>
-    /// <returns>The claimed rows, oldest first.</returns>
+    /// <summary>The <c>LISTEN</c>/<c>NOTIFY</c> channel (<c>&lt;schema&gt;_outbox</c>).</summary>
+    public string Channel { get; }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<OutboxRow>> Claim(int max, TimeSpan lease, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(max);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lease, TimeSpan.Zero);
         var now = _time.GetUtcNow();
-        await using var command = _db.CreateCommand(_claim);
+        await using var command = _db.CreateCommand(_sql.Claim);
         command.Parameters.Add(new NpgsqlParameter { Value = now });
         command.Parameters.Add(new NpgsqlParameter { Value = max });
         command.Parameters.Add(new NpgsqlParameter { Value = now + lease });
@@ -90,51 +64,254 @@ public sealed class NpgsqlOutbox
             var rows = new List<OutboxRow>();
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                var recorded = RecordedEvents.Read(reader, 5, _codec);
+                var recorded = RecordedEvents.Read(reader, 6, _codec);
                 rows.Add(new OutboxRow(reader.GetInt64(0), reader.GetGuid(1), reader.GetString(2), recorded.Event.Context.Tenant,
-                    reader.GetInt32(3), reader.IsDBNull(4) ? Option.None : reader.GetString(4), recorded));
+                    reader.GetInt32(3), reader.IsDBNull(4) ? Option.None : reader.GetString(4), recorded,
+                    reader.IsDBNull(5) ? Option.None : reader.GetString(5)));
             }
             return rows;
         }
     }
 
-    /// <summary>Removes a row whose reaction completed.</summary>
-    /// <param name="row">The claimed row.</param>
-    /// <param name="cancellationToken">Cancels the call.</param>
-    /// <returns><see langword="false"/> when the lease was lost (another worker claimed the row again).</returns>
-    public async Task<bool> Complete(OutboxRow row, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public Task<bool> Complete(OutboxRow row, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(row);
-        await using var command = _db.CreateCommand(_complete);
-        command.Parameters.Add(new NpgsqlParameter { Value = row.Id });
-        command.Parameters.Add(new NpgsqlParameter { Value = row.ClaimId });
+        return Locked(_sql.LockForRow, _sql.Complete, cancellationToken, row.Id, row.ClaimId);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> Retry(OutboxRow row, DateTimeOffset retryAt, string reason, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(reason);
+        await using var command = _db.CreateCommand(_sql.Retry);
+        Add(command, row.Id, row.ClaimId, retryAt, reason);
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
-    /// <summary>Releases a row to be claimed again at <paramref name="retryAt"/>, remembering the error.</summary>
-    /// <param name="row">The claimed row.</param>
-    /// <param name="retryAt">When it is due again.</param>
-    /// <param name="error">What went wrong (stored as <see cref="OutboxRow.LastError"/>).</param>
-    /// <param name="cancellationToken">Cancels the call.</param>
-    /// <returns><see langword="false"/> when the lease was lost.</returns>
-    public async Task<bool> Fail(OutboxRow row, DateTimeOffset retryAt, string error, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    public Task<bool> Bury(OutboxRow row, string reason, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(row);
-        ArgumentNullException.ThrowIfNull(error);
-        await using var command = _db.CreateCommand(_fail);
-        command.Parameters.Add(new NpgsqlParameter { Value = row.Id });
-        command.Parameters.Add(new NpgsqlParameter { Value = row.ClaimId });
-        command.Parameters.Add(new NpgsqlParameter { Value = retryAt });
-        command.Parameters.Add(new NpgsqlParameter { Value = error });
-        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+        ArgumentNullException.ThrowIfNull(reason);
+        return Locked(_sql.LockForRow, _sql.Bury, cancellationToken, row.Id, row.ClaimId, _time.GetUtcNow(), reason);
     }
 
-    /// <summary>How many rows wait (claimed or not); for health checks.</summary>
-    /// <param name="cancellationToken">Cancels the call.</param>
-    /// <returns>The count.</returns>
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DeadLetter>> DeadLetters(int max, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(max);
+        await using var command = _db.CreateCommand(_sql.DeadLetters);
+        Add(command, max);
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+        {
+            var list = new List<DeadLetter>();
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var tenant = reader.GetGuid(2);
+                list.Add(new DeadLetter(reader.GetInt64(0), reader.GetString(1), tenant == Guid.Empty ? Option.None : (Id<ITenant>)tenant,
+                    reader.GetString(3), reader.GetGuid(4), reader.GetGuid(5), reader.GetInt32(6),
+                    reader.IsDBNull(7) ? Option.None : reader.GetString(7), reader.GetFieldValue<DateTimeOffset>(8)));
+            }
+            return list;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> Redrive(long id, CancellationToken cancellationToken)
+    {
+        var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await using (transaction.ConfigureAwait(false))
+            {
+                // exclusive on the stream row: serializes with a promotion (FOR SHARE) of the same stream
+                string? reaction;
+                await using (var lockStream = new NpgsqlCommand(_sql.LockForDead, connection, transaction))
+                {
+                    Add(lockStream, id);
+                    reaction = await lockStream.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
+                }
+                if (reaction is null)
+                    return false;
+                await using var redrive = new NpgsqlCommand(_sql.Redrive, connection, transaction);
+                Add(redrive, id, _time.GetUtcNow(), _reactions?.IsScheduled(reaction) ?? false);
+                var moved = await redrive.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return moved;
+            }
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<long> Pending(CancellationToken cancellationToken)
     {
-        await using var command = _db.CreateCommand(_pending);
+        await using var command = _db.CreateCommand(_sql.Pending);
         return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is long n ? n : 0;
+    }
+
+    /// <inheritdoc />
+    public Task WaitForRows(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        if (!_notify)
+            return Task.Delay(timeout, _time, cancellationToken);
+        lock (_gate)
+            _listener ??= Task.Run(Listen, CancellationToken.None);
+        return Task.WhenAny(Volatile.Read(ref _written).Task, Task.Delay(timeout, _time, cancellationToken));
+    }
+
+    /// <summary>Stops the <c>LISTEN</c> connection, if one was opened.</summary>
+    /// <returns>A task.</returns>
+    public async ValueTask DisposeAsync()
+    {
+        await _stop.CancelAsync().ConfigureAwait(false);
+        if (_listener is not null)
+            await _listener.ConfigureAwait(false);
+        _stop.Dispose();
+    }
+
+    private async Task Listen()
+    {
+        while (!_stop.IsCancellationRequested)
+        {
+            try
+            {
+                var connection = await _db.OpenConnectionAsync(_stop.Token).ConfigureAwait(false);
+                await using (connection.ConfigureAwait(false))
+                {
+                    connection.Notification += (_, _) => Signal();
+                    await using (var listen = new NpgsqlCommand($"LISTEN {Channel}", connection))
+                        await listen.ExecuteNonQueryAsync(_stop.Token).ConfigureAwait(false);
+                    Signal();                                                       // rows may have arrived before LISTEN
+                    while (!_stop.IsCancellationRequested)
+                        await connection.WaitAsync(_stop.Token).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (_stop.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (NpgsqlException)
+            {
+                // the connection broke: workers keep polling with their timeout; reconnect after a pause
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), _time, _stop.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private void Signal() => Interlocked.Exchange(ref _written, new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
+
+    /// <summary>Takes the stream row lock (statement 1), then runs <paramref name="change"/> (statement 2, a fresh snapshot).</summary>
+    private async Task<bool> Locked(string lockSql, string change, CancellationToken cancellationToken, params object[] values)
+    {
+        var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using (connection.ConfigureAwait(false))
+        {
+            var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await using (transaction.ConfigureAwait(false))
+            {
+                await using (var lockStream = new NpgsqlCommand(lockSql, connection, transaction))
+                {
+                    Add(lockStream, values[0], values[1]);
+                    if (await lockStream.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
+                        return false;                                               // gone, or claimed by someone else
+                }
+                await using var command = new NpgsqlCommand(change, connection, transaction);
+                Add(command, values);
+                var done = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is long n && n == 1;
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return done;
+            }
+        }
+    }
+
+    private static void Add(NpgsqlCommand command, params object[] values)
+    {
+        foreach (var value in values)
+            command.Parameters.Add(new NpgsqlParameter { Value = value });
+    }
+
+    private sealed class Statements(string schema)
+    {
+        private string Promote(string deleted) => $"""
+            p AS (UPDATE {schema}.outbox o SET head = true FROM {deleted} d
+                  WHERE o.id = (SELECT min(n.id) FROM {schema}.outbox n
+                                WHERE n.tenant = d.tenant AND n.type = d.type AND n.stream_id = d.stream_id AND n.reaction = d.reaction
+                                  AND NOT n.head AND n.id <> d.id)
+                  RETURNING 1)
+            """;
+
+        public string Claim => $"""
+            WITH c AS (
+                SELECT o.id FROM {schema}.outbox o
+                WHERE o.head AND o.due_at <= $1 AND (o.lease_until IS NULL OR o.lease_until <= $1)
+                ORDER BY o.due_at, o.id
+                LIMIT $2
+                FOR UPDATE SKIP LOCKED),
+            u AS (
+                UPDATE {schema}.outbox o SET claim_id = gen_random_uuid(), lease_until = $3, attempts = o.attempts + 1
+                FROM c WHERE o.id = c.id
+                RETURNING o.id, o.claim_id, o.reaction, o.attempts, o.last_error, o.event_id)
+            SELECT u.id, u.claim_id, u.reaction, u.attempts, u.last_error, e.traceparent, {RecordedEvents.Columns("e")}
+            FROM u JOIN {schema}.events e ON e.event_id = u.event_id
+            ORDER BY u.id
+            """;
+
+        // statement 1 of Complete and Bury: share-lock the stream row, so a commit of this stream (which updates that row)
+        // either finished before the promotion's snapshot or waits until the promotion committed
+        public string LockForRow => $"""
+            SELECT 1 FROM {schema}.streams s JOIN {schema}.outbox o ON s.tenant = o.tenant AND s.type = o.type AND s.id = o.stream_id
+            WHERE o.id = $1 AND o.claim_id = $2
+            FOR SHARE OF s
+            """;
+
+        public string Complete => $"""
+            WITH d AS (DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2 RETURNING id, tenant, type, stream_id, reaction),
+            {Promote("d")}
+            SELECT count(*) FROM d
+            """;
+
+        public string Retry => $"UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4 WHERE id = $1 AND claim_id = $2";
+
+        public string Bury => $"""
+            WITH d AS (DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2
+                       RETURNING id, tenant, reaction, type, stream_id, version, event_id, attempts),
+            i AS (INSERT INTO {schema}.outbox_dead (id, tenant, reaction, type, stream_id, version, event_id, attempts, last_error, dead_at)
+                  SELECT id, tenant, reaction, type, stream_id, version, event_id, attempts, $4, $3 FROM d),
+            {Promote("d")}
+            SELECT count(*) FROM d
+            """;
+
+        public string DeadLetters => $"""
+            SELECT d.id, d.reaction, d.tenant, d.type, d.stream_id, d.event_id, d.attempts, d.last_error, d.dead_at
+            FROM {schema}.outbox_dead d ORDER BY d.id LIMIT $1
+            """;
+
+        public string LockForDead => $"""
+            SELECT d.reaction FROM {schema}.streams s JOIN {schema}.outbox_dead d ON s.tenant = d.tenant AND s.type = d.type AND s.id = d.stream_id
+            WHERE d.id = $1
+            FOR NO KEY UPDATE OF s
+            """;
+
+        public string Redrive => $"""
+            WITH d AS (DELETE FROM {schema}.outbox_dead WHERE id = $1 RETURNING tenant, reaction, type, stream_id, version, event_id)
+            INSERT INTO {schema}.outbox (tenant, reaction, type, stream_id, version, event_id, due_at, head)
+            SELECT d.tenant, d.reaction, d.type, d.stream_id, d.version, d.event_id, $2,
+                   $3 OR NOT EXISTS (SELECT 1 FROM {schema}.outbox p
+                                     WHERE p.tenant = d.tenant AND p.type = d.type AND p.stream_id = d.stream_id AND p.reaction = d.reaction)
+            FROM d
+            """;
+
+        public string Pending => $"SELECT count(*) FROM {schema}.outbox";
     }
 }

@@ -48,7 +48,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
     private readonly TimeProvider _time;
     private readonly JsonSerializerOptions _stateOptions;
     private readonly StoreLookups _lookups;
-    private readonly ReactionTable? _reactions;
+    private readonly IOutboxReactions? _reactions;
+    private readonly bool _notify;
     private readonly Sql _sql;
 
     /// <summary>Creates a store.</summary>
@@ -69,10 +70,11 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
         _lookups = options.Lookups ?? new StoreLookups();
         _sql = new Sql(options.Schema);
         _reactions = options.Reactions;
-        Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema);
+        _notify = options.Notify;
+        Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema, options.Reactions, options.Notify);
     }
 
-    /// <summary>Claims, completes and fails the outbox rows the commits wrote (<see cref="NpgsqlStoreOptions.Reactions"/>).</summary>
+    /// <summary>Claims, completes, retries and buries the outbox rows the commits wrote (<see cref="NpgsqlStoreOptions.Reactions"/>).</summary>
     public NpgsqlOutbox Outbox { get; }
 
     /// <summary>The PostgreSQL schema of the tables.</summary>
@@ -257,9 +259,13 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
             // outbox rows: one per (event, reaction), in this commit (C-2, P-1)
             if (_reactions is not null)
             {
-                var (reactions, rowVersions, rowEvents) = OutboxRows(_reactions, changes, eventIds);
+                var (reactions, rowVersions, rowEvents, rowDue, rowScheduled) = OutboxRows(_reactions, changes, eventIds, at);
                 if (reactions.Length > 0)
-                    _ = Command(batch, _sql.WriteOutbox, tenant, type, id, at, reactions, rowVersions, rowEvents, eventIds[0]);
+                {
+                    _ = Command(batch, _sql.WriteOutbox, tenant, type, id, reactions, rowVersions, rowEvents, rowDue, rowScheduled, eventIds[0]);
+                    if (_notify)
+                        _ = Command(batch, _sql.NotifyOutbox, Outbox.Channel, eventIds[0]);
+                }
             }
 
             // 3. the version after these statements: ours, or the winner's after a lost race (read committed)
@@ -410,22 +416,31 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
 
     // ---------------------------------------------------------------------------------------------------------- helpers
 
-    private static (string[] Reactions, long[] Versions, Guid[] Events) OutboxRows(ReactionTable table, StreamEvent[] changes, Guid[] eventIds)
+    private static (string[] Reactions, long[] Versions, Guid[] Events, DateTimeOffset[] Due, bool[] Scheduled) OutboxRows(
+        IOutboxReactions table, StreamEvent[] changes, Guid[] eventIds, DateTimeOffset at)
     {
         var reactions = new List<string>();
         var versions = new List<long>();
         var events = new List<Guid>();
+        var due = new List<DateTimeOffset>();
+        var scheduled = new List<bool>();
         for (var i = 0; i < changes.Length; i++)
         {
-            foreach (var reaction in table(changes[i].Event))
+            var first = reactions.Count;
+            foreach (var reaction in table.ReactionsTo(changes[i].Event))
             {
                 ArgumentException.ThrowIfNullOrWhiteSpace(reaction);
+                for (var j = first; j < reactions.Count; j++)
+                    if (reactions[j] == reaction)
+                        throw new InvalidOperationException($"The reaction '{reaction}' is listed twice for one event.");
                 reactions.Add(reaction);
                 versions.Add(changes[i].Version);
                 events.Add(eventIds[i]);
+                due.Add(table.DueAt(changes[i].Event, reaction) is { } dueAt && dueAt > at ? dueAt : at);
+                scheduled.Add(table.IsScheduled(reaction));
             }
         }
-        return ([.. reactions], [.. versions], [.. events]);
+        return ([.. reactions], [.. versions], [.. events], [.. due], [.. scheduled]);
     }
 
     private static T Replay<T>(Id<T> id, StreamEvent[] history)
@@ -499,10 +514,23 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed
             ON CONFLICT (tenant, type, lookup, key) DO UPDATE SET stream_id = EXCLUDED.stream_id WHERE lookups.stream_id = EXCLUDED.stream_id
             """;
 
+        // head: a scheduled reaction's row always; else the first row per reaction of this commit when no live row of the
+        // stream and reaction waits. The guarded UPDATE of the stream row (statement 1) holds its lock, so a promotion in
+        // Complete/Bury (FOR SHARE on that row) either committed before this snapshot or waits for this commit.
         public string WriteOutbox => $"""
-            INSERT INTO {schema}.outbox (tenant, reaction, type, stream_id, version, event_id, due_at)
-            SELECT $1, r, $2, $3, v, e, $4 FROM unnest($5::text[], $6::bigint[], $7::uuid[]) AS u(r, v, e)
-            WHERE {Ours("$8")}
+            INSERT INTO {schema}.outbox (tenant, reaction, type, stream_id, version, event_id, due_at, head)
+            SELECT $1, u.r, $2, $3, u.v, u.e, u.d,
+                   u.s OR (row_number() OVER (PARTITION BY u.r ORDER BY u.v) = 1
+                           AND NOT EXISTS (SELECT 1 FROM {schema}.outbox p
+                                           WHERE p.tenant = $1 AND p.type = $2 AND p.stream_id = $3 AND p.reaction = u.r))
+            FROM unnest($4::text[], $5::bigint[], $6::uuid[], $7::timestamptz[], $8::boolean[]) AS u(r, v, e, d, s)
+            WHERE {Ours("$9")}
+            """;
+
+        // one notification per commit with rows; returns a count so the reader loop's last row stays the stream version
+        public string NotifyOutbox => $"""
+            WITH n AS (SELECT pg_notify($1, '') WHERE {Ours("$2")})
+            SELECT count(*) FROM n
             """;
 
         public string StreamVersion => $"SELECT version FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
