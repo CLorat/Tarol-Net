@@ -3,19 +3,6 @@ using Tarol.Results;
 
 namespace Tarol.Sagas;
 
-/// <summary>What the worker does with a row after running its reaction.</summary>
-public enum Verdict
-{
-    /// <summary>Committed, or a replayed key: the row is completed.</summary>
-    Done,
-
-    /// <summary>Transient: the row is due again after the backoff and stays the head of its stream.</summary>
-    Retry,
-
-    /// <summary>Given up: the row becomes a dead letter for a human, and the next row of its stream runs.</summary>
-    Bury,
-}
-
 /// <summary>
 /// The delivery policy of reactions (C-9, S-7, S-13; docs/architecture/sagas.md §3): any <c>Error.Conflict</c>, a
 /// <c>NotFound</c> or a missing <c>[Read]</c> (422), an unavailable dependency or an exception retries with exponential
@@ -64,22 +51,11 @@ public sealed record DeliveryPolicy
         }
     }
 
-    /// <summary>The verdict for the pipeline's answer, before the attempt limit.</summary>
+    /// <summary>The verdict for the pipeline's answer, before the attempt limit: <see cref="Delivery.Classify"/>, which
+    /// webhooks and consumers share (moved to <c>Tarol.Changes</c> in step 10).</summary>
     /// <param name="result">What <see cref="ReactionSet.Run"/> returned.</param>
     /// <returns><see cref="Verdict.Done"/>, <see cref="Verdict.Retry"/> or <see cref="Verdict.Bury"/>.</returns>
-    public static Verdict Classify(Result<ChangeOutcome> result)
-    {
-        if (!result.TryGetValue(out Violation? violation))
-            return Verdict.Done;
-        return violation switch
-        {
-            Invalid => Verdict.Bury,                                              // a mapping bug or a contract change
-            Error { Type: ErrorType.Conflict } => Verdict.Retry,                  // C-9: guards and versions alike
-            Error { Type: ErrorType.NotFound or ErrorType.UnprocessableEntity } => Verdict.Retry,   // S-7: ordering across streams
-            Error { Type: ErrorType.Unavailable or ErrorType.Timeout or ErrorType.TooManyRequests or ErrorType.Internal } => Verdict.Retry,
-            _ => Verdict.Bury,                                                    // Forbidden, Unauthorized, Gone
-        };
-    }
+    public static Verdict Classify(Result<ChangeOutcome> result) => Delivery.Classify(result);
 
     /// <summary>
     /// The delay after attempt <paramref name="attempt"/>: <see cref="FirstDelay"/> · 2^(attempt − 1), at most
