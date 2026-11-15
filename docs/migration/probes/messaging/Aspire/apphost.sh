@@ -22,7 +22,7 @@ echo "artflow events (alias: count/with traceparent): $(q artflow "SELECT string
 echo "billing events (alias: count/with traceparent): $(q billing "SELECT string_agg(alias || ' ' || c || '/' || t, ', ' ORDER BY alias) FROM (SELECT alias, count(*) c, count(traceparent) t FROM billing_aspire.events GROUP BY alias) x")"
 echo "invoice actor (billing): $(q billing "SELECT DISTINCT actor_kind || ' ' || actor_id FROM billing_aspire.events WHERE alias = 'invoice.issued'")"
 echo "payment actor (artflow): $(q artflow "SELECT DISTINCT actor_kind || ' ' || actor_id FROM artflow_aspire.events WHERE alias = 'auction.payment_recorded'")"
-echo "same correlation end to end: $(q artflow "SELECT count(DISTINCT correlation_id) FROM artflow_aspire.events WHERE alias = 'auction.payment_recorded'") payment correlations"
+echo "payments: $(q artflow "SELECT count(*) || ' with ' || count(DISTINCT correlation_id) || ' correlations (the payment provider started each conversation)' FROM artflow_aspire.events WHERE alias = 'auction.payment_recorded'")"
 echo "outbox rows left: artflow $(q artflow "SELECT count(*) FROM artflow_aspire.outbox"), billing $(q billing "SELECT count(*) FROM billing_aspire.outbox WHERE reaction NOT LIKE 'publish:%' AND reaction <> 'RemindBuyer'")"
 sleep 6   # the OTLP exporters' batch interval
 curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; print("dashboard resources:", sorted((r["name"], r["hasTraces"]) for r in json.load(sys.stdin)))'
