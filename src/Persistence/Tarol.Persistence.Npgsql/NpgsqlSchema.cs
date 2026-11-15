@@ -77,7 +77,9 @@ public static partial class NpgsqlSchema
                 version    bigint      NOT NULL,
                 events     integer     NOT NULL,
                 stored_at  timestamptz NOT NULL,
+                fingerprint text       NULL,               -- what the key was used for (e.g. method, path, body hash)
                 PRIMARY KEY (tenant, scope, key));
+            ALTER TABLE {s}.idempotency_keys ADD COLUMN IF NOT EXISTS fingerprint text NULL;   -- tables created before step 10
             CREATE INDEX IF NOT EXISTS idempotency_keys_stored_at ON {s}.idempotency_keys (stored_at);
 
             -- one row per (event, reaction), written in the event's commit; deleted when the reaction completed. Only a head is

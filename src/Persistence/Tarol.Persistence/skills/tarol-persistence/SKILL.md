@@ -21,6 +21,8 @@ description: >-
    in a worker, retry later with a fresh load. `Idempotency.DuplicateKey` and `Lookup.Taken` are also `Error.Conflict`.
 4. **Keys only for redeliverable work** (webhooks, reactions, consumers, REST `Idempotency-Key`): check `Seen(key)`
    first and return the stored outcome; pass the key to `Append` so it is stored in the same commit. Failures store no key.
+   A key may carry a `Fingerprint` (`new IdempotencyKey(…) { Fingerprint = hash }`): stored with the outcome; the change
+   pipeline refuses the same key with another fingerprint (`StoreErrors.KeyReused`, 422).
 5. **Lookups** are unique secondary keys: `DefineLookup<T>(name, a => a.Key)` on the in-memory store, then
    `Find<T>(name, key, context, ct)` → `Option<Id<T>>`. Empty or `null` key = not indexed.
 6. **Tests**: `new InMemoryAggregateStore(fakeTime, MyJson.Default.Options)` exercises the stored state like production;

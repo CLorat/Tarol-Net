@@ -268,19 +268,41 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task A_key_presented_again_with_another_fingerprint_is_refused_and_runs_nothing()
+    {
+        var test = Test();
+        var create = new CreateAuction("L-1", new Title("Sunflowers"), new Amount(10), Start.AddDays(7));
+        var key = new IdempotencyKey(Option.None, "http", "k-1") { Fingerprint = "POST /auctions #1" };
+
+        var first = await test.When(create, Actor.User("alice"), new ChangeOptions(key));
+        var again = await test.When(create, Actor.User("alice"), new ChangeOptions(key));
+        var reused = await test.When(create with { Lot = "L-2" }, Actor.User("alice"), new ChangeOptions(key with { Fingerprint = "POST /auctions #2" }));
+        var unmarked = await test.When(create with { Lot = "L-3" }, Actor.User("alice"), new ChangeOptions(new IdempotencyKey(Option.None, "http", "k-1")));
+
+        first.Result.GetValueOrThrow().Replayed.ShouldBeFalse();
+        again.Result.GetValueOrThrow().ShouldBe(first.Result.GetValueOrThrow() with { Replayed = true });
+        Failure(reused.Result).ShouldBe(StoreErrors.KeyReused(key with { Fingerprint = "POST /auctions #2" }));
+        Failure(reused.Result).ShouldBeOfType<Error>().Type.ShouldBe(ErrorType.UnprocessableEntity);
+        unmarked.Result.GetValueOrThrow().Replayed.ShouldBeTrue();                      // nothing to compare: the first outcome
+        test.Store.Recorded.Count.ShouldBe(1);
+    }
+
+    private static ClaimsPrincipal Principal(string subject) => new(new ClaimsIdentity([new Claim("sub", subject)], "test"));
+
+    [Fact]
     public async Task The_authorization_runs_after_the_load_with_the_principal()
     {
         var auction = NewAuction();
-        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "mallory")], "test"));
+        var mallory = Principal("mallory");
         var authorization = new SellerOnly();
         var test = ChangeTest.At(Start, TestJson.Default.Options, authorization).Given(auction);
 
-        var denied = await test.When(new CloseAuction(auction.Id), Actor.User("mallory"), new ChangeOptions(Principal: principal));
-        var missing = await test.When(new CloseAuction(Id<Auction>.New()), Actor.User("mallory"));
-        var allowed = await test.When(new CloseAuction(auction.Id), Actor.User("seller"));
+        var denied = await test.When(new CloseAuction(auction.Id), Actor.User("mallory"), new ChangeOptions(Principal: mallory));
+        var missing = await test.When(new CloseAuction(Id<Auction>.New()), Actor.User("mallory"), new ChangeOptions(Principal: mallory));
+        var allowed = await test.When(new CloseAuction(auction.Id), Actor.User("seller"), new ChangeOptions(Principal: Principal("seller")));
 
         Failure(denied.Result).ShouldBe(Error.Forbidden("Auction.NotSeller"));
-        authorization.Principals.ShouldContain(principal);
+        authorization.Principals.ShouldContain(mallory);
         Failure(missing.Result).ShouldBeOfType<Error>().Type.ShouldBe(ErrorType.NotFound);
         authorization.Checked.ShouldBe(2);
         allowed.Result.IsSuccess.ShouldBeTrue();
@@ -292,27 +314,113 @@ public sealed class PipelineTests
         var authorization = new SellerOnly();
         var test = ChangeTest.At(Start, TestJson.Default.Options, authorization);
 
-        var then = await test.When(new CreateAuction("L-1", new Title("Sunflowers"), new Amount(10), Start.AddDays(7)), Actor.User("bob"));
+        var then = await test.When(new CreateAuction("L-1", new Title("Sunflowers"), new Amount(10), Start.AddDays(7)), Actor.User("bob"),
+            new ChangeOptions(Principal: Principal("bob")));
 
         then.Result.IsSuccess.ShouldBeTrue();
         authorization.Checked.ShouldBe(1);
+        authorization.Aggregates.ShouldHaveSingleItem().ShouldBeOfType<Auction>().Version.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_run_without_a_principal_is_internal_and_not_checked()
+    {
+        var auction = NewAuction();
+        var authorization = new SellerOnly();
+        var test = ChangeTest.At(Start, TestJson.Default.Options, authorization).Given(auction);
+
+        var then = await test.When(new CloseAuction(auction.Id), Actor.System("Jobs.Close"));
+
+        then.Result.IsSuccess.ShouldBeTrue();
+        authorization.Checked.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_principal_without_an_authorization_fails_closed()
+    {
+        var auction = NewAuction();
+        var test = Test().Given(auction);
+
+        var change = await test.When(new CloseAuction(auction.Id), Actor.User("seller"), new ChangeOptions(Principal: Principal("seller")));
+        var creation = await test.When(new CreateAuction("L-2", new Title("Irises"), new Amount(10), Start.AddDays(7)), Actor.User("seller"),
+            new ChangeOptions(Principal: Principal("seller")));
+
+        Failure(change.Result).ShouldBeOfType<Error>().ShouldSatisfyAllConditions(
+            e => e.Type.ShouldBe(ErrorType.Forbidden), e => e.Code.ShouldBe(ChangePipeline.NotConfiguredCode));
+        Failure(creation.Result).ShouldBeOfType<Error>().Code.ShouldBe(ChangePipeline.NotConfiguredCode);
+        test.Store.Recorded.Count.ShouldBe(1);                                         // only the given auction
+    }
+
+    [Fact]
+    public async Task A_forbidden_caller_with_a_stale_expected_version_gets_403_not_the_version()
+    {
+        var auction = NewAuction();
+        var test = ChangeTest.At(Start, TestJson.Default.Options, new SellerOnly()).Given(auction);
+
+        var then = await test.When(new CloseAuction(auction.Id), Actor.User("mallory"),
+            new ChangeOptions(ExpectedVersion: 7L, Principal: Principal("mallory")));
+        var seller = await test.When(new CloseAuction(auction.Id), Actor.User("seller"),
+            new ChangeOptions(ExpectedVersion: 7L, Principal: Principal("seller")));
+
+        Failure(then.Result).ShouldBe(Error.Forbidden("Auction.NotSeller"));          // R-2: was 409 "expected 7, found 1"
+        Failure(seller.Result).ShouldBe(StoreErrors.VersionConflict(7, 1));
+    }
+
+    [Fact]
+    public async Task A_creation_is_authorized_before_its_expected_version_is_compared()
+    {
+        var then = await ChangeTest.At(Start, TestJson.Default.Options, new Refuse()).When(
+            new CreateAuction("L-1", new Title("Sunflowers"), new Amount(10), Start.AddDays(7)), Actor.User("bob"),
+            new ChangeOptions(ExpectedVersion: 3L, Principal: Principal("bob")));
+
+        Failure(then.Result).ShouldBe(Error.Forbidden("Refused"));
+    }
+
+    [Fact]
+    public async Task The_authorization_gets_the_change_context_with_time_and_reads()
+    {
+        var artwork = Artwork.Register(verified: true);
+        var authorization = new SellerOnly();
+        var test = ChangeTest.At(Start, TestJson.Default.Options, authorization).Given(artwork);
+
+        var then = await test.When(new CreateAuctionOfArtwork(artwork.Id, "L-1", new Title("Sunflowers"), new Amount(10), Start.AddDays(7)),
+            Actor.User("bob"), new ChangeOptions(Principal: Principal("bob")));
+
+        then.Result.IsSuccess.ShouldBeTrue();
+        var context = authorization.Contexts.ShouldHaveSingleItem();
+        context.Now.ShouldBe(Start);
+        context.Read<Artwork>().Id.ShouldBe(artwork.Id);
+        context.Operation.Actor.ShouldBe(Actor.User("bob"));
     }
 
     private sealed class SellerOnly : IChangeAuthorization
     {
         public int Checked { get; private set; }
 
-        public List<ClaimsPrincipal?> Principals { get; } = [];
+        public List<ClaimsPrincipal> Principals { get; } = [];
 
-        public ValueTask<Result> Check<T>(object change, T aggregate, OperationContext context, ClaimsPrincipal? principal, CancellationToken cancellationToken)
+        public List<ChangeContext> Contexts { get; } = [];
+
+        public List<object> Aggregates { get; } = [];
+
+        public ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
             where T : AggregateRoot<T>, IAggregateRoot<T>
         {
             Checked++;
             Principals.Add(principal);
-            return ValueTask.FromResult(aggregate is Auction auction && change is CloseAuction && auction.Seller != context.Actor.Id
+            Contexts.Add(context);
+            Aggregates.Add(aggregate);
+            return ValueTask.FromResult(aggregate is Auction auction && change is CloseAuction && auction.Seller != principal.FindFirst("sub")?.Value
                 ? Result.Failure(Error.Forbidden("Auction.NotSeller"))
                 : Result.Success());
         }
+    }
+
+    private sealed class Refuse : IChangeAuthorization
+    {
+        public ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+            where T : AggregateRoot<T>, IAggregateRoot<T>
+            => ValueTask.FromResult(Result.Failure(Error.Forbidden("Refused")));
     }
 
     /// <summary>Lets "someone else" commit between the pipeline's load and its append.</summary>

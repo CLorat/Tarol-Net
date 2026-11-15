@@ -14,6 +14,9 @@ public static class StoreErrors
     /// <summary>The code of a unique lookup key that belongs to another aggregate.</summary>
     public const string LookupTakenCode = "Lookup.Taken";
 
+    /// <summary>The code of <see cref="KeyReused"/>.</summary>
+    public const string KeyReusedCode = "Idempotency.KeyReused";
+
     /// <summary>Someone else committed to the stream first (or it exists, for an expected version of 0).</summary>
     /// <param name="expected">The expected version.</param>
     /// <param name="actual">The stream's version.</param>
@@ -31,6 +34,11 @@ public static class StoreErrors
     /// <param name="key">The key.</param>
     /// <returns>The error.</returns>
     public static Error LookupTaken(string lookup, string key) => Error.Conflict(LookupTakenCode, $"{lookup}: {key}");
+
+    /// <summary>An idempotency key presented again for a different request (another fingerprint): 422, nothing replayed.</summary>
+    /// <param name="key">The key.</param>
+    /// <returns>The error.</returns>
+    public static Error KeyReused(IdempotencyKey key) => Error.UnprocessableEntity(KeyReusedCode, $"{key.Scope}: {key.Key}");
 
     /// <summary>Whether <paramref name="result"/> is a version conflict (the caller may reload and decide again).</summary>
     /// <param name="result">An append result.</param>

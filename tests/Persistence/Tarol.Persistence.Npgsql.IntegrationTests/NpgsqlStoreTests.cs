@@ -358,6 +358,20 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task EnsureSchema_adds_the_fingerprint_column_to_a_key_table_from_before_step_10()
+    {
+        var store = await postgres.IsolatedStore(_time);
+        await postgres.Execute($"ALTER TABLE {store.Schema}.idempotency_keys DROP COLUMN fingerprint");   // the table as 8B created it
+
+        await store.EnsureSchema(Ct);
+        var context = NewTenant();
+        var key = new IdempotencyKey(context.Tenant, "http", "k-1") { Fingerprint = "sha256:abc" };
+        (await store.Append(Member.Join(Id<Member>.New(_time), "a@x"), 0, context, key, Ct)).IsSuccess.ShouldBeTrue();
+
+        (await store.Seen(key, Ct)).GetValueOrThrow().Fingerprint.ShouldBe("sha256:abc");
+    }
+
+    [Fact]
     public async Task EnsureSchema_is_idempotent_and_refuses_a_newer_schema()
     {
         var store = await postgres.IsolatedStore(_time);

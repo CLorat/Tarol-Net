@@ -24,6 +24,10 @@ public sealed class Postgres : IAsyncLifetime
 
     public NpgsqlDataSource DataSource { get; private set; } = null!;
 
+    public string ConnectionString => _container.GetConnectionString();
+
+    public string NewSchema() => $"s{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}";
+
     public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();

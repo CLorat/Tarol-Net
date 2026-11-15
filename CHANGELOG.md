@@ -105,6 +105,19 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   purge), `AddTarolReactions`, `ReactionTest`; agent skill `tarol-sagas`; integration tests on PostgreSQL; an Aspire
   AppHost sample (`samples/Sagas`). Design: docs/architecture/sagas.md, docs/migration/sagas.md §18.
 
+* `Tarol.Security` (step 10A): the change is ASP.NET Core's requirement (`ChangeRequirement` with the run's
+  `ChangeContext`), the aggregate the resource; `ChangeRoles` maps the app's roles onto changes and `Read<T>` intents,
+  row rules `ChangeHandler<TChange, TAggregate>` grant or `Deny` (deny wins), nothing granted is
+  `Error.Forbidden("Auth.Forbidden")`, anonymous `Error.Unauthorized("Auth.Required")`; denials logged (event 1001) and
+  counted (`tarol.authorization.denied`); `SystemPrincipal`; `AddSecurity` / `AddTarolSecurity`; agent skill
+  `tarol-security`. Design: docs/architecture/rest.md §3, docs/migration/rest.md §14.
+* One registration (step 10A): `services.AddTarol(jsonContext, codec => …)` returns a `TarolBuilder` (codec, clock,
+  pipeline) with `UseInMemoryStore`, `UseNpgsqlStore` (EnsureSchema as a hosted service), `WithReactions`,
+  `AddReactionWorker`, `AddSecurity`; `IIdempotencyKeyPurge` (the worker purges through the store).
+* Idempotency keys carry an optional `Fingerprint`, stored with the outcome (`StoredOutcome.Fingerprint`, column
+  `idempotency_keys.fingerprint`, added by `EnsureSchema` to existing tables); another fingerprint under the same key is
+  `Error.UnprocessableEntity("Idempotency.KeyReused")` (step 10A, R-9).
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
@@ -112,6 +125,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   deterministic (docs/migration/sagas.md §18.3).
 
 ### Changed
+
+* Changes (step 10A): `IChangeAuthorization.Check` takes the `ChangeContext` and a non-null principal and is called
+  only for runs with `ChangeOptions.Principal`; it runs before the expected version is compared (a refused caller no
+  longer gets 409 with the current version); a principal without an authorization is `Error.Forbidden("Auth.NotConfigured")`.
+  `Verdict` and the delivery classification moved from `Tarol.Sagas` to `Tarol.Changes` (`Delivery.Classify`;
+  `DeliveryPolicy.Classify` forwards). `AddTarolReactions` guards a second call by its own marker. Full list:
+  docs/migration/rest.md §14.2.
 
 * Validations: `[GenerateValidation]`, `ValidateValues()`, `ValidateInvariants()`, `[Invariant]` `bool` rules and
   `IPrerequisite`/`IPrerequisiteAsync` are gone. Rules live on value objects and inputs; invariants return to step 6 as

@@ -9,13 +9,19 @@ namespace Tarol.Changes;
 /// <summary>
 /// The one pipeline every entry of a change runs through (docs/architecture/changes.md §2):
 /// <c>Validated()</c> → idempotency key seen? → <c>[Read]</c> aggregates → load (automatic by <c>Target</c>, or the change's
-/// own <see cref="ILoads{T}.Load"/>) → permission → <c>Execute</c> with the time read once → <c>Prepare</c> → append with the
-/// expected version and the key → <c>Committed</c>.
+/// own <see cref="ILoads{T}.Load"/>) → permission (only when a principal is passed) → expected version → <c>Execute</c> with
+/// the time read once → <c>Prepare</c> → append with the expected version and the key → <c>Committed</c>.
 /// </summary>
 /// <remarks>
 /// Any failure (a guard, an invariant, a forbidden lifecycle step, a store conflict) returns the <see cref="Violation"/>
 /// and drops the loaded instance; an exception propagates and drops it too. A version conflict is returned, never
 /// retried (C-7): the caller decides.
+/// <para>
+/// The permission runs only when <see cref="ChangeOptions.Principal"/> is set (rest.md §3, R-6): HTTP entries always pass
+/// one, internal entries (jobs, reactions, sagas, tests) pass none, because the intent was authorized where it entered. It
+/// runs before the expected version is compared, so a caller who may not change the aggregate never learns its version
+/// (R-2). A principal without an <see cref="IChangeAuthorization"/> fails closed with <c>Error.Forbidden("Auth.NotConfigured")</c>.
+/// </para>
 /// </remarks>
 public sealed class ChangePipeline
 {
@@ -26,7 +32,8 @@ public sealed class ChangePipeline
     /// <summary>Creates the pipeline.</summary>
     /// <param name="store">The aggregate store.</param>
     /// <param name="time">The clock that supplies <see cref="ChangeContext.Now"/>.</param>
-    /// <param name="permission">The resource permission; <see langword="null"/> checks nothing (internal callers, until step 10).</param>
+    /// <param name="permission">The resource permission, asked for every run that carries a principal; <see langword="null"/>
+    /// refuses those runs (fail closed) and leaves internal runs unchecked.</param>
     public ChangePipeline(IAggregateStore store, TimeProvider time, IChangeAuthorization? permission = null)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -52,7 +59,7 @@ public sealed class ChangePipeline
         if (change is IValidatable validatable && Invalidity(validatable) is { } invalid)
             return invalid;                                                                     // 400, before any read
         if (await Seen(options, cancellationToken) is { } replayed)
-            return replayed;
+            return replayed;                                                                    // the first outcome, or KeyReused
 
         var (missing, loadedReads) = await LoadReads(change, context, cancellationToken);
         if (missing is not null)
@@ -73,15 +80,11 @@ public sealed class ChangePipeline
             return Error.NotFound($"{typeof(T).Name}.NotFound", change.Target.ToString());       // also another tenant's stream
         }
 
+        if (await Permission(change, aggregate, changeContext, options, cancellationToken) is { } denied)
+            return denied;                                                                      // before the version: R-2
         var expected = aggregate.Version - aggregate.UncommittedChanges.Length;                // 0 for a load-or-create
         if (options.ExpectedVersion.TryGetValue(out long seenVersion) && seenVersion != expected)
             return StoreErrors.VersionConflict(seenVersion, expected);
-        if (_permission is not null)
-        {
-            var allowed = await _permission.Check(change, aggregate, context, options.Principal, cancellationToken);
-            if (allowed.TryGetValue(out Violation? denied))
-                return denied;
-        }
 
         var decided = change.Execute(aggregate, changeContext);
         if (decided.TryGetValue(out Violation? refusedByGuard))
@@ -111,21 +114,18 @@ public sealed class ChangePipeline
         if (missing is not null)
             return missing;
 
-        var created = creation.Execute(new ChangeContext(context, _time.GetUtcNow(), loadedReads));
+        var changeContext = new ChangeContext(context, _time.GetUtcNow(), loadedReads);
+        var created = creation.Execute(changeContext);
         if (created.TryGetValue(out Violation? refused))
             return refused;
         var aggregate = created.GetValueOrThrow();
         ArgumentNullException.ThrowIfNull(aggregate, nameof(ICreation<>.Execute));
         if (aggregate.Version != aggregate.UncommittedChanges.Length)
             throw new InvalidOperationException($"The factory of {typeof(T).Name} returned a loaded aggregate; a creation returns a new one.");
+        if (await Permission(creation, aggregate, changeContext, options, cancellationToken) is { } denied)
+            return denied;
         if (options.ExpectedVersion.TryGetValue(out long seenVersion) && seenVersion != 0)
             return StoreErrors.VersionConflict(seenVersion, 0);
-        if (_permission is not null)
-        {
-            var allowed = await _permission.Check(creation, aggregate, context, options.Principal, cancellationToken);
-            if (allowed.TryGetValue(out Violation? denied))
-                return denied;
-        }
 
         var committed = await Commit(aggregate, 0, context, options, cancellationToken);
         return StoreErrors.IsVersionConflict(committed.ToResult())
@@ -150,13 +150,30 @@ public sealed class ChangePipeline
         return new ChangeOutcome(aggregate.Id.Value, aggregate.Version, events);
     }
 
-    private async ValueTask<ChangeOutcome?> Seen(ChangeOptions options, CancellationToken cancellationToken)
+    private async ValueTask<Violation?> Permission<T>(object change, T aggregate, ChangeContext context, ChangeOptions options,
+        CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        if (options.Principal is not { } principal)
+            return null;                                                                        // an internal entry (R-6)
+        if (_permission is null)
+            return Error.Forbidden(NotConfiguredCode, "a principal was passed, but the pipeline has no IChangeAuthorization");
+        var allowed = await _permission.Check(change, aggregate, context, principal, cancellationToken);
+        return allowed.TryGetValue(out Violation? denied) ? denied : null;
+    }
+
+    /// <summary>The code of the refusal when a principal is passed to a pipeline without an <see cref="IChangeAuthorization"/>.</summary>
+    public const string NotConfiguredCode = "Auth.NotConfigured";
+
+    private async ValueTask<Result<ChangeOutcome>?> Seen(ChangeOptions options, CancellationToken cancellationToken)
     {
         if (!options.Key.TryGetValue(out IdempotencyKey key))
             return null;
-        return (await _store.Seen(key, cancellationToken)).TryGetValue(out StoredOutcome stored)
-            ? new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true)
-            : null;
+        if (!(await _store.Seen(key, cancellationToken)).TryGetValue(out StoredOutcome stored))
+            return null;
+        if (stored.Fingerprint.TryGetValue(out string? first) && key.Fingerprint.TryGetValue(out string? now) && !string.Equals(first, now, StringComparison.Ordinal))
+            return StoreErrors.KeyReused(key);                                                  // R-9: another request under the key
+        return new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true);
     }
 
     private async ValueTask<(Violation? Missing, Reads? Reads)> LoadReads(object change, OperationContext context, CancellationToken cancellationToken)

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Security package (no ProjectReference). Proves that the package works with its shared
+    framework reference and that the Changes and Primitives generators flow from its dependencies to a package consumer.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Security" VersionOverride="$(TarolPackageVersion)" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <!-- the domain and rules of the unit tests, compiled with the packed generators -->
+    <Compile Include="../Tarol.Security.Tests/Shop.cs" Link="Shop.cs" />
+    <Compile Include="../Tarol.Security.AotSmoke/Program.cs" Link="Program.cs" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckSecurityAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolChangesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Changes.Generators'" />
+      <_TarolPrimitivesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Primitives.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolChangesGenerator)' == '' or '@(_TarolPrimitivesGenerator)' == ''" Text="The Changes / Primitives generators did not flow from Tarol.Security's dependencies." />
+    <Message Importance="high" Text="Tarol.Security analyzers: @(_TarolChangesGenerator);@(_TarolPrimitivesGenerator)" />
+  </Target>
+</Project>

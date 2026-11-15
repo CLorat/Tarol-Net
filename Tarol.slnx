@@ -26,6 +26,9 @@
   <Folder Name="/src/Sagas/">
     <Project Path="src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
   </Folder>
+  <Folder Name="/src/Security/">
+    <Project Path="src/Security/Tarol.Security/Tarol.Security.csproj" />
+  </Folder>
   <Folder Name="/src/Persistence/">
     <Project Path="src/Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
     <Project Path="src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
@@ -67,6 +70,10 @@
     <Project Path="tests/Sagas/Tarol.Sagas.AotSmoke/Tarol.Sagas.AotSmoke.csproj" />
     <Project Path="tests/Sagas/Tarol.Sagas.IntegrationTests/Tarol.Sagas.IntegrationTests.csproj" />
     <Project Path="tests/Sagas/Tarol.Sagas.Tests/Tarol.Sagas.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Security/">
+    <Project Path="tests/Security/Tarol.Security.AotSmoke/Tarol.Security.AotSmoke.csproj" />
+    <Project Path="tests/Security/Tarol.Security.Tests/Tarol.Security.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Persistence/">
     <Project Path="tests/Persistence/Tarol.Persistence.AotSmoke/Tarol.Persistence.AotSmoke.csproj" />

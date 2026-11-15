@@ -29,6 +29,15 @@ builder.Services.AddSingleton(new ChangePipeline(store, TimeProvider.System));
 builder.Services.AddTarolReactions(GeneratedReactions.Set, o => o.PurgeKeys = store.PurgeKeys);
 ```
 
+Or with the one registration (step 10), which wires the store's outbox, the pipeline and the key purge:
+
+```csharp
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>())
+    .WithReactions(GeneratedReactions.Set)
+    .UseNpgsqlStore(builder.Configuration.GetConnectionString("tarol")!)
+    .AddReactionWorker();
+```
+
 ## The worker
 
 `ReactionWorker` claims a batch (`IOutbox.Claim`), runs each row's reaction (`ReactionSet.Run`: as
