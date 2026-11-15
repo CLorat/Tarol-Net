@@ -1,0 +1,13 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+  <!-- D-15: PostgreSQL (databases artflow, billing), NATS with JetStream, and the probe app as api, worker and billing. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors><UserSecretsId>tarol-messaging-probe</UserSecretsId>
+    <AssemblyName>Probe.Messaging.AppHost</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
+    <PackageReference Include="Aspire.Hosting.Nats" Version="13.6.5" />
+    <ProjectReference Include="../App/App.csproj" />
+  </ItemGroup>
+</Project>

@@ -115,8 +115,9 @@ internal sealed class Sys : IAsyncDisposable
 
     public static async Task<Sys> Create(string name, string suffix, bool postgres, TimeProvider time, IMessageTransport transport, PublicationSet publications,
         ConsumerSet consumers, JsonSerializerOptions json, Func<EventCodec, EventCodec> codec, ReactionSet[] more, Action<ConsumerOptions> trust,
-        DeliveryPolicy? policy = null, bool notify = false)
+        DeliveryPolicy? policy = null, bool notify = false, NpgsqlDataSource? db = null, bool fresh = true)
     {
+        db ??= Lab.Db;
         var rows = new OutboxRows([publications.AsReactions(transport), .. more]);
         IAggregateStore store;
         IEventFeed feed;
@@ -126,11 +127,12 @@ internal sealed class Sys : IAsyncDisposable
         if (postgres)
         {
             var schema = name + "_" + suffix;
-            await using (var drop = Lab.Db.CreateCommand($"DROP SCHEMA IF EXISTS {schema} CASCADE"))
-                await drop.ExecuteNonQueryAsync();
-            var pg = new NpgsqlAggregateStore(Lab.Db, c, time, new NpgsqlStoreOptions { Schema = schema, Reactions = rows, Notify = notify });
+            if (fresh)
+                await using (var drop = db.CreateCommand($"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+                    await drop.ExecuteNonQueryAsync();
+            var pg = new NpgsqlAggregateStore(db, c, time, new NpgsqlStoreOptions { Schema = schema, Reactions = rows, Notify = notify });
             await pg.EnsureSchema(default);
-            var d = new NpgsqlDeadLetters(Lab.Db, time, schema);
+            var d = new NpgsqlDeadLetters(db, time, schema);
             await d.Ensure(default);
             (store, feed, outbox, dead) = (pg, pg, pg.Outbox, d);
         }
