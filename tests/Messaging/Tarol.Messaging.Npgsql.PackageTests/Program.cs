@@ -32,10 +32,11 @@ namespace PackageConsumer
 
     public partial class Board : AggregateRoot<Board>
     {
+        public int Notes { get; private set; }
         public static Board For(Guid id) => new((Id<Board>)id);
         public Result Note(string text) => Raise(new Noted(text));
         public sealed record Noted(string Text) : Event;
-        private void On(Noted e) { }
+        private void On(Noted e) => Notes++;
     }
 
     public sealed partial record NoteOnBoard(Guid Board, string Text) : ICreation<Board>
