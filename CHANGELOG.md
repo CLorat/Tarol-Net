@@ -118,6 +118,22 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `idempotency_keys.fingerprint`, added by `EnsureSchema` to existing tables); another fingerprint under the same key is
   `Error.UnprocessableEntity("Idempotency.KeyReused")` (step 10A, R-9).
 
+* `Tarol.Changes.AspNetCore` (step 10B, + generator TWEB001–TWEB006):
+  * `[Endpoint]` on change records and `IView<TAggregate, TSelf>` views becomes generated `RequestDelegate`s, mapped by
+    `MapChanges(names)`;
+  * a generated member binder reports every `Json`/`Required` error;
+  * the edge context comes from the principal, with actor and tenant hooks and a `{tenant}` route check;
+  * `Idempotency-Key` is fingerprinted, `If-Match` and `ETag`/304 are mapped, problem details are written by hand or
+    through `IProblemDetailsService`;
+  * `[Webhook]` factories: HMAC-SHA256 with rotation, a timestamp window, a delivery-id key, contract versions and the
+    answer table;
+  * `GeneratedOpenApi.AddTarolEndpoints` when the app references `Microsoft.AspNetCore.OpenApi`;
+  * `AddEndpoints` on the builder; agent skill `tarol-endpoints`.
+* `Tarol.Security.Zitadel` (step 10B, optional): `AddZitadel(…)` sets JwtBearer against the Zitadel issuer and
+  project and a claims transformation (project roles → roles, organisation → tenant via `ZitadelTenants.Of`, the
+  service role → `Actor.Service`); agent skill `tarol-zitadel`.
+* `samples/Sagas`: ArtFlow's API and worker with Zitadel under the AppHost.
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping

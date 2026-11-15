@@ -28,3 +28,32 @@ implementation notes: [docs/migration/changes.md](../migration/changes.md). The 
    its outbox table and the worker its runner, which runs the change as the system on behalf of the user, caused by the
    event, keyed (reaction, event id). Sagas are aggregates whose steps are such reactions
    ([sagas.md](../architecture/sagas.md)).
+8. **An HTTP entry is an attribute on the change** (step 10, [rest.md](../architecture/rest.md);
+   package guide [Tarol.Changes.AspNetCore](../../src/Changes/Tarol.Changes.AspNetCore/README.md), skill
+   [tarol-endpoints](../../src/Changes/Tarol.Changes.AspNetCore/skills/tarol-endpoints/SKILL.md)):
+   - `[Endpoint("POST /auctions/{auction}/bids", Policy = …)]` on the record, and `app.MapChanges()`.
+   - The generated delegate binds the route and the body (every field at once) and builds the context from the
+     principal; `Idempotency-Key` and `If-Match` map onto the pipeline.
+   - The pipeline authorizes the change (skill `tarol-security`); its outcome maps to 201/204 with `ETag`, or to problem
+     details.
+   - GET by id is a view (`IView<Auction, TSelf>`); webhooks are `[Webhook]` factories.
+
+## HTTP in one picture
+
+```text
+request → authentication (the app's) → endpoint policy → route + body → context (actor, tenant, key, If-Match)
+        → ChangePipeline: validate → key seen → [Read] → load (404) → permission (401/403) → If-Match (409) → Execute → append
+        → 201 / 204 + ETag, or 400 / 403 / 404 / 409 / 422 problem details
+```
+
+Registration, in one place for every package (`AddTarol` → `TarolBuilder`):
+
+```csharp
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
+    .WithReactions(GeneratedReactions.Set)
+    .UseNpgsqlStore(builder.Configuration.GetConnectionString("tarol")!)
+    .AddSecurity(roles => roles.Role("bidder").May<PlaceBid>().May<Read<Auction>>())
+    .AddEndpoints()
+    .AddZitadel(z => (z.Authority, z.ProjectId) = (authority, project));   // optional: Tarol.Security.Zitadel
+app.MapChanges();
+```
