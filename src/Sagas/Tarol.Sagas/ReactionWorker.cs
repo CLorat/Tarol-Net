@@ -64,7 +64,10 @@ public sealed partial class ReactionWorker
     }
 
     /// <summary>Claims one batch and handles it.</summary>
-    /// <param name="cancellationToken">Cancels between rows; a row in flight keeps its lease and comes back after it.</param>
+    /// <param name="cancellationToken">
+    /// Cancels between rows and the reaction in flight (its row keeps its lease and comes back after it); a reaction that
+    /// has run still gets its verdict recorded.
+    /// </param>
     /// <returns>What happened to each claimed row; empty when nothing was due.</returns>
     public async Task<IReadOnlyList<ReactionAttempt>> RunOnce(CancellationToken cancellationToken = default)
     {
@@ -158,12 +161,13 @@ public sealed partial class ReactionWorker
         if (verdict != Verdict.Done)
             activity?.SetStatus(ActivityStatusCode.Error, reason);
 
+        // the reaction has run: record its verdict even while shutting down, so a finished row is not redelivered
         var kept = verdict switch
         {
-            Verdict.Done => await _outbox.Complete(row, cancellationToken).ConfigureAwait(false),
-            Verdict.Retry => await _outbox.Retry(row, _time.GetUtcNow() + _options.Policy.Backoff(row.Id, row.Attempts), reason ?? "", cancellationToken)
+            Verdict.Done => await _outbox.Complete(row, CancellationToken.None).ConfigureAwait(false),
+            Verdict.Retry => await _outbox.Retry(row, _time.GetUtcNow() + _options.Policy.Backoff(row.Id, row.Attempts), reason ?? "", CancellationToken.None)
                 .ConfigureAwait(false),
-            _ => await _outbox.Bury(row, reason ?? "", cancellationToken).ConfigureAwait(false),
+            _ => await _outbox.Bury(row, reason ?? "", CancellationToken.None).ConfigureAwait(false),
         };
         if (!kept)
             LeaseLost(_log, row.Reaction, row.Id, row.Attempts);
