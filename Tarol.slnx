@@ -30,6 +30,7 @@
   </Folder>
   <Folder Name="/src/Security/">
     <Project Path="src/Security/Tarol.Security/Tarol.Security.csproj" />
+    <Project Path="src/Security/Tarol.Security.Zitadel/Tarol.Security.Zitadel.csproj" />
   </Folder>
   <Folder Name="/src/Persistence/">
     <Project Path="src/Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
@@ -80,6 +81,9 @@
   <Folder Name="/tests/Security/">
     <Project Path="tests/Security/Tarol.Security.AotSmoke/Tarol.Security.AotSmoke.csproj" />
     <Project Path="tests/Security/Tarol.Security.Tests/Tarol.Security.Tests.csproj" />
+    <Project Path="tests/Security/Tarol.Security.Zitadel.AotSmoke/Tarol.Security.Zitadel.AotSmoke.csproj" />
+    <Project Path="tests/Security/Tarol.Security.Zitadel.IntegrationTests/Tarol.Security.Zitadel.IntegrationTests.csproj" />
+    <Project Path="tests/Security/Tarol.Security.Zitadel.Tests/Tarol.Security.Zitadel.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Persistence/">
     <Project Path="tests/Persistence/Tarol.Persistence.AotSmoke/Tarol.Persistence.AotSmoke.csproj" />

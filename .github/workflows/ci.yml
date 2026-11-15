@@ -111,6 +111,11 @@ jobs:
           dotnet test --project tests/Changes/Tarol.Changes.AspNetCore.IntegrationTests -c Release
           --report-trx --results-directory artifacts/test-results
 
+      - name: Integration tests against Zitadel (Testcontainers, ghcr.io/zitadel/zitadel)
+        run: >-
+          dotnet test --project tests/Security/Tarol.Security.Zitadel.IntegrationTests -c Release
+          --report-trx --results-directory artifacts/test-results
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
