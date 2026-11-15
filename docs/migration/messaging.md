@@ -828,6 +828,9 @@ layering on top of the system-to-system messaging. ASP.NET Core is the framework
 * **`HubConnections` aborts the connections when the application stops**, and any client that reconnects into the
   shutdown. Without it a graceful stop with live UI clients waited the host's whole shutdown timeout (30 s, measured), because
   the clients' automatic reconnect (first delay 0) opened new WebSocket connections during the shutdown.
+* **The client never gives up**: `Connect` reconnects forever (0, 1, 2, 5 s, then every 10 s with jitter) instead of
+  SignalR's default policy, which stops after about 42 s (a full-solution run under load once ended a client
+  `Disconnected` for good); a connection that still closes for good without `Stop` is started again by the client.
 * **A client handle's disposal never throws**: the unsubscribe after a lost connection is best effort (the native smoke run
   found a `WebSocketException` there).
 * **The UI push is a notification**: a forwarded message reaches the clients connected at that moment; a send failure is
@@ -846,7 +849,7 @@ None.
 
 | Project | Tests | Covers |
 |---|---:|---|
-| `Tarol.Messaging.SignalR.Tests` | 17 | the scenarios of the old `plan-messagingIntegrationTests.prompt.md` on Kestrel with real clients: same-client round trip (sender stamped), other clients of the tenant (another tenant gets nothing), topic isolation, unsubscribe (one handler; the last unsubscribes), **reconnect** (server stopped and started on the same port, subscriptions replayed), subscribe before start, payload integrity, 50 concurrent publishes, cancellation and shutdown with live clients (under 5 s); forwarding from the transport to the tenant's subscribers (id, sender, subject, data) and not to another tenant; untrusted tenant / source mismatch / non-JSON not forwarded; refused subscribe and publish (`Forbidden`, no handler kept), an invalid topic, an unauthenticated connection (401), a tenant claim that is not a tenant; a failing handler isolated; a handle disposed after the server went away; groups and rules; the skill example verbatim |
+| `Tarol.Messaging.SignalR.Tests` | 18 | the scenarios of the old `plan-messagingIntegrationTests.prompt.md` on Kestrel with real clients: same-client round trip (sender stamped), other clients of the tenant (another tenant gets nothing), topic isolation, unsubscribe (one handler; the last unsubscribes), **reconnect** (server stopped and started on the same port, subscriptions replayed), a connection without automatic reconnect started again by the client itself, subscribe before start, payload integrity, 50 concurrent publishes, cancellation and shutdown with live clients (under 5 s); forwarding from the transport to the tenant's subscribers (id, sender, subject, data) and not to another tenant; untrusted tenant / source mismatch / non-JSON not forwarded; refused subscribe and publish (`Forbidden`, no handler kept), an invalid topic, an unauthenticated connection (401), a tenant claim that is not a tenant; a failing handler isolated; a handle disposed after the server went away; groups and rules; the skill example verbatim |
 | `Tarol.Messaging.SignalR.AotSmoke` | 5 checks | hub, forwarder and client in one native process: subscribe, a publish through the hub, a forwarded message, a refused subscribe, a fast stop with a live client; Native AOT 0 IL warnings, 17.5 MB |
 | `Tarol.Messaging.SignalR.PackageTests` | 1 | the packed package: registered, the hub mapped, a client built |
 

@@ -22,7 +22,8 @@ description: >-
 5. **The server stamps the sender**: `PushedMessage.Sender` is the caller's `sub` for a client publish, the source system
    for a forwarded message.
 6. **The .NET client**: `MessagePushClient.Connect(hubUri, accessToken)`, `Subscribe` (any time, before or after `Start`),
-   dispose the returned handle to stop one handler, `Start`. Reconnects replay the subscriptions.
+   dispose the returned handle to stop one handler, `Start`. It reconnects forever (0, 1, 2, 5 s, then every 10 s) and
+   replays the subscriptions; only `Stop` or disposing ends it.
 7. **Native AOT** needs `Microsoft.AspNetCore.SignalR.Hub.IsCustomAwaitableSupported=false` in the app
    (`RuntimeHostConfigurationOption`).
 

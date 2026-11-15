@@ -50,7 +50,8 @@ A browser: `connection.invoke("Subscribe", "artflow.auction-settled")`, then `co
   graceful stop does not wait for long-lived connections.
 * **The .NET client** (`MessagePushClient.Connect(hubUrl, accessToken)`): `Subscribe(topic, handler)` returns a handle
   that removes that handler only; subscriptions made before `Start` and all of them after every reconnect are sent to the
-  server again; a failing handler is logged and the others still run; a refused subscribe keeps no handler.
+  server again; it reconnects forever (0, 1, 2, 5 s, then every 10 s with jitter) and starts again by itself if a connection
+  still closes for good, until `Stop` or disposal; a failing handler is logged and the others still run; a refused subscribe keeps no handler.
 
 ## Native AOT
 
