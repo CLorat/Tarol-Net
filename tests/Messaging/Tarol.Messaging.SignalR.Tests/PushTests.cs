@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Tarol.Options;
 
 namespace Tarol.Messaging.SignalR.Tests;
@@ -109,6 +110,34 @@ public sealed class PushTests
         await client.Publish("artflow.chat", Json.Of("{\"after\":true}"), Ct);
 
         await inbox.Until(m => m.Count == 1, "the message after the reconnect (F7)");
+    }
+
+    [Fact]
+    public async Task A_connection_that_closed_for_good_is_started_again_by_the_client()
+    {
+        await using var host = await PushHost.Start();
+        var connection = new HubConnectionBuilder()                                                   // no automatic reconnect: Closed is final
+            .WithUrl(host.Hub, o =>
+            {
+                o.Headers["X-User"] = "alice";
+                o.Headers["X-Roles"] = "member";
+            })
+            .AddJsonProtocol(static o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, SignalRJson.Default))
+            .Build();
+        await using var client = new MessagePushClient(connection, ownsConnection: true);
+        var inbox = new Inbox();
+        await using var handle = await client.Subscribe("artflow.chat", inbox.Add, Ct);
+        await client.Start(Ct);
+
+        await host.Stop();
+        await host.Restart();
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (client.State != HubConnectionState.Connected && waited.Elapsed < TimeSpan.FromSeconds(30))
+            await Task.Delay(50, Ct);
+        await Task.Delay(300, Ct);                                                                  // the replay follows the start
+
+        await client.Publish("artflow.chat", Json.Of("{}"), Ct);
+        await inbox.Until(m => m.Count == 1, "the message after the client's own restart");
     }
 
     [Fact]

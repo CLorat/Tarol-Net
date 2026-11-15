@@ -12,6 +12,7 @@ namespace Tarol.Messaging.SignalR;
 /// <summary>
 /// The .NET client of the <see cref="MessageHub"/> (a desktop app, a test, a service that shows a UI). It keeps an
 /// immutable map topic → handlers, replays every subscription after <see cref="Start"/> and on every reconnect (F7, F8),
+/// starts again by itself when the connection closed for good without <see cref="Stop"/>,
 /// removes a handler whose server subscription failed (F9), disposes one handler without touching the others (F11), runs
 /// every handler isolated from the others (F18), and owns the <c>On</c> registration it makes (F17).
 /// </summary>
@@ -28,6 +29,8 @@ public sealed partial class MessagePushClient : IAsyncDisposable
     private readonly bool _ownsConnection;
     private readonly ILogger _log;
     private readonly IDisposable _on;
+    private readonly CancellationTokenSource _stopped = new();
+    private int _restarting;
     private ImmutableDictionary<string, ImmutableArray<Handler>> _topics = ImmutableDictionary.Create<string, ImmutableArray<Handler>>(StringComparer.Ordinal);
 
     /// <summary>Wraps a connection (built with the <see cref="SignalRJson"/> protocol and, for replays, <c>WithAutomaticReconnect</c>).</summary>
@@ -42,6 +45,7 @@ public sealed partial class MessagePushClient : IAsyncDisposable
         _log = logger ?? NullLogger.Instance;
         _on = connection.On<PushedMessage>(MessageHub.MessageMethod, Dispatch);
         connection.Reconnected += OnReconnected;
+        connection.Closed += OnClosed;
     }
 
     /// <summary>The connection's state.</summary>
@@ -51,8 +55,9 @@ public sealed partial class MessagePushClient : IAsyncDisposable
     public IReadOnlyCollection<string> Topics => [.. Volatile.Read(ref _topics).Keys];
 
     /// <summary>
-    /// A client of its own connection to <paramref name="hub"/>: the source-generated hub JSON, automatic reconnect, the
-    /// access token from <paramref name="accessToken"/> on every (re)connect. The client owns the connection.
+    /// A client of its own connection to <paramref name="hub"/>: the source-generated hub JSON, automatic reconnect that never
+    /// gives up (0, 1, 2, 5 s, then every 10 s with jitter), the access token from <paramref name="accessToken"/> on every
+    /// (re)connect. The client owns the connection.
     /// </summary>
     /// <param name="hub">The hub's URL, e.g. <c>https://host/tarol/messages</c>.</param>
     /// <param name="accessToken">Supplies the bearer token; <see langword="null"/> = none (cookies, or a test handler).</param>
@@ -69,7 +74,7 @@ public sealed partial class MessagePushClient : IAsyncDisposable
                     options.AccessTokenProvider = accessToken;
                 configure?.Invoke(options);
             })
-            .WithAutomaticReconnect()
+            .WithAutomaticReconnect(new ForeverRetry())
             .AddJsonProtocol(static o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, SignalRJson.Default))
             .Build();
         return new MessagePushClient(connection, logger, ownsConnection: true);
@@ -80,6 +85,8 @@ public sealed partial class MessagePushClient : IAsyncDisposable
     /// <returns>A task.</returns>
     public async Task Start(CancellationToken cancellationToken = default)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed), this);
+        Volatile.Write(ref _userStopped, false);
         if (_connection.State == HubConnectionState.Disconnected)
             await _connection.StartAsync(cancellationToken).ConfigureAwait(false);
         await Replay(cancellationToken).ConfigureAwait(false);
@@ -131,11 +138,19 @@ public sealed partial class MessagePushClient : IAsyncDisposable
     /// <summary>Stops the connection (subscriptions stay in the map and are replayed by the next <see cref="Start"/>).</summary>
     /// <param name="cancellationToken">Cancels the stop.</param>
     /// <returns>A task.</returns>
-    public Task Stop(CancellationToken cancellationToken = default) => _connection.StopAsync(cancellationToken);
+    public Task Stop(CancellationToken cancellationToken = default)
+    {
+        Volatile.Write(ref _userStopped, true);
+        return _connection.StopAsync(cancellationToken);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        Volatile.Write(ref _disposed, true);
+        Volatile.Write(ref _userStopped, true);
+        await _stopped.CancelAsync().ConfigureAwait(false);
+        _connection.Closed -= OnClosed;
         _connection.Reconnected -= OnReconnected;
         _on.Dispose();
         if (_ownsConnection)
@@ -143,6 +158,46 @@ public sealed partial class MessagePushClient : IAsyncDisposable
     }
 
     private Task OnReconnected(string? connectionId) => Replay(CancellationToken.None);
+
+    /// <summary>
+    /// The connection closed for good without <see cref="Stop"/> (the reconnect policy gave up, or the server closed it and
+    /// disallowed a reconnect): start again with a backoff until it works or the client is stopped.
+    /// </summary>
+    private Task OnClosed(Exception? error)
+    {
+        if (Volatile.Read(ref _userStopped) || Interlocked.Exchange(ref _restarting, 1) == 1)
+            return Task.CompletedTask;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                for (var attempt = 0; !Volatile.Read(ref _userStopped); attempt++)
+                {
+                    await Task.Delay(ForeverRetry.Delay(attempt), _stopped.Token).ConfigureAwait(false);
+                    try
+                    {
+                        if (_connection.State == HubConnectionState.Disconnected)
+                            await _connection.StartAsync(_stopped.Token).ConfigureAwait(false);
+                        await Replay(_stopped.Token).ConfigureAwait(false);
+                        Restarted(_log, attempt + 1);
+                        return;
+                    }
+                    catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
+                    {
+                        RestartFailed(_log, attempt + 1, e);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                Volatile.Write(ref _restarting, 0);
+            }
+        });
+        return Task.CompletedTask;
+    }
 
     private async Task Replay(CancellationToken cancellationToken)
     {
@@ -221,6 +276,21 @@ public sealed partial class MessagePushClient : IAsyncDisposable
         }
     }
 
+    private bool _userStopped;
+    private bool _disposed;
+
+    /// <summary>Reconnects forever: 0, 1, 2, 5 s, then every 10 s with ±20 % jitter.</summary>
+    private sealed class ForeverRetry : IRetryPolicy
+    {
+        public static TimeSpan Delay(long attempt)
+        {
+            var seconds = attempt switch { 0 => 0, 1 => 1, 2 => 2, 3 => 5, _ => 10 };
+            return TimeSpan.FromSeconds(seconds * (0.8 + 0.4 * Random.Shared.NextDouble()));
+        }
+
+        public TimeSpan? NextRetryDelay(RetryContext retryContext) => Delay(retryContext.PreviousRetryCount);
+    }
+
     private sealed class Handler(Func<PushedMessage, CancellationToken, ValueTask> run)
     {
         public Func<PushedMessage, CancellationToken, ValueTask> Run { get; } = run;
@@ -238,6 +308,12 @@ public sealed partial class MessagePushClient : IAsyncDisposable
 
     [LoggerMessage(EventId = 11412, Level = LogLevel.Warning, Message = "Subscribing {Topic} again failed; the next reconnect tries again")]
     private static partial void ReplayFailed(ILogger logger, string topic, Exception exception);
+
+    [LoggerMessage(EventId = 11414, Level = LogLevel.Information, Message = "The message push connection started again after {Attempts} attempt(s)")]
+    private static partial void Restarted(ILogger logger, int attempts);
+
+    [LoggerMessage(EventId = 11415, Level = LogLevel.Warning, Message = "Starting the message push connection again failed (attempt {Attempt}); trying again")]
+    private static partial void RestartFailed(ILogger logger, int attempt, Exception exception);
 
     [LoggerMessage(EventId = 11413, Level = LogLevel.Warning, Message = "Unsubscribing {Topic} failed")]
     private static partial void UnsubscribeFailed(ILogger logger, string topic, Exception exception);
