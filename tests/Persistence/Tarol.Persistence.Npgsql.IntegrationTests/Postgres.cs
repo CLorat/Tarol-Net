@@ -37,13 +37,19 @@ public sealed class Postgres : IAsyncLifetime
         => new(DataSource, codec ?? Codec(), time, new NpgsqlStoreOptions { Lookups = lookups ?? new StoreLookups() });
 
     /// <summary>A store on a fresh schema of its own, created.</summary>
-    public async Task<NpgsqlAggregateStore> IsolatedStore(TimeProvider time, StoreLookups? lookups = null, EventCodec? codec = null, ReactionTable? reactions = null)
+    public Task<NpgsqlAggregateStore> IsolatedStore(TimeProvider time, StoreLookups? lookups = null, EventCodec? codec = null, ReactionTable? reactions = null)
+        => IsolatedStore(time, reactions is null ? null : OutboxReactions.From(reactions), lookups, codec);
+
+    /// <summary>A store on a fresh schema of its own, created, with outbox rows for <paramref name="reactions"/>.</summary>
+    public async Task<NpgsqlAggregateStore> IsolatedStore(TimeProvider time, IOutboxReactions? reactions, StoreLookups? lookups = null, EventCodec? codec = null,
+        bool notify = false)
     {
         var store = new NpgsqlAggregateStore(DataSource, codec ?? Codec(), time, new NpgsqlStoreOptions
         {
             Schema = $"t{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}",
             Lookups = lookups ?? new StoreLookups(),
             Reactions = reactions,
+            Notify = notify,
         });
         await store.EnsureSchema(default);
         return store;
@@ -74,4 +80,15 @@ public sealed class Postgres : IAsyncLifetime
 public sealed class NpgsqlStoreContractTests(Postgres postgres) : StoreContract
 {
     protected override IAggregateStore CreateStore(TimeProvider time, StoreLookups lookups) => postgres.Store(time, lookups);
+}
+
+/// <summary>The outbox contract on PostgreSQL, a schema per test.</summary>
+[Trait("Category", "Integration")]
+public sealed class NpgsqlOutboxContractTests(Postgres postgres) : OutboxContract
+{
+    protected override async Task<(IAggregateStore Store, IOutbox Outbox)> Create(TimeProvider time, IOutboxReactions reactions)
+    {
+        var store = await postgres.IsolatedStore(time, reactions);
+        return (store, store.Outbox);
+    }
 }

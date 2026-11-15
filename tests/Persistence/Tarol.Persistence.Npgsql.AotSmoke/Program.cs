@@ -37,7 +37,7 @@ else
     {
         Schema = schema,
         Lookups = lookups,
-        Reactions = e => e is Wallet.Opened ? Reactions.OnOpened : ReadOnlySpan<string>.Empty,
+        Reactions = OutboxReactions.From(e => e is Wallet.Opened ? Reactions.OnOpened : ReadOnlySpan<string>.Empty),
     });
     try
     {
@@ -66,6 +66,14 @@ else
         var claimed = await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), default);
         Check("outbox row claimed with its event", claimed.Count == 1 && claimed[0].Reaction == "Welcome" && claimed[0].Event.Event.Event.Event is Wallet.Opened);
         Check("outbox row completed", await store.Outbox.Complete(claimed[0], default) && await store.Outbox.Pending(default) == 0);
+        var second = Wallet.Open("bob");
+        Check("second commit", (await store.Append(second, 0, context, Option.None, default)).IsSuccess);
+        var poison = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), default)).Single();
+        Check("bury moves the row to the dead letters", await store.Outbox.Bury(poison, "Conflict Wallet.Poison", default)
+                                                      && (await store.Outbox.DeadLetters(10, default)) is [{ Reaction: "Welcome", LastError: { IsSome: true } }]);
+        Check("re-drive brings it back", await store.Outbox.Redrive(poison.Id, default)
+                                          && (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), default)) is [{ Attempts: 1 } again]
+                                          && await store.Outbox.Complete(again, default));
         Check("purge keys", await store.PurgeKeys(TimeProvider.System.GetUtcNow().AddDays(1), 100, default) == 1);
     }
     finally
