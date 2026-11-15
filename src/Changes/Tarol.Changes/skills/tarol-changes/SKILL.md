@@ -3,7 +3,8 @@ name: tarol-changes
 description: >-
   Use when writing a Tarol change (the input record an actor sends to change an aggregate) or running one: IChange<T>,
   ICreation<T>, ILoads<T>, [Read], ChangeContext (Operation, Now, Read<T>), ChangePipeline.Run, ChangeOptions
-  (idempotency key, expected version), ChangeOutcome, IChangeAuthorization, the generated GeneratedChanges.Dispatch, the
+  (idempotency key, expected version, principal), ChangeOutcome, IChangeAuthorization, AddTarol, Delivery.Classify, the
+  generated GeneratedChanges.Dispatch, the
   ChangeTest helper, reactions to own events ([OnEvent<T>] factories, the generated GeneratedReactions.Set, ReactionSet),
   and fixing TCHG001-TCHG008. Do not decompile or web-search, do not hand-write a load/commit handler or an event
   handler class, do not call Raise from a change, do not retry inside Execute.
@@ -28,6 +29,8 @@ description: >-
 7. **Run** with an explicit context: `await pipeline.Run(change, OperationContext.Start(actor, tenant, time), options, ct)`.
    `ChangeOptions(Key: new IdempotencyKey(tenant, scope, key))` for redeliverable work. `ExpectedVersion:` for If-Match.
 8. **A version conflict is returned** (`StoreErrors.IsVersionConflict`), never retried by the pipeline. The caller retries.
+   The permission (`IChangeAuthorization`, skill `tarol-security`) runs only for runs with `ChangeOptions.Principal`,
+   after the load and before the expected version; jobs and reactions pass no principal.
 9. **A reaction to an own event is a change with a factory**: `[OnEvent<Bid.Won>] public static X From(Bid.Won e,
    RecordedEvent recorded) => new(…);` on the change (static, non-private, returns the change, `(TEvent)` or
    `(TEvent, RecordedEvent)`; TCHG006). It only maps; `new ValueObject(…)` is allowed there (no TVAL006), the pipeline

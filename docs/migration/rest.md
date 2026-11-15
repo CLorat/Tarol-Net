@@ -438,3 +438,94 @@ the work directory and appends), 11–12 (Zitadel) added afterwards with `ALL_FR
 * Role maps from configuration (needs a generated name → type table of changes and reads).
 * RFC 9110 says 412 for a failed `If-Match`; Tarol answers 409 (changes.md §6). Revisit only if a client needs 412.
 * Field-level variants of a view per caller: separate views with their own grant (rest.md §3); no filter mechanism planned.
+
+## 14. Implementation: PR 10A (2026-11-15)
+
+Core changes + `Tarol.Security`, stacked on the design PR (#27). Package guide: `src/Security/Tarol.Security/README.md`;
+user guide: [docs/security/README.md](../security/README.md).
+
+### 14.1 Public API
+
+* **Tarol.Changes**: `IChangeAuthorization.Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal
+  principal, CancellationToken)`; `ChangePipeline.NotConfiguredCode`; `Verdict`, `Delivery.Classify`;
+  `TarolServiceCollectionExtensions.AddTarol(IServiceCollection, JsonSerializerContext, Action<EventCodec>)`.
+* **Tarol.Persistence**: `IdempotencyKey.Fingerprint` (`Option<string>`, init), `StoredOutcome.Fingerprint`,
+  `StoreErrors.KeyReused`/`KeyReusedCode`; `TarolBuilder` (`Services`, `Json`, `Codec`, `Reactions`, `HasStore`,
+  `WithReactions`, `UseInMemoryStore`, `UseStore<TStore>`); `IIdempotencyKeyPurge`.
+* **Tarol.Persistence.Npgsql**: `UseNpgsqlStore(string | Func<IServiceProvider, NpgsqlDataSource>, options, ensureSchema)`;
+  `NpgsqlAggregateStore : IIdempotencyKeyPurge`; column `idempotency_keys.fingerprint`.
+* **Tarol.Sagas**: `AddReactionWorker(this TarolBuilder, configure, reactions)`; `DeliveryPolicy.Classify` forwards to
+  `Delivery.Classify`.
+* **Tarol.Security** (new): `ChangeRequirement(change, context)` (`Change`, `Context`), `Read<TAggregate>.Instance`,
+  `ChangeHandler<TChange, TAggregate>` (`Handle`, `Deny`), `ChangeRoles` (`Role`, `Authenticated`, `Grants`), `RoleGrants.May<T>()`,
+  `ChangeAuthorization` (`MeterName`, `RequiredCode`, `ForbiddenCode`), `SystemPrincipal.For`, `AddSecurity` /
+  `AddTarolSecurity`.
+
+### 14.2 Changes against step 7–9 behaviour (listed per AGENTS.md)
+
+| Before | Now | Why |
+|---|---|---|
+| the hook was called for every run, `principal` nullable | called only when `ChangeOptions.Principal` is set; non-null | R-6: internal entries are not checked |
+| expected version compared before the permission | permission first | R-2: a refused caller learned the version (409 "found 4") |
+| a principal on a pipeline without an authorization was ignored | `Error.Forbidden("Auth.NotConfigured")` | fail closed (C-11) |
+| `Check` got the `OperationContext` | the `ChangeContext` (operation, now, `[Read]` aggregates) | rules may need the reads (§5.3) |
+| a reused key replayed any request's outcome | another fingerprint → 422 `Idempotency.KeyReused`; keys without one replay as before | R-9 |
+| `Tarol.Sagas.Verdict`, `DeliveryPolicy.Classify` | `Tarol.Changes.Verdict`, `Delivery.Classify` (the policy forwards) | R-13: webhooks share it without the worker |
+| `AddTarolReactions` refused any registered `ReactionSet` | refuses only a second `AddTarolReactions` | §5.5 |
+| the worker purged keys only with `o.PurgeKeys = store.PurgeKeys` | also through a registered `IIdempotencyKeyPurge` | one registration |
+
+### 14.3 Deliberate differences from §7 and §10
+
+* **`TarolBuilder` lives in `Tarol.Persistence`**, not `Tarol.Changes`: `UseNpgsqlStore` would otherwise make the Npgsql
+  package depend on Changes. `AddTarol` stays in `Tarol.Changes` (it registers the pipeline).
+* **`ChangeRequirement` carries the `ChangeContext`**: an ASP.NET Core handler sees only requirement and resource, so the
+  reads passed to `Check` reach a rule only through the requirement (`requirement.Context.Read<Artwork>()`).
+* **`Read<T>` is in `Tarol.Security`** (rest.md §13 table: there already), not in the web package.
+* **`AddReactionWorker` takes the set optionally**: the worker needs the reactions when it is added, so "order does not
+  matter" holds for the stores only (`WithReactions` after `UseNpgsqlStore` works).
+* **`AddTarolSecurity` adds logging** (`AddLogging`, TryAdd-based): `AddAuthorizationCore` needs `ILogger<T>`, which a
+  bare container (a worker without a host, a test) does not have; found by `ValidateOnBuild`.
+* **The fingerprint is an `Option<string>`**, compared ordinally; what it hashes is the entry's choice (10B: method, path,
+  body).
+
+### 14.4 Tests **[verified]**
+
+* `Tarol.Changes.Tests` (+15): permission with the principal and the context (time, `[Read]`), no principal = not checked,
+  principal without authorization → `Auth.NotConfigured` (change and creation, nothing written), forbidden + stale version →
+  403 and the seller's stale version → 409, creation authorized before its version, key fingerprint replay / reuse 422 /
+  unmarked replay; `Delivery.Classify` for 14 answers.
+* Store contract suite (both stores, +2 each): the fingerprint stored and returned, not part of the identity, a reused key
+  with another fingerprint still `DuplicateKey` at append; a key without one stores `None`. Npgsql (+1): `EnsureSchema`
+  adds the column to a table without it.
+* `Tarol.Sagas.Tests` (+4): `AddTarol` + in-memory store + worker (`ValidateScopes`, `ValidateOnBuild`) runs a change and its
+  reaction; `WithReactions` after the store; second store / second `AddTarol` / worker without reactions refused; an
+  app's `TimeProvider` kept. `Tarol.Sagas.IntegrationTests` (+2): `UseNpgsqlStore` ensures the schema at host start, the
+  worker runs and gets the store's purge; the data-source overload. 24/24 Release reruns of the four timing-dependent
+  ones green.
+* `Tarol.Security.Tests` (16): role grant, no role, anonymous, row deny over a grant with its code, admin, forbidden + stale
+  version, creation rule on the new aggregate, a rule reading a `[Read]` aggregate and the time, `Authenticated()`,
+  `Read<T>` by role and by ownership, internal run unchecked and `SystemPrincipal` opt-in, system principal claims, the
+  counter (filtered by this test's change), the log line (event 1001, no personal data), `AddSecurity` twice; the skill
+  example verbatim.
+* `Tarol.Security.AotSmoke`: 10 checks natively, 0 IL warnings, 4.7 MB. `Tarol.Security.PackageTests`: the same checks
+  against the packed package (the Changes and Primitives generators flow from its dependencies).
+
+### 14.5 Suppressions and analyzer configuration
+
+* `tests/Security/Tarol.Security.Tests/SkillExampleTests.cs`: `#pragma warning disable xUnit1051` around the verbatim
+  skill block only (the skill's code is application code; it has no test cancellation token).
+
+### 14.6 Skill evaluation checklist
+
+As §11.1, plus: "a rule needs the referenced artwork" → `requirement.Context.Read<Artwork>()`; mistake: loading it again in
+the handler (a second read, possibly another version).
+
+### 14.7 Verification (SDK 11.0.100, 2026-11-15)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker) | 981 total, 0 failed (932 before + 49) |
+| `dotnet pack Tarol.slnx -c Release` + `eng/verify-packages.sh` | OK: 11 packages; `Tarol.Security` holds `lib/` (+ XML docs), `README.md`, `LICENSE`, `skills/tarol-security/SKILL.md`; its consumer passes 10/10 and lists the skills of `tarol-security` and its dependencies |
+| `TAROL_PG=… eng/aot-smoke.sh` | 11 apps, each 0 IL warnings, all checks pass natively (`Tarol.Security.AotSmoke` 10/10) |

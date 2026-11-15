@@ -4,6 +4,11 @@ The store port and the in-memory store, as decided in the step 7 design ([change
 C-16; concept [docs/architecture/changes.md](../architecture/changes.md) §7). Step 8 adds `Tarol.Persistence.Npgsql`; its
 design evaluation continues this note from §8. Labels as in the [conventions](../architecture/conventions.md).
 
+
+> **Changed in step 10A** ([rest.md](rest.md) §14.2): idempotency keys carry an optional fingerprint (column
+> `idempotency_keys.fingerprint`, 422 `Idempotency.KeyReused` on reuse); `TarolBuilder`, `UseInMemoryStore`, `UseNpgsqlStore`,
+> `IIdempotencyKeyPurge`.
+
 ## 1. Origin
 
 A new package, not a port: the old `CLorat/Tarol@6a62f81` has `src/Persistence/Persistence.Marten` (not migrated,

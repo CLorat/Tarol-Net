@@ -447,7 +447,8 @@ Consequences of the three answers against the recommendation:
   event id)); outbox worker with the C-9 policy (Conflict retries, then dead-letter); saga `Execute(change)` through
   `Dispatch`; TVAL006 exemption for entry factories (C-13); TCHG005. **Designed** in [sagas.md](sagas.md) (S-1 … S-15):
   sagas are aggregates whose steps are reactions, so no saga dispatch through `Dispatch(object)` is needed.
-* **10**: `Tarol.Security` implements `IChangePermission`; `Tarol.Changes.AspNetCore` generates `MapChanges()` and
+* **10** (designed in [rest.md](rest.md); 10A changed the pipeline: permission before the expected version and only with a
+  principal, `ChangeContext` in the check, `Delivery.Classify`, key fingerprints, `AddTarol`; rest.md §14.2): `Tarol.Security` implements `IChangePermission`; `Tarol.Changes.AspNetCore` generates `MapChanges()` and
   `[Webhook]` endpoints as `RequestDelegate`s (§2 A, `Web/` probe), fails closed without a permission, maps outcomes as
   in changes.md §6, `AddProblemDetails`, TCHG003/004.
 * **11**: `[Consumes]` consumers with the inbox key, contract versions, ordering.

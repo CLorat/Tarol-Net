@@ -43,7 +43,7 @@ AggregateChanges.Committed(auction);
 | Tenant isolation | a stream is (tenant from the `OperationContext`, aggregate type, id); another tenant's stream does not exist (`None`), and its lookups do not match |
 | Atomic append | events, current state, lookups and the idempotency key are committed together or not at all |
 | Expected version | the stream's version at load; `0` = must not exist. Mismatch → `Error.Conflict("Stream.VersionConflict")`, never an exception |
-| Idempotency | a key is stored only with a successful commit; `Seen(key)` returns `StoredOutcome(StreamId, Version, Events)`; a key stored meanwhile → `Idempotency.DuplicateKey` |
+| Idempotency | a key is stored only with a successful commit; `Seen(key)` returns `StoredOutcome(StreamId, Version, Events, Fingerprint)`; a key stored meanwhile → `Idempotency.DuplicateKey`; a key's `Fingerprint` (e.g. a request hash) is stored with it, its identity stays (tenant, scope, key) |
 | Lookups | unique per (tenant, type, lookup); a key that belongs to another aggregate → `Lookup.Taken`; `Find` of an undefined lookup throws |
 | The caller commits | `Append` never changes the aggregate; call `AggregateChanges.Committed` after success |
 | Programming errors throw | uncommitted changes that do not start at `expected + 1` → `ArgumentException` |
@@ -100,3 +100,8 @@ change → its reactions with a fake clock; the worker is `Tarol.Sagas`.
 
 No reflection: loads call the aggregate's generated static `Rehydrate`/`ReadState`, the state is written by generated
 code, and JSON goes through the options you pass. The smoke app publishes with 0 IL warnings.
+
+`TarolBuilder` (created by `services.AddTarol(…)` in `Tarol.Changes`) registers one store for the application:
+`UseInMemoryStore()` here, `UseNpgsqlStore(…)` in `Tarol.Persistence.Npgsql`, or `UseStore(factory, outbox)` for another
+implementation; it registers `IAggregateStore`, `IAggregateReader`, `IOutbox` and, when implemented, `IEventFeed` and
+`IIdempotencyKeyPurge`.

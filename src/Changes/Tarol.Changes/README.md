@@ -42,14 +42,19 @@ Result<ChangeOutcome> result = await pipeline.Run(new CloseAuction(id),
 | Step | Failure |
 |---|---|
 | `Validated()` of an `IValidatable` input, **before any read** | `Invalid`, every field (400) |
-| idempotency key seen? (`ChangeOptions.Key`) | the first outcome, `Replayed = true`; nothing runs |
+| idempotency key seen? (`ChangeOptions.Key`) | the first outcome, `Replayed = true`; nothing runs; another fingerprint → `Idempotency.KeyReused` (422) |
 | `[Read]` aggregates | `Error.UnprocessableEntity("X.NotFound")` (422) |
 | load the target: by `Target`, or the change's own `ILoads<T>.Load` | `Error.NotFound("T.NotFound")` (404, also for another tenant) |
-| expected version from the caller (`ChangeOptions.ExpectedVersion`, HTTP `If-Match`) | `Stream.VersionConflict` (409) |
-| `IChangeAuthorization` (when given; built in step 10) | `Error.Forbidden` / `Unauthorized` |
+| `IChangeAuthorization`, **only when `ChangeOptions.Principal` is set** (HTTP); jobs and reactions pass none | `Error.Forbidden` / `Unauthorized`; a principal without an authorization → `Auth.NotConfigured` (403) |
+| expected version from the caller (`ChangeOptions.ExpectedVersion`, HTTP `If-Match`), after the permission | `Stream.VersionConflict` (409) |
 | `Execute` with `context.Now` read once from the `TimeProvider` | the guard's error (409, or 400 for an input field) |
 | `AggregateChanges.Prepare`: invariants, lifecycle steps | the rule's error |
 | append with the expected version and the key, then `Committed` | `Stream.VersionConflict`, **returned, never retried**: the caller decides |
+
+Register everything at once with `services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())` and a store
+(`.UseInMemoryStore()`, `.UseNpgsqlStore(…)`): the codec, `TimeProvider.System` (unless the app registered one) and the
+pipeline over the store and the `IChangeAuthorization` (`Tarol.Security`). `Delivery.Classify` is the table every
+at-least-once entry shares (`Verdict.Done` / `Retry` / `Bury`).
 
 A failure discards the loaded instance. An exception propagates and discards it too. A behaviour that raises nothing
 appends nothing (`Events = 0`).

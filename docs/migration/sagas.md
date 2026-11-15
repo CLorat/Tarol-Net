@@ -6,6 +6,11 @@ what PRs 9A–9C must do. **Design only**: this PR changes no package code. Prob
 [`probes/sagas/`](probes/sagas/), [`output.txt`](probes/sagas/output.txt), [`Claim/output.txt`](probes/sagas/Claim/output.txt).
 Labels as in the [conventions](../architecture/conventions.md). Source of the old code: `CLorat/Tarol@6a62f81`.
 
+
+> **Changed in step 10A** ([rest.md](rest.md) §14.2): `Verdict` and the classification moved to `Tarol.Changes`
+> (`Delivery.Classify`; `DeliveryPolicy.Classify` forwards); `AddReactionWorker` on the `TarolBuilder`; the worker purges
+> through a registered `IIdempotencyKeyPurge`; `AddTarolReactions` guards a second call by its own marker.
+
 ## 0. Summary
 
 * **The old saga code is a complete but separate engine** **[verified by reading]**: 5,456 lines (Sagas, Engine, an
