@@ -153,7 +153,7 @@ public interface IMessageTransport : IAsyncDisposable
 | native size (one transport) | — | 5.8 MB | 10.9 MB | 7.1 MB |
 | end to end p50/p99 (NOTIFY, native) | — | 9.8 / 22.3 ms (bus NOTIFY) | 7.7 / 11.9 ms | 8.9 / 14.0 ms |
 
-All four pass the same 24 scenario checks, JIT and Native AOT, 0 IL warnings **[verified]**. NATS.Net 3.3.2 and
+All four pass the same 21 scenario checks, JIT and Native AOT, 0 IL warnings **[verified]**. NATS.Net 3.3.2 and
 RabbitMQ.Client 7.2.2 are AOT-clean as used here **[verified]** (publish, not docs).
 
 ## 7. Measurements **[verified]** (4 cores, both systems + PostgreSQL 17 + the broker on one machine; [`output.txt`](../migration/probes/messaging/output.txt) §7)
@@ -169,7 +169,7 @@ native startup to the first message 39 ms (NATS), 59 ms (RabbitMQ), 142 ms (bus)
 |---|---|---|
 | mapping | unit test of `From` / the publication method | the anti-corruption layers |
 | two systems | `MessageTest`: in-memory stores, `InMemoryTransport`, drain | publish → consume → commit → publish back, retries, dead letters, re-drive **[verified]** (`selftest memory`) |
-| transports | one contract suite per transport on Testcontainers (PostgreSQL, `nats:2.11 -js`, `rabbitmq:4`) | the 24 scenarios + the permission checks |
+| transports | one contract suite per transport on Testcontainers (PostgreSQL, `nats:2.11 -js`, `rabbitmq:4`) | the 21 scenario checks + the permission checks |
 | generator | snapshots | consumer switch, publication table, diagnostics |
 | native | an AOT smoke app per package | round trip on its transport |
 

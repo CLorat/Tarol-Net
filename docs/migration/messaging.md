@@ -20,7 +20,7 @@ the [conventions](../architecture/conventions.md). Source of the old code: `CLor
   `effect:<name>` rows of the same outbox; the envelope is CloudEvents in binary mode (M-5); the consumer runs as
   `System("Consumers.<name>")` on behalf of the envelope's actor (M-6); the contract prefix is the source, enforced by the
   transport, tenants allow-listed per source (M-13); dead letters in the consumer's table (M-9).
-* **Transports** (M-1, M-4, M-14): a port with four implementations, all passing the same 24 scenario checks and the
+* **Transports** (M-1, M-4, M-14): a port with four implementations, all passing the same 21 scenario checks and the
   permission checks, JIT and Native AOT, 0 IL warnings **[verified]**: in-memory, the PostgreSQL bus
   (`Tarol.Messaging.Npgsql`), NATS JetStream (`Tarol.Messaging.Nats`), RabbitMQ (`Tarol.Messaging.RabbitMq`).
 * **Measured** (4 cores, everything on one machine): end to end commit → published → committed in the other system
@@ -170,7 +170,7 @@ outbox table and the JSON metadata wired by hand and checked only at startup.
 
 ## 3. The scenarios as probed **[verified]** ([`output.txt`](probes/messaging/output.txt) §1–§4: JIT and Native AOT, every transport)
 
-### 3.1 Consumers through the pipeline (`selftest`, 24 checks per transport)
+### 3.1 Consumers through the pipeline (`selftest`, 21 checks per transport)
 
 | Scenario | Result (identical on in-memory, PostgreSQL, PostgreSQL + NOTIFY, NATS, RabbitMQ) |
 |---|---|
@@ -456,8 +456,8 @@ entries (R-6), the context as a parameter (C-11), the key stored with successes 
 ## 13. Verification of this PR (SDK 11.0.100, 2026-11-15) **[verified]**
 
 Docs and probes only. `dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet test --solution Tarol.slnx` with Docker:
-1049 of 1049; `eng/aot-smoke.sh` with `TAROL_PG`: 13 apps, 0 IL warnings, all checks passed; `dotnet format
---verify-no-changes` clean. CI of `main` after #29 (run 85): `build`, `aot-smoke`, `integration` green.
+1049 of 1049 (at the start and again at the end); `eng/aot-smoke.sh` with `TAROL_PG`: 13 apps, 0 IL warnings, all checks
+passed; `dotnet format --verify-no-changes` clean; `dotnet pack -c Release` + `eng/verify-packages.sh`: OK. CI of `main` after #29 (run 85): `build`, `aot-smoke`, `integration` green.
 
 ## 14. Open items
 
