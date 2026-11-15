@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Native-AOT smoke test of Tarol.Security.Zitadel (AddZitadel: JwtBearer, the claims transformation, the actor rule) on a
+    Zitadel-shaped principal. Publish with
+      dotnet publish tests/Security/Tarol.Security.Zitadel.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Security/Tarol.Security.Zitadel/Tarol.Security.Zitadel.csproj" />
+  </ItemGroup>
+</Project>

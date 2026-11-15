@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Consumer of the PACKED Tarol.Changes.AspNetCore package (no ProjectReference). Proves that the package works and that
+    its endpoint generator and the Changes, Primitives and Validations generators flow to a package consumer: the AOT smoke
+    program compiles against the package and serves its checks over HTTP.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Changes.AspNetCore" VersionOverride="$(TarolPackageVersion)" />
+    <PackageReference Include="Tarol.Persistence.Npgsql" VersionOverride="$(TarolPackageVersion)" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs" LinkBase="ArtFlow" />
+    <Compile Include="../Tarol.Changes.AspNetCore.AotSmoke/Program.cs" Link="Program.cs" />
+    <!-- the smoke program names its own assembly's generated namespace -->
+    <Using Include="Tarol.Changes.AspNetCore.PackageTests" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckEndpointAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolEndpointGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Changes.AspNetCore.Generators'" />
+      <_TarolChangesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Changes.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolEndpointGenerator)' == '' or '@(_TarolChangesGenerator)' == ''" Text="The endpoint / Changes generators did not reach the consumer of Tarol.Changes.AspNetCore." />
+    <Message Importance="high" Text="Tarol.Changes.AspNetCore analyzers: @(_TarolEndpointGenerator);@(_TarolChangesGenerator)" />
+  </Target>
+</Project>

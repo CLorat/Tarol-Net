@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Provisions the Zitadel resource for ArtFlow (project, roles, machine users) and writes the project id for the API. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ArtFlow.ZitadelSetup</AssemblyName>
+  </PropertyGroup>
+</Project>

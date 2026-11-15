@@ -14,6 +14,8 @@
   <Folder Name="/src/Changes/">
     <Project Path="src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" />
     <Project Path="src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
+    <Project Path="src/Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <Project Path="src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj" />
   </Folder>
   <Folder Name="/src/Kernel/">
     <Project Path="src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj" />
@@ -28,6 +30,7 @@
   </Folder>
   <Folder Name="/src/Security/">
     <Project Path="src/Security/Tarol.Security/Tarol.Security.csproj" />
+    <Project Path="src/Security/Tarol.Security.Zitadel/Tarol.Security.Zitadel.csproj" />
   </Folder>
   <Folder Name="/src/Persistence/">
     <Project Path="src/Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
@@ -52,6 +55,10 @@
   <Folder Name="/tests/" />
   <Folder Name="/tests/Changes/">
     <Project Path="tests/Changes/Tarol.Changes.AotSmoke/Tarol.Changes.AotSmoke.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.AspNetCore.AotSmoke/Tarol.Changes.AspNetCore.AotSmoke.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.AspNetCore.Generators.Tests/Tarol.Changes.AspNetCore.Generators.Tests.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.AspNetCore.IntegrationTests/Tarol.Changes.AspNetCore.IntegrationTests.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.AspNetCore.Tests/Tarol.Changes.AspNetCore.Tests.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.Generators.Tests/Tarol.Changes.Generators.Tests.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.Tests/Tarol.Changes.Tests.csproj" />
   </Folder>
@@ -74,6 +81,9 @@
   <Folder Name="/tests/Security/">
     <Project Path="tests/Security/Tarol.Security.AotSmoke/Tarol.Security.AotSmoke.csproj" />
     <Project Path="tests/Security/Tarol.Security.Tests/Tarol.Security.Tests.csproj" />
+    <Project Path="tests/Security/Tarol.Security.Zitadel.AotSmoke/Tarol.Security.Zitadel.AotSmoke.csproj" />
+    <Project Path="tests/Security/Tarol.Security.Zitadel.IntegrationTests/Tarol.Security.Zitadel.IntegrationTests.csproj" />
+    <Project Path="tests/Security/Tarol.Security.Zitadel.Tests/Tarol.Security.Zitadel.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Persistence/">
     <Project Path="tests/Persistence/Tarol.Persistence.AotSmoke/Tarol.Persistence.AotSmoke.csproj" />

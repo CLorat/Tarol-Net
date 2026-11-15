@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Consumer of the PACKED Tarol.Security.Zitadel package (no ProjectReference): the AOT smoke program against the package.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Tarol.Security.Zitadel" VersionOverride="$(TarolPackageVersion)" />
+    <Compile Include="../Tarol.Security.Zitadel.AotSmoke/Program.cs" Link="Program.cs" />
+  </ItemGroup>
+</Project>

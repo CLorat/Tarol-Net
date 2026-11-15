@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Zitadel as the identity provider of a Tarol application (optional): JwtBearer against the Zitadel issuer and project, a claims transformation that turns Zitadel's project roles into roles for the Tarol.Security role map and the user's organisation into the tenant, and machine users with a service role into Actor.Service. Native-AOT ready.</Description>
+    <PackageTags>tarol;zitadel;oidc;jwt;authorization;multi-tenancy;aspnetcore;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <ProjectReference Include="../../Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

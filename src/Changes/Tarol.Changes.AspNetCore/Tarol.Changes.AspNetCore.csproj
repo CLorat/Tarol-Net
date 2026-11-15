@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>HTTP entries for Tarol changes: [Endpoint] on a change record or a view becomes a generated RequestDelegate (route + JSON body bound member by member, every error at once), the context comes from the ClaimsPrincipal (actor, tenant, a new correlation), Idempotency-Key and If-Match map to the pipeline, outcomes map to 201/204 with ETag and RFC 9457 problem details with JSON-cased paths; GET by id through views with ETag/304; signed webhooks ([Webhook] on From factories: HMAC, timestamp window, delivery-id key, contract versions); complete OpenAPI metadata. Fails closed without a policy. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;aspnetcore;minimal-api;rest;webhook;openapi;source-generator;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../Security/Tarol.Security/Tarol.Security.csproj" />
+    <!-- D-10: the endpoint generator (TWEB001-TWEB006) ships inside this package. -->
+    <ProjectReference Include="../Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

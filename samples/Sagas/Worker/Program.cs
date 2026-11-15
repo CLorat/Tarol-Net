@@ -3,7 +3,6 @@ using ArtFlow.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Npgsql;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Tarol.Changes;
@@ -14,19 +13,14 @@ using Tarol.Persistence.Npgsql;
 using Tarol.Sagas;
 
 // ArtFlow's reaction worker. Under the AppHost the connection string "tarol" and the OTLP endpoint come from Aspire.
-// Arguments: the number of settled auctions to produce (default 20; 0 = only work), one per second, for the dashboard.
+// Arguments: the number of auctions to settle itself (default 20, one per second; 0 = only work: the API produces them).
 var builder = Host.CreateApplicationBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("tarol")
                        ?? throw new InvalidOperationException("No connection string 'tarol' (run it through the AppHost).");
-var db = new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays().Build();
-var codec = new EventCodec(new System.Text.Json.JsonSerializerOptions(AppJson.Default.Options)).Add<Auction>().Add<Payout>().Add<Settlement>();
-var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Reactions = GeneratedReactions.Set });
-await store.EnsureSchema(default);
-var pipeline = new ChangePipeline(store, TimeProvider.System);
-
-builder.Services.AddSingleton<IOutbox>(store.Outbox);
-builder.Services.AddSingleton(pipeline);
-builder.Services.AddTarolReactions(GeneratedReactions.Set, o => o.PurgeKeys = store.PurgeKeys);
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>())
+    .WithReactions(GeneratedReactions.Set)
+    .UseNpgsqlStore(connectionString)                              // EnsureSchema when the host starts
+    .AddReactionWorker();                                          // the store's key purge is used
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("worker"))
         // not "Npgsql": every idle claim (every 100 ms per worker) would be a span and bury the reactions in the dashboard
@@ -34,6 +28,8 @@ if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
 
 using var host = builder.Build();
 await host.StartAsync();
+var store = host.Services.GetRequiredService<NpgsqlAggregateStore>();
+var pipeline = host.Services.GetRequiredService<ChangePipeline>();
 var count = args.Length > 0 ? int.Parse(args[0], System.Globalization.CultureInfo.InvariantCulture) : 20;
 var alice = OperationContext.Start(Actor.User("alice"), Option.None, TimeProvider.System);
 for (var i = 0; i < count && !host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.IsCancellationRequested; i++)

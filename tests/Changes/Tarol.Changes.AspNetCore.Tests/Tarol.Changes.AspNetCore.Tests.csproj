@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- TestHost is what WebApplicationFactory runs on; the endpoint tests build the app themselves (no Program class needed) -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <!-- Analyzer project references do not flow: reference the bundled generators like a package consumer gets them. -->
+    <ProjectReference Include="../../../src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

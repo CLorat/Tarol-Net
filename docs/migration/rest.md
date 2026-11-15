@@ -529,3 +529,97 @@ the handler (a second read, possibly another version).
 | `dotnet test --solution Tarol.slnx` (Docker) | 981 total, 0 failed (932 before + 49) |
 | `dotnet pack Tarol.slnx -c Release` + `eng/verify-packages.sh` | OK: 11 packages; `Tarol.Security` holds `lib/` (+ XML docs), `README.md`, `LICENSE`, `skills/tarol-security/SKILL.md`; its consumer passes 10/10 and lists the skills of `tarol-security` and its dependencies |
 | `TAROL_PG=… eng/aot-smoke.sh` | 11 apps, each 0 IL warnings, all checks pass natively (`Tarol.Security.AotSmoke` 10/10) |
+
+## 15. Implementation: PR 10B (2026-11-15)
+
+`Tarol.Changes.AspNetCore` (+ `Tarol.Changes.AspNetCore.Generators`), `Tarol.Security.Zitadel` and the sample, stacked on
+PR 10A (#28). Package guides: `src/Changes/Tarol.Changes.AspNetCore/README.md`, `src/Security/Tarol.Security.Zitadel/README.md`;
+user guide: [docs/changes/README.md](../changes/README.md) §8.
+
+### 15.1 Public API
+
+* **Tarol.Changes.AspNetCore**:
+  * `EndpointAttribute(route) { Policy, Anonymous }`, `WebhookAttribute(sender, type) { Version }`, `IView<TAggregate, TSelf>`;
+  * `TarolEndpointMetadata`, `RouteValue`;
+  * `ChangeEndpointOptions` (`Json`, `SubjectClaim`, `ClientClaim`, `TenantClaim`, `Actor`, `Tenant`, `MaxBody`,
+    `UseProblemDetailsService`);
+  * `ChangeEndpoints` (`Edge`, `ReadBytes`, `Write`, `Problem`, `JsonPath`, `Load<T>`, `WriteView`; binder helpers
+    hidden from IntelliSense);
+  * `WebhookOptions`, `WebhookSender`, `WebhookDelivery`, `Webhooks` (`Read`, `KeyOf`, `Answer`);
+  * `TarolBuilder.AddEndpoints(configure)`.
+  * Generated per assembly: `GeneratedEndpoints.MapChanges(IEndpointRouteBuilder, string? names)`, and
+    `GeneratedOpenApi.AddTarolEndpoints(OpenApiOptions)` when the app references `Microsoft.AspNetCore.OpenApi`.
+* **Tarol.Security.Zitadel**: `ZitadelOptions` (`Authority`, `ProjectId`, `RequireHttpsMetadata`, `ServiceRole`),
+  `ZitadelClaimsTransformation`, `ZitadelTenants` (`Of`, `Actors`), `TarolBuilder.AddZitadel(configure)`.
+* **Tarol.Validations** (analyzer): the TVAL006 exemption of entry factories (C-13) also covers
+  `Tarol.Changes.AspNetCore.WebhookAttribute`.
+
+### 15.2 Deliberate differences from §7, §10 and the probe
+
+* **The binder reports `[JsonPropertyName]` names**; value-rule errors (`Validate`) still carry C# member paths, converted
+  by the naming policy (the Validations generator knows no JSON names). Stated in the skill.
+* **`MapChanges` resolves `ChangeEndpoints` at mapping time**, so a missing `AddEndpoints`/`AddSecurity` fails at startup,
+  not at the first request (C-11).
+* **OpenAPI without a package dependency**: the transformers are generated into the application only when it references
+  `Microsoft.AspNetCore.OpenApi`; route members are removed from the input's body schema there.
+* **Webhook payloads are classes** (`Payload<T> where T : class`); records are the contract records.
+* **The sample provisions Zitadel with a C# project** (`ZitadelSetup`), not the probe's Python script. Its API adds the
+  HTTP entries to the worker's changes as partial declarations, so both share one domain.
+* **`AddZitadel` comes after `AddEndpoints`** (it sets the actor rule on the options instance; it throws otherwise).
+
+### 15.3 Found while building
+
+1. **Shared sources across assemblies need the generated namespace**: the generated types live in a namespace named after
+   the assembly, so the integration tests, the AOT smoke app and the package consumer that link the endpoint tests'
+   domain or program add a project-level `<Using>` for their own namespace.
+2. **Microsoft.OpenApi 3.x** types its collections with interfaces (`IOpenApiMediaType`, `IOpenApiHeader`,
+   `IOpenApiParameter`); `Minimum`/`Maximum` are strings.
+3. **A `WebApplication` keeps its endpoints in `IEndpointRouteBuilder.DataSources`**: the `EndpointDataSource` service is
+   empty before the app runs (the skill test).
+4. **Zitadel's first instance answers 503 for a few seconds after `/debug/ready`**; provisioning retries.
+
+### 15.4 Tests **[verified]**
+
+* `Tarol.Changes.AspNetCore.Tests` (37, TestHost): endpoints (22), webhooks (8), edge (6: hand-written problem details,
+  actor/tenant hooks, a malformed tenant, the OpenAPI document, `JsonPath`, startup without security), the skill example
+  verbatim.
+* `Tarol.Changes.AspNetCore.Generators.Tests` (16): snapshots with and without OpenAPI; the generated code compiles
+  without warnings together with the Primitives, Changes and Validations generators; nothing without entries;
+  TWEB001–TWEB006 with their messages; incrementality (an unrelated file, an `Execute` body).
+* `Tarol.Changes.AspNetCore.IntegrationTests` (3, PostgreSQL): keys with fingerprints, `If-Match` and the view,
+  `traceparent` into the event (CI `integration` job).
+* `Tarol.Security.Zitadel.Tests` (9): the transformation on a token shape as Zitadel issued it, idempotence, other
+  projects, anonymous, the stable tenant, the actor rule, `AddZitadel` options and its preconditions, the skill example verbatim.
+* `Tarol.Security.Zitadel.IntegrationTests` (2, Zitadel v4.20.3 in Testcontainers, R-17): roles, tenant, row rule, no-role
+  403, service actor, foreign audience and tampered token 401 (CI `integration` job; the runner pulls from ghcr.io).
+* Validations (+1): TVAL006 exempt in a `[Webhook]` factory of the HTTP entries, not in a foreign attribute.
+* AOT smoke apps: `Tarol.Changes.AspNetCore.AotSmoke` (Kestrel, 12 checks over HTTP, in memory and on PostgreSQL) and
+  `Tarol.Security.Zitadel.AotSmoke` (5 checks); package consumers for both.
+* `samples/Sagas` with Zitadel: §4.5's run, JIT and native (README there).
+
+### 15.5 Suppressions and analyzer configuration
+
+None.
+
+### 15.6 Skill evaluation checklists
+
+`tarol-endpoints`: as §11.2. `tarol-zitadel`:
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| authenticate with Zitadel | `.AddEndpoints().AddZitadel(z => { z.Authority = …; z.ProjectId = …; })` | own JWT validation; parsing the role claim by hand |
+| roles for the role map | project roles granted in Zitadel, `AddSecurity(roles => roles.Role("seller")…)` | roles of another project |
+| a service account | machine user with the `service` role | expecting `Actor.Service` without the role |
+| a local container | `RequireHttpsMetadata = false`, a fixed issuer port | a proxied random port (issuer mismatch) |
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-15)
+
+| Command | Result |
+|---|---|
+| `dotnet format Tarol.slnx --verify-no-changes` | exit 0 |
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet test --solution Tarol.slnx` (Docker) | 1049 total, 0 failed (981 after 10A + 68) |
+| Release reruns | endpoint + Npgsql tests 20/20, Zitadel integration 3/3 |
+| `dotnet pack Tarol.slnx -c Release` + `eng/verify-packages.sh` | OK: 13 packages; `Tarol.Changes.AspNetCore` holds `lib/` (+ XML docs), `analyzers/dotnet/cs/Tarol.Changes.AspNetCore.Generators.dll`, `README.md`, `LICENSE`, `skills/tarol-endpoints/SKILL.md`; `Tarol.Security.Zitadel` holds `skills/tarol-zitadel/SKILL.md`; both consumers pass and list the skills |
+| `TAROL_PG=… eng/aot-smoke.sh` | 13 apps, each 0 IL warnings, all checks pass natively (the HTTP smoke app on PostgreSQL) |
+| `samples/Sagas` AppHost with Zitadel | JIT and Native AOT: see the sample's README |
