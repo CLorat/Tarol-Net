@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Runs every messaging probe against PostgreSQL 17, NATS 2.11 (JetStream) and RabbitMQ 4 in Docker and writes output.txt
 # next to this script.  usage: all.sh <work-dir>   (needs a running Docker daemon: dockerd &)
-# ALL_FROM=<n> resumes at section n: keeps the work dir (later sections reuse the builds of 1 and 4) and appends to output.txt.
+# ALL_FROM=<n> resumes at section n (ALL_TO=<m> stops after section m): keeps the work dir (later sections reuse the builds of 1 and 4) and appends to output.txt.
 # OLD_TAROL=<checkout of CLorat/Tarol@6a62f81> enables section 10 (default: ../../../../../Tarol next to this repository).
 set -uo pipefail
-here="$(cd "$(dirname "$0")" && pwd)"; w="$1"; out="$here/output.txt"; from="${ALL_FROM:-1}"
+here="$(cd "$(dirname "$0")" && pwd)"; w="$1"; out="$here/output.txt"; from="${ALL_FROM:-1}"; to="${ALL_TO:-99}"
 old="${OLD_TAROL:-$(cd "$here/../../../../.." && pwd)/Tarol}"
 if [ "$from" -le 1 ]; then rm -rf "$w"; : > "$out"; fi; mkdir -p "$w"
-at() { [ "$from" -le "$1" ]; }
+at() { [ "$from" -le "$1" ] && [ "$1" -le "$to" ]; }
 clean() { sed "s|$w/[a-z0-9-]*/src/||g; s|$w/||g; s|/root/.nuget/packages/||g; s/\x1b\[[0-9;]*m//g" | cut -c1-420; }
 median() { sort -n | awk '{a[NR]=$1} END {print a[int((NR+1)/2)]}'; }
 up() {   # (re)start the containers; a session restart stops Docker
@@ -17,7 +17,11 @@ up() {   # (re)start the containers; a session restart stops Docker
   docker run -d --name tarol-probe-nats-auth -p 54223:4222 -v "$here/Brokers/nats.conf:/etc/nats/nats.conf:ro" nats:2.11 -c /etc/nats/nats.conf >/dev/null
   docker run -d --name tarol-probe-rmq -p 55672:5672 rabbitmq:4-management >/dev/null
   until docker exec tarol-probe-pg pg_isready -q 2>/dev/null; do sleep 1; done
-  until docker exec tarol-probe-rmq rabbitmq-diagnostics -q check_port_connectivity >/dev/null 2>&1; do sleep 2; done
+  for i in $(seq 1 90); do   # RabbitMQ sometimes fails its first boot (Erlang prelaunch): start it again
+    docker exec tarol-probe-rmq rabbitmq-diagnostics -q check_port_connectivity >/dev/null 2>&1 && break
+    if [ "$(docker inspect -f '{{.State.Running}}' tarol-probe-rmq)" != true ]; then
+      docker rm -f tarol-probe-rmq >/dev/null; docker run -d --name tarol-probe-rmq -p 55672:5672 rabbitmq:4-management >/dev/null; fi
+    sleep 2; done
   "$here/Brokers/rabbit-users.sh" tarol-probe-rmq; sleep 2
 }
 show() { grep -E '^#|PASS|FAIL|INFO|ALL|CHECK|xception|^\|' | clean; }
