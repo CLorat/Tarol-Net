@@ -151,6 +151,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   id, `traceparent` = the `publish <contract>` span); effects `IEffect<TEvent>` with `EffectContext` (key = the event id),
   `EffectSet`, rows `effect:<name>`; `AddMessaging(…).Publish(…)`, `.Effect<TEvent, THandler>(name)`; `MessagingTest`
   (several systems in memory). TVAL006 is exempt inside `[Publishes<T>]` methods.
+* `Tarol.Messaging.Npgsql` (step 11C): the in-database bus. `NpgsqlBus` (`IMessageTransport`; `EnsureSchema` under an
+  advisory lock, publish in one statement deduplicated by (event, contract, version) with one delivery per subscription and
+  an opt-in NOTIFY, a claim with `FOR UPDATE SKIP LOCKED` ordered after `RETURNING`, acknowledge and retry presenting the
+  claim, the publisher's role stamped by the database and mapped to its source, `PurgeMessages`, `Pending`);
+  `NpgsqlBusOptions`; `NpgsqlBusSchema` (`Script`, `RowLevelSecurityScript` with policy `publish_own_prefix`,
+  `GrantScript`, `DeadLettersScript`); `NpgsqlMessageDeadLetters`; `UseNpgsqlBus(…)`, `UseNpgsqlDeadLetters(…)`; agent skill
+  `tarol-messaging-npgsql`.
 * `Tarol.Changes`: `IOutboxRowHandler` (an outbox row kind the reaction worker runs) and `OutboxRows` (handlers joined);
   `ReactionSet` implements it (`ActivityName`), `ReactionSet.Empty`.
 * `Tarol.Persistence`: `OutboxReactions.Combine`, `TarolBuilder.WithOutboxRows` and `TarolBuilder.OutboxTable` (the

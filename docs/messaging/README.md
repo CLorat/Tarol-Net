@@ -1,7 +1,7 @@
 # Messaging
 
-User guide for `Tarol.Messaging` (consumers, PR 11A; publications and effects, PR 11B; the PostgreSQL bus, the brokers and
-the UI push follow in 11C–11E). Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
+User guide for `Tarol.Messaging` (consumers, PR 11A; publications and effects, PR 11B) and `Tarol.Messaging.Npgsql` (the
+in-database bus and dead letters, PR 11C); the brokers and the UI push follow in 11D–11E. Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
 
 ## Design in six points
 
@@ -28,7 +28,7 @@ the UI push follow in 11C–11E). Concept: [architecture/messaging.md](../archit
 |---|---|---|
 | `Tarol.Messaging` (+ generator) | `Message`, `IMessageTransport`, `InMemoryTransport`, `[Consumes]`, `GeneratedConsumers.Set`, `MessageConsumers`, `MessagingHost`, `AddMessaging`, `IMessageDeadLetters`, `MessageTest` | 11A |
 | | publications `[Publishes<T>]` (`GeneratedPublications.Set`, `MessagePublisher`), effects `IEffect<T>` (`EffectSet`), `MessagingTest` | 11B |
-| `Tarol.Messaging.Npgsql` | the in-database bus and `messages_dead` | 11C |
+| `Tarol.Messaging.Npgsql` | `NpgsqlBus` (`UseNpgsqlBus`), `NpgsqlBusOptions`, `NpgsqlBusSchema` (bus, row-level security, grants), `NpgsqlMessageDeadLetters` (`UseNpgsqlDeadLetters`) | 11C |
 | `Tarol.Messaging.Nats`, `Tarol.Messaging.RabbitMq` | the brokers | 11D |
 | `Tarol.Messaging.SignalR` | the UI push | 11E |
 
@@ -127,6 +127,48 @@ An effect runs at least once: the receiver must deduplicate by `context.Idempote
 attempt). The result is classified like a change's: `Unavailable`, a timeout or an exception retry; `Invalid`,
 `Forbidden` or `Gone` go to `outbox_dead`. Keep the name when renaming the handler (it is stored in the rows). An effect
 that should change state is a reaction instead.
+
+## The PostgreSQL bus (`Tarol.Messaging.Npgsql`)
+
+Systems that share a PostgreSQL server need no broker: the bus is a schema (default `bus`) all of them reach.
+
+```csharp
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Invoice>())
+    .UseNpgsqlStore(connectionString)
+    .AddReactionWorker()
+    .AddMessaging("billing", m => m
+        .Consume(GeneratedConsumers.Set)
+        .Publish(GeneratedPublications.Set)
+        .Trust("artflow", t => t.AnyTenant())
+        .UseNpgsqlBus(busConnectionString, new NpgsqlBusOptions { Notify = true })
+        .UseNpgsqlDeadLetters());
+```
+
+* **Tables**: `messages` (one row per event id, contract and version; `publisher` = the role, stamped by the database),
+  `subscriptions` (contract → subscription), `deliveries` (one row per subscription and message until acknowledged).
+  `Prepare` runs the script (`EnsureSchema`, under an advisory lock) and adds the subscriptions.
+* **Publish** is one statement: the message `ON CONFLICT DO NOTHING` and its deliveries; with `Notify` a `NOTIFY` in the
+  same batch. **Consume** claims `Batch` due deliveries per loop with `FOR UPDATE SKIP LOCKED`, ordered after
+  `RETURNING`, with a lease of `Subscription.Lease`; acknowledge deletes, retry sets a later `due_at`; both present the claim.
+* **Order**: one stream's messages arrive in publish order with concurrency 1 (`MessagingOptions.Concurrency`).
+* **Latency**: with `Notify` a delivery arrives in a few milliseconds; without, at the next `PollInterval` (100 ms).
+  Measured end to end 9.8 / 22.3 ms p50/p99 with NOTIFY on both outbox and bus (migration note §4).
+* **Retention**: `NpgsqlBus.PurgeMessages(olderThan, batch, ct)`; health: `NpgsqlBus.Pending(subscription, ct)`.
+
+### Who may publish under a prefix
+
+One login role per system, named like its prefix. The schema's owner runs `NpgsqlBusSchema.Script()`,
+`RowLevelSecurityScript()` (policy `publish_own_prefix`: `split_part(type, '.', 1) = session_user`) and
+`GrantScript(role)` for each system. Each system connects as its role with `EnsureSchema = false` and maps roles to sources:
+`Roles = { ["artflow"] = "artflow", ["billing"] = "billing" }`. A foreign prefix is refused by the database (SQLSTATE
+42501); without the policy, the consumer sees the stamped role as `Incoming.AuthenticatedAs` and buries a message whose
+role is not its prefix (`Messaging.SourceMismatch`). An unknown role arrives as `role:<name>` and is never a source.
+
+### Dead letters in the database
+
+`UseNpgsqlDeadLetters(schema = "tarol", dataSource = null)` keeps them in `<schema>.messages_dead` of the consumer's
+database (by default the `NpgsqlDataSource` of `UseNpgsqlStore(connectionString)`), created at start; it works with every
+transport. `NpgsqlBusSchema.DeadLettersScript(schema)` for a migration tool.
 
 ## Dead letters
 

@@ -81,6 +81,7 @@
   <Folder Name="/tests/Messaging/">
     <Project Path="tests/Messaging/Tarol.Messaging.AotSmoke/Tarol.Messaging.AotSmoke.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.Generators.Tests/Tarol.Messaging.Generators.Tests.csproj" />
+    <Project Path="tests/Messaging/Tarol.Messaging.Npgsql.AotSmoke/Tarol.Messaging.Npgsql.AotSmoke.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.Npgsql.IntegrationTests/Tarol.Messaging.Npgsql.IntegrationTests.csproj" />
     <Project Path="tests/Messaging/Tarol.Messaging.Tests/Tarol.Messaging.Tests.csproj" />
   </Folder>

@@ -630,3 +630,66 @@ contains `lib/`, the generator under `analyzers/dotnet/cs/`, README, LICENSE and
 package consumer generates and runs a consumer, a publication and an effect). CI of `main` after #31 (run 89): `build`,
 `aot-smoke`, `integration` green.
 
+
+## 17. Implementation: PR 11C (2026-11-15)
+
+`messaging.npgsql: the in-database bus`: the new package `Tarol.Messaging.Npgsql`, and the transport contract suite all
+transports share (`tests/Messaging/Shared`).
+
+### 17.1 Public API (new package `Tarol.Messaging.Npgsql`, depends on `Tarol.Messaging` and Npgsql)
+
+| Type | Role |
+|---|---|
+| `NpgsqlBus` (`IMessageTransport`, `IAsyncDisposable`) | `EnsureSchema`, `Prepare`, `Publish`, `Consume`, `PurgeMessages`, `Pending`, `Schema` |
+| `NpgsqlBusOptions` | `Schema` (`bus`), `EnsureSchema`, `Notify`, `PollInterval` (100 ms), `Batch` (16), `Roles` (role → source) |
+| `NpgsqlBusSchema` | `Script`, `DeadLettersScript`, `RowLevelSecurityScript` (policy `publish_own_prefix`), `GrantScript`, `Version`, `DefaultSchema` |
+| `NpgsqlMessageDeadLetters` (`IMessageDeadLetters`) | `<schema>.messages_dead` (default `tarol`), `EnsureSchema`, `Add`, `List`, `Take` |
+| `NpgsqlMessagingBuilderExtensions` | `UseNpgsqlBus(connectionString, options)`, `UseNpgsqlBus(dataSource, options)`, `UseNpgsqlDeadLetters(schema, dataSource, ensureSchema)` |
+
+### 17.2 Deliberate differences from §6, §7 and §11
+
+* **The schema script runs under an advisory lock** (`pg_advisory_xact_lock`), in one transaction: a publisher and the
+  consumers of one process prepare at the same moment, and parallel `CREATE … IF NOT EXISTS` race on the catalog. The same
+  for `messages_dead`. The bus schema has its own `schema_version` (1); a newer version is refused.
+* **`EnsureSchema = false`** for systems that connect as restricted roles: the owner runs the scripts once.
+* **`NpgsqlBusSchema.RowLevelSecurityScript` and `GrantScript`** are the shipped guide of §3.2 (the probe's SQL), as
+  scripts instead of prose only.
+* **A late acknowledgement after a lost lease** changes nothing (it presents the old claim) and is logged (11101).
+* **The `LISTEN` connection reconnects** after a failure while the loops keep polling (11102); a failed claim ends
+  `Consume` with the exception and `MessagingHost` consumes again after its delay (the deliveries wait).
+* **Retention** is a method (`PurgeMessages(olderThan, batch, ct)`, the shape of the store's key purge), not hosted:
+  step 15 schedules it with the other purges.
+* **Default batch 16** per claim and loop (the probe used 32): the lease covers the whole batch.
+* **`UseNpgsqlDeadLetters`** defaults to the `NpgsqlDataSource` that `UseNpgsqlStore(connectionString)` registers and to
+  schema `tarol`; the bus from a connection string owns a data source of its own (disposed with it), so the two never
+  collide in DI.
+
+### 17.3 Changes against steps 7–10
+
+None in the packages. The CI `integration` job runs `tests/Messaging/Tarol.Messaging.Npgsql.IntegrationTests`.
+
+### 17.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `tests/Messaging/Shared` (`TransportContract`, `ContractDomain`) | 14 per transport | every row of §3.1 on a real transport in real time: valid (two consumers of one contract), context (actor, tenant, correlation, causation, every header and the bytes survive, `AuthenticatedAs`), a lost acknowledgement (redelivery replayed), a republish (one commit; dropped by the bus), a contract without a subscription, unknown version and invalid mapping buried at once, a Conflict retried until its precondition commits, NotFound retried, buried and re-driven, poison data with its bytes, forged tenant / source / actor, dual publish v1 + v2 (both kept), order per stream (30 messages), messages waiting for a consumer that starts later, a retry waiting for its delay |
+| `Tarol.Messaging.Npgsql.IntegrationTests` | 37 | the contract polling (14) and with NOTIFY (14, the poll at 5 s so the NOTIFY delivers); §3.2: row-level security refuses `billing` → `artflow.*` (42501), its own prefix passes and is authenticated as `billing`, without the policy the stamped role is buried `SourceMismatch`, an unknown role is `role:billing`; a lease that runs out (claimed again, the late answer changes nothing); retries counting attempts; the claim order after reused free space (§5 item 6, 300 messages split across the heap); the schema created by 8 at once, a newer version refused, a bad schema name; retention keeps undelivered messages; dead letters (headers, bytes, poison without headers, taken once); a hosted system on the Npgsql store publishing through its outbox and consuming on the bus with NOTIFY; the skill example verbatim |
+| `Tarol.Messaging.Npgsql.AotSmoke` | 6 checks | the scripts; with `TAROL_PG` a hosted system: consumed from the bus, published through the outbox and consumed back, a dead letter in `messages_dead`, the bus drained; Native AOT 0 IL warnings, 14.4 MB (with the Npgsql store and the host) |
+| `Tarol.Messaging.Npgsql.PackageTests` | 1 | the packed package: the bus and the dead letters register and resolve, the scripts, the Messaging generator flows |
+
+### 17.5 Skill evaluation checklist (`tarol-messaging-npgsql`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| two systems on one PostgreSQL exchange messages | `UseNpgsqlBus(connectionString, new NpgsqlBusOptions { Notify = true })`, same `Schema` everywhere | a hand-written queue table and polling loop |
+| keep dead letters in the database | `UseNpgsqlDeadLetters()` (after `UseNpgsqlStore(connectionString)`) | in-memory dead letters in production |
+| only billing may publish `billing.*` | one role per system, `NpgsqlBusSchema.RowLevelSecurityScript` + `GrantScript`, `EnsureSchema = false`, `Roles` map | trusting `ce-source`; one shared role for all systems |
+| keep the bus small | `NpgsqlBus.PurgeMessages(olderThan, batch, ct)` on a schedule | deleting deliveries that are still due |
+
+### 17.6 Suppressions and analyzer configuration
+
+None.
+
+### 17.7 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
+
+VERIFICATION_11C
