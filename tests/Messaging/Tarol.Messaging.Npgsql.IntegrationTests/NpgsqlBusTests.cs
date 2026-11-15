@@ -1,0 +1,267 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Npgsql;
+using Tarol.Changes;
+using Tarol.Kernel;
+using Tarol.Messaging.Contract;
+using Tarol.Options;
+using Tarol.Persistence;
+using Tarol.Persistence.Npgsql;
+using Tarol.Sagas;
+using Tarol.StronglyTypedId;
+
+namespace Tarol.Messaging.Npgsql.IntegrationTests;
+
+/// <summary>The bus's own rows: who may publish under a prefix (docs/migration/messaging.md §3.2), leases, order, dead letters, retention, hosting.</summary>
+[Trait("Category", "Integration")]
+public sealed class NpgsqlBusTests(Postgres postgres)
+{
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    private static Message Raw(string contract, string? data = null, Guid? id = null) => new()
+    {
+        Id = id ?? Guid.CreateVersion7(),
+        Source = Message.SystemOf(contract),
+        Type = contract,
+        Version = 1,
+        Time = TimeProvider.System.GetUtcNow(),
+        Correlation = Id<ICorrelation>.New(),
+        Data = System.Text.Encoding.UTF8.GetBytes(data ?? "{}"),
+    };
+
+    private NpgsqlBus Bus(string schema, NpgsqlBusOptions? options = null)
+        => new(postgres.DataSource, TimeProvider.System, (options ?? new NpgsqlBusOptions()) with { Schema = schema, PollInterval = TimeSpan.FromMilliseconds(20) });
+
+    private static async Task<List<Incoming>> Collect(NpgsqlBus bus, Subscription subscription, int count, Func<Incoming, Task<Handled>>? answer = null)
+    {
+        var seen = new ConcurrentQueue<Incoming>();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var consume = bus.Consume(subscription, async (incoming, ct) =>
+        {
+            seen.Enqueue(incoming);
+            var handled = answer is null ? new Handled(Ack.Ack) : await answer(incoming);
+            if (seen.Count >= count)
+                await stop.CancelAsync();
+            return handled;
+        }, stop.Token);
+        await consume;
+        return [.. seen];
+    }
+
+    [Fact]
+    public async Task Row_level_security_refuses_a_foreign_prefix_and_without_it_the_stamped_role_is_buried()
+    {
+        var secured = Postgres.NewSchema();
+        var open = Postgres.NewSchema();
+        var owner = Bus(secured);
+        await owner.EnsureSchema(Ct);
+        await Bus(open).EnsureSchema(Ct);
+        await owner.Prepare([], [new Subscription("artflow.RecordPayment", ["billing.invoice-paid"])], Ct);
+        await postgres.Execute("""
+            SELECT pg_advisory_lock(hashtext('tarol.test.roles'));
+            DO $$ BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'artflow') THEN CREATE ROLE artflow LOGIN PASSWORD 'artflow'; END IF;
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'billing') THEN CREATE ROLE billing LOGIN PASSWORD 'billing'; END IF;
+            END $$;
+            SELECT pg_advisory_unlock(hashtext('tarol.test.roles'));
+            """);
+        await postgres.Execute(NpgsqlBusSchema.RowLevelSecurityScript(secured) + NpgsqlBusSchema.GrantScript("artflow", secured) + NpgsqlBusSchema.GrantScript("billing", secured)
+            + NpgsqlBusSchema.GrantScript("artflow", open) + NpgsqlBusSchema.GrantScript("billing", open));
+        var roles = new Dictionary<string, string> { ["artflow"] = "artflow", ["billing"] = "billing" };
+        await using var billingDb = new NpgsqlSlimDataSourceBuilder(new NpgsqlConnectionStringBuilder(postgres.ConnectionString) { Username = "billing", Password = "billing" }.ConnectionString).Build();
+        var billing = new NpgsqlBus(billingDb, TimeProvider.System, new NpgsqlBusOptions { Schema = secured, EnsureSchema = false, Roles = roles });
+
+        var refused = await Should.ThrowAsync<PostgresException>(() => billing.Publish(Raw("artflow.auction-settled"), Ct));
+        refused.SqlState.ShouldBe("42501");                                                          // row-level security
+        await billing.Publish(Raw("billing.invoice-paid"), Ct);                                       // its own prefix
+        var own = (await Collect(new NpgsqlBus(postgres.DataSource, TimeProvider.System, new NpgsqlBusOptions { Schema = secured, Roles = roles }),
+            new Subscription("artflow.RecordPayment", ["billing.invoice-paid"]), 1)).Single();
+        own.AuthenticatedAs.ShouldBe("billing");
+
+        // without the policy the database still stamps the role: the consumer sees billing, not artflow, and buries it
+        await using var harness = await new ContractHarness(new NpgsqlBus(postgres.DataSource, TimeProvider.System, new NpgsqlBusOptions { Schema = open, Roles = roles }),
+            GeneratedConsumers.Set, "billing", new DeliveryPolicy { MaxAttempts = 2 }).Start();
+        var forged = TransportContractMessages.Settled();
+        await new NpgsqlBus(billingDb, TimeProvider.System, new NpgsqlBusOptions { Schema = open, EnsureSchema = false }).Publish(forged, Ct);
+        await harness.Until(() => harness.DeadLetters.List(10, Ct).Result.Count == 2, "two dead letters");
+        (await harness.DeadLetters.List(10, Ct)).ShouldAllBe(d => d.Reason == "Messaging.SourceMismatch: contract artflow.auction-settled, ce-source artflow, authenticated billing");
+        harness.Seen.ShouldAllBe(s => s.Incoming.AuthenticatedAs == "billing");
+        // a role the map does not know is never a source
+        await billing.Publish(Raw("billing.invoice-paid"), Ct);
+        (await Collect(new NpgsqlBus(postgres.DataSource, TimeProvider.System, new NpgsqlBusOptions { Schema = secured, Roles = new Dictionary<string, string>() }),
+            new Subscription("artflow.RecordPayment", ["billing.invoice-paid"]), 1, static _ => Task.FromResult(new Handled(Ack.Retry))))
+            .Single().AuthenticatedAs.ShouldBe("role:billing");
+    }
+
+    [Fact]
+    public async Task A_delivery_that_outlives_its_lease_is_claimed_again_and_the_late_answer_changes_nothing()
+    {
+        var schema = Postgres.NewSchema();
+        var bus = Bus(schema);
+        var subscription = new Subscription("t.Slow", ["t.slow"]) { Concurrency = 2, Lease = TimeSpan.FromMilliseconds(300) };
+        await bus.Prepare([], [subscription], Ct);
+        await bus.Publish(Raw("t.slow"), Ct);
+
+        var seen = await Collect(bus, subscription, 2, async incoming =>
+        {
+            if (incoming.Attempt == 1)
+                await Task.Delay(1500);                                                           // the lease runs out meanwhile
+            return new Handled(Ack.Ack);
+        });
+        await Task.Delay(1700, Ct);                                                             // the first answer arrives late
+
+        seen.Select(i => i.Attempt).Order().ShouldBe([1, 2]);
+        (await bus.Pending("t.Slow", Ct)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_retry_presents_its_claim_and_counts_the_attempt()
+    {
+        var schema = Postgres.NewSchema();
+        var bus = Bus(schema);
+        var subscription = new Subscription("t.Retry", ["t.retry"]);
+        await bus.Prepare([], [subscription], Ct);
+        await bus.Publish(Raw("t.retry"), Ct);
+
+        var seen = await Collect(bus, subscription, 3, static i => Task.FromResult(i.Attempt < 3 ? new Handled(Ack.Retry, TimeSpan.FromMilliseconds(30)) : new Handled(Ack.Ack)));
+
+        seen.Select(i => i.Attempt).ShouldBe([1, 2, 3]);
+        (await bus.Pending("t.Retry", Ct)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_claim_into_reused_free_space_keeps_the_publish_order()
+    {
+        // §5 item 6: a subscription's deliveries split across the heap (the second half lands in space freed by another
+        // subscription); UPDATE … RETURNING follows the heap, the claim orders after it
+        var schema = Postgres.NewSchema();
+        var bus = Bus(schema, new NpgsqlBusOptions { Batch = 64 });
+        var subscription = new Subscription("t.Ordered", ["t.n"]);
+        await bus.Prepare([], [subscription, new Subscription("t.Other", ["t.o"])], Ct);
+        await postgres.Execute($"""
+            INSERT INTO {schema}.messages (id, type, version, source, headers, data, published_at)
+              SELECT gen_random_uuid(), 't.o', 1, 't', jsonb_build_object(), '', now() FROM generate_series(1, 2000);
+            INSERT INTO {schema}.deliveries (subscription, message_id, type, version, due_at)
+              SELECT 't.Other', id, type, version, now() FROM {schema}.messages ORDER BY random();
+            """);
+        for (var n = 1; n <= 150; n++)
+            await bus.Publish(Raw("t.n", "{\"n\":" + n + "}"), Ct);
+        await postgres.Execute($"DELETE FROM {schema}.deliveries WHERE subscription = 't.Other' AND id < 900");
+        await postgres.Execute($"VACUUM {schema}.deliveries");
+        for (var n = 151; n <= 300; n++)
+            await bus.Publish(Raw("t.n", "{\"n\":" + n + "}"), Ct);
+        await postgres.Execute($"ANALYZE {schema}.deliveries; ANALYZE {schema}.messages");
+
+        var seen = await Collect(bus, subscription, 300);
+
+        seen.Select(i => int.Parse(System.Text.Encoding.UTF8.GetString(i.Raw.Span)[5..^1], System.Globalization.CultureInfo.InvariantCulture)).ShouldBe(Enumerable.Range(1, 300));
+    }
+
+    [Fact]
+    public async Task The_schema_is_created_once_by_many_at_once_and_a_newer_version_is_refused()
+    {
+        var schema = Postgres.NewSchema();
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Bus(schema).EnsureSchema(Ct)));
+
+        (await postgres.Scalar($"SELECT count(*) FROM {schema}.schema_version")).ShouldBe(1L);
+        await postgres.Execute($"UPDATE {schema}.schema_version SET version = 99");
+        (await Should.ThrowAsync<InvalidOperationException>(() => Bus(schema).EnsureSchema(Ct))).Message.ShouldContain("version 99");
+        Should.Throw<ArgumentException>(() => Bus("Bad-Schema"));
+    }
+
+    [Fact]
+    public async Task Purging_keeps_messages_a_subscription_still_has_to_receive()
+    {
+        var schema = Postgres.NewSchema();
+        var bus = Bus(schema);
+        var subscription = new Subscription("t.Purge", ["t.purge"]);
+        await bus.Prepare([], [subscription], Ct);
+        await bus.Publish(Raw("t.purge"), Ct);
+        _ = await Collect(bus, subscription, 1);                                                      // acknowledged
+        await bus.Publish(Raw("t.purge"), Ct);                                                       // still waiting
+
+        (await bus.PurgeMessages(TimeProvider.System.GetUtcNow().AddMinutes(1), 100, Ct)).ShouldBe(1);
+        (await postgres.Scalar($"SELECT count(*) FROM {schema}.messages")).ShouldBe(1L);
+    }
+
+    [Fact]
+    public async Task Dead_letters_keep_headers_and_bytes_and_are_taken_once()
+    {
+        var schema = Postgres.NewSchema();
+        var dead = new NpgsqlMessageDeadLetters(postgres.DataSource, TimeProvider.System, schema);
+        await dead.EnsureSchema(Ct);
+        await dead.EnsureSchema(Ct);
+        var message = Raw("billing.invoice-paid", "{\"x\":1}");
+
+        await dead.Add("artflow.RecordPayment", new Incoming(message, 3, "billing", message.Data, message.Type), "Error NotFound", Ct);
+        await dead.Add("artflow.RecordPayment", new Incoming(null, 1, null, "poison"u8.ToArray(), "billing.invoice-paid"), "Messaging.Malformed", Ct);
+
+        var listed = await dead.List(10, Ct);
+        listed.Count.ShouldBe(2);
+        listed[0].MessageId.ShouldBe(message.Id);
+        listed[0].Headers["ce-type"].ShouldBe("billing.invoice-paid");
+        listed[0].Attempts.ShouldBe(3);
+        System.Text.Encoding.UTF8.GetString(listed[0].Data.Span).ShouldBe("{\"x\":1}");
+        listed[1].MessageId.ShouldBeNull();
+        listed[1].Headers.ShouldBeEmpty();
+        (await dead.Take(listed[0].Id, Ct))!.Reason.ShouldBe("Error NotFound");
+        (await dead.Take(listed[0].Id, Ct)).ShouldBeNull();
+        (await dead.List(10, Ct)).ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public async Task A_hosted_system_publishes_through_its_outbox_and_consumes_on_the_bus()
+    {
+        var storeSchema = "s" + Guid.NewGuid().ToString("N")[..12];
+        var busSchema = Postgres.NewSchema();
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddTarol(ContractJson.Default, codec => codec.Add<Auction>().Add<Invoice>().Add<Ledger>().Add<NoteLog>())
+            .UseNpgsqlStore(postgres.ConnectionString, new NpgsqlStoreOptions { Schema = storeSchema })
+            .AddReactionWorker(o => o.PollInterval = TimeSpan.FromMilliseconds(20))
+            .AddMessaging("billing", m => m
+                .Consume(GeneratedConsumers.Set)
+                .Publish(GeneratedPublications.Set)
+                .Trust("artflow", t => t.AnyTenant())
+                .UseNpgsqlBus(postgres.ConnectionString, new NpgsqlBusOptions { Schema = busSchema, Notify = true })
+                .UseNpgsqlDeadLetters(storeSchema));
+        using var host = builder.Build();
+        await host.StartAsync(Ct);
+        var store = host.Services.GetRequiredService<IAggregateStore>();
+        var auction = Auction.Open(Guid.CreateVersion7());
+        var alice = OperationContext.Start(Actor.User("alice"), Option.None, TimeProvider.System);
+        (await store.Append(auction, 0, alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
+        Primitives.AggregateChanges.Committed(auction);
+        _ = auction.Settle();
+        (await store.Append(auction, 1, alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
+
+        var clock = Stopwatch.StartNew();
+        while ((long)(await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.events"))! < 4 && clock.Elapsed < TimeSpan.FromSeconds(30))
+            await Task.Delay(50, Ct);
+        await host.StopAsync(Ct);
+
+        (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.events WHERE actor_id = 'Consumers.IssueInvoice' AND on_behalf_of = 'alice'")).ShouldBe(1L);
+        (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.events WHERE actor_id = 'Consumers.Sales'")).ShouldBe(1L);
+        (await postgres.Scalar($"SELECT count(*) FROM {busSchema}.messages WHERE type = 'artflow.auction-settled'")).ShouldBe(1L);
+        (await postgres.Scalar($"SELECT count(*) FROM {busSchema}.deliveries")).ShouldBe(0L);
+        (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.outbox")).ShouldBe(0L);
+        (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.messages_dead")).ShouldBe(0L);
+    }
+}
+
+/// <summary>Messages the bus tests share with the contract.</summary>
+internal static class TransportContractMessages
+{
+    public static Message Settled() => new()
+    {
+        Id = Guid.CreateVersion7(),
+        Source = "artflow",
+        Type = "artflow.auction-settled",
+        Version = 1,
+        Time = TimeProvider.System.GetUtcNow(),
+        Tenant = TransportContract.TenantA,
+        Correlation = Id<ICorrelation>.New(),
+        Data = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new AuctionSettledV1(Guid.NewGuid(), 150m), ContractJson.Default.AuctionSettledV1),
+    };
+}

@@ -125,6 +125,13 @@ public sealed partial record TrackNote(Guid Log, int N) : ILoads<NoteLog>
     public Result Execute(NoteLog log, ChangeContext context) => log.Add(N);
 }
 
+/// <summary>The hosted round trips publish settlements through the outbox (the contract suite itself does not run a worker).</summary>
+public static class Publications
+{
+    [Publishes<Auction.Settled>("artflow.auction-settled", 1)]
+    public static AuctionSettledV1 Settled(Auction.Settled e, RecordedEvent r) => new(r.StreamId, 150m);
+}
+
 [JsonSerializable(typeof(AuctionSettledV1))]
 [JsonSerializable(typeof(AuctionNotedV1))]
 [JsonSerializable(typeof(InvoicePaidV1))]
