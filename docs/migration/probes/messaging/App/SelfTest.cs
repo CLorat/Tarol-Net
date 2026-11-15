@@ -313,8 +313,8 @@ internal static class SelfTest
 
     private static async Task<RecordedEvent?> UntilEvent(Func<Task<RecordedEvent?>> probe, TimeSpan timeout)
     {
-        var end = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < end)
+        var end = TimeProvider.System.GetUtcNow() + timeout;
+        while (TimeProvider.System.GetUtcNow() < end)
         {
             if (await probe() is { } found)
                 return found;

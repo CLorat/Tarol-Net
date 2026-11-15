@@ -24,7 +24,7 @@ internal static class Startup
             Correlation = Id<ICorrelation>.New(time), Data = "{}"u8.ToArray(),
         }, default);
         await got.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        var ms = (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+        var ms = (TimeProvider.System.GetLocalNow().LocalDateTime - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
         await stop.CancelAsync();
         try { await consume; } catch (OperationCanceledException) { }
         Console.WriteLine($"{kind}: first message after {ms:F0} ms");

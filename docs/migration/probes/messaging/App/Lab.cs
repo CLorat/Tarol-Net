@@ -69,8 +69,8 @@ internal static class Lab
     public static async Task<T> Until<T>(Func<T?> probe, TimeSpan timeout, string what)
         where T : class
     {
-        var end = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < end)
+        var end = TimeProvider.System.GetUtcNow() + timeout;
+        while (TimeProvider.System.GetUtcNow() < end)
         {
             if (probe() is { } found)
                 return found;
@@ -81,8 +81,8 @@ internal static class Lab
 
     public static async Task<bool> Until(Func<bool> probe, TimeSpan timeout)
     {
-        var end = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < end)
+        var end = TimeProvider.System.GetUtcNow() + timeout;
+        while (TimeProvider.System.GetUtcNow() < end)
         {
             if (probe())
                 return true;
