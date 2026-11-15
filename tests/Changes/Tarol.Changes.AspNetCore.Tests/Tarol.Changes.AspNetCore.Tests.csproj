@@ -8,6 +8,7 @@
     <!-- TestHost is what WebApplicationFactory runs on; the endpoint tests build the app themselves (no Program class needed) -->
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
   </ItemGroup>
 
   <ItemGroup>

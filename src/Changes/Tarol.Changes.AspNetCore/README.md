@@ -1,0 +1,50 @@
+# Tarol.Changes.AspNetCore
+
+HTTP entries for Tarol changes. Put `[Endpoint]` on a change record (or on a view) and the generator writes a
+`RequestDelegate` for it; `app.MapChanges()` maps them all. Native-AOT ready (the Request Delegate Generator does not see
+generated code, so the delegates bind by themselves).
+
+```csharp
+[Endpoint("POST /auctions/{auction}/bids", Policy = "auctions:bid")]
+public sealed partial record PlaceBid(Id<Auction> Auction, Amount Amount) : IChange<Auction>, IValidatable
+{
+    public Result Execute(Auction auction, ChangeContext context) => auction.PlaceBid(context.Operation.Actor.Id, Amount, context.Now).ToResult();
+}
+
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
+    .UseNpgsqlStore(connectionString)
+    .AddSecurity(roles => roles.Role("bidder").May<PlaceBid>())
+    .AddEndpoints();
+app.MapChanges();
+```
+
+| Request | Answer |
+|---|---|
+| a change committed | 204, `ETag: "<version>"` |
+| a creation committed | 201, `Location`, `{"id":…,"version":…}`, `ETag` |
+| the same `Idempotency-Key` again | the first outcome (200 for a creation), `Idempotent-Replayed: true`; another body → 422 |
+| invalid input (binder or value rules) | 400 problem details, `errors` keyed by JSON paths, every field at once |
+| `If-Match` stale | 409 `Stream.VersionConflict` |
+| not authenticated / endpoint policy | 401 / 403 |
+| refused by the change's authorization (Tarol.Security) | 403 with the rule's `code` |
+| missing, or another tenant's | 404 |
+| a guard or lifecycle step | 409 with the guard's `code` |
+| not JSON / too large | 415 / 413 |
+
+* **Binding**: route values bind the members of the same name (`Id<T>`, `Guid`, `string`, `int`, `long`); body members are
+  read one by one through the app's JSON context (value objects included), `[JsonPropertyName]` and defaults honoured.
+* **Context**: actor from `sub` / `client_id` (or the app's `ChangeEndpointOptions.Actor`), tenant from the `tenant` claim
+  (or `ChangeEndpointOptions.Tenant`; a `{tenant}` route value must equal it), a new correlation, the principal for the
+  authorization. Authentication itself is the app's.
+* **Views**: `[Endpoint("GET /auctions/{auction}")]` on a record implementing `IView<Auction, TSelf>` (`static TSelf
+  From(Auction)`): load, `Read<Auction>` authorization, `ETag`, 304 on `If-None-Match`.
+* **Webhooks**: `[Webhook("payments", "payment.succeeded", Version = "2")]` on a `static From(Payload)` factory; served at
+  `POST /webhooks/payments` (and `/webhooks/payments/{tenant}`); HMAC-SHA256 over `timestamp.body`, ±5 minutes, secrets from
+  `WebhookOptions` (rotation), delivery-id key; 200 / 202 (unknown type) / 401 / 422 / 503 (retry).
+* **OpenAPI**: with `Microsoft.AspNetCore.OpenApi`, `AddOpenApi(o => o.AddTarolEndpoints())` describes every entry
+  (path and header parameters, 2xx with `ETag`, problem responses, value-object rules).
+* **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
+* Fails closed: an entry without `Policy` needs an authenticated caller, the change is always authorized, `MapChanges`
+  refuses to start without `AddSecurity`. Diagnostics TWEB001–TWEB006.
+
+Guide: [docs/changes/README.md](../../../docs/changes/README.md) (HTTP entries). Design: `docs/architecture/rest.md`.
