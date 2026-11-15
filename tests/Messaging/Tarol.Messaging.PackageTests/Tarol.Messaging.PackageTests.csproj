@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Messaging package (no ProjectReference). Proves that the package works, that its generator
+    runs (GeneratedConsumers), and that the Changes and Primitives generators flow from its dependencies.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Messaging" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckMessagingAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolMessagingGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Messaging.Generators'" />
+      <_TarolChangesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Changes.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolMessagingGenerator)' == '' or '@(_TarolChangesGenerator)' == ''" Text="The Messaging / Changes generators did not flow from Tarol.Messaging." />
+    <Message Importance="high" Text="Tarol.Messaging analyzers: @(_TarolMessagingGenerator);@(_TarolChangesGenerator)" />
+  </Target>
+</Project>

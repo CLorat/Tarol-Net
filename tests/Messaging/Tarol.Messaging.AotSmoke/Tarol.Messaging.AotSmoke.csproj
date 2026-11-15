@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native-AOT smoke test of Tarol.Messaging (generated consumers, the envelope, MessageTest, the hosted consumers on the
+    in-memory transport). Publish with
+      dotnet publish tests/Messaging/Tarol.Messaging.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the host, for the hosted consumers (the package itself uses only the in-box abstractions) -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <ProjectReference Include="../../../src/Messaging/Tarol.Messaging/Tarol.Messaging.csproj" />
+    <ProjectReference Include="../../../src/Messaging/Tarol.Messaging.Generators/Tarol.Messaging.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

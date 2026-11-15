@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Messages between systems for Tarol: [Consumes(contract, version)] on a From factory turns another system's message into a change that runs through the change pipeline, deduplicated by the idempotency key (the inbox), retried and dead-lettered like a reaction; CloudEvents 1.0 envelope (binary mode); trust per source system (the contract prefix, allow-listed tenants); a transport port with an in-memory transport; dead letters with re-drive; MessageTest for two systems in memory. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;messaging;integration-events;inbox;cloudevents;consumer;source-generator;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hosting, DI and logging abstractions (and the LoggerMessage generator) are part of .NET 11's base framework. -->
+    <ProjectReference Include="../../Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
+    <!-- D-10: the messaging generator (TMSG001-TMSG007) ships inside this package. -->
+    <ProjectReference Include="../Tarol.Messaging.Generators/Tarol.Messaging.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>
