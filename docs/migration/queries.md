@@ -628,3 +628,52 @@ the project then ran 10 times in a row without load, 18 of 18 each, and the suit
 with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **20 apps**, 0 IL warnings each, all checks passed (the AspNetCore app with
 its two list checks, in memory and on PostgreSQL); `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the AspNetCore
 package consumer now also references `Tarol.Queries.Npgsql`: it shares the smoke app's `Program.cs`).
+
+## 18. Implementation: PR 12D (2026-11-16)
+
+`samples: the auction list`: the projection and the lists in `samples/Sagas`, and the user guide `docs/queries/README.md`.
+
+### 18.1 What the sample shows
+
+| Where | What |
+|---|---|
+| `Worker/AuctionList.cs` | `[Projection("auction-list")] AuctionRow` (seller, reserve, highest bid, bids, settled, paid, opened at; `[Sort]` on the highest bid and the opening time), `When` over `Auction.Opened`, `Bid.Placed` (an entity event), `Settled`, `Reopened`, `PaymentRecorded`; linked into the API |
+| `Worker/Program.cs` | `UseNpgsqlStore(…, new NpgsqlStoreOptions { NotifyFeed = true })`, `UseNpgsqlReadModels()`, `AddProjections(p => p.Add<AuctionRow>())`; traces `Tarol.Queries` |
+| `Api/Program.cs`, `Api/Http.cs` | `UseNpgsqlReadModels()`; `GET /auctions` (`AuctionSearch(bool? Settled, string? Seller, AuctionSort Sort)`), `GET /my/auctions` (`[FromClaim("sub")] Seller`); the existing `Read<Auction>` grants of `seller` and `bidder` |
+| `apphost.sh` | after each bid: the list with `Tarol-Read-After` = the bid's `Tarol-Position` (the bid must be in it, no `Tarol-Stale`); at the end: total, a page with its cursor, alice's and bob's own auctions, the page ETag and a 304, the projection's checkpoint and row count |
+
+### 18.2 Deliberate differences from §11
+
+* The sample's list rows are the auctions of the settlement saga (no title or end time in this domain): the opening time
+  (`RecordedEvent.RecordedAt`) stands in for `endsAt` as the second sort.
+* Billing (the second system) has no projection: the step needs one list, and billing's reads are not part of ArtFlow.
+
+### 18.3 Changes against steps 7–11
+
+None in the packages.
+
+### 18.4 Run **[verified]**
+
+`samples/Sagas/apphost.sh samples/Sagas/AppHost/bin/Debug/net11.0 5` (SDK 11.0.100, Aspire 13.6.5, Zitadel v4.20.3,
+NATS), JIT projects, then again with the Native AOT API and worker:
+
+```text
+api /health: 200 after 29s (native: 16s)
+auction 1: bid 204 (Tarol-Position 1696.2), list read after it: bids 1, highestBid 150, stale 0; settle by bob 403, settle by alice 204
+settlement sagas completed: 5; payments recorded in ArtFlow from billing: 5; dead letters: outbox 0/0, messages 0/0
+auction list: total 5, settled 3 of the first 3, next cursor yes; stale read-after answers: 0 of 5
+alice's own auctions (claim-bound): 5, bob's: 0
+list ETag W/"08a0ebf35e486d1c", again with If-None-Match: 304
+projection checkpoint: auction-list v1 current, rows 5
+spans: … GET /auctions 8, GET /my/auctions 2, … project auction-list 19, …
+```
+
+Every read after a bid contained the bid (no `Tarol-Stale` in 5 of 5, both runs); the steps 9–11 results of the sample are
+unchanged (5 payouts, 5 sagas completed, every event with a `traceparent`, the dashboard lists `api`, `worker`, `billing`
+and now the `project auction-list` spans). The Native AOT API (25.1 MB) and worker (20.2 MB) publish with 0 IL warnings.
+
+### 18.5 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+
+The packages and tests are those of 12C (§17.7: 1395 of 1395, 20 AOT apps, packages OK); this PR changes only the sample
+(not in `Tarol.slnx`) and documentation. `dotnet build samples/Sagas/AppHost` 0 warnings (besides the AppHost's
+existing ASPIRE010 note), `dotnet publish -c Release -r linux-x64` of the API and the worker: 0 IL warnings; the run above.

@@ -13,7 +13,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/queries/`](../migration/probes/queries/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions QR-1 … QR-7, [migration/queries.md](../migration/queries.md) §9); PRs 12A–12D. **12A implemented** (`Tarol.Queries`, migration/queries.md §15); **12B implemented** (`Tarol.Queries.Npgsql`, §16); **12C implemented** (list entries in `Tarol.Changes.AspNetCore`, §17).
+**Status: designed** (owner decisions QR-1 … QR-7, [migration/queries.md](../migration/queries.md) §9); PRs 12A–12D. **12A implemented** (`Tarol.Queries`, migration/queries.md §15); **12B implemented** (`Tarol.Queries.Npgsql`, §16); **12C implemented** (list entries in `Tarol.Changes.AspNetCore`, §17); **12D**: the auction list in `samples/Sagas` and the user guide [`docs/queries/`](../queries/README.md) (§18). **Step 12 done.**
 
 ## 1. What a user of Tarol needs
 
