@@ -403,11 +403,11 @@ internal static class Bench
                 var r = await pipe.Run(new BidUp(target, "s"), ctx);
                 if (!r.IsSuccess) continue;
                 var t0 = Stopwatch.GetTimestamp();
-                var needle = $"\"highestBid\":{before + 1}";
                 var seen = false;
                 while (Stopwatch.GetTimestamp() - t0 < 5 * Stopwatch.Frequency)
                 {
-                    if ((await get(q)).Contains(needle, StringComparison.Ordinal)) { seen = true; break; }
+                    var body = JsonSerializer.Deserialize(await get(q), ProbeJson.Default.PageBody)!;     // the target row, not any row with that amount
+                    if (body.Items.Any(row => row.Id == target.Value && row.HighestBid == before + 1)) { seen = true; break; }
                     await Task.Delay(1);
                 }
                 if (seen) lat.Add(Lab.Ms(Stopwatch.GetTimestamp() - t0)); else missed++;

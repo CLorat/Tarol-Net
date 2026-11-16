@@ -25,7 +25,7 @@ sec() {   # n title commands…
 }
 up
 [ -f "$w/a.ok" ] || { "$here/run.sh" "$w/a" Caching build -c Release > "$w/a.log" 2>&1 && touch "$w/a.ok"; }
-s0() { echo "# SDK $(dotnet --version) (JIT runs: Release build), $(date -u +%Y-%m-%d), $(uname -m), $(nproc) cores, $(free -g | awk '/Mem/{print $2}') GB; $(docker exec tarol-probe-pg postgres --version) (default settings, max_connections=300); $(docker exec tarol-probe-redis redis-server --version | cut -d' ' -f1-3); Garnet $(docker inspect ghcr.io/microsoft/garnet:latest --format '{{index .Config.Labels "org.opencontainers.image.version"}}') (ghcr.io/microsoft/garnet:latest); all in Docker on the same host"; grep -E ' error |warning ' "$w/a.log" | clean | sort -u; }
+s0() { echo "# SDK $(dotnet --version) (JIT runs: Release build), $(date -u +%Y-%m-%d), $(uname -m), $(nproc) cores, $(free -g | awk '/Mem/{print $2}') GB; $(docker exec tarol-probe-pg postgres --version) (default settings, max_connections=300); $(docker exec tarol-probe-redis redis-server --version | cut -d' ' -f1-3); Garnet $(docker inspect ghcr.io/microsoft/garnet:latest --format '{{index .Config.Labels "org.opencontainers.image.version"}}') (ghcr.io/microsoft/garnet:latest); all in Docker on the same host"; grep -E ' error |warning ' "$w/a.log" | clean | sort -u; true; }
 s1() { for k in postgres local redis garnet http; do J selftest $k; done; }
 s2() { J bench seed 20000; }
 s3() { J bench load 3; }

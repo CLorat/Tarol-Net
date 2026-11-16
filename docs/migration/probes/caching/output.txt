@@ -1,4 +1,3 @@
-
 ## 0. Machine
 # SDK 11.0.100 (JIT runs: Release build), 2026-11-16, x86_64, 4 cores, 15 GB; postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1) (default settings, max_connections=300); Redis server v=8.10.3; Garnet 2.2.12 (ghcr.io/microsoft/garnet:latest); all in Docker on the same host
 
@@ -226,3 +225,157 @@ INFO page cache: pushed hits 46566336, misses 10; checkpoint hits 106523, misses
 | cache | 32 | 1000 | 950 | 0.27 | 0 | p50 32.973 ms, p99 57.797 ms, max 84.166 ms (n=5699) | 52.6 % |
 | cache, one process | 32 | 1000 | 1152 | 0.03 | 0 | p50 27.134 ms, p99 49.918 ms, max 77.075 ms (n=6912) | 82.9 % |
 | cache, no eviction | 32 | 1000 | 437 | 3.50 | 458 | p50 45.822 ms, p99 92.447 ms, max 139.489 ms (n=2622) | 86.6 % |
+
+## 10. Staleness: commit returned -> the cached answer shows the bid, per invalidation (40 commits each, 5 s cap)
+| invalidation | commit → visible in the cached answer | never visible within 5 s |
+|---|---|---|
+| uncached Search (= projection lag) | p50 8.745 ms, p99 42.554 ms, max 42.554 ms (n=40) | 0 |
+| checkpoint read per request | p50 7.523 ms, p99 12.439 ms, max 12.439 ms (n=40) | 0 |
+| checkpoint pushed (NOTIFY, other connection) | p50 7.033 ms, p99 10.888 ms, max 10.888 ms (n=40) | 0 |
+| tenant tag, in the worker process | p50 7.383 ms, p99 12.064 ms, max 12.064 ms (n=40) | 0 |
+| tenant tag by NOTIFY (other process) | p50 7.953 ms, p99 10.993 ms, max 10.993 ms (n=40) | 0 |
+| TTL 1 s | p50 874.985 ms, p99 998.374 ms, max 998.374 ms (n=40) | 0 |
+| HybridCache L1 1 s + L2 Redis, tag removed by the worker | n/a | 40 |
+
+## 11. Hit ratio under writes: a running projection, 16 readers over 8 pages of tenant A, a writer at a fixed rate (8 s per cell)
+| writes/s (tenant) | invalidation | hit ratio | latency (16 readers) | commits | stale answers |
+|---|---|---|---|---|---|
+| 0 | Checkpoint | 100.0 % of 94386 | p50 1.019 ms, p99 5.675 ms, max 56.903 ms (n=94386) | 0 | 0 of 1887 sampled hits |
+| 0 | Pushed | 100.0 % of 5087400 | p50 0.000 ms, p99 0.003 ms, max 41.284 ms (n=5087400) | 0 | 0 of 101748 sampled hits |
+| 0 | TenantTag | 100.0 % of 5264388 | p50 0.000 ms, p99 0.003 ms, max 60.067 ms (n=5264388) | 0 | 0 of 105287 sampled hits |
+| 0 | Ttl 1 s | 100.0 % of 5137800 | p50 0.000 ms, p99 0.003 ms, max 19.069 ms (n=5137800) | 0 | 0 of 102756 sampled hits |
+| 10 (A) | Checkpoint | 98.7 % of 102544 | p50 0.849 ms, p99 6.625 ms, max 46.777 ms (n=102544) | 80 | 26 of 2050 sampled hits |
+| 10 (A) | Pushed | 100.0 % of 4666401 | p50 0.000 ms, p99 0.003 ms, max 58.737 ms (n=4666401) | 81 | 1532 of 93328 sampled hits |
+| 10 (A) | TenantTag | 100.0 % of 5024900 | p50 0.000 ms, p99 0.003 ms, max 44.312 ms (n=5024900) | 80 | 1274 of 100498 sampled hits |
+| 10 (A) | Ttl 1 s | 100.0 % of 4904000 | p50 0.000 ms, p99 0.003 ms, max 33.582 ms (n=4904000) | 80 | 93817 of 98080 sampled hits |
+| 50 (A) | Checkpoint | 93.6 % of 98382 | p50 0.844 ms, p99 7.297 ms, max 64.250 ms (n=98382) | 401 | 114 of 1967 sampled hits |
+| 50 (A) | Pushed | 99.7 % of 3422590 | p50 0.000 ms, p99 0.003 ms, max 49.787 ms (n=3422590) | 400 | 7826 of 68451 sampled hits |
+| 50 (A) | TenantTag | 99.7 % of 3297596 | p50 0.000 ms, p99 0.003 ms, max 70.894 ms (n=3297596) | 400 | 5891 of 65951 sampled hits |
+| 50 (A) | Ttl 1 s | 100.0 % of 4783650 | p50 0.000 ms, p99 0.003 ms, max 42.021 ms (n=4783650) | 400 | 94379 of 95673 sampled hits |
+| 200 (A) | Checkpoint | 90.2 % of 81932 | p50 1.028 ms, p99 8.481 ms, max 42.739 ms (n=81932) | 589 | 142 of 1638 sampled hits |
+| 200 (A) | Pushed | 99.6 % of 2852751 | p50 0.000 ms, p99 0.004 ms, max 58.760 ms (n=2852751) | 597 | 8903 of 57055 sampled hits |
+| 200 (A) | TenantTag | 99.6 % of 3399909 | p50 0.000 ms, p99 0.003 ms, max 51.609 ms (n=3399909) | 644 | 7644 of 67998 sampled hits |
+| 200 (A) | Ttl 1 s | 100.0 % of 5154250 | p50 0.000 ms, p99 0.003 ms, max 11.364 ms (n=5154250) | 751 | 102444 of 103085 sampled hits |
+| 50 (B) | Checkpoint | 94.0 % of 103569 | p50 0.811 ms, p99 6.744 ms, max 48.949 ms (n=103569) | 400 | 114 of 2071 sampled hits |
+| 50 (B) | Pushed | 99.8 % of 4224161 | p50 0.000 ms, p99 0.003 ms, max 64.501 ms (n=4224161) | 400 | 8444 of 84483 sampled hits |
+| 50 (B) | TenantTag | 100.0 % of 5275970 | p50 0.000 ms, p99 0.002 ms, max 26.690 ms (n=5275970) | 400 | 105226 of 105519 sampled hits |
+| 50 (B) | Ttl 1 s | 100.0 % of 5061450 | p50 0.000 ms, p99 0.003 ms, max 18.124 ms (n=5061450) | 401 | 100313 of 101229 sampled hits |
+
+## 12. Native AOT: publish (warnings, size), the checks natively, CPU and loads natively
+ILC : AOT analysis warning IL3050: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.DefaultJsonSerializer`1.Microsoft.Extensions.Caching.Hybrid.IHybridCacheSerializer<T>.Deserialize(ReadOnlySequence`1<Byte>): Using member 'System.Text.Json.JsonSerializer.Deserialize<T>(Utf8JsonReader&,JsonSerializerOptions)' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. JSON serialization and deserialization might require types that cannot be statically analyzed and might need runtime code generation. Use System.Text.Json source generation for nat
+ILC : AOT analysis warning IL3050: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.DefaultJsonSerializer`1.Microsoft.Extensions.Caching.Hybrid.IHybridCacheSerializer<T>.Serialize(T,IBufferWriter`1<Byte>): Using member 'System.Text.Json.JsonSerializer.Serialize<T>(Utf8JsonWriter,T,JsonSerializerOptions)' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. JSON serialization and deserialization might require types that cannot be statically analyzed and might need runtime code generation. Use System.Text.Json source generation for native 
+ILC : AOT analysis warning IL3050: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.SystemDefaultJsonOptions.get: Using member 'System.Text.Json.JsonSerializerOptions.Default.get' which has 'RequiresDynamicCodeAttribute' can break functionality when AOT compiling. JSON serialization and deserialization might require types that cannot be statically analyzed and might need runtime code generation. Use System.Text.Json source generation for native AOT applications. [Caching/Caching.csproj]
+ILC : Trim analysis warning IL2026: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.DefaultJsonSerializer`1.Microsoft.Extensions.Caching.Hybrid.IHybridCacheSerializer<T>.Deserialize(ReadOnlySequence`1<Byte>): Using member 'System.Text.Json.JsonSerializer.Deserialize<T>(Utf8JsonReader&,JsonSerializerOptions)' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code. JSON serialization and deserialization might require types that cannot be statically analyzed. Use the overload that takes a JsonTypeInfo or JsonSerializerContext
+ILC : Trim analysis warning IL2026: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.DefaultJsonSerializer`1.Microsoft.Extensions.Caching.Hybrid.IHybridCacheSerializer<T>.Serialize(T,IBufferWriter`1<Byte>): Using member 'System.Text.Json.JsonSerializer.Serialize<T>(Utf8JsonWriter,T,JsonSerializerOptions)' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code. JSON serialization and deserialization might require types that cannot be statically analyzed. Use the overload that takes a JsonTypeInfo or JsonSerializerContext, or
+ILC : Trim analysis warning IL2026: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.SystemDefaultJsonOptions.get: Using member 'System.Text.Json.JsonSerializerOptions.Default.get' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code. JSON serialization and deserialization might require types that cannot be statically analyzed. Use the overload that takes a JsonTypeInfo or JsonSerializerContext, or make sure all of the required types are preserved. [Caching/Caching.csproj]
+ILC : Trim analysis warning IL2070: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.IsFieldOnlyType(Type,Dictionary`2<Type,DefaultJsonSerializerFactory.FieldOnlyResult>&): 'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.Interfaces' in call to 'System.Type.GetInterfaces()'. The parameter 'type' of method 'Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.IsFieldOnlyType(Type,Dictionary`2<Type,DefaultJsonSerializerFactory.FieldOnlyResult>&)' does not have matching annotations. The source value must declare at least the same requi
+ILC : Trim analysis warning IL2070: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.IsFieldOnlyType(Type,Dictionary`2<Type,DefaultJsonSerializerFactory.FieldOnlyResult>&): 'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicFields' in call to 'System.Type.GetFields(BindingFlags)'. The parameter 'type' of method 'Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.IsFieldOnlyType(Type,Dictionary`2<Type,DefaultJsonSerializerFactory.FieldOnlyResult>&)' does not have matching annotations. The source value must declare at least the 
+ILC : Trim analysis warning IL2070: Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.IsFieldOnlyType(Type,Dictionary`2<Type,DefaultJsonSerializerFactory.FieldOnlyResult>&): 'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicProperties' in call to 'System.Type.GetProperties(BindingFlags)'. The parameter 'type' of method 'Microsoft.Extensions.Caching.Hybrid.Internal.DefaultJsonSerializerFactory.IsFieldOnlyType(Type,Dictionary`2<Type,DefaultJsonSerializerFactory.FieldOnlyResult>&)' does not have matching annotations. The source value must declare at le
+IL warnings: 9 (      3 IL2026       3 IL2070       3 IL3050 )
+native binary: 20898376 bytes
+# selftest postgres (Native AOT)
+PASS aggregate cache: the second load is a hit
+PASS aggregate cache: tenant in the key, another tenant's id is not found (store and cache)
+PASS aggregate cache: every hit is a fresh instance (a mutated instance does not leak into the next hit)
+PASS stale hit: process 1's cache still holds version 1 after process 2 committed version 2
+PASS stale hit: Append refuses the decision with Stream.VersionConflict (nothing written)  (Failure(Error { Conflict, Stream.VersionConflict }))
+PASS stale hit: the retry reloads (evicted on the conflict) and decides on version 2: 8 <= 10 is refused by the guard  (Failure(Error { Conflict, Auction.BidTooLow }))
+PASS stale hit: the store holds exactly the two accepted bids (10, 12): a stale hit never committed
+PASS write-through: after its own commit process 1's cache holds version 3
+PASS found: a view (GET by id) through the aggregate cache answers a stale version until the TTL, with an ETag of that version
+PASS version-keyed: the version probe sees version 4, so an entry for version 3 is never served
+PASS expiry follows the TimeProvider (FakeTimeProvider +31 s on a 30 s TTL: miss)
+PASS found: a cached Find returns the old holder of a released lookup; the decision runs on the wrong aggregate and no version guard sees it  (Failure(Error { Conflict, Auction.Closed }))
+PASS projection caught up
+PASS page cache: the second request is a hit (checkpoint, pushed, tenant tag, TTL)  (True,True,True,True)
+PASS page cache: tenant in the key (same query, other tenant: other key)
+PASS a commit of tenant B: checkpoint and pushed entries of tenant A miss, the tenant tag and the TTL still hit  (False,False,True,True)
+PASS a bid on page 1: checkpoint, pushed and tenant-tag entries miss and show the bid
+PASS found: the TTL entry still answers the page without the bid (stale until the TTL)
+PASS the TTL entry expires on the TimeProvider (+11 s on 10 s)
+PASS open transaction elsewhere: the projection does not pass the commit; cached page = uncached page (both without the bid)
+PASS open transaction ended: the projection passes, the cached page misses and shows the bid
+PASS the checkpoint watch received notifications (no reliance on the fallback poll)  (notifications 3, polls 2)
+ALL 22 CHECKS PASSED (selftest postgres, Native AOT)
+# selftest hybrid local (Native AOT)
+PASS L1: the second GetOrCreate is a hit (factory once)
+PASS stampede protection: 20 concurrent misses of one key run the factory once  (factory calls 1 for 20 callers)
+INFO HybridCache with a FakeTimeProvider in DI, +31 s on a 30 s expiry: factory ran 1 time(s) (expiry does NOT follow the TimeProvider)
+PASS HybridCache L1 expiry follows a TimeProvider through MemoryCacheOptions.Clock (+31 s on 30 s: factory again)  (factory 2)
+INFO HybridCache tag invalidation on the fake clock: factory ran 2 time(s)
+ALL 3 CHECKS PASSED (selftest hybrid local, Native AOT)
+# selftest hybrid redis (Native AOT)
+PASS L1: the second GetOrCreate is a hit (factory once)
+PASS stampede protection: 20 concurrent misses of one key run the factory once  (factory calls 1 for 20 callers)
+PASS L2: process B reads process A's entry without running its factory  (v1)
+PASS found: A's RemoveAsync does not reach B's L1 (no backplane): B answers the removed value  (v1)
+PASS B sees the removal once its L1 entry expires (LocalCacheExpiration = 1 s)  (after 1008 ms)
+PASS tags: RemoveByTagAsync invalidates the entry in the process that called it
+INFO tags across processes: right after A's RemoveByTagAsync, B answers 'p2-b' (stale: B's L1 keeps it)
+INFO tags across processes: B answers 'p2-v2' after 1006 ms
+PASS a typed value (AuctionView) through L2 with an IHybridCacheSerializer<T> over the JSON context
+INFO HybridCache with a FakeTimeProvider in DI, +31 s on a 30 s expiry: factory ran 1 time(s) (expiry does NOT follow the TimeProvider)
+PASS HybridCache L1 expiry follows a TimeProvider through MemoryCacheOptions.Clock (+31 s on 30 s: factory again)  (factory 2)
+INFO HybridCache tag invalidation on the fake clock: factory ran 2 time(s)
+ALL 8 CHECKS PASSED (selftest hybrid redis, Native AOT)
+# selftest hybrid garnet (Native AOT)
+PASS L1: the second GetOrCreate is a hit (factory once)
+PASS stampede protection: 20 concurrent misses of one key run the factory once  (factory calls 1 for 20 callers)
+PASS L2: process B reads process A's entry without running its factory  (v1)
+PASS found: A's RemoveAsync does not reach B's L1 (no backplane): B answers the removed value  (v1)
+PASS B sees the removal once its L1 entry expires (LocalCacheExpiration = 1 s)  (after 1013 ms)
+PASS tags: RemoveByTagAsync invalidates the entry in the process that called it
+INFO tags across processes: right after A's RemoveByTagAsync, B answers 'p2-b' (stale: B's L1 keeps it)
+INFO tags across processes: B answers 'p2-v2' after 1015 ms
+PASS a typed value (AuctionView) through L2 with an IHybridCacheSerializer<T> over the JSON context
+INFO HybridCache with a FakeTimeProvider in DI, +31 s on a 30 s expiry: factory ran 1 time(s) (expiry does NOT follow the TimeProvider)
+PASS HybridCache L1 expiry follows a TimeProvider through MemoryCacheOptions.Clock (+31 s on 30 s: factory again)  (factory 2)
+INFO HybridCache tag invalidation on the fake clock: factory ran 2 time(s)
+ALL 8 CHECKS PASSED (selftest hybrid garnet, Native AOT)
+# selftest http (Native AOT)
+PASS output cache, default policy: an anonymous GET is cached (handler once)
+PASS output cache, default policy: a GET with an Authorization header is never cached (handler twice)
+PASS found: a policy that caches authenticated GETs without a vary rule answers tenant B with tenant A's body  (tenant=a call=1)
+PASS varied by the tenant claim: tenants get their own entries; users of one tenant share one (no per-user rules may exist: QR-6)
+PASS found: a cached answer ignores Tarol-Read-After (served from the cache without waiting or Tarol-Stale)
+PASS EvictByTagAsync(tenant:a) drops tenant A's entry only (in this process; the default store is in memory)
+ALL 6 CHECKS PASSED (selftest http, Native AOT)
+INFO sizes: state 204 B, event payload 28 B, page of 50 8080 B
+| operation | per op |
+|---|---|
+| codec.StreamTypeOf<Auction>() | 16 ns |
+| codec.Decode (BidPlaced) | 618 ns |
+| AggregateState.Read (9 events' state) | 912 ns |
+| AggregateState.Write | 579 ns |
+| AuctionView from aggregate + serialize | 435 ns |
+| page of 50 rows: serialize | 11872 ns |
+| page of 50 rows: deserialize | 46084 ns |
+| PageCache.Key (canonical query) | 292 ns |
+| Ledger replay of 100 decoded events (Rehydrate) | 5230 ns |
+| load | concurrency | latency | throughput |
+|---|---|---|---|
+| Load, stored state (223 B, 9 events) | 1 | p50 0.271 ms, p99 0.614 ms, max 2.777 ms (n=10190) | 3396 ops/s |
+| Load, stored state (223 B, 9 events) | 16 | p50 0.999 ms, p99 4.692 ms, max 40.849 ms (n=39565) | 13181 ops/s |
+| Load, stored state (223 B, 9 events) | 64 | p50 3.669 ms, p99 19.741 ms, max 397.153 ms (n=42824) | 14249 ops/s |
+| Load, replay 10 events | 1 | p50 0.867 ms, p99 1.646 ms, max 6.164 ms (n=3306) | 1102 ops/s |
+| Load, replay 10 events | 16 | p50 2.342 ms, p99 11.808 ms, max 35.883 ms (n=16103) | 5362 ops/s |
+| Load, replay 10 events | 64 | p50 7.099 ms, p99 27.081 ms, max 123.149 ms (n=23739) | 7885 ops/s |
+| Load, replay 100 events | 1 | p50 1.144 ms, p99 1.894 ms, max 5.840 ms (n=2572) | 857 ops/s |
+| Load, replay 100 events | 16 | p50 3.763 ms, p99 15.245 ms, max 32.001 ms (n=10616) | 3534 ops/s |
+| Load, replay 100 events | 64 | p50 10.233 ms, p99 43.585 ms, max 99.621 ms (n=15894) | 5282 ops/s |
+| Load, replay 1000 events | 1 | p50 2.369 ms, p99 4.435 ms, max 11.567 ms (n=1222) | 407 ops/s |
+| Load, replay 1000 events | 16 | p50 11.218 ms, p99 33.784 ms, max 69.496 ms (n=3888) | 1292 ops/s |
+| Load, replay 1000 events | 64 | p50 39.011 ms, p99 137.932 ms, max 255.807 ms (n=4414) | 1455 ops/s |
+| version probe (SELECT version) | 1 | p50 0.375 ms, p99 0.729 ms, max 4.414 ms (n=7639) | 2546 ops/s |
+| version probe (SELECT version) | 16 | p50 1.003 ms, p99 6.140 ms, max 22.069 ms (n=36482) | 12155 ops/s |
+| version probe (SELECT version) | 64 | p50 3.423 ms, p99 15.612 ms, max 93.397 ms (n=49407) | 16435 ops/s |
+| aggregate cache hit (bytes → fresh instance) | 1 | p50 0.001 ms, p99 0.003 ms, max 17.527 ms (n=2196047) | 727985 ops/s |
+| aggregate cache hit (bytes → fresh instance) | 16 | p50 0.001 ms, p99 0.004 ms, max 17.580 ms (n=6802788) | 2186563 ops/s |
+| aggregate cache hit (bytes → fresh instance) | 64 | p50 0.001 ms, p99 0.003 ms, max 16.085 ms (n=6879269) | 2220545 ops/s |
+| HybridCache L1 hit + ReadState | 1 | p50 0.001 ms, p99 0.003 ms, max 4.415 ms (n=2106982) | 699226 ops/s |
+| HybridCache L1 hit + ReadState | 16 | p50 0.002 ms, p99 0.004 ms, max 8.176 ms (n=5853722) | 1910955 ops/s |
+| HybridCache L1 hit + ReadState | 64 | p50 0.002 ms, p99 0.004 ms, max 8.063 ms (n=6170661) | 1995939 ops/s |
+| HybridCache L2 (Redis) hit + ReadState | 1 | p50 0.215 ms, p99 0.475 ms, max 4.205 ms (n=13018) | 4339 ops/s |
+| HybridCache L2 (Redis) hit + ReadState | 16 | p50 0.428 ms, p99 1.102 ms, max 74.855 ms (n=102058) | 33992 ops/s |
+| HybridCache L2 (Redis) hit + ReadState | 64 | p50 0.777 ms, p99 1.953 ms, max 95.447 ms (n=218689) | 72839 ops/s |
+INFO aggregate cache: 1000 entries, hits 15878704, misses 1000; process working set 702 MB
