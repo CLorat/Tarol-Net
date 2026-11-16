@@ -1,0 +1,228 @@
+
+## 0. Machine
+# SDK 11.0.100 (JIT runs: Release build), 2026-11-16, x86_64, 4 cores, 15 GB; postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1) (default settings, max_connections=300); Redis server v=8.10.3; Garnet 2.2.12 (ghcr.io/microsoft/garnet:latest); all in Docker on the same host
+
+## 1. JIT: functional checks (postgres = aggregate, lookup and page caches over the real store and read tables; local/redis/garnet = HybridCache; http = output caching)
+# selftest postgres (JIT)
+PASS aggregate cache: the second load is a hit
+PASS aggregate cache: tenant in the key, another tenant's id is not found (store and cache)
+PASS aggregate cache: every hit is a fresh instance (a mutated instance does not leak into the next hit)
+PASS stale hit: process 1's cache still holds version 1 after process 2 committed version 2
+PASS stale hit: Append refuses the decision with Stream.VersionConflict (nothing written)  (Failure(Error { Conflict, Stream.VersionConflict }))
+PASS stale hit: the retry reloads (evicted on the conflict) and decides on version 2: 8 <= 10 is refused by the guard  (Failure(Error { Conflict, Auction.BidTooLow }))
+PASS stale hit: the store holds exactly the two accepted bids (10, 12): a stale hit never committed
+PASS write-through: after its own commit process 1's cache holds version 3
+PASS found: a view (GET by id) through the aggregate cache answers a stale version until the TTL, with an ETag of that version
+PASS version-keyed: the version probe sees version 4, so an entry for version 3 is never served
+PASS expiry follows the TimeProvider (FakeTimeProvider +31 s on a 30 s TTL: miss)
+PASS found: a cached Find returns the old holder of a released lookup; the decision runs on the wrong aggregate and no version guard sees it  (Failure(Error { Conflict, Auction.Closed }))
+PASS projection caught up
+PASS page cache: the second request is a hit (checkpoint, pushed, tenant tag, TTL)  (True,True,True,True)
+PASS page cache: tenant in the key (same query, other tenant: other key)
+PASS a commit of tenant B: checkpoint and pushed entries of tenant A miss, the tenant tag and the TTL still hit  (False,False,True,True)
+PASS a bid on page 1: checkpoint, pushed and tenant-tag entries miss and show the bid
+PASS found: the TTL entry still answers the page without the bid (stale until the TTL)
+PASS the TTL entry expires on the TimeProvider (+11 s on 10 s)
+PASS open transaction elsewhere: the projection does not pass the commit; cached page = uncached page (both without the bid)
+PASS open transaction ended: the projection passes, the cached page misses and shows the bid
+PASS the checkpoint watch received notifications (no reliance on the fallback poll)  (notifications 3, polls 3)
+ALL 22 CHECKS PASSED (selftest postgres, JIT)
+# selftest hybrid local (JIT)
+PASS L1: the second GetOrCreate is a hit (factory once)
+PASS stampede protection: 20 concurrent misses of one key run the factory once  (factory calls 1 for 20 callers)
+INFO HybridCache with a FakeTimeProvider in DI, +31 s on a 30 s expiry: factory ran 1 time(s) (expiry does NOT follow the TimeProvider)
+PASS HybridCache L1 expiry follows a TimeProvider through MemoryCacheOptions.Clock (+31 s on 30 s: factory again)  (factory 2)
+INFO HybridCache tag invalidation on the fake clock: factory ran 2 time(s)
+ALL 3 CHECKS PASSED (selftest hybrid local, JIT)
+# selftest hybrid redis (JIT)
+PASS L1: the second GetOrCreate is a hit (factory once)
+PASS stampede protection: 20 concurrent misses of one key run the factory once  (factory calls 1 for 20 callers)
+PASS L2: process B reads process A's entry without running its factory  (v1)
+PASS found: A's RemoveAsync does not reach B's L1 (no backplane): B answers the removed value  (v1)
+PASS B sees the removal once its L1 entry expires (LocalCacheExpiration = 1 s)  (after 1017 ms)
+PASS tags: RemoveByTagAsync invalidates the entry in the process that called it
+INFO tags across processes: right after A's RemoveByTagAsync, B answers 'p2-v1' (stale: B's L1 keeps it)
+INFO tags across processes: B answers 'p2-v2' after 999 ms
+PASS a typed value (AuctionView) through L2 with an IHybridCacheSerializer<T> over the JSON context
+INFO HybridCache with a FakeTimeProvider in DI, +31 s on a 30 s expiry: factory ran 1 time(s) (expiry does NOT follow the TimeProvider)
+PASS HybridCache L1 expiry follows a TimeProvider through MemoryCacheOptions.Clock (+31 s on 30 s: factory again)  (factory 2)
+INFO HybridCache tag invalidation on the fake clock: factory ran 2 time(s)
+ALL 8 CHECKS PASSED (selftest hybrid redis, JIT)
+# selftest hybrid garnet (JIT)
+PASS L1: the second GetOrCreate is a hit (factory once)
+PASS stampede protection: 20 concurrent misses of one key run the factory once  (factory calls 1 for 20 callers)
+PASS L2: process B reads process A's entry without running its factory  (v1)
+PASS found: A's RemoveAsync does not reach B's L1 (no backplane): B answers the removed value  (v1)
+PASS B sees the removal once its L1 entry expires (LocalCacheExpiration = 1 s)  (after 1000 ms)
+PASS tags: RemoveByTagAsync invalidates the entry in the process that called it
+INFO tags across processes: right after A's RemoveByTagAsync, B answers 'p2-v1' (stale: B's L1 keeps it)
+INFO tags across processes: B answers 'p2-v2' after 1013 ms
+PASS a typed value (AuctionView) through L2 with an IHybridCacheSerializer<T> over the JSON context
+INFO HybridCache with a FakeTimeProvider in DI, +31 s on a 30 s expiry: factory ran 1 time(s) (expiry does NOT follow the TimeProvider)
+PASS HybridCache L1 expiry follows a TimeProvider through MemoryCacheOptions.Clock (+31 s on 30 s: factory again)  (factory 2)
+INFO HybridCache tag invalidation on the fake clock: factory ran 2 time(s)
+ALL 8 CHECKS PASSED (selftest hybrid garnet, JIT)
+# selftest http (JIT)
+PASS output cache, default policy: an anonymous GET is cached (handler once)
+PASS output cache, default policy: a GET with an Authorization header is never cached (handler twice)
+PASS found: a policy that caches authenticated GETs without a vary rule answers tenant B with tenant A's body  (tenant=a call=1)
+PASS varied by the tenant claim: tenants get their own entries; users of one tenant share one (no per-user rules may exist: QR-6)
+PASS found: a cached answer ignores Tarol-Read-After (served from the cache without waiting or Tarol-Stale)
+PASS EvictByTagAsync(tenant:a) drops tenant A's entry only (in this process; the default store is in memory)
+ALL 6 CHECKS PASSED (selftest http, JIT)
+
+## 2. Seed: 20,000 auctions (open + 8 bids in one commit; 1 in 5 of tenant B), 600 replay-only ledgers, the auction-list projection caught up
+INFO seed: 20000 auctions (open + 8 bids, one commit each; 1 in 5 of tenant B) in 14.9 s
+INFO seed: 200 ledgers each of 10, 100, 1000 events ([LoadByReplay]: no stored state)
+INFO seed: projection auction-list caught up (402000 events) in 2.8 s
+
+## 3. (b) Loads: stored state vs replay vs the aggregate cache vs HybridCache of the state bytes (1,000 auctions round robin; 3 s per cell)
+| load | concurrency | latency | throughput |
+|---|---|---|---|
+| Load, stored state (215 B, 9 events) | 1 | p50 0.271 ms, p99 0.877 ms, max 4.807 ms (n=9368) | 3121 ops/s |
+| Load, stored state (215 B, 9 events) | 16 | p50 1.184 ms, p99 7.211 ms, max 113.960 ms (n=30851) | 10278 ops/s |
+| Load, stored state (215 B, 9 events) | 64 | p50 3.426 ms, p99 25.568 ms, max 406.120 ms (n=37329) | 12430 ops/s |
+| Load, replay 10 events | 1 | p50 0.648 ms, p99 1.343 ms, max 7.714 ms (n=4311) | 1437 ops/s |
+| Load, replay 10 events | 16 | p50 1.945 ms, p99 9.788 ms, max 23.368 ms (n=19497) | 6495 ops/s |
+| Load, replay 10 events | 64 | p50 6.472 ms, p99 30.794 ms, max 65.987 ms (n=24780) | 8235 ops/s |
+| Load, replay 100 events | 1 | p50 0.865 ms, p99 1.768 ms, max 17.141 ms (n=3245) | 1081 ops/s |
+| Load, replay 100 events | 16 | p50 2.548 ms, p99 11.910 ms, max 27.272 ms (n=15312) | 5093 ops/s |
+| Load, replay 100 events | 64 | p50 9.359 ms, p99 36.662 ms, max 120.814 ms (n=17564) | 5840 ops/s |
+| Load, replay 1000 events | 1 | p50 1.599 ms, p99 3.110 ms, max 7.666 ms (n=1738) | 579 ops/s |
+| Load, replay 1000 events | 16 | p50 10.191 ms, p99 31.601 ms, max 54.044 ms (n=4257) | 1415 ops/s |
+| Load, replay 1000 events | 64 | p50 39.165 ms, p99 107.145 ms, max 185.061 ms (n=4631) | 1529 ops/s |
+| version probe (SELECT version) | 1 | p50 0.313 ms, p99 0.633 ms, max 3.362 ms (n=9023) | 3008 ops/s |
+| version probe (SELECT version) | 16 | p50 0.957 ms, p99 5.905 ms, max 29.012 ms (n=39031) | 13006 ops/s |
+| version probe (SELECT version) | 64 | p50 3.073 ms, p99 16.254 ms, max 104.573 ms (n=53082) | 17669 ops/s |
+| aggregate cache hit (bytes → fresh instance) | 1 | p50 0.001 ms, p99 0.003 ms, max 3.647 ms (n=3289056) | 1091181 ops/s |
+| aggregate cache hit (bytes → fresh instance) | 16 | p50 0.001 ms, p99 0.003 ms, max 12.029 ms (n=8633741) | 2813850 ops/s |
+| aggregate cache hit (bytes → fresh instance) | 64 | p50 0.001 ms, p99 0.003 ms, max 15.980 ms (n=8964814) | 2853600 ops/s |
+| HybridCache L1 hit + ReadState | 1 | p50 0.001 ms, p99 0.002 ms, max 2.713 ms (n=2858339) | 947120 ops/s |
+| HybridCache L1 hit + ReadState | 16 | p50 0.001 ms, p99 0.004 ms, max 12.058 ms (n=6809678) | 2219895 ops/s |
+| HybridCache L1 hit + ReadState | 64 | p50 0.001 ms, p99 0.003 ms, max 8.004 ms (n=7444822) | 2421896 ops/s |
+| HybridCache L2 (Redis) hit + ReadState | 1 | p50 0.196 ms, p99 0.444 ms, max 11.721 ms (n=13975) | 4658 ops/s |
+| HybridCache L2 (Redis) hit + ReadState | 16 | p50 0.391 ms, p99 1.149 ms, max 82.076 ms (n=108687) | 36170 ops/s |
+| HybridCache L2 (Redis) hit + ReadState | 64 | p50 0.695 ms, p99 1.831 ms, max 77.129 ms (n=244544) | 81381 ops/s |
+INFO aggregate cache: 1000 entries, hits 20888211, misses 1000; process working set 390 MB
+
+## 4. (c) Lookups: Find vs a cached Find
+| lookup | concurrency | latency | throughput |
+|---|---|---|---|
+| Find (store) | 1 | p50 0.298 ms, p99 0.772 ms, max 3.424 ms (n=8948) | 2981 ops/s |
+| Find (store) | 16 | p50 0.962 ms, p99 7.237 ms, max 45.820 ms (n=35199) | 11727 ops/s |
+| Find (store) | 64 | p50 3.295 ms, p99 21.180 ms, max 364.828 ms (n=39968) | 13289 ops/s |
+| Find (cached) | 1 | p50 0.000 ms, p99 0.001 ms, max 2.341 ms (n=12229552) | 3970885 ops/s |
+| Find (cached) | 16 | p50 0.001 ms, p99 0.001 ms, max 18.150 ms (n=13886761) | 4426062 ops/s |
+| Find (cached) | 64 | p50 0.001 ms, p99 0.001 ms, max 12.062 ms (n=13756404) | 4459175 ops/s |
+
+## 5. (c) CPU per operation: codec metadata, state, view and page (de)serialization (JIT)
+INFO sizes: state 204 B, event payload 28 B, page of 50 8080 B
+| operation | per op |
+|---|---|
+| codec.StreamTypeOf<Auction>() | 12 ns |
+| codec.Decode (BidPlaced) | 1050 ns |
+| AggregateState.Read (9 events' state) | 1877 ns |
+| AggregateState.Write | 1458 ns |
+| AuctionView from aggregate + serialize | 817 ns |
+| page of 50 rows: serialize | 9099 ns |
+| page of 50 rows: deserialize | 31607 ns |
+| PageCache.Key (canonical query) | 477 ns |
+| Ledger replay of 100 decoded events (Rehydrate) | 11630 ns |
+
+## 6. (a) List pages: the endpoint's round trips vs the page cache vs Redis (3 s per cell)
+| list page (50 rows; 9 pages round robin) | concurrency | latency | throughput |
+|---|---|---|---|
+| Search only (1 round trip, rows deserialized) | 1 | p50 1.301 ms, p99 2.214 ms, max 6.702 ms (n=2308) | 769 ops/s |
+| Search only (1 round trip, rows deserialized) | 16 | p50 2.294 ms, p99 11.001 ms, max 87.530 ms (n=16577) | 5519 ops/s |
+| Search only (1 round trip, rows deserialized) | 64 | p50 8.129 ms, p99 44.186 ms, max 423.738 ms (n=17767) | 5889 ops/s |
+| endpoint today: Checkpoint + Search (2 round trips) + serialize | 1 | p50 1.170 ms, p99 2.017 ms, max 37.801 ms (n=2447) | 815 ops/s |
+| endpoint today: Checkpoint + Search (2 round trips) + serialize | 16 | p50 3.592 ms, p99 14.248 ms, max 26.896 ms (n=11375) | 3786 ops/s |
+| endpoint today: Checkpoint + Search (2 round trips) + serialize | 64 | p50 13.260 ms, p99 43.637 ms, max 88.113 ms (n=12818) | 4254 ops/s |
+| page cache hit, checkpoint read (1 round trip) | 1 | p50 0.297 ms, p99 0.590 ms, max 8.614 ms (n=9384) | 3128 ops/s |
+| page cache hit, checkpoint read (1 round trip) | 16 | p50 0.920 ms, p99 5.363 ms, max 28.530 ms (n=41424) | 13803 ops/s |
+| page cache hit, checkpoint read (1 round trip) | 64 | p50 2.654 ms, p99 17.475 ms, max 62.025 ms (n=55105) | 18343 ops/s |
+| page cache hit, checkpoint pushed (0 round trips) | 1 | p50 0.000 ms, p99 0.001 ms, max 2.220 ms (n=7267760) | 2401080 ops/s |
+| page cache hit, checkpoint pushed (0 round trips) | 16 | p50 0.001 ms, p99 0.004 ms, max 9.589 ms (n=7081713) | 2321964 ops/s |
+| page cache hit, checkpoint pushed (0 round trips) | 64 | p50 0.001 ms, p99 0.004 ms, max 32.117 ms (n=7074295) | 2315284 ops/s |
+| HybridCache L2 (Redis) hit of the page bytes | 1 | p50 0.225 ms, p99 0.612 ms, max 12.768 ms (n=11954) | 3984 ops/s |
+| HybridCache L2 (Redis) hit of the page bytes | 16 | p50 0.271 ms, p99 0.832 ms, max 22.172 ms (n=174105) | 58000 ops/s |
+| HybridCache L2 (Redis) hit of the page bytes | 64 | p50 0.353 ms, p99 1.303 ms, max 8.475 ms (n=507820) | 168788 ops/s |
+| Search, page of 200 rows | 1 | p50 0.955 ms, p99 2.039 ms, max 5.767 ms (n=3044) | 1015 ops/s |
+| Search, page of 200 rows | 16 | p50 4.183 ms, p99 19.953 ms, max 55.624 ms (n=9288) | 3089 ops/s |
+| Search, page of 200 rows | 64 | p50 16.342 ms, p99 60.831 ms, max 143.389 ms (n=10450) | 3463 ops/s |
+| page cache hit, pushed, page of 200 rows | 1 | p50 0.000 ms, p99 0.001 ms, max 40.454 ms (n=8723964) | 2865415 ops/s |
+| page cache hit, pushed, page of 200 rows | 16 | p50 0.001 ms, p99 0.005 ms, max 30.361 ms (n=8455779) | 2760074 ops/s |
+| page cache hit, pushed, page of 200 rows | 64 | p50 0.001 ms, p99 0.005 ms, max 9.043 ms (n=7961625) | 2572905 ops/s |
+INFO page cache: pushed hits 46566336, misses 10; checkpoint hits 106523, misses 10
+
+## 7. HybridCache tiers: L1 hit, L2 GET on Redis and Garnet (the L1 miss that hits L2)
+| tier | payload | concurrency | latency | throughput |
+|---|---|---|---|---|
+| HybridCache L1 hit | state 320 B | 1 | p50 0.1 us, p99 2.1 us, max 4318.6 us (n=9286673) | 3071606 ops/s |
+| HybridCache L1 hit | state 320 B | 16 | p50 0.5 us, p99 2.4 us, max 17207.6 us (n=14684037) | 4608977 ops/s |
+| HybridCache L1 hit | state 320 B | 64 | p50 0.6 us, p99 2.5 us, max 15328.9 us (n=13829887) | 4367309 ops/s |
+| HybridCache L1 hit | page 9 KB | 1 | p50 1.2 us, p99 2.4 us, max 2111.5 us (n=2128986) | 707030 ops/s |
+| HybridCache L1 hit | page 9 KB | 16 | p50 4.7 us, p99 17.6 us, max 16044.0 us (n=2086809) | 689608 ops/s |
+| HybridCache L1 hit | page 9 KB | 64 | p50 4.7 us, p99 18.3 us, max 19564.0 us (n=2044092) | 676859 ops/s |
+| redis L2 GET | state 320 B | 1 | p50 219.3 us, p99 508.6 us, max 6433.4 us (n=12500) | 4165 ops/s |
+| redis L2 GET | state 320 B | 16 | p50 284.6 us, p99 868.5 us, max 9458.6 us (n=152224) | 50569 ops/s |
+| redis L2 GET | state 320 B | 64 | p50 429.5 us, p99 1301.3 us, max 67558.3 us (n=399759) | 132929 ops/s |
+| redis L2 GET | page 9 KB | 1 | p50 181.5 us, p99 387.6 us, max 3312.2 us (n=15345) | 5115 ops/s |
+| redis L2 GET | page 9 KB | 16 | p50 363.9 us, p99 1013.0 us, max 11591.7 us (n=120589) | 40181 ops/s |
+| redis L2 GET | page 9 KB | 64 | p50 805.2 us, p99 2323.0 us, max 14795.6 us (n=219408) | 73065 ops/s |
+| garnet L2 GET | state 320 B | 1 | p50 236.0 us, p99 603.4 us, max 4774.6 us (n=11563) | 3853 ops/s |
+| garnet L2 GET | state 320 B | 16 | p50 298.8 us, p99 984.7 us, max 5080.4 us (n=142970) | 47559 ops/s |
+| garnet L2 GET | state 320 B | 64 | p50 432.1 us, p99 1410.2 us, max 60287.7 us (n=392643) | 130694 ops/s |
+| garnet L2 GET | page 9 KB | 1 | p50 232.3 us, p99 456.7 us, max 3403.2 us (n=12068) | 4023 ops/s |
+| garnet L2 GET | page 9 KB | 16 | p50 372.5 us, p99 1016.1 us, max 16688.3 us (n=116615) | 38860 ops/s |
+| garnet L2 GET | page 9 KB | 64 | p50 837.7 us, p99 5440.6 us, max 17843.4 us (n=192263) | 64056 ops/s |
+
+## 8. HTTP over loopback (Kestrel, HttpClient): lists and views, plain, cached, 304, output cache (3 s per cell)
+| HTTP case | clients | latency | throughput |
+|---|---|---|---|
+| list, plain 200 | 1 | p50 2.320 ms, p99 3.751 ms, max 6.914 ms (n=1263) | 421 req/s |
+| list, plain 200 | 16 | p50 8.939 ms, p99 23.690 ms, max 79.841 ms (n=4973) | 1656 req/s |
+| list, plain 304 | 1 | p50 1.212 ms, p99 2.165 ms, max 8.944 ms (n=2363) | 787 req/s |
+| list, plain 304 | 16 | p50 3.950 ms, p99 12.543 ms, max 46.160 ms (n=10894) | 3621 req/s |
+| list, page cache 200 | 1 | p50 0.071 ms, p99 0.212 ms, max 2.432 ms (n=36530) | 12176 req/s |
+| list, page cache 200 | 16 | p50 0.261 ms, p99 1.378 ms, max 12.168 ms (n=146532) | 48782 req/s |
+| list, page cache 304 | 1 | p50 0.060 ms, p99 0.195 ms, max 4.329 ms (n=42657) | 14218 req/s |
+| list, page cache 304 | 16 | p50 0.196 ms, p99 0.908 ms, max 15.806 ms (n=190549) | 63464 req/s |
+| list, output cache 200 (anonymous) | 1 | p50 0.083 ms, p99 0.263 ms, max 3.375 ms (n=30620) | 10206 req/s |
+| list, output cache 200 (anonymous) | 16 | p50 0.279 ms, p99 1.431 ms, max 12.463 ms (n=139526) | 46474 req/s |
+| view, plain 200 | 1 | p50 0.521 ms, p99 1.006 ms, max 7.959 ms (n=5485) | 1828 req/s |
+| view, plain 200 | 16 | p50 1.629 ms, p99 5.661 ms, max 24.008 ms (n=26077) | 8689 req/s |
+| view, plain 304 | 1 | p50 0.494 ms, p99 0.967 ms, max 3.989 ms (n=5785) | 1928 req/s |
+| view, plain 304 | 16 | p50 1.431 ms, p99 4.816 ms, max 21.342 ms (n=29784) | 9924 req/s |
+| view, aggregate cache 200 | 1 | p50 0.064 ms, p99 0.189 ms, max 4.208 ms (n=40850) | 13615 req/s |
+| view, aggregate cache 200 | 16 | p50 0.202 ms, p99 0.864 ms, max 8.534 ms (n=193250) | 64221 req/s |
+| view, aggregate cache 304 | 1 | p50 0.064 ms, p99 0.191 ms, max 2.392 ms (n=40733) | 13577 req/s |
+| view, aggregate cache 304 | 16 | p50 0.200 ms, p99 0.869 ms, max 12.192 ms (n=193169) | 64339 req/s |
+
+## 9. (b) Conflicts under contention: BidUp through ChangePipeline, the caller retries up to 20 times (C-7); two processes = two caches over one store (6 s per cell)
+| store | writers (2 processes) | hot auctions | successes/s | conflicts per success | gave up | latency per success (incl. retries) | cache hits |
+|---|---|---|---|---|---|---|---|
+| plain | 8 | 1 | 98 | 5.85 | 92 | p50 12.780 ms, p99 256.988 ms, max 410.090 ms (n=586) | - |
+| cache | 8 | 1 | 134 | 5.07 | 110 | p50 9.686 ms, p99 197.861 ms, max 218.085 ms (n=806) | 16.5 % |
+| cache, one process | 8 | 1 | 136 | 5.05 | 124 | p50 9.406 ms, p99 188.335 ms, max 223.085 ms (n=816) | 16.7 % |
+| cache, no eviction | 8 | 1 | 126 | 13.04 | 441 | p50 8.690 ms, p99 175.466 ms, max 210.380 ms (n=758) | 99.9 % |
+| plain | 32 | 1 | 69 | 10.95 | 120 | p50 111.761 ms, p99 850.551 ms, max 914.403 ms (n=414) | - |
+| cache | 32 | 1 | 78 | 9.29 | 125 | p50 32.509 ms, p99 870.090 ms, max 1016.863 ms (n=467) | 9.5 % |
+| cache, one process | 32 | 1 | 79 | 9.50 | 130 | p50 32.653 ms, p99 848.228 ms, max 882.768 ms (n=472) | 9.5 % |
+| cache, no eviction | 32 | 1 | 38 | 61.50 | 664 | p50 96.824 ms, p99 2097.274 ms, max 2278.323 ms (n=230) | 99.8 % |
+| plain | 8 | 10 | 758 | 0.60 | 0 | p50 7.367 ms, p99 50.161 ms, max 138.680 ms (n=4546) | - |
+| cache | 8 | 10 | 688 | 0.98 | 0 | p50 9.045 ms, p99 53.699 ms, max 111.263 ms (n=4130) | 48.9 % |
+| cache, one process | 8 | 10 | 808 | 0.66 | 0 | p50 6.434 ms, p99 52.643 ms, max 191.072 ms (n=4846) | 57.9 % |
+| cache, no eviction | 8 | 10 | 97 | 17.76 | 515 | p50 5.906 ms, p99 20.290 ms, max 43.595 ms (n=582) | 99.8 % |
+| plain | 32 | 10 | 560 | 1.29 | 64 | p50 4.942 ms, p99 736.327 ms, max 1176.507 ms (n=3361) | - |
+| cache | 32 | 10 | 509 | 1.77 | 60 | p50 8.011 ms, p99 629.560 ms, max 1438.888 ms (n=3056) | 35.0 % |
+| cache, one process | 32 | 10 | 479 | 1.51 | 60 | p50 5.140 ms, p99 731.850 ms, max 1210.394 ms (n=2876) | 37.8 % |
+| cache, no eviction | 32 | 10 | 148 | 15.40 | 657 | p50 31.437 ms, p99 253.250 ms, max 417.410 ms (n=888) | 99.7 % |
+| plain | 8 | 1000 | 1091 | 0.01 | 0 | p50 6.963 ms, p99 15.166 ms, max 33.624 ms (n=6547) | - |
+| cache | 8 | 1000 | 976 | 0.27 | 0 | p50 7.516 ms, p99 19.845 ms, max 31.010 ms (n=5857) | 53.3 % |
+| cache, one process | 8 | 1000 | 1193 | 0.01 | 0 | p50 6.330 ms, p99 14.930 ms, max 31.878 ms (n=7157) | 85.2 % |
+| cache, no eviction | 8 | 1000 | 395 | 3.11 | 368 | p50 6.821 ms, p99 15.541 ms, max 54.198 ms (n=2371) | 84.8 % |
+| plain | 32 | 1000 | 1058 | 0.03 | 0 | p50 29.473 ms, p99 58.082 ms, max 134.782 ms (n=6349) | - |
+| cache | 32 | 1000 | 950 | 0.27 | 0 | p50 32.973 ms, p99 57.797 ms, max 84.166 ms (n=5699) | 52.6 % |
+| cache, one process | 32 | 1000 | 1152 | 0.03 | 0 | p50 27.134 ms, p99 49.918 ms, max 77.075 ms (n=6912) | 82.9 % |
+| cache, no eviction | 32 | 1000 | 437 | 3.50 | 458 | p50 45.822 ms, p99 92.447 ms, max 139.489 ms (n=2622) | 86.6 % |
