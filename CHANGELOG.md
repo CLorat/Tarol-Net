@@ -158,6 +158,17 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `NpgsqlBusOptions`; `NpgsqlBusSchema` (`Script`, `RowLevelSecurityScript` with policy `publish_own_prefix`,
   `GrantScript`, `DeadLettersScript`); `NpgsqlMessageDeadLetters`; `UseNpgsqlBus(…)`, `UseNpgsqlDeadLetters(…)`; agent skill
   `tarol-messaging-npgsql`.
+* `Tarol.Messaging.Nats` (step 11D): the NATS JetStream transport. `NatsTransport` (a stream per source with a duplicate
+  window, `Nats-Msg-Id` = the dedup id and a duplicate counted as success, a durable pull consumer per subscription,
+  `Nak(delay)`, the server's permission errors logged, `StreamOf`, `Duplicates`), `NatsTransportOptions` (`Prefix`,
+  `PublishTimeout`, …), `UseNats(…)`; agent skill `tarol-messaging-nats`.
+* `Tarol.Messaging.RabbitMq` (step 11D): the RabbitMQ transport. `RabbitMqTransport` (a topic exchange per source, quorum
+  queues, publisher confirms with `mandatory` publishes: unroutable is logged and counts as delivered, retries through a TTL
+  retry queue with `x-tarol-attempt`, `user_id` as `AuthenticatedAs`, a passive declare of another system's exchange,
+  `ExchangeOf`, `QueueOf`, `Unroutable`), `RabbitMqTransportOptions` (`Prefix`, `StampUserId`, …), `UseRabbitMq(…)`; agent
+  skill `tarol-messaging-rabbitmq`.
+* `samples/Sagas`: billing as a second system (consumes `artflow.auction-settled`, publishes `billing.invoice-paid`), NATS
+  JetStream under the AppHost (RabbitMQ with `ARTFLOW_BROKER=rabbitmq`).
 * `Tarol.Changes`: `IOutboxRowHandler` (an outbox row kind the reaction worker runs) and `OutboxRows` (handlers joined);
   `ReactionSet` implements it (`ActivityName`), `ReactionSet.Empty`.
 * `Tarol.Persistence`: `OutboxReactions.Combine`, `TarolBuilder.WithOutboxRows` and `TarolBuilder.OutboxTable` (the

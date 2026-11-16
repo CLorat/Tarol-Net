@@ -13,12 +13,14 @@
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <ProjectReference Include="$(TarolRoot)src/Security/Tarol.Security.Zitadel/Tarol.Security.Zitadel.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Messaging/Tarol.Messaging/Tarol.Messaging.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Messaging/Tarol.Messaging.Generators/Tarol.Messaging.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- one domain for the API and the worker -->
-    <Compile Include="../Worker/Domain.cs;../Worker/Changes.cs" LinkBase="Domain" />
+    <Compile Include="../Worker/Domain.cs;../Worker/Changes.cs;../Worker/Messaging.cs" LinkBase="Domain" />
   </ItemGroup>
 </Project>

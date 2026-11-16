@@ -1,7 +1,8 @@
 # Messaging
 
 User guide for `Tarol.Messaging` (consumers, PR 11A; publications and effects, PR 11B) and `Tarol.Messaging.Npgsql` (the
-in-database bus and dead letters, PR 11C); the brokers and the UI push follow in 11D–11E. Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
+in-database bus and dead letters, PR 11C), `Tarol.Messaging.Nats` and `Tarol.Messaging.RabbitMq` (the brokers, PR 11D);
+the UI push follows in 11E. The runnable two-system sample is [`samples/Sagas`](../../samples/Sagas/README.md). Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
 
 ## Design in six points
 
@@ -29,7 +30,8 @@ in-database bus and dead letters, PR 11C); the brokers and the UI push follow in
 | `Tarol.Messaging` (+ generator) | `Message`, `IMessageTransport`, `InMemoryTransport`, `[Consumes]`, `GeneratedConsumers.Set`, `MessageConsumers`, `MessagingHost`, `AddMessaging`, `IMessageDeadLetters`, `MessageTest` | 11A |
 | | publications `[Publishes<T>]` (`GeneratedPublications.Set`, `MessagePublisher`), effects `IEffect<T>` (`EffectSet`), `MessagingTest` | 11B |
 | `Tarol.Messaging.Npgsql` | `NpgsqlBus` (`UseNpgsqlBus`), `NpgsqlBusOptions`, `NpgsqlBusSchema` (bus, row-level security, grants), `NpgsqlMessageDeadLetters` (`UseNpgsqlDeadLetters`) | 11C |
-| `Tarol.Messaging.Nats`, `Tarol.Messaging.RabbitMq` | the brokers | 11D |
+| `Tarol.Messaging.Nats` | `NatsTransport` (`UseNats`), `NatsTransportOptions` | 11D |
+| `Tarol.Messaging.RabbitMq` | `RabbitMqTransport` (`UseRabbitMq`), `RabbitMqTransportOptions` | 11D |
 | `Tarol.Messaging.SignalR` | the UI push | 11E |
 
 ## Declaring a consumer
@@ -164,7 +166,29 @@ One login role per system, named like its prefix. The schema's owner runs `Npgsq
 42501); without the policy, the consumer sees the stamped role as `Incoming.AuthenticatedAs` and buries a message whose
 role is not its prefix (`Messaging.SourceMismatch`). An unknown role arrives as `role:<name>` and is never a source.
 
-### Dead letters in the database
+### The brokers (`Tarol.Messaging.Nats`, `Tarol.Messaging.RabbitMq`)
+
+```csharp
+.AddMessaging("billing", m => m.….UseNats(builder.Configuration.GetConnectionString("nats")!))      // NATS JetStream
+.AddMessaging("billing", m => m.….UseRabbitMq(builder.Configuration.GetConnectionString("rabbitmq")!)) // RabbitMQ
+```
+
+| | NATS JetStream | RabbitMQ |
+|---|---|---|
+| per source system | stream `ARTFLOW` (`artflow.>`), duplicate window | topic exchange `artflow` |
+| per subscription | durable pull consumer `billing_IssueInvoice` (`AckWait` = lease, `MaxAckPending` = concurrency) | quorum queue `billing.IssueInvoice` + `.retry` |
+| durable publish | the stream's acknowledgement | the publisher confirm |
+| a republish | dropped by `Nats-Msg-Id` = (event, contract, version); counted as success | delivered; the consumer's key replays it |
+| retry after a delay | `Nak(delay)` | ack + a copy into the retry queue with a TTL that dead-letters back |
+| who may publish under a prefix | subject permissions per user | write permission on the exchange per user; `user_id` validated → `AuthenticatedAs` |
+| forbidden publish | a timeout (the permission error is logged) | `ACCESS_REFUSED` |
+| a contract nobody subscribes | stored | returned, logged, counted as delivered |
+| native size (over `Tarol.Messaging` alone, measured 11D) | +5.7 MB | +2.0 MB |
+
+Both take a `Prefix` (a namespace in front of every name) for environments that share a server. With RabbitMQ name each
+system's user like its prefix, or set `StampUserId = false` when all systems share one user.
+
+## Dead letters in the database
 
 `UseNpgsqlDeadLetters(schema = "tarol", dataSource = null)` keeps them in `<schema>.messages_dead` of the consumer's
 database (by default the `NpgsqlDataSource` of `UseNpgsqlStore(connectionString)`), created at start; it works with every

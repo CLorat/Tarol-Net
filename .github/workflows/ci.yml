@@ -116,6 +116,16 @@ jobs:
           dotnet test --project tests/Messaging/Tarol.Messaging.Npgsql.IntegrationTests -c Release
           --report-trx --results-directory artifacts/test-results
 
+      - name: Integration tests of the NATS JetStream transport (nats:2.11 via Testcontainers)
+        run: >-
+          dotnet test --project tests/Messaging/Tarol.Messaging.Nats.IntegrationTests -c Release
+          --report-trx --results-directory artifacts/test-results
+
+      - name: Integration tests of the RabbitMQ transport (rabbitmq:4-management via Testcontainers)
+        run: >-
+          dotnet test --project tests/Messaging/Tarol.Messaging.RabbitMq.IntegrationTests -c Release
+          --report-trx --results-directory artifacts/test-results
+
       - name: Integration tests against Zitadel (Testcontainers, ghcr.io/zitadel/zitadel)
         run: >-
           dotnet test --project tests/Security/Tarol.Security.Zitadel.IntegrationTests -c Release
@@ -132,7 +142,8 @@ jobs:
   aot-smoke:
     name: aot-smoke
     runs-on: ubuntu-latest
-    # The Npgsql smoke app runs its database checks natively against this service (TAROL_PG).
+    # The Npgsql smoke apps run their database checks natively against this service (TAROL_PG), the broker smoke apps
+    # their round trips against RabbitMQ (a service) and NATS (started below: JetStream needs the -js argument).
     services:
       postgres:
         image: postgres:17
@@ -142,8 +153,19 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+      rabbitmq:
+        image: rabbitmq:4-management
+        env:
+          RABBITMQ_DEFAULT_USER: smoke          # guest may connect from loopback only
+          RABBITMQ_DEFAULT_PASS: smoke
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping" --health-interval 5s --health-timeout 10s --health-retries 30
     env:
       TAROL_PG: Host=localhost;Port=5432;Username=postgres;Password=smoke
+      TAROL_NATS: nats://localhost:4222
+      TAROL_RABBITMQ: amqp://smoke:smoke@localhost:5672/
     steps:
       - uses: actions/checkout@v5
         with:
@@ -158,6 +180,9 @@ jobs:
           path: .nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
+
+      - name: Start NATS with JetStream
+        run: docker run -d --name nats -p 4222:4222 nats:2.11 -js
 
       - name: Publish with Native AOT (0 IL warnings) and run
         run: eng/aot-smoke.sh linux-x64

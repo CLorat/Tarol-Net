@@ -1,8 +1,13 @@
-// PostgreSQL and Zitadel as container resources, Zitadel provisioned by zitadel-setup, then the API and the reaction worker.
-// ARTFLOW_WORKER_NATIVE / ARTFLOW_API_NATIVE = <path> run the Native AOT builds instead of the projects.
+// PostgreSQL, Zitadel and a broker as container resources, Zitadel provisioned by zitadel-setup, then ArtFlow's API and
+// worker and billing (step 11, M-15). ARTFLOW_BROKER=rabbitmq switches NATS JetStream for RabbitMQ.
+// ARTFLOW_WORKER_NATIVE / ARTFLOW_API_NATIVE / ARTFLOW_BILLING_NATIVE = <path> run the Native AOT builds instead of the projects.
 var builder = DistributedApplication.CreateBuilder(args);
 var pg = builder.AddPostgres("pg");
 var db = pg.AddDatabase("tarol");
+var billingDb = pg.AddDatabase("billingdb");                                              // resource names are global: not "billing"
+IResourceBuilder<IResourceWithConnectionString> broker = Environment.GetEnvironmentVariable("ARTFLOW_BROKER") == "rabbitmq"
+    ? builder.AddRabbitMQ("rabbitmq")
+    : builder.AddNats("nats").WithJetStream();
 
 var zitadelDir = Path.Combine(Path.GetTempPath(), "artflow-zitadel");
 if (Directory.Exists(zitadelDir))
@@ -44,8 +49,16 @@ api.WithReference(db)
 ((IResourceBuilder<IResourceWithWaitSupport>)api).WaitFor(db).WaitForCompletion(setup);
 
 var workerNative = Environment.GetEnvironmentVariable("ARTFLOW_WORKER_NATIVE");
-if (workerNative is null)
-    builder.AddProject<Projects.Worker>("worker").WithArgs("0").WithReference(db).WaitFor(db);
-else
-    builder.AddExecutable("worker", workerNative, Path.GetDirectoryName(workerNative)!, "0").WithOtlpExporter().WithReference(db).WaitFor(db);
+var worker = workerNative is null
+    ? (IResourceBuilder<IResourceWithEnvironment>)builder.AddProject<Projects.Worker>("worker").WithArgs("0")
+    : builder.AddExecutable("worker", workerNative, Path.GetDirectoryName(workerNative)!, "0").WithOtlpExporter();
+worker.WithReference(db).WithReference(broker);
+((IResourceBuilder<IResourceWithWaitSupport>)worker).WaitFor(db).WaitFor(broker);
+
+var billingNative = Environment.GetEnvironmentVariable("ARTFLOW_BILLING_NATIVE");
+var billing = billingNative is null
+    ? (IResourceBuilder<IResourceWithEnvironment>)builder.AddProject<Projects.Billing>("billing")
+    : builder.AddExecutable("billing", billingNative, Path.GetDirectoryName(billingNative)!).WithOtlpExporter();
+billing.WithReference(billingDb).WithReference(broker);
+((IResourceBuilder<IResourceWithWaitSupport>)billing).WaitFor(billingDb).WaitFor(broker);
 builder.Build().Run();
