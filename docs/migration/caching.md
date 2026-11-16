@@ -629,7 +629,24 @@ These remain open: sizing guidance for `MaxBytes` (no measured workload yet), an
 
 ### 17.6 Run of the sample
 
-APPHOST
+`samples/Sagas/apphost.sh <AppHost build dir> 5` through the Aspire AppHost (PostgreSQL, Zitadel, NATS, the API with
+`AddCaching()` and `PushCheckpoints`, the worker with `PushCheckpoints`, billing) **[verified]**; excerpt of the output:
+
+```text
+api /health: 200 after 16s; zitadel: ghcr.io/zitadel/zitadel:v4.20.3
+auction 1: bid 204 (Tarol-Position 1697.2), list read after it: bids 1, highestBid 150, stale 0; settle by bob 403, settle by alice 204; …
+cached list: 304 by ETag 304; Cache-Control: private, no-cache;Vary: Authorization;
+settlement sagas completed: 5
+auction list: total 5, settled 3 of the first 3, next cursor yes; stale read-after answers: 0 of 5
+alice's own auctions (claim-bound): 5, bob's: 0
+list ETag W/"ceacd22ccaffe46e", again with If-None-Match: 304
+projection checkpoint: auction-list v1 current, rows 5
+dead letters: outbox 0/0, messages 0/0
+```
+
+Every read-after after a bid saw the bid without `Tarol-Stale`: the API's `WaitFor` was woken by the worker's checkpoint
+NOTIFY, and the next `Search` missed the cache and read. The first attempt failed before the API started, because the
+images were still being pulled after a Docker Hub rate limit (429); the second run passed.
 
 ### 17.7 Suppressions and analyzer configuration
 
