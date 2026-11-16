@@ -51,3 +51,7 @@ INFO catch-up A2 batch 2000: 1000000 events in 7.7 s = 129750 events/s, 100000 r
 INFO feed alone (ReadAll 2000, decode): 1000000 events in 2.7 s = 366009 events/s
 
 ## 4. Rebuild: truncate + replay (what readers see) vs a new version + swap (rename under query load)
+INFO rebuild by truncate + replay: 10.0 s; a reader saw 20 partial counts, e.g. 0, 2203, 4804, 7004, 9603, 12203 … of 100000
+INFO swap by rename (3 renames in one transaction) under 4 query loops: 12.6 ms; queries meanwhile p50 0.82 ms, p99 44.63 ms, max 132.36 ms (n=4242)
+
+## 5. Commit cost per candidate (2,000 sequential bids each; the first baseline warms up) and the outbox-row projection loop
