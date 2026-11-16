@@ -10,8 +10,8 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/caching/`](../migration/probes/caching/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: 13A done** (pushed checkpoints, [migration/caching.md](../migration/caching.md) §15); designed: owner decisions
-CA-1 … CA-8 (§9); PRs 13B–13C to come.
+**Status: 13A and 13B done** (pushed checkpoints, [migration/caching.md](../migration/caching.md) §15; the package
+`Tarol.Caching`, §16); designed: owner decisions CA-1 … CA-8 (§9); PR 13C to come.
 
 ## 1. What a user of Tarol needs
 

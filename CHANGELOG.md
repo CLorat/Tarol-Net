@@ -225,6 +225,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `NOTIFY`), `GET /auctions` and `GET /my/auctions` (claim-bound) in the API, read-your-writes after each bid in
   `apphost.sh`; the user guide `docs/queries/README.md`.
 
+* `Tarol.Caching` (step 13B, new): cached list pages. `CachedReadModels` decorates `IReadModels`; its stores answer
+  `Search` from an `IPageCache` (`TryGet`, `Put`, `Clear`), keyed by `PageKey` (the tenant, the projection's name and
+  version, the canonical query with `[FromClaim]` values as filters) and valid only while
+  `IProjectionPositions.Checkpoint<TRow>()` equals the position read before the search; nothing cached while building;
+  `Prepare`, `Checkpoint`, `Load`, `Write`, `Find` pass through. `MemoryPageCache` (`CacheOptions`: 10,000 entries,
+  64 MB estimated, 5 min idle expiry on `TimeProvider`; no eviction thread), `AddCaching(configure)`, the meter
+  `Tarol.Caching` (hits, misses, evictions, entries, bytes); agent skill `tarol-caching`.
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
