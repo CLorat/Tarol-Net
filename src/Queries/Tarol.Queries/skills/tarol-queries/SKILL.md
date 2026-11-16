@@ -76,12 +76,18 @@ public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<Aucti
 
 * Filter members are **nullable** and named like a row member (`Status` → column `status`); `?status=Open` (enum names,
   case-insensitive). A member named `Sort` of an enum whose members name `[Sort]` members (or `Id`) is the order.
-* `[FromClaim("sub")]` binds the caller's claim (403 without it); never add a request parameter for "my" rows.
-* Paging keys: `limit` (≤ 200), `after` = the previous page's `next`, `offset` (≤ 1,000), `count=true`. Answer:
+* `?sort=HighestBid` names an enum member (case-insensitive); a member without `[Descending]` ascends. The default is
+  the `Sort` member's default value.
+* `[FromClaim("sub")]` binds the caller's claim (403 without it); never add a request parameter for "my" rows. The row's
+  column must hold the same value (store the actor's id, e.g. `context.Operation.Actor.Id`, in the event).
+* Paging keys: `limit` (default 50, ≤ 200), `after` = the previous page's `next`, `offset` (≤ 1,000), `count=true`. Answer:
   `{ "items": […], "next": "…" | null, "total": n }`, weak `ETag` (304), `Tarol-Position`.
-* Read your own write: send the change answer's `Tarol-Position` as `Tarol-Read-After`; after 2 s the list answers with
+* Read your own write: send the change answer's `Tarol-Position` (text `<transaction>.<position>`, e.g. `7341.1000412`;
+  copy it as it is) as `Tarol-Read-After`; after 2 s the list answers with
   `Tarol-Stale: true`. 503 + `Retry-After` while a new projection version builds.
 * Grant the list with the role map: `roles.Role("bidder").May<Read<Auction>>()`. Row rules do not run on lists.
+* Only the row goes in your `JsonSerializerContext`; the query record is bound by generated code. An `ISqlProjection`'s
+  tables are not served by list endpoints: read them behind your own port.
 * Register the read models in the API process too (`UseNpgsqlReadModels()` / `UseInMemoryReadModels()`).
 
 ## Common mistakes

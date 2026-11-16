@@ -18,8 +18,8 @@ description: >-
    by themselves. Without it the hosts poll every 100 ms. Keep the poll: an open transaction anywhere hides later
    commits from the feed until it ends, after their notification.
 4. The tables are generated from the row record: `NpgsqlReadModelSchema.Script<TRow>(schema)` gives the script for a
-   migration tool. To change a table, raise `Version`; drop the old one later with
-   `NpgsqlReadModels.DropVersion(name, oldVersion, ct)` from a process that no longer uses it.
+   migration tool. To change a table, raise `Version`; drop the old one later from a process that no longer uses it,
+   on the registered instance: `provider.GetRequiredService<NpgsqlReadModels>().DropVersion("auction-list", 1, ct)`.
 5. A list answers `Error.Unavailable` (`NpgsqlReadModelStore<TRow>.NotPreparedCode`) until a host prepared the table,
    and the checkpoint reports `ProjectionState.Building` until the projection reached the head of the feed.
 6. An `ISqlProjection` runs its statements on the `connection` and `transaction` it is given, keys its rows by tenant

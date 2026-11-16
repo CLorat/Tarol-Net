@@ -221,6 +221,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * `Tarol.Changes`: `ChangeOutcome.Position` (the commit's feed position) and `IChangeAuthorization.CheckList<T>` (a
   default method that refuses); `Tarol.Security`: `ChangeAuthorization.CheckList<T>` (the role map's `Read<T>`, no row rules).
 
+* `samples/Sagas` (step 12D): the auction list: a `[Projection("auction-list")]` row hosted by the worker (feed
+  `NOTIFY`), `GET /auctions` and `GET /my/auctions` (claim-bound) in the API, read-your-writes after each bid in
+  `apphost.sh`; the user guide `docs/queries/README.md`.
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping

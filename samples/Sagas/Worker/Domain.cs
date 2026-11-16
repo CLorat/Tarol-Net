@@ -166,4 +166,5 @@ public partial class Settlement : AggregateRoot<Settlement>
 [JsonSerializable(typeof(Settlement.DeadlineSet))]
 [JsonSerializable(typeof(Settlement.Completed))]
 [JsonSerializable(typeof(Settlement.Expired))]
+[JsonSerializable(typeof(AuctionRow))]
 internal sealed partial class AppJson : JsonSerializerContext;

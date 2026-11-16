@@ -15,13 +15,19 @@ echo "api /health: $(curl -s -o /dev/null -w '%{http_code}' "$api/health") after
 token() { read -r _ _ cid sec _ < <(grep "^client $1 " "$zt/clients.txt")
   curl -s -u "$cid:$sec" -d grant_type=client_credentials --data-urlencode "scope=openid urn:zitadel:iam:org:projects:roles urn:zitadel:iam:user:resourceowner urn:zitadel:iam:org:project:id:$(cat "$zt/project.txt"):aud" \
     http://localhost:8080/oauth/v2/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])'; }
-alice=$(token alice); bob=$(token bob)
+alice=$(token alice); bob=$(token bob); headers="$(mktemp)"; listheaders="$(mktemp)"; stale_lists=0
 for n in $(seq 1 "$count"); do
   id=$(curl -s -X POST "$api/auctions" -H "Authorization: Bearer $alice" -H 'Content-Type: application/json' -d '{"reserve":100}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-  bid=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/auctions/$id/bids" -H "Authorization: Bearer $bob" -H 'Content-Type: application/json' -d '{"amount":150}')
+  bid=$(curl -s -o /dev/null -D "$headers" -w '%{http_code}' -X POST "$api/auctions/$id/bids" -H "Authorization: Bearer $bob" -H 'Content-Type: application/json' -d '{"amount":150}')
+  position=$(grep -i '^Tarol-Position:' "$headers" | tr -d '\r' | awk '{print $2}')
+  # read your own write: the list waits (at most 2 s) until the worker's projection passed the bid's commit
+  listed=$(curl -s -D "$listheaders" "$api/auctions?settled=false&limit=200" -H "Authorization: Bearer $bob" -H "Tarol-Read-After: $position" \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); r=[i for i in d['items'] if i['id']=='$id']; print(('bids %d, highestBid %s' % (r[0]['bids'], r[0]['highestBid'])) if r else 'missing')")
+  stale=$(grep -ci '^Tarol-Stale:' "$listheaders")
   wrong=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/auctions/$id/settle" -H "Authorization: Bearer $bob")
   settle=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/auctions/$id/settle" -H "Authorization: Bearer $alice")
-  [ "$n" = 1 ] && echo "auction 1: bid $bid, settle by bob $wrong, settle by alice $settle; view: $(curl -s "$api/auctions/$id" -H "Authorization: Bearer $bob")"
+  [ "$stale" = 0 ] || stale_lists=$((stale_lists + 1))
+  [ "$n" = 1 ] && echo "auction 1: bid $bid (Tarol-Position $position), list read after it: $listed, stale $stale; settle by bob $wrong, settle by alice $settle; view: $(curl -s "$api/auctions/$id" -H "Authorization: Bearer $bob")"
 done
 q() { docker exec -e PGPASSWORD="$pw" "$pg" psql -h localhost -U postgres -d "${2:-tarol}" -tAc "$1" 2>/dev/null; }
 pg=$(docker ps --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^pg-/ {print $1}' | head -1); pw=$(docker exec "$pg" printenv POSTGRES_PASSWORD)
@@ -34,6 +40,12 @@ echo "billing actors: $(q "SELECT string_agg(DISTINCT actor_kind || ' ' || actor
 echo "payments recorded in ArtFlow from billing: $(q "SELECT count(*) FROM tarol.events WHERE actor_id = 'Consumers.RecordPayment'") by $(q "SELECT DISTINCT actor_kind || ' ' || actor_id || ' for ' || on_behalf_of FROM tarol.events WHERE actor_id = 'Consumers.RecordPayment'")"
 echo "settlement sagas completed: $(q "SELECT count(*) FROM tarol.events WHERE type = 'settlement' AND alias LIKE '%ompleted%'")"
 echo "outbox rows left: $(q "SELECT count(*) FROM tarol.outbox") (the $count settlement deadlines, due in 3 days); billing: $(q "SELECT count(*) FROM tarol.outbox" billingdb)"
+sleep 2
+echo "auction list: $(curl -s "$api/auctions?count=true&limit=3" -H "Authorization: Bearer $bob" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("total %d, settled %d of the first %d, next cursor %s" % (d["total"], sum(i["settled"] for i in d["items"]), len(d["items"]), "yes" if d["next"] else "no"))'); stale read-after answers: $stale_lists of $count"
+echo "alice's own auctions (claim-bound): $(curl -s "$api/my/auctions?count=true" -H "Authorization: Bearer $alice" | python3 -c 'import json,sys; print(json.load(sys.stdin)["total"])'), bob's: $(curl -s "$api/my/auctions?count=true" -H "Authorization: Bearer $bob" | python3 -c 'import json,sys; print(json.load(sys.stdin)["total"])')"
+etag=$(curl -s -o /dev/null -D - "$api/auctions" -H "Authorization: Bearer $bob" | grep -i '^etag:' | tr -d '\r' | cut -d' ' -f2-)
+echo "list ETag $etag, again with If-None-Match: $(curl -s -o /dev/null -w '%{http_code}' "$api/auctions" -H "Authorization: Bearer $bob" -H "If-None-Match: $etag")"
+echo "projection checkpoint: $(q "SELECT name || ' v' || version || ' ' || state FROM tarol.projections"), rows $(q "SELECT count(*) FROM tarol.rm_auction_list_v1")"
 echo "dead letters: outbox $(q "SELECT count(*) FROM tarol.outbox_dead")/$(q "SELECT count(*) FROM tarol.outbox_dead" billingdb), messages $(q "SELECT count(*) FROM tarol.messages_dead")/$(q "SELECT count(*) FROM tarol.messages_dead" billingdb)"
 sleep 6
 curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; print("dashboard resources with traces:", sorted(r["name"] for r in json.load(sys.stdin) if r["hasTraces"]))'
@@ -56,4 +68,4 @@ PY
 kill $apphost 2>/dev/null; wait $apphost 2>/dev/null
 grep -iE ' error|fail:|unhandled' "$log" | cut -c1-220 | head -5
 for c in $(docker ps -aq --filter "name=^pg-") $(docker ps -aq --filter "name=^zitadel-") $(docker ps -aq --filter "name=^nats-") $(docker ps -aq --filter "name=^rabbitmq-"); do docker rm -f "$c" >/dev/null; done
-rm -f "$log" "$traces"
+rm -f "$log" "$traces" "$headers" "$listheaders"

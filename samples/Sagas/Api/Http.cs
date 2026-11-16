@@ -39,6 +39,21 @@ public sealed record AuctionView(Guid Id, string Seller, decimal Reserve, int Bi
         => new(auction.Id.Value, auction.Seller, auction.Reserve, auction.Bids.Count, auction.IsSettled, auction.Paid);
 }
 
+/// <summary>The order of the auction list: the highest bids first, or the newest auctions first.</summary>
+public enum AuctionSort
+{
+    [Tarol.Queries.Descending] HighestBid,
+    [Tarol.Queries.Descending] OpenedAt,
+}
+
+/// <summary>GET /auctions?settled=false&amp;sort=OpenedAt: the auction list (a list needs Read&lt;Auction&gt;; row rules do not run).</summary>
+[Endpoint("GET /auctions")]
+public sealed record AuctionSearch(bool? Settled, string? Seller, AuctionSort Sort = AuctionSort.HighestBid) : Tarol.Queries.IQuery<AuctionRow>;
+
+/// <summary>GET /my/auctions: the caller's own auctions; the seller is the token's subject, never a request value.</summary>
+[Endpoint("GET /my/auctions")]
+public sealed record MyAuctions([FromClaim("sub")] string Seller, bool? Settled = null) : Tarol.Queries.IQuery<AuctionRow>;
+
 /// <summary>Only the seller settles their auction (a row rule on top of the seller role).</summary>
 public sealed class SettleOwnAuction : ChangeHandler<SettleAuction, Auction>
 {
