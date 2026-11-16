@@ -1,0 +1,347 @@
+# Queries and read models: evaluation (step 12 design)
+
+Evaluation of [queries.md](../architecture/queries.md): inventory of the old query code, candidates for where projections
+run, where read models live and how they are declared, rebuild, list queries and pagination, consistency and the
+authorization of lists, measurements against PostgreSQL 17, the owner's answers, and what PRs 12A–12D must do. **Design
+only**: this PR changes no package code. Probe and output: [`probes/queries/`](probes/queries/),
+[`output.txt`](probes/queries/output.txt), the inventory [`inventory.md`](probes/queries/inventory.md). Labels as in the
+[conventions](../architecture/conventions.md). Source of the old code: `CLorat/Tarol@6a62f81`.
+
+## 0. Summary
+
+* **The old code has almost nothing to migrate** **[verified by reading]**: `Tarol.Paginations` is 17 lines (an offset
+  request, a token request keyed by `Id<T>` only, a result of `IAsyncEnumerable` + `TotalCount`), with 0 tests and no
+  user; the old CQRS `IQuery`/`IQueryHandler` is never implemented; no projection, read model, sort or filter exists.
+  Review finding supporting #27 confirmed. Kept as ideas: both pagination shapes, now bounded, with an opaque cursor.
+* **Decided model** (QR-1 … QR-7): a projection is a row record with `When` methods and a generated switch (QR-2); a
+  `ProjectionHost` per projection reads `IEventFeed` after its stored `GlobalPosition` and writes rows and checkpoint in
+  one transaction, guarded by the position it read from (QR-1); a table per projection version with typed columns and the
+  row as `jsonb`, rebuilt as a new version next to the old (QR-3); list queries are query records with
+  `[Endpoint("GET …")]`, cursor by default, offset bounded (QR-4); the commit's position and an opt-in read-after wait
+  (QR-5); `Read<T>` plus claim-bound filters, no row rules on lists (QR-6); `Tarol.Queries`, `Tarol.Queries.Npgsql` and the
+  endpoints in `Tarol.Changes.AspNetCore`, four PRs (QR-7).
+* **Measured** (4 cores, PostgreSQL 17 in Docker): catch-up of 1e6 events 133k events/s (batch 2,000), the feed alone
+  366k/s; the feed loop costs the commit nothing, an outbox row per event +0.5 ms; lag with NOTIFY p50 3.6 / p99 6.1 ms
+  (poll 100 ms: 56 / 108 ms); a page of 50 at depth 900,000: offset 3.2 s, cursor 0.6 ms; Native AOT 0 IL warnings,
+  7.8 MB, every check natively **[verified]**.
+* **Found** (§5): offset repeats a row when an insert lands before the page; PostgreSQL refuses a `timestamptz` column
+  generated from `jsonb`; the checkpoint guard serializes two runners by itself; an open transaction anywhere holds every
+  projection back; the stored state writes enums as names and a wrong JSON path is silently empty; a rename swap stalls
+  concurrent queries.
+* **Plan** (QR-7): two new packages and one extended, four PRs 12A–12D; changes against steps 7, 8 and 10 in §10.
+
+## 1. Inventory of the old code **[verified by reading]** (`CLorat/Tarol@6a62f81`)
+
+Condensed; the full inventory with every file:line is [`inventory.md`](probes/queries/inventory.md).
+
+| Project | Size | Public types | Tests | Users | Verdict |
+|---|---|---|---|---|---|
+| `src/Paginations/Paginations` | 17 lines, 3 files | `IPaginationRequest` (`IPaginationRequest.cs:3-6`, `init` on an interface), `OffsetPagination(Page = 1, PageSize = 10)` and `TokenPagination<T>(Id<T>? Token, PageSize = 10)` (`Pagination.cs:5,8`, no bounds), `PaginationResult<T>(IAsyncEnumerable<T>, int TotalCount)` (`PaginationResult.cs:3-6`) | `Class1.cs`, empty: 0 | template csprojs only | ideas only (§2.4) |
+| `src/CQRS/CQRS` (query side) | 44 lines + 349-line generator | `IQuery<TResponse>` (`IRequest.cs:9`), `IQueryHandler<,>` (`IRequestHandler.cs:14`) | 0 ran (REVIEW.md:175) | none | not migrated (C-3); the name `IQuery<T>` returns as the marker of a query record |
+| Marten snapshots | — | `MartenSnapshotRepository` (`MartenSnapshotRepository.cs:31,56`) | — | — | precedent of a per-aggregate read document; replaced by `streams.state` (step 8) |
+
+Review findings re-checked: supporting #27 / §1.6 (`docs/review/supporting.md:48-52`) **confirmed** (no bounds, `init` on
+the interface, `IAsyncEnumerable` + `TotalCount` not a serializable contract and wrong for cursors, placeholder tests);
+CQRS C1, C5 confirmed (`CqrsDispatcherGenerator.cs:68-69,305`); the old persistence plan's projector with a gap-safe
+checkpoint (`persistence.md:180-245`) is built since step 8 (`(tx_id, position)` + the xmin filter, P-3, P-14).
+
+## 2. Candidates, as ArtFlow code
+
+### 2.1 Where projections run (question 1; QR-1)
+
+| | P-A a feed loop per projection | P-B outbox rows per projection | P-C inline in the commit |
+|---|---|---|---|
+| shape | `ProjectionHost` reads `ReadAll(checkpoint, batch)`, writes rows + checkpoint | the commit writes `project:<name>` per event, the reaction worker runs it | `Append` writes the read rows in the commit's transaction |
+| commit cost **[verified]** | none (p50 1.35 ms) | +0.5 ms (1.85 ms) | +0.1 ms as a trigger (1.45 ms); a C# hook in `Append` would be needed |
+| throughput **[verified]** | 133k events/s (batch 2,000) | 227 rows/s in one loop (claim, load, upsert, complete per row) | at the commit's rate |
+| rebuild | from `GlobalPosition.Start` | impossible: rows exist only for events after the projection was added | replay through a different path |
+| order | global (the feed) | per (stream, row name) | the commit's |
+| failure | the projection stops and retries; decisions go on | dead letter per row | **the decision fails** |
+| read-your-writes | wait for the checkpoint (§2.5) | wait for the row | free |
+
+P-A chosen (QR-1). **Exactly once** within P-A: A1 = rows and checkpoint in one transaction; A2 = rows, then the checkpoint
+in its own statement (at least once, made idempotent by the row's stream version). Same speed (130k vs 133k events/s), so A1
+**[verified]**; the version guard stays as a second line (a replay from an older checkpoint changes nothing **[verified]**).
+
+### 2.2 Where read models live, and how they are declared (question 2; QR-2)
+
+| | R-A app-owned SQL | R-B generic JSONB documents | **R-C a Tarol table per projection, typed columns + `jsonb`** |
+|---|---|---|---|
+| table | the app's DDL and statements | one `read_models(tenant, model, id, doc)` | `rm_<name>_v<n>(tenant, id, version, <columns>, doc)` generated |
+| filters and sorts | anything SQL can | expression indexes on JSON paths | b-tree on typed columns, one index per declared sort |
+| in-memory test | needs a database | possible | possible (the row and the switch are plain C#) |
+| generated query | no (the generator cannot know the SQL) | over paths | over columns |
+
+Declaration **D-A** (chosen): the row record with a static `When(first event, RecordedEvent)` and instance `When(event)`;
+the generator writes the switch, the column map and the SQL. **D-B** (a class with `void When(Row row, Event e)` mutating a
+row) was not probed: mutation makes the "same row" check of the host (an event the projection ignores) and replay
+idempotence harder to state. Cross-stream tables use **`ISqlProjection`** (R-A as the escape hatch, in the batch transaction).
+Found: a typed column cannot be `GENERATED` from the `jsonb` when the cast is not immutable (`timestamptz`: `42P17`)
+**[verified]**, so the host writes typed columns itself.
+
+### 2.3 Rebuild (question 3; QR-3)
+
+| | RB-A truncate + replay | RB-B shadow table + rename swap | **RB-C a new version next to the old** |
+|---|---|---|---|
+| readers during the rebuild **[verified]** | a partial table for 10 s (0, 2,203, 4,804 … of 100,000) | the old rows | the old rows (old code reads v<n>) |
+| switch | none | 3 renames in one transaction: 12.6 ms, concurrent queries p99 45 ms, max 132 ms | the new code reads v<n+1>; 503 + `Retry-After` until caught up |
+| row shape may change | yes | only if the code that reads it matches | yes |
+
+Catch-up after a deploy is the same loop from the stored checkpoint. Versioning: `Version` in `[Projection]`; raising it
+is the only way to rebuild. Old tables are dropped explicitly (step 15).
+
+### 2.4 Queries and pagination (question 4; QR-4)
+
+* **Q-A** (chosen): a query record with `[Endpoint("GET …")]` over one projection: nullable equality filters named like
+  columns, a sort enum over `[Sort]` columns with the id as tie-break, `limit` ≤ 200, an opaque cursor, a bounded offset;
+  generated SQL, OpenAPI and binding (R-12's metadata). **Q-B**: hand-written queries behind a port, with `Page<T>` and the
+  cursor codec from Tarol; stays possible.
+* **Cursor** (keyset) vs **offset** **[verified]** (§4.4): offset grows linearly with depth (19 ms at 10,000, 3.2 s at
+  900,000) and repeats a row under a concurrent insert; the cursor is flat (0.5–1.0 ms). The old `TokenPagination<T>`
+  keyed by the id only; the cursor here carries the sort value too, and is bound to the sort and the filters (another
+  sort or filter is refused). Total count: opt-in (62 ms at 1e6 rows).
+
+### 2.5 Consistency (question 5; QR-5)
+
+* **RYW-A** (chosen): `Append` returns the commit's `GlobalPosition`; responses carry `Tarol-Position`; a GET with
+  `Tarol-Read-After` waits up to a timeout, then answers with `Tarol-Stale: true`. **RYW-B**: the same with 503 on timeout.
+  **RYW-C**: no wait (the GET by id is the consistent read).
+* The wait **[verified]**: in the worker's process (signal after each batch) p50 3.7 / p99 6.4 ms; from another process
+  (polling the checkpoint row every 5 ms) p50 8.2 / p99 11.2 ms, both with the feed NOTIFY.
+* **ETag of a list**: candidates the projection's checkpoint (changes with every event of every stream: no 304 under load),
+  the maximum row version of the filter (an extra aggregate query), **a hash of the page's (id, version) pairs** (chosen:
+  exact for the page and free) **[verified]**.
+
+### 2.6 Who sees which rows of a list (question 6; QR-6)
+
+Step 10 authorizes one loaded aggregate: `Read<T>` by role, then row rules (`ChangeHandler<,>`) on the aggregate. A list
+cannot load every aggregate. **AZ-L1** (chosen): `Read<T>` + tenant always + filters bound to claims (`[FromClaim("sub")]`).
+**AZ-L2**: an own `Query<TQuery>` intent per query record. **AZ-L3**: row rules on each projected row after the query (short
+pages, cursors skip rows).
+
+## 3. The scenarios as probed **[verified]** ([`output.txt`](probes/queries/output.txt) §1, §9: JIT and Native AOT)
+
+| Check | memory | postgres |
+|---|---|---|
+| one row per auction from the feed, another stream type ignored | ✓ | ✓ |
+| rows equal the aggregates (bids, highest, status) | ✓ | ✓ |
+| tenant isolation | ✓ | ✓ |
+| cursor pages = the ordered list, no duplicate; offset = cursor while nothing changes | ✓ | ✓ |
+| filter + descending sort with the id tie-break | ✓ | ✓ |
+| a cursor bound to its sort and filters | ✓ | ✓ |
+| page ETag stable, then changed by a bid on the page | ✓ | ✓ |
+| `WaitFor` times out without a host, returns once the host passed the commit | ✓ | ✓ |
+| replay from an older checkpoint is idempotent (A2, version guard) | ✓ (no rewind in memory: trivially) | ✓ |
+| crash before the write: nothing written; the restart applies every event once | | ✓ |
+| two runners at once: exact rows (20 refused batches) | | ✓ |
+| offset under an insert before the page repeats a row; the cursor does not | | ✓ |
+| a new version built from the start equals v1 while v1 serves | | ✓ |
+| `timestamptz GENERATED` from `jsonb` refused (`42P17`) | | ✓ |
+| an open transaction elsewhere holds the projection back until it ends | | ✓ |
+| read-your-writes across processes by polling the checkpoint row | | ✓ |
+| the stored state: counts match; a wrong path silently empty | | ✓ |
+
+12 of 12 (memory), 21 of 21 (postgres), on JIT and Native AOT.
+
+## 4. Measurements **[verified]** ([`output.txt`](probes/queries/output.txt); 4 cores, 15 GB, SDK 11.0.100, PostgreSQL 17 in Docker with default settings)
+
+### 4.1 Seed and catch-up (§2, §3)
+
+Seed: 10,000 auctions × (open, 8 bids, close) through `NpgsqlAggregateStore.Append`, 8 writers, one commit per event:
+100,000 commits in 153 s (655 commits/s); copied by SQL to 1e6 events (393 MB).
+
+| Catch-up from the start, 1e6 events → 1e5 rows | JIT | Native AOT |
+|---|---|---|
+| A1, batch 500 | 67k events/s (14.9 s) | 71k (14.1 s) |
+| A1, batch 2,000 | 133k (7.5 s) | 132k (7.6 s) |
+| A1, batch 5,000 | 153k (6.5 s) | 124k (8.1 s) |
+| A2, batch 2,000 | 130k (7.7 s) | 106k (9.5 s) |
+| the feed alone (read + decode, 2,000) | 366k (2.7 s) | 283k (3.5 s) |
+
+The first run of a section reads a cold cache; the order of the runs is the same in both columns. Default batch: 2,000.
+
+### 4.2 Commit cost (§5; 2,000 sequential bids each)
+
+| Store | p50 | p99 |
+|---|---|---|
+| baseline (warm, second run) | 1.35 ms | 2.34 ms |
+| + one outbox row per event (P-B) | 1.85 ms | 3.15 ms |
+| + inline trigger upsert (P-C) | 1.45 ms | 2.27 ms |
+| + feed NOTIFY trigger | 1.36 ms | 2.45 ms |
+
+### 4.3 Lag commit → projected (§8; 50 commits/s for 10 s, first 10 % skipped)
+
+| Wake-up | 1 writer p50 / p99 | 4 writers p50 / p99 |
+|---|---|---|
+| poll 100 ms | 56 / 108 ms | 58 / 109 ms |
+| poll 10 ms | 9.2 / 16.9 ms | 10.5 / 20.9 ms |
+| NOTIFY (+ 1 s poll) | 3.6 / 6.1 ms | 4.4 / 7.8 ms (Native AOT 4.0 / 7.4) |
+| read-your-writes, in process / other process | 3.7 / 6.4 ms; 8.2 / 11.2 ms (Native AOT 3.1 / 6.2; 9.0 / 11.0) | |
+
+### 4.4 Query latency (§6; page of 50, p50 / p99; 1e6 rows of tenant A + 1e5 of tenant B in one table)
+
+| Tenant rows | Query | Depth | Offset | Cursor |
+|---|---|---|---|---|
+| 1e6 | all, `endsAt` | 0 | 0.99 / 1.39 ms | 1.03 / 2.52 ms |
+| 1e6 | all, `endsAt` | 1,000 | 2.37 / 5.30 ms | 0.91 / 1.48 ms |
+| 1e6 | all, `endsAt` | 10,000 | 19.2 / 30.4 ms | 0.87 / 1.44 ms |
+| 1e6 | all, `endsAt` | 100,000 | 362 / 402 ms | 0.66 / 2.87 ms |
+| 1e6 | all, `endsAt` | 500,000 | 1,763 / 1,878 ms | 0.50 / 1.02 ms |
+| 1e6 | all, `endsAt` | 900,000 | 3,187 / 3,371 ms | 0.56 / 0.88 ms |
+| 1e6 | `status=Closed`, `endsAt` | 100,000 | 374 / 456 ms | 0.73 / 0.97 ms |
+| 1e6 | all, `highestBid desc` | 900,000 | 3,340 / 3,675 ms | 0.57 / 0.88 ms |
+| 1e5 | all, `endsAt` | 10,000 | 21.4 / 27.2 ms | 0.75 / 1.24 ms |
+
+Every row of the run is in `output.txt` §6. The plan of offset 500,000: an index scan of 500,051 rows (2.08 s). Total
+count (`status=Closed`): 62 ms at 1e6 rows, 5.9 ms at 1e5. The table: 676 MB for 1.1e6 rows with 4 indexes.
+
+### 4.5 The stored state as a read model (§7; tenant with 25,000 of 100,000 streams)
+
+| Page 1, `highestBid desc` | p50 / p99 |
+|---|---|
+| `streams.state`, no index | 29.8 / 33.9 ms |
+| `streams.state`, expression index `((state->>'highestBid')::numeric)` | 0.53 / 0.72 ms |
+| projection table, SQL only | 0.35 / 0.52 ms |
+| projection table, `Search` (SQL + 51 rows deserialized + cursor + ETag) | 1.07 / 3.28 ms |
+| `streams.state`, + `status='Open'` (not in the index) | 18.9 / 23.2 ms |
+
+### 4.6 Native AOT (§9)
+
+0 IL warnings, 7,761,312 bytes; `selftest memory` 12/12 and `selftest postgres` 21/21 natively; lag, read-your-writes
+and catch-up as in §4.1 and §4.3.
+
+## 5. Found while probing
+
+1. **Offset is wrong before it is slow** **[verified]**: one insert sorting before page 1 makes offset page 2 repeat the
+   last row of page 1 (any depth). The cursor continues after the last row it returned.
+2. **PostgreSQL cannot generate a typed column from `jsonb` with a non-immutable cast** **[verified]**: `GENERATED ALWAYS
+   AS ((doc->>'endsAt')::timestamptz) STORED` → `42P17 generation expression is not immutable`. The host writes the columns.
+3. **The checkpoint guard serializes runners** **[verified]**: the guarded `UPDATE projections … WHERE tx = $read AND
+   pos = $read` first in the batch transaction locks the row; the second runner waits, finds 0 rows, rolls back, re-reads
+   (20 refused batches, exact rows). No advisory lock needed; the implementation may add one to avoid wasted batches.
+4. **An open transaction anywhere holds every projection back** **[verified]** (persistence.md §9, now seen on a
+   projection): NOTIFY wakes the host at the commit, but the xmin filter hides the commit until the older transaction ends;
+   the fallback poll picks it up. A projection's own batch transaction also holds the horizon for the length of a batch.
+5. **The stored state and the events disagree on representation** **[verified]**: `streams.state` stores
+   `"status": "Open"` while the event JSON carries numbers; a query on the wrong path (`state->>'Status'`) is empty, not an error.
+6. **A rename swap stalls readers** **[verified]**: 12.6 ms for the swap, but concurrent page queries reached p99 45 ms and
+   max 132 ms (the `ACCESS EXCLUSIVE` lock queues them).
+7. **A per-stream row is idempotent by its version** **[verified]**: skipping events at or below the row's version makes
+   A2 (no transactional checkpoint) and any replay exact.
+8. **Commit position**: `Append` returns `Result` without the commit's position; the probe reads it back
+   (`SELECT tx_id, max(position) … WHERE stream_id AND version > expected`). The implementation returns it from the
+   commit's batch (`pg_current_xact_id()` and the inserted positions) — a change to the port (§10).
+
+## 6. Generator and diagnostics (12A, 12C; numbers final in the PRs)
+
+| Id | Severity | When |
+|---|---|---|
+| TQRY001 | error | `[Projection]` on a type that is not a `partial record` |
+| TQRY002 | error | no static `When` creating the row, or two for the same event |
+| TQRY003 | error | a `When` with a parameter that is not an event of the projection's aggregate (or `RecordedEvent`) |
+| TQRY004 | error | a `[Sort]` member of a type without a column mapping |
+| TQRY005 | error | a query record whose filter member names no column, or whose sort enum member names no `[Sort]` column |
+| TQRY006 | warning | `[FromClaim]` member also bound from the route or query string |
+
+Generated per projection: the switch, the column map, the DDL and upsert text, `IProjection<TRow>` metadata; per query
+record: the SQL builder over parameters, the binder (query string → record, `after`, `limit`, `offset`), OpenAPI metadata.
+
+## 7. Decided API (sketch for 12A–12C; names final in the PRs)
+
+* **`Tarol.Queries` (12A)**: `[Projection(name, Version)]`, `[Sort]`, `IProjection<TRow>`, `ISqlProjection`,
+  `IReadModelStore<TRow>`, `ProjectionHost` (`BackgroundService`; `ProjectionOptions`: `Batch` = 2,000, `Poll` = 1 s with
+  a wake-up, 100 ms without), `IProjectionPositions.WaitFor(name, position, timeout)`, `InMemoryReadModels`,
+  `ProjectionTest`, `Page<T>`, `Cursor`, `IQuery<TRow>`; `TarolBuilder.AddProjections(configure)`;
+  `ActivitySource "Tarol.Queries"` (a span per batch, linked to nothing: batches mix commits).
+* **`Tarol.Queries.Npgsql` (12B)**: `NpgsqlReadModels` (`EnsureSchema` per projection version, the checkpoint table, the
+  guarded batch transaction, the version state "building" / "current"), `UseNpgsqlReadModels()`.
+* **`Tarol.Persistence(.Npgsql)` (12B)**: `Append` returns the commit's `GlobalPosition`; `NpgsqlStoreOptions.NotifyFeed`.
+* **`Tarol.Changes(.AspNetCore)` (12C)**: `ChangeOutcome.Position`; `Tarol-Position` on change responses; `[Endpoint("GET …")]`
+  on an `IQuery<TRow>` record, `[FromClaim(type)]`, `Tarol-Read-After` / `Tarol-Stale`, 503 while building, page ETag and
+  `If-None-Match` → 304; OpenAPI for list entries; `QueryEndpointOptions` (`MaxLimit` 200, `MaxOffset` 1,000,
+  `ReadAfterTimeout` 2 s).
+
+## 8. Plan impact (question 7)
+
+* Row 12 → the decided split (four PRs, QR-7).
+* Row 13 (caching): the page ETag and `Tarol-Position` are in place; a cache key is (tenant, query, filters, cursor), its
+  invalidation the projection's checkpoint passing a commit.
+* Row 15 (operations): lag per projection (checkpoint vs feed head), dropping old versions, the fallback poll's log line
+  when the xmin horizon holds the feed.
+* Row 18 (samples): the auction list in `samples/Sagas` (12D).
+
+## 9. Owner answers (2026-11-16)
+
+Rounds: 1 (after the catch-up, rebuild and commit numbers) QR-1 … QR-3; 2 (after the query, lag and AOT numbers) QR-4 … QR-7.
+Not asked because already decided: GET by id through `IView<,>` / `Read<T>` (R-1, R-8); the stored state is not an API
+(R-8); tenant in every key (P-2); the feed and its ordering (P-3, P-14); NOTIFY opt-in (S-10); no reflection on AOT paths
+(conventions); routes, policies and OpenAPI metadata as for changes (R-12); a decision never reads a projection (plan row 12).
+
+| # | Question | Answer |
+|---|---|---|
+| QR-1 | Where do projections run? (feed loop: catch-up 133k events/s, no commit cost; outbox rows: +0.5 ms per commit, 227 rows/s, no rebuild; inline: +0.1 ms, a projection error fails the decision) | **Own feed loop**: a hosted `ProjectionHost` per projection in the worker process, reading `IEventFeed` after its stored `GlobalPosition`; rows and checkpoint in one transaction plus a per-stream version guard; a second runner is refused by the checkpoint guard (recommended). |
+| QR-2 | Where do read models live, and how is one declared? (typed columns + `jsonb`, 100k rows = 65 MB; `timestamptz` cannot be generated from `jsonb`) | **Row record + `When`**: `[Projection("auction-list", Version = 1)]` on a row record with static/instance `When(event)` methods; the generator writes the switch, column map, DDL and upsert; per-stream rows by default; `ISqlProjection` for the app's own SQL in the batch transaction (recommended). |
+| QR-3 | How is a projection rebuilt? (truncate + replay: 10 s of partial reads; rename swap: 12.6 ms, concurrent p99 45 ms / max 132 ms) | **Versioned tables**: raising `Version` builds `rm_<name>_v<n+1>` from the start next to v<n>; the new code reads it and answers 503 + `Retry-After` until caught up; old tables dropped by an explicit operation, never automatically; no renames (recommended). |
+| QR-4 | How are list queries written? (offset 1 ms … 3.2 s at depth 900,000, repeats a row under an insert; cursor 0.5–1 ms flat; count 62 ms at 1e6) | **Generated GET, cursor by default**: `[Endpoint("GET /auctions")]` on a query record over a projection; equality filters on columns, sorts from an enum whitelist (an index per sort, id tie-break), an opaque cursor bound to sort + filters, limit ≤ 200; offset only up to a maximum (default 1,000, deeper → 400); total count opt-in; hand-written queries stay possible (recommended). |
+| QR-5 | Read-your-writes for the caller of a change? (NOTIFY lag p50 3.6 / p99 6.1 ms; waiting from another process p50 8.2 / p99 11.2 ms; needs `Append` to return the position) | **Opt-in wait**: every change response carries `Tarol-Position`; a GET with `Tarol-Read-After: <position>` waits until the checkpoint passes it (default 2 s), then answers 200 with `Tarol-Stale: true`; every list answer carries the projection's position; its ETag is a hash of the page's (id, version); feed NOTIFY opt-in like S-10 (recommended). |
+| QR-6 | Who may see which rows of a list? | **`Read<T>` + claim filters**: a list needs the `Read<T>` grant and is always tenant-scoped; row visibility is a filter bound to the caller (`[FromClaim("sub")]`), never from the request; row rules do not run on lists, and the docs say so (recommended). |
+| QR-7 | Packages and PRs? | **The recommended split, four PRs**: 12A `Tarol.Queries` (+ generator): `[Projection]`, the host, the in-memory store, `ProjectionTest`; 12B `Tarol.Queries.Npgsql`: tables + DDL, checkpoint, versions, the feed NOTIFY in `Tarol.Persistence.Npgsql`, `Append` returning the position; 12C the list endpoints in `Tarol.Changes.AspNetCore`: query records, cursor/offset, ETag, read-after, OpenAPI; 12D the sample and the docs. The option was labelled "3 packages": two are new, the third (`Tarol.Changes.AspNetCore`) is extended. |
+
+## 10. Changes against steps 7–11 (announced here, made in 12B and 12C)
+
+| Where | Change | Why |
+|---|---|---|
+| `Tarol.Persistence` `IAggregateStore.Append` | returns the commit's `GlobalPosition` (`Result<GlobalPosition>`), in-memory and Npgsql | QR-5; §5 item 8 |
+| `Tarol.Persistence.Npgsql` `NpgsqlStoreOptions` | `NotifyFeed`: `NOTIFY <schema>_feed` with every commit (in the commit's batch, not a trigger) | QR-5, lag §4.3 |
+| `Tarol.Changes` `ChangeOutcome` | gains `Position` (replayed outcomes: none, the key stores no position) | QR-5 |
+| `Tarol.Changes.AspNetCore` | `Tarol-Position` on change responses; `[Endpoint("GET …")]` accepts `IQuery<TRow>` records; `[FromClaim]` | QR-4, QR-5, QR-6 |
+| `docs/architecture/security.md`, `rest.md` | lists: `Read<T>` + claim filters, no row rules | QR-6 |
+
+## 11. What the implementation must do (in the decided order)
+
+### PR 12A `queries: projections from the feed` (`Tarol.Queries` + generator)
+* `[Projection]`, `[Sort]`, `IProjection<TRow>`, the generated switch and column map; TQRY001–TQRY004; snapshots,
+  incrementality, diagnostics tests.
+* `ProjectionHost`: the loop of the probe (filter by stream type, load rows of the batch, skip versions ≤ the row's, the
+  guarded write, `WaitFor`), backoff on exceptions, a span per batch, source-generated logs; `ISqlProjection`.
+* `InMemoryReadModels` (rows, checkpoint, the query semantics of §2.4), `ProjectionTest`, `Page<T>`, `Cursor`.
+* Tests: every "memory" row of §3; the skill `tarol-queries` (projections part); an AOT smoke app.
+
+### PR 12B `queries.npgsql: read tables and checkpoints` (`Tarol.Queries.Npgsql`)
+* The generated DDL per version, `projections` table with the version state, the guarded batch transaction, `503`
+  state while building; `NotifyFeed` and `Append` returning the position (§10).
+* Integration tests on Testcontainers PostgreSQL: every "postgres" row of §3, the catch-up of 1e5 events, added to the
+  CI `integration` job; AOT smoke with `TAROL_PG`.
+
+### PR 12C `changes.aspnetcore: list queries` (`Tarol.Changes.AspNetCore`)
+* `IQuery<TRow>` records with `[Endpoint("GET …")]`: binding, the generated SQL over parameters, cursor and bounded
+  offset, `limit`, count opt-in, `Read<T>`, `[FromClaim]`, tenant from the caller; `Tarol-Position`, `Tarol-Read-After` /
+  `Tarol-Stale`, page ETag and 304, 503 while building; OpenAPI; TQRY005, TQRY006.
+* Tests: the HTTP rows (bad cursor 400, offset over the maximum 400, claim filter, stale flag, 304, OpenAPI document).
+
+### PR 12D `samples: the auction list`
+* `samples/Sagas`: an `auction-list` projection in the worker, `GET /auctions` in the API, read-after from the client;
+  the Aspire run; `docs/queries/` user guide; CHANGELOG, README.
+
+## 12. Skill evaluation checklist (`tarol-queries`, 12A–12C)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| a list of open auctions sorted by end | `[Projection]` row record + `When`; `[Endpoint("GET /auctions")]` on an `IQuery<AuctionRow>` record with `Status` and a sort enum | querying `streams.state`; reading a projection inside a change's `Execute` |
+| page through a large list | `?after=<next>` | offset beyond the maximum; building cursors by hand; a total count on every page |
+| add a column to a list | `Version = 2`, deploy, wait for "current" | altering the table; truncating it |
+| "my auctions" | `[FromClaim("sub")] Seller` | a `seller` query parameter the caller sets |
+| show the caller's bid at once | send `Tarol-Read-After` with the change's `Tarol-Position` | polling the list in a loop; reading the GET by id and merging by hand without saying why |
+| totals per seller | `ISqlProjection` with an upsert keyed by seller | a per-stream row record keyed by seller |
+| test it | `ProjectionTest` | a database in a unit test |
+
+## 13. Verification of this PR (SDK 11.0.100, 2026-11-16) **[verified]**
+
+Docs and probes only. See the PR body for the run; filled in below before the PR is opened.
+
+## 14. Open items
+
+* A stream-type filter on `IEventFeed.ReadAll` (not needed at 366k events/s; would add an index to every commit).
+* Range filters and full-text search; projections of another system's feed (T-4, messaging.md §2.1): later, if asked.
+* Pushing read-model changes to the UI (messaging.md §10).
+* Lag metrics, dropping old versions, an advisory lock to avoid wasted batches with several worker processes: step 15.

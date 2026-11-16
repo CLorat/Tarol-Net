@@ -285,4 +285,5 @@ factories; C-14 `ChangeTest`; C-15 two PRs; C-16 the pipeline loads the target a
 * Per-stream ordering of outbox rows across several workers: decided in step 8 (P-10, [persistence.md](persistence.md) §8).
 * ~~Unknown versions of a known webhook type: dead-letter (proposed) or acknowledge?~~ Decided in step 10 (R-10,
   [rest.md](rest.md) §8): 422 by default, an option of the webhook entry.
-* The read side (queries, projections) after C-3: plan step 12 (queries and read models), caching step 13.
+* ~~The read side (queries, projections) after C-3~~: designed in step 12 ([queries.md](queries.md), QR-1 … QR-7):
+  projections from the feed, list queries, read-your-writes; caching step 13.

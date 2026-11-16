@@ -163,4 +163,6 @@ it would be an unused abstraction, which is what the old `IAuthorizer` was.
   the counter `tarol.authorization.denied` in `Tarol.Security`; not events.
 * ~~Field-level authorization of query results (e.g. hide `ReservePrice`)?~~ Step 10 (R-8): a view record decides what it
   shows; a caller-specific view is a second view with its own `Read<T>` grant.
+* Lists (step 12, QR-6, [queries.md](queries.md) §5): a list needs the `Read<T>` grant, is tenant-scoped, and narrows rows
+  by filters bound to the caller's claims (`[FromClaim]`); row rules authorize one loaded aggregate and do not run on lists.
 * Sagas and jobs (§3): settled by R-6: the check runs only when a principal is passed; internal entries pass none.

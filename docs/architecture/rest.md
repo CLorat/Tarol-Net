@@ -170,7 +170,8 @@ public sealed record AuctionSummary(Guid Id, string Title, string Seller, Auctio
 Load (tenant-scoped, the stored state when current), authorize `Read<Auction>`, `ETag`, 304 on `If-None-Match`, then the
 view through the app's JSON context **[verified]**. The stored state itself (G1) is not an API: it carried `schema`,
 `reserve` and every bid **[verified]**. Hooks for steps 12 and 13: route groups, `ETag`/`If-None-Match`, `Read<T>` as the
-intent of any query, `IView<,>` as the shape a projection-backed query can return later.
+intent of any query, `IView<,>` as the shape a projection-backed query can return later. Step 12 ([queries.md](queries.md))
+adds list queries on `IQuery<TRow>` records over projections (QR-4) and `Tarol-Position` on change responses (QR-5).
 
 ## 8. Webhooks (R-10) **[verified]**
 
