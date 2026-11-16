@@ -432,7 +432,7 @@ public sealed class PipelineTests
         public ValueTask<Option<Id<T>>> Find<T>(string lookup, string key, OperationContext context, CancellationToken cancellationToken)
             where T : AggregateRoot<T>, IAggregateRoot<T> => inner.Find<T>(lookup, key, context, cancellationToken);
 
-        public ValueTask<Result> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key, CancellationToken cancellationToken)
+        public ValueTask<Result<GlobalPosition>> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key, CancellationToken cancellationToken)
             where T : AggregateRoot<T>, IAggregateRoot<T>
         {
             beforeAppend();

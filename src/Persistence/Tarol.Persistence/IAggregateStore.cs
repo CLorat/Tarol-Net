@@ -28,12 +28,13 @@ public interface IAggregateStore : IAggregateReader
     /// <param name="key">An idempotency key to store with this commit (successes only).</param>
     /// <param name="cancellationToken">Cancels the append.</param>
     /// <returns>
-    /// Success; <see cref="StoreErrors.VersionConflict"/> when the stream moved on (or exists for an expected version of 0);
+    /// The commit's position in the <see cref="IEventFeed"/> (the position of its last event; <see cref="GlobalPosition.Start"/>
+    /// when there was nothing to append), for read-your-writes; <see cref="StoreErrors.VersionConflict"/> when the stream moved on (or exists for an expected version of 0);
     /// <see cref="StoreErrors.DuplicateKey"/> when the key was stored meanwhile; <see cref="StoreErrors.LookupTaken"/> when a
     /// unique lookup key belongs to another aggregate.
     /// </returns>
     /// <exception cref="ArgumentException">The uncommitted changes do not start at <paramref name="expectedVersion"/> + 1.</exception>
-    ValueTask<Result> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key,
+    ValueTask<Result<GlobalPosition>> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key,
         CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>;
 

@@ -50,6 +50,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     private readonly StoreLookups _lookups;
     private readonly IOutboxReactions? _reactions;
     private readonly bool _notify;
+    private readonly bool _notifyFeed;
     private readonly Sql _sql;
 
     /// <summary>Creates a store.</summary>
@@ -71,6 +72,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         _sql = new Sql(options.Schema);
         _reactions = options.Reactions;
         _notify = options.Notify;
+        _notifyFeed = options.NotifyFeed;
+        FeedChannel = options.Schema + "_feed";
         Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema, options.Reactions, options.Notify);
     }
 
@@ -79,6 +82,15 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
 
     /// <summary>The PostgreSQL schema of the tables.</summary>
     public string Schema => _sql.Schema;
+
+    /// <summary>
+    /// The channel of the feed's <c>NOTIFY</c> (<c>&lt;schema&gt;_feed</c>), sent with every commit when
+    /// <see cref="NpgsqlStoreOptions.NotifyFeed"/> is on: projection hosts <c>LISTEN</c> on it to wake at once.
+    /// </summary>
+    public string FeedChannel { get; }
+
+    /// <summary>Whether every commit sends the feed's <c>NOTIFY</c> (<see cref="NpgsqlStoreOptions.NotifyFeed"/>).</summary>
+    public bool NotifiesFeed => _notifyFeed;
 
     /// <summary>Creates the tables and indexes that are missing (<see cref="NpgsqlSchema.Script"/>).</summary>
     /// <param name="cancellationToken">Cancels the call.</param>
@@ -188,7 +200,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     // ----------------------------------------------------------------------------------------------------------- append
 
     /// <inheritdoc />
-    public async ValueTask<Result> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key,
+    public async ValueTask<Result<GlobalPosition>> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key,
         CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
@@ -198,7 +210,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         cancellationToken.ThrowIfCancellationRequested();
         var changes = aggregate.UncommittedChanges.ToArray();
         if (changes.Length == 0)
-            return Result.Success();
+            return GlobalPosition.Start;
         if (changes[0].Version != expectedVersion + 1)
             throw new ArgumentException(
                 $"The uncommitted changes of {typeof(T).Name} start at version {changes[0].Version}, not at expected version {expectedVersion} + 1.",
@@ -270,8 +282,13 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                 }
             }
 
-            // 3. the version after these statements: ours, or the winner's after a lost race (read committed)
-            _ = Command(batch, _sql.StreamVersion, tenant, type, id);
+            // the feed's wake-up (opt-in, QR-5): one notification per commit, sent at commit
+            if (_notifyFeed)
+                _ = Command(batch, _sql.NotifyOutbox, FeedChannel, eventIds[0]);
+
+            // 3. the version after these statements (ours, or the winner's after a lost race: read committed), and this
+            //    commit's position: its transaction and the position of its last event (read-your-writes, QR-5)
+            _ = Command(batch, _sql.CommitPosition, tenant, type, id, expectedVersion);
 
             var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             await using (connection.ConfigureAwait(false))
@@ -282,6 +299,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                     batch.Connection = connection;
                     batch.Transaction = transaction;
                     long actual = 0;
+                    var position = GlobalPosition.Start;
                     try
                     {
                         var reader = await batch.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -290,7 +308,11 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                             do
                             {
                                 while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                                {
                                     actual = reader.GetInt64(0);
+                                    if (reader.FieldCount == 3 && !reader.IsDBNull(2))
+                                        position = new GlobalPosition(ulong.Parse(reader.GetString(1), CultureInfo.InvariantCulture), reader.GetInt64(2));
+                                }
                             }
                             while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false));
                         }
@@ -313,14 +335,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                     }
 
                     await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-                    return Result.Success();
+                    return position;
                 }
             }
         }
     }
 
     // Defensive: the guarded statements avoid these, but a constraint is the last word.
-    private async Task<Result> UniqueViolation(PostgresException e, long expected, Option<IdempotencyKey> key, Guid tenant, string type, Guid id,
+    private async Task<Result<GlobalPosition>> UniqueViolation(PostgresException e, long expected, Option<IdempotencyKey> key, Guid tenant, string type, Guid id,
         CancellationToken cancellationToken)
     {
         switch (e.ConstraintName)
@@ -536,6 +558,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             """;
 
         public string StreamVersion => $"SELECT version FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
+
+        // the stream's version (column 0, as StreamVersion) plus this commit's transaction and the position of its last event
+        public string CommitPosition => $"""
+            SELECT s.version, pg_current_xact_id()::text,
+                   (SELECT max(e.position) FROM {schema}.events e
+                    WHERE e.tenant = $1 AND e.type = $2 AND e.stream_id = $3 AND e.version > $4 AND e.tx_id = pg_current_xact_id())
+            FROM {schema}.streams s WHERE s.tenant = $1 AND s.type = $2 AND s.id = $3
+            """;
 
         public string LoadState => $"SELECT schema, state FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
 

@@ -60,7 +60,7 @@ public abstract class OutboxContract
         var member = Member.Join(Id<Member>.New(), "");
         foreach (var points in earnings)
             member.Earn(points).ShouldBe(Result.Success());
-        (await store.Append(member, 0, Alice, Option.None, Ct)).ShouldBe(Result.Success());
+        (await store.Append(member, 0, Alice, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
         AggregateChanges.Committed(member);
         return member;
     }
@@ -69,7 +69,7 @@ public abstract class OutboxContract
     {
         var expected = member.Version;
         member.Earn(points).ShouldBe(Result.Success());
-        (await store.Append(member, expected, Alice, Option.None, Ct)).ShouldBe(Result.Success());
+        (await store.Append(member, expected, Alice, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
         AggregateChanges.Committed(member);
     }
 

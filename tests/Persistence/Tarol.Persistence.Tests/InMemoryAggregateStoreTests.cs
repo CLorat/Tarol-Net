@@ -23,7 +23,7 @@ public sealed class InMemoryAggregateStoreTests
 
     private async Task<Account> Committed(Account account, OperationContext? context = null, long expected = 0)
     {
-        (await _store.Append(account, expected, context ?? _alice, Option.None, _ct)).ShouldBe(Result.Success());
+        (await _store.Append(account, expected, context ?? _alice, Option.None, _ct)).ToResult().ShouldBe(Result.Success());
         AggregateChanges.Committed(account);
         return account;
     }
@@ -56,7 +56,7 @@ public sealed class InMemoryAggregateStoreTests
 
         var result = await _store.Append(again, 0, _alice, Option.None, _ct);
 
-        result.ShouldBe(Result.Failure(StoreErrors.VersionConflict(0, 1)));
+        result.ToResult().ShouldBe(Result.Failure(StoreErrors.VersionConflict(0, 1)));
         StoreErrors.IsVersionConflict(result).ShouldBeTrue();
     }
 
@@ -143,7 +143,7 @@ public sealed class InMemoryAggregateStoreTests
 
         var result = await _store.Append(other, 0, _alice, key, _ct);
 
-        result.ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key)));
+        result.ToResult().ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key)));
         (await _store.Load(other.Id, _alice, _ct)).IsNone.ShouldBeTrue();
     }
 
@@ -266,7 +266,7 @@ public sealed class InMemoryAggregateStoreTests
 
         var result = await _store.Append(twin, 0, _alice, Option.None, _ct);
 
-        result.ShouldBe(Result.Failure(StoreErrors.LookupTaken("number", "A-1")));
+        result.ToResult().ShouldBe(Result.Failure(StoreErrors.LookupTaken("number", "A-1")));
         (await _store.Load(twin.Id, _alice, _ct)).IsNone.ShouldBeTrue();
     }
 

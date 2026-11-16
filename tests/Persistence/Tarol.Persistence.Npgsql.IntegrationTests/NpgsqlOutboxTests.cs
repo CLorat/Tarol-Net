@@ -37,7 +37,7 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
         var member = Member.Join(Id<Member>.New(), email);
         for (var i = 1; i <= earnings; i++)
             member.Earn(i).IsSuccess.ShouldBeTrue();
-        (await store.Append(member, 0, context, Option.None, Ct)).ShouldBe(Result.Success());
+        (await store.Append(member, 0, context, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
         AggregateChanges.Committed(member);
         return member;
     }
@@ -75,7 +75,7 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
 
         StoreErrors.IsVersionConflict(await store.Append(Member.Join(member.Id, "b@x"), 0, context, Option.None, Ct)).ShouldBeTrue();
         (await store.Append(Member.Join(Id<Member>.New(), "a@x"), 0, context, Option.None, Ct))
-            .ShouldBe(Result.Failure(StoreErrors.LookupTaken("email", "a@x")));
+            .ToResult().ShouldBe(Result.Failure(StoreErrors.LookupTaken("email", "a@x")));
 
         (await store.Outbox.Pending(Ct)).ShouldBe(1);
     }
@@ -208,7 +208,7 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
                 {
                     var expected = member.Version;
                     member.Earn(1).IsSuccess.ShouldBeTrue();
-                    (await store.Append(member, expected, context, Option.None, Ct)).ShouldBe(Result.Success());
+                    (await store.Append(member, expected, context, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
                     AggregateChanges.Committed(member);
                 }
             }, Ct);
@@ -247,7 +247,7 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
             var member = Member.Join(Id<Member>.New(), "");
             for (var i = 0; i < 1250; i++)
                 member.Earn(1).IsSuccess.ShouldBeTrue();
-            (await store.Append(member, 0, context, Option.None, Ct)).ShouldBe(Result.Success());
+            (await store.Append(member, 0, context, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
         }
         await postgres.Execute($"ANALYZE {store.Schema}.outbox");
 
@@ -279,7 +279,7 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
         wait.IsCompleted.ShouldBeFalse();
         var clock = System.Diagnostics.Stopwatch.StartNew();
         member.Earn(1).IsSuccess.ShouldBeTrue();
-        (await store.Append(member, 1, context, Option.None, Ct)).ShouldBe(Result.Success());
+        (await store.Append(member, 1, context, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
 
         (await Task.WhenAny(wait, Task.Delay(TimeSpan.FromSeconds(10), Ct))).ShouldBe(wait);
         clock.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(5));

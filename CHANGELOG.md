@@ -197,6 +197,18 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `AddProjectionPositions()`; `IQuery<TRow>` and `[Descending]` for the list endpoints of 12C; diagnostics TQRY001–TQRY004;
   agent skill `tarol-queries`.
 
+* `Tarol.Queries.Npgsql` (step 12B): PostgreSQL read tables. `NpgsqlReadModelStore<TRow>` (a table
+  `rm_<name>_v<n>` per projection version: tenant, id, version, the typed columns of the generated map with text
+  `COLLATE "C"`, the row as `jsonb`, an index (tenant, column, id) per sort; the guarded batch: checkpoint first, then one
+  `unnest` upsert above the stored version; list queries, checkpoint and count in one round trip; `NotPreparedCode`),
+  `NpgsqlReadModels` (`IReadModels`, `ISqlProjectionStore`, `DropVersion`), `NpgsqlReadModelSchema` (`ProjectionsTable`,
+  `Script<TRow>`, `SqlType`), `NpgsqlFeedSignal` (`LISTEN <schema>_feed`), `NpgsqlReadModelOptions`,
+  `TarolBuilder.UseNpgsqlReadModels(…)`; the checkpoint table `projections` with the state `building` / `current`;
+  agent skill `tarol-queries-npgsql`.
+* `Tarol.Persistence.Npgsql`: `NpgsqlStoreOptions.NotifyFeed` (a `NOTIFY` on `NpgsqlAggregateStore.FeedChannel` with
+  every commit, off by default), `NpgsqlAggregateStore.FeedChannel`, `NotifiesFeed`.
+* `Tarol.Persistence`: `StoreErrors.IsVersionConflict<T>(Result<T>)`.
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
@@ -204,6 +216,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   deterministic (docs/migration/sagas.md §18.3).
 
 ### Changed
+
+* Step 12B (announced in docs/migration/queries.md §10): `IAggregateStore.Append` returns `Result<GlobalPosition>`
+  (the commit's position in the feed: its transaction and the position of its last event; `GlobalPosition.Start` when
+  nothing was appended) instead of `Result`, in `InMemoryAggregateStore` and `NpgsqlAggregateStore`. Callers that only
+  test `IsSuccess` or `TryGetValue(out Violation?)` compile unchanged; `Result` comparisons need `.ToResult()`.
 
 * Step 11B: the reaction worker (`ReactionWorker`, `ReactionHost`) takes an `IOutboxRowHandler` instead of a
   `ReactionSet` (source compatible: a `ReactionSet` is one) and names each row's span by its handler; the hosted worker

@@ -50,7 +50,7 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     private static async Task<T> Committed<T>(NpgsqlAggregateStore store, T aggregate, OperationContext context, long expected = 0)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
-        (await store.Append(aggregate, expected, context, Option.None, Ct)).ShouldBe(Result.Success());
+        (await store.Append(aggregate, expected, context, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
         AggregateChanges.Committed(aggregate);
         return aggregate;
     }
@@ -335,7 +335,7 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ =>
             Task.Run(async () => await store.Append(Member.Join(Id<Member>.New(_time), "same@x"), 0, context, Option.None, Ct), Ct)));
         results.Count(static r => r.IsSuccess).ShouldBe(1);
-        results.Where(static r => !r.IsSuccess).ShouldAllBe(r => r == Result.Failure(StoreErrors.LookupTaken("email", "same@x")));
+        results.Where(static r => !r.IsSuccess).ShouldAllBe(r => r.ToResult() == Result.Failure(StoreErrors.LookupTaken("email", "same@x")));
     }
 
     [Fact]
@@ -402,5 +402,33 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         public EventType From => new("member.left", 1);
         public EventType Into => new("member.left", 2);
         public void Upcast(JsonObject payload) => payload["reason"] = "unknown";
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NotifyFeed_sends_one_notification_per_commit_on_the_feed_channel(bool notifyFeed)
+    {
+        var schema = $"feed_{(notifyFeed ? "on" : "off")}_{Environment.ProcessId}";
+        var store = new NpgsqlAggregateStore(postgres.DataSource, Postgres.Codec(), _time, new NpgsqlStoreOptions { Schema = schema, NotifyFeed = notifyFeed });
+        await store.EnsureSchema(Ct);
+        store.FeedChannel.ShouldBe(schema + "_feed");
+        store.NotifiesFeed.ShouldBe(notifyFeed);
+        await using var listener = await postgres.DataSource.OpenConnectionAsync(Ct);
+        var received = 0;
+        listener.Notification += (_, e) => { if (e.Channel == store.FeedChannel) Interlocked.Increment(ref received); };
+        await using (var listen = new NpgsqlCommand($"LISTEN {store.FeedChannel}", listener))
+            await listen.ExecuteNonQueryAsync(Ct);
+
+        var member = Member.Join(Id<Member>.New(_time), "n@x");
+        member.Earn(2).IsSuccess.ShouldBeTrue();
+        var tenant = NewTenant();
+        (await store.Append(member, 0, tenant, Option.None, Ct)).IsSuccess.ShouldBeTrue();              // one commit, two events
+        StoreErrors.IsVersionConflict(await store.Append(Member.Join(member.Id, "y@x"), 0, tenant, Option.None, Ct)).ShouldBeTrue(); // refused: rolled back, no notification
+        StoreErrors.IsVersionConflict(await store.Append(Member.Join(member.Id, "x@x"), 0, NewTenant(), Option.None, Ct)).ShouldBeFalse(); // another tenant: commits
+        await listener.WaitAsync(notifyFeed ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(300), Ct);
+        await listener.WaitAsync(notifyFeed ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(300), Ct);
+
+        received.ShouldBe(notifyFeed ? 2 : 0);
     }
 }
