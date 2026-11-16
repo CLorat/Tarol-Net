@@ -672,8 +672,31 @@ Every read after a bid contained the bid (no `Tarol-Stale` in 5 of 5, both runs)
 unchanged (5 payouts, 5 sagas completed, every event with a `traceparent`, the dashboard lists `api`, `worker`, `billing`
 and now the `project auction-list` spans). The Native AOT API (25.1 MB) and worker (20.2 MB) publish with 0 IL warnings.
 
-### 18.5 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+### 18.5 Skill evaluation (§12, §15.5, §16.5, §17.5) **[verified]**
+
+The seven tasks of §12, each answered as code by a fresh agent of the session's frontier model: one given only the three
+shipped skills (`tarol-queries`, `tarol-queries-npgsql`, `tarol-endpoints`), one given nothing (no files, no web).
+Graded against the "Expected API" and "Mistakes to avoid" columns.
+
+| Task | With the skills | Without |
+|---|---|---|
+| open auctions by end | `[Projection]` row + `When`s, `[Endpoint("GET /auctions")]` on `IQuery<AuctionRow>` with `Status?` and a `Sort` enum, `UseNpgsqlReadModels`, `AddProjections`, `Read<Auction>` grant ✓ | invented `[Query]`, `IListProjection<,>`, a LINQ `Query` method ✗ |
+| page through a large list | `?after=<next>`, same filters and sort, no `offset` beyond 1,000, no `count` on every page ✓ | cursor idea right, names invented |
+| add a column | `Version = 2`, wait for current, `DropVersion` later ✓ (called it as a static method ✗) | `Version = 2` on an invented attribute |
+| my auctions | `[FromClaim("sub")] string Seller` ✓ | a claim-based LINQ filter on an invented API |
+| caller's bid at once | `Tarol-Read-After` with the change's `Tarol-Position` ✓ | an invented `Tarol-Min-Position` / `If-Match` |
+| totals per seller | `ISqlProjection` on the given connection and transaction, tenant first ✓ | an invented key-by-seller row projection (the mistake the checklist names) |
+| test it | `ProjectionTest<AuctionRow>.Create().Given(…).CatchUp()`, `Search` ✓ | an invented `ProjectionTester` |
+| tokens | 3 skills read, ≈ 77k tokens for the run | ≈ 64k tokens; confidence in its own names "20–30 %" |
+
+With the skills: 7 of 7 on the expected API, none of the listed mistakes; without: the right concepts, no correct API name.
+The gaps the skilled agent named were closed in this PR: the `sort` key, its default direction and the default `limit`,
+the text form of `Tarol-Position`, that the claim column must hold the subject, that only the row goes into the JSON
+context and that SQL projections are not served by list endpoints (`tarol-queries`), and that `DropVersion` is called
+on the registered `NpgsqlReadModels` (`tarol-queries-npgsql`).
+
+### 18.6 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
 The packages and tests are those of 12C (§17.7: 1395 of 1395, 20 AOT apps, packages OK); this PR changes only the sample
-(not in `Tarol.slnx`) and documentation. `dotnet build samples/Sagas/AppHost` 0 warnings (besides the AppHost's
+(not in `Tarol.slnx`), documentation and two skills (text only): `eng/verify-packages.sh` OK with the edited skills. `dotnet build samples/Sagas/AppHost` 0 warnings (besides the AppHost's
 existing ASPIRE010 note), `dotnet publish -c Release -r linux-x64` of the API and the worker: 0 IL warnings; the run above.
