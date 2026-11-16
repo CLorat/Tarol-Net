@@ -627,7 +627,8 @@ view) applies them with the `ETag`, so the view's 200 and 304 carry them.
 |---|---:|---|
 | `Tarol.Changes.AspNetCore.Tests` (`CacheTests`, new) | 5 | the headers on a list 200, 304, 400 (bad filter) and 403 (no `Read<T>`) and on a view 200 and 304; a list 304 from a warm cache runs no query (a counting store under the cache) and a second 200 neither; read-after with the cache (a warm entry, a new auction, `Tarol-Read-After`: the next page shows it, no `Tarol-Stale`; a timeout answers `Tarol-Stale: true`); `CheckList` runs on every hit (Sam is denied 403 after Alice and Rita warmed the entry, no query; another tenant has its own entry); a `[FromClaim]` list caches per claim value |
 
-The list entries' other tests (`QueryEndpointTests`, the integration tests) run unchanged without the cache.
+The list entries' other tests (`QueryEndpointTests`, the integration tests) run unchanged without the cache. `CacheTests`
+repeated in Release: 15 of 15 runs.
 
 ### 17.5 Skill evaluation (§12, §15.5, §16.5) **[verified]**
 
@@ -683,4 +684,10 @@ None.
 
 ### 17.8 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
-VERIFICATION17
+On this branch (`4408ede`, 13A and 13B merged in):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors. `dotnet format --verify-no-changes`: clean.
+* `dotnet test --solution Tarol.slnx` with Docker: **1442 of 1442** (13B's 1437 + 5 `CacheTests`).
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **21 apps**, 0 IL warnings each, all checks passed.
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
+
+Step 13 in numbers: tests 1395 → 1442 (+10 in 13A, +32 in 13B, +5 in 13C); AOT smoke apps 20 → 21.
