@@ -28,13 +28,19 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
     private readonly string _advance;
     private readonly string _checkpoint;
     private readonly string _load;
+    private readonly string? _channel;
 
     /// <summary>Creates the store.</summary>
     /// <param name="dataSource">The data source (arrays enabled).</param>
     /// <param name="json">The application's JSON options: the row is stored and returned as JSON through them.</param>
     /// <param name="schema">The schema (default <c>tarol</c>, the store's).</param>
+    /// <param name="pushCheckpoints">
+    /// Whether <see cref="Write"/> sends the checkpoint <c>NOTIFY &lt;schema&gt;_checkpoint</c> in the batch transaction
+    /// (<see cref="NpgsqlReadModelOptions.PushCheckpoints"/>; read by <see cref="NpgsqlProjectionPositions"/>).
+    /// </param>
     /// <exception cref="InvalidOperationException"><typeparamref name="TRow"/> is not in the JSON options' resolver.</exception>
-    public NpgsqlReadModelStore(NpgsqlDataSource dataSource, JsonSerializerOptions json, string schema = NpgsqlReadModelSchema.DefaultSchema)
+    public NpgsqlReadModelStore(NpgsqlDataSource dataSource, JsonSerializerOptions json, string schema = NpgsqlReadModelSchema.DefaultSchema,
+        bool pushCheckpoints = false)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(json);
@@ -43,6 +49,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         _json = TypeInfo(json);
         _columns = TRow.Columns;
         _schema = schema;
+        _channel = pushCheckpoints ? CheckpointSql.Channel(schema) : null;
         Table = $"{schema}.{Projections.TableOf<TRow>()}";
 
         var names = new StringBuilder("tenant, id, version");
@@ -77,6 +84,9 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
 
     /// <summary>The qualified table name (<c>tarol.rm_auction_list_v1</c>).</summary>
     public string Table { get; }
+
+    /// <summary>Whether <see cref="Write"/> sends the checkpoint <c>NOTIFY</c>.</summary>
+    public bool PushesCheckpoints => _channel is not null;
 
     /// <inheritdoc />
     public async ValueTask Prepare(CancellationToken cancellationToken)
@@ -156,6 +166,9 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                         return false;
                     }
                 }
+                // then the notice: PostgreSQL delivers it after the commit, so a listener never sees a checkpoint before its rows
+                if (_channel is not null)
+                    await CheckpointSql.Notify(connection, transaction, _channel, TRow.Name, TRow.Version, batch.To, batch.State, cancellationToken).ConfigureAwait(false);
                 if (batch.Rows.Count > 0)
                 {
                     await using var upsert = new NpgsqlCommand(_upsert, connection, transaction);
@@ -342,6 +355,22 @@ internal static class CheckpointSql
         parameters.Add(new NpgsqlParameter { Value = state == ProjectionState.Current ? "current" : "building" });
         parameters.Add(new NpgsqlParameter { Value = from.Transaction.ToString(CultureInfo.InvariantCulture) });
         parameters.Add(new NpgsqlParameter { Value = from.Position });
+    }
+
+    internal static string Channel(string schema)
+    {
+        var channel = schema + NpgsqlProjectionPositions.ChannelSuffix;
+        NpgsqlReadModelSchema.Validate(channel);
+        return channel;
+    }
+
+    internal static async Task Notify(NpgsqlConnection connection, NpgsqlTransaction transaction, string channel, string name, int version,
+        GlobalPosition to, ProjectionState state, CancellationToken cancellationToken)
+    {
+        await using var notify = new NpgsqlCommand("SELECT pg_notify($1, $2)", connection, transaction);
+        notify.Parameters.Add(new NpgsqlParameter { Value = channel });
+        notify.Parameters.Add(new NpgsqlParameter { Value = CheckpointNotice.Format(name, version, to, state) });
+        await notify.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal static ProjectionCheckpoint Read(NpgsqlDataReader reader, int first)

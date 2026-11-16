@@ -17,12 +17,18 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
     private readonly JsonSerializerOptions _json;
     private readonly ConcurrentDictionary<Type, object> _stores = new();
     private readonly ConcurrentDictionary<(string, int), byte> _inUse = new();
+    private readonly string? _channel;
 
     /// <summary>Creates the read stores.</summary>
     /// <param name="dataSource">The data source (arrays enabled; the event store's, or another database).</param>
     /// <param name="json">The application's JSON options (the rows are stored as JSON through them).</param>
     /// <param name="schema">The schema (default <c>tarol</c>).</param>
-    public NpgsqlReadModels(NpgsqlDataSource dataSource, JsonSerializerOptions json, string schema = NpgsqlReadModelSchema.DefaultSchema)
+    /// <param name="pushCheckpoints">
+    /// Whether every batch (row and SQL projections) sends the checkpoint <c>NOTIFY &lt;schema&gt;_checkpoint</c> in its
+    /// transaction (<see cref="NpgsqlReadModelOptions.PushCheckpoints"/>; read by <see cref="NpgsqlProjectionPositions"/>).
+    /// </param>
+    public NpgsqlReadModels(NpgsqlDataSource dataSource, JsonSerializerOptions json, string schema = NpgsqlReadModelSchema.DefaultSchema,
+        bool pushCheckpoints = false)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(json);
@@ -30,10 +36,14 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
         _db = dataSource;
         _json = json;
         Schema = schema;
+        _channel = pushCheckpoints ? CheckpointSql.Channel(schema) : null;
     }
 
     /// <summary>The schema of the read tables and the projections table.</summary>
     public string Schema { get; }
+
+    /// <summary>Whether every batch sends the checkpoint <c>NOTIFY</c> (<see cref="NpgsqlReadModelOptions.PushCheckpoints"/>).</summary>
+    public bool PushesCheckpoints => _channel is not null;
 
     /// <inheritdoc />
     public IReadModelStore<TRow> Store<TRow>()
@@ -48,7 +58,7 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
         => (NpgsqlReadModelStore<TRow>)_stores.GetOrAdd(typeof(TRow), _ =>
         {
             _inUse[(TRow.Name, TRow.Version)] = 0;
-            return new NpgsqlReadModelStore<TRow>(_db, _json, Schema);
+            return new NpgsqlReadModelStore<TRow>(_db, _json, Schema, PushesCheckpoints);
         });
 
     /// <summary>
@@ -139,6 +149,8 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
                         return (false, 0);
                     }
                 }
+                if (_channel is not null)
+                    await CheckpointSql.Notify(connection, transaction, _channel, projection.Name, projection.Version, through, state, cancellationToken).ConfigureAwait(false);
                 var rows = events.Count == 0 ? 0 : await projection.Apply(events, connection, transaction, cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 return (true, rows);

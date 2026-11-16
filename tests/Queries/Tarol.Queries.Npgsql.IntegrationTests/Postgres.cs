@@ -39,13 +39,13 @@ public sealed class Postgres : IAsyncLifetime
     }
 
     /// <summary>A store and its read models on a fresh schema.</summary>
-    public async Task<Setup> Create(bool notifyFeed = false)
+    public async Task<Setup> Create(bool notifyFeed = false, bool pushCheckpoints = false)
     {
         var schema = $"q{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}";
         var codec = new EventCodec(Json).Add<Auction>().Add<Lot>();
         var store = new NpgsqlAggregateStore(DataSource, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = schema, NotifyFeed = notifyFeed });
         await store.EnsureSchema(default);
-        return new Setup(this, store, new NpgsqlReadModels(DataSource, Json, schema));
+        return new Setup(this, store, new NpgsqlReadModels(DataSource, Json, schema, pushCheckpoints));
     }
 
     public async Task<object?> Scalar(string sql)
