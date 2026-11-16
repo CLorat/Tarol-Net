@@ -14,12 +14,19 @@ public class ClockIsolationFakeTimeTests
     {
         (await ClockIsolation.Meet()).ShouldBeTrue("the two isolation classes did not run in parallel");
         var clock = new FakeTimeProvider(ClockIsolation.Y2000);
-        var end = TimeProvider.System.GetUtcNow().AddMilliseconds(300);
-        while (TimeProvider.System.GetUtcNow() < end)
+        try
         {
-            ClockIsolation.Year(OperationContext.Start(Actor.User("a"), Option.None, clock)).ShouldBe(2000);
-            clock.Advance(TimeSpan.FromMilliseconds(1));
-            await Task.Yield();
+            var end = TimeProvider.System.GetUtcNow().AddMilliseconds(300);
+            while (TimeProvider.System.GetUtcNow() < end)
+            {
+                ClockIsolation.Year(OperationContext.Start(Actor.User("a"), Option.None, clock)).ShouldBe(2000);
+                clock.Advance(TimeSpan.FromMilliseconds(1));
+                await Task.Yield();
+            }
+        }
+        finally
+        {
+            ClockIsolation.FakeDone.TrySetResult();
         }
     }
 }
@@ -31,8 +38,11 @@ public class ClockIsolationSystemTimeTests
     {
         (await ClockIsolation.Meet()).ShouldBeTrue("the two isolation classes did not run in parallel");
         int n = 0, polluted = 0;
-        var end = TimeProvider.System.GetUtcNow().AddMilliseconds(250);
-        while (TimeProvider.System.GetUtcNow() < end)
+
+        // Bounded by the other test's lifetime and a count, not by wall time: on a busy machine the thread pool can run
+        // only a few turns in a fixed window (CI ran 2 in 250 ms). The cap only stops a hang.
+        var cap = TimeProvider.System.GetUtcNow().AddSeconds(10);
+        while ((!ClockIsolation.FakeDone.Task.IsCompleted || n <= 100) && TimeProvider.System.GetUtcNow() < cap)
         {
             if (ClockIsolation.Year(OperationContext.Start(Actor.User("b"), Option.None, TimeProvider.System)) == 2000)
             {
@@ -43,6 +53,7 @@ public class ClockIsolationSystemTimeTests
             await Task.Yield();
         }
 
+        ClockIsolation.FakeDone.Task.IsCompleted.ShouldBeTrue("the fake-time test did not finish within the cap");
         n.ShouldBeGreaterThan(100);
         polluted.ShouldBe(0);
     }
@@ -74,6 +85,9 @@ public class InjectedClockReachesWorkersTests
 internal static class ClockIsolation
 {
     public static readonly DateTimeOffset Y2000 = new(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    /// <summary>Completed when the fake-time test's loop ended: the system-time test samples until then.</summary>
+    public static readonly TaskCompletionSource FakeDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private static readonly TaskCompletionSource Both = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static int _arrived;
