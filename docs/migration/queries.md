@@ -349,3 +349,98 @@ start on `main` and again at the end on this branch); `eng/aot-smoke.sh` with `T
 * Range filters and full-text search; projections of another system's feed (T-4, messaging.md §2.1): later, if asked.
 * Pushing read-model changes to the UI (messaging.md §10).
 * Lag metrics, dropping old versions, an advisory lock to avoid wasted batches with several worker processes: step 15.
+
+## 15. Implementation: PR 12A (2026-11-16)
+
+`queries: projections from the feed`: the new package `Tarol.Queries` with its bundled generator.
+
+### 15.1 Public API (new package `Tarol.Queries`, depends on `Tarol.Persistence`)
+
+| Type | Role |
+|---|---|
+| `ProjectionAttribute(name)` (`Version` = 1), `SortAttribute` | declare a row record and its sort members |
+| `IProjection<TRow>` (static abstract, implemented explicitly by the generator) | `Name`, `Version`, `StreamType`, `Columns`, `Apply(row, recorded)` |
+| `Projections` | `StreamTypeOf<TAggregate>()` (generated code), `TableOf<TRow>()` (`rm_<name>_v<n>`) |
+| `ProjectionColumn<TRow>`, `ProjectionColumn<TRow, TValue>`, `ColumnType`, `ColumnValues` | the generated column map: `Name` (snake case), `Member`, `Type`, `Nullable`, `Sortable`, `Value`, `Values` (typed array for a batch write), `CompareTo`; `Timestamp`, `Normalize`, `Format`, `TryParse`, `Compare`, `CompareIds` |
+| `RowKey`, `Versioned<TRow>`, `ProjectionCheckpoint`, `ProjectionState` (`Building`, `Current`), `ProjectionBatch<TRow>` | rows, checkpoint and one write |
+| `IReadModelStore<TRow>` (`Prepare`, `Checkpoint`, `Load`, `Write`, `Find`, `Search`), `IReadModels` (`Store<TRow>()`) | the read store port |
+| `ListQuery` (tenant, `Filters`, `Sort`, `Descending`, `After`, `Offset`, `Limit`, `Count`; `MaxLimit` 200, `MaxOffset` 1,000, `DefaultLimit` 50), `ColumnFilter`, `ListQueryPlan<TRow>`, `Page<T>` (`Items`, `Next`, `ETag`, `Position`, `Total`), `Cursor` (`Encode`, `TryDecode`, `Hash`, `ETag`) | list queries |
+| `ProjectionHost` (abstract `BackgroundService`: `Name`, `Version`, `Position`, `State`, `Conflicts`, `RunOnce`, `CatchUp`, `WaitFor`; `ActivitySourceName` = `Tarol.Queries`), `ProjectionHost<TRow>`, `SqlProjectionHost` | the hosts |
+| `ISqlProjection`, `ISqlProjectionStore` | the app's own SQL in the batch transaction (the store implementation is 12B) |
+| `ProjectionOptions` (`Batch` 2,000, `Poll` 1 s with a signal / 100 ms without, `Backoff` 100 ms, `MaxBackoff` 30 s), `IFeedSignal` | host options and the wake-up port (12B: the feed NOTIFY) |
+| `IProjectionPositions` (`Checkpoint<TRow>`, `WaitFor<TRow>`), `ProjectionPositions` (`PollInterval` 5 ms) | read-your-writes |
+| `InMemoryReadModels`, `InMemoryReadModelStore<TRow>` (`Rows`, `Refused`), `ProjectionTest<TRow>` (`Create`, `Over`, `Given`, `CatchUp`, `Rows`, `Row`, `Search`) | in memory and tests |
+| `QueriesTarolBuilderExtensions` (`UseInMemoryReadModels`, `AddProjectionPositions`, `AddProjections`), `ProjectionsBuilder` (`Add<TRow>`, `Add(ISqlProjection)`, `Defaults`) | registration on the one builder (R-14) |
+| `IQuery<TRow>`, `DescendingAttribute` | markers the list endpoints of 12C read |
+
+Logs: 12001 (a batch failed, backoff), 12002 (another runner moved the checkpoint), 12003 (the projection is current).
+
+### 15.2 Deliberate differences from §6, §7 and §11
+
+* **The generator writes the column map, not SQL text.** QR-2 says the generator writes "the DDL and the upsert". The
+  generator ships inside the store-neutral `Tarol.Queries`; it emits the typed column map (name, `ColumnType`,
+  nullability, sort flag, a typed getter), and `Tarol.Queries.Npgsql` (12B) derives the DDL and the upsert from it once
+  per projection version (snapshot-tested there). Same result, one place that knows PostgreSQL.
+* **List queries are a runtime `ListQuery` checked against the column map**, not SQL generated per query record:
+  `ListQueryPlan<TRow>` resolves the filters and the sort against `TRow.Columns` (an unknown column is an
+  `ArgumentException`, a programming error), so 12C's generator only maps a query record to a `ListQuery`. Nothing from
+  the request becomes SQL text: column names come from the generated map, values are parameters.
+* **`IProjection<TRow>` is a static abstract interface, implemented explicitly**, so a row member named `Name` or
+  `Version` stays free; the host is generic over `TRow` (no reflection, no boxing of the projection).
+* **An event the projection ignores leaves the row and its version untouched** (the probe rewrote the row with the new
+  version): the page ETag stays the same and nothing is written. A replay still skips by version.
+* **Store order equals PostgreSQL order in memory**: text ordinally (12B declares `COLLATE "C"`), uuids by their bytes
+  (`ColumnValues.CompareIds`; `Guid.CompareTo` does not match PostgreSQL), times in UTC truncated to the microsecond in
+  the column, so a cursor taken from a row's JSON compares exactly with the stored column.
+* **The cursor** carries a format tag, the sort as a key (`ends_at`, `-highest_bid`, `id`), a 64-bit filter hash (the
+  probe: 32), the id and the sort value; any mismatch is `Invalid` on field `after` (HTTP 400 in 12C). `limit` and
+  `offset` out of range are `Invalid` on their field.
+* **A batch shorter than `Batch` marks the projection `Current`** (also an empty feed); the state never goes back.
+* **`IProjectionPositions` is generic over the row** (`WaitFor<TRow>`) instead of taking a name.
+* **`ColumnType` uses PostgreSQL's short names** (`Int2`, `Int4`, `BigInt`, `Float8`): CA1720 refuses `Int16`/`Int32`/`Int64`/`Integer`.
+* **Diagnostics**: TQRY001 also covers the name (lowercase letters, digits, hyphens, ≤ 40, so the table name fits 63
+  bytes) and the version (≥ 1); TQRY003 also covers the return type; TQRY004 also a nullable or reserved sort member.
+  Members named `Id`, `Tenant`, `Version`, `Doc` and non-scalar members get no column and no diagnostic.
+* **A projection added twice** (same name and version) is refused at registration.
+* **The user guide `docs/queries/`** comes with 12D (QR-7); the README and the skill ship here.
+
+### 15.3 Changes against steps 7–11
+
+None in the packages: 12A only adds `Tarol.Queries`. (12B changes `IAggregateStore.Append` and adds `NotifyFeed`, §10.)
+
+### 15.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Queries.Tests` | 46 | every "memory" row of §3: one row per auction with another stream type ignored, rows equal the aggregates, tenant isolation, cursor pages = the ordered list, offset = cursor while nothing changes, filter + descending sort with the id tie-break, a cursor bound to its sort and filters, the page ETag (stable, changed by a bid on the page, unchanged by one off it), `WaitFor` (timeout, then passed); plus: small batches and `Building` → `Current`, replay from an older checkpoint changes nothing, an ignored event keeps the row, a crash before the write, a second runner refused by the guard, two runners at once, the hosted loop recovering from a failing feed, offset repeating a row under an insert where the cursor does not, limit/offset bounds, null filters, count, the column map, value round trips, uuid order, the builder (hosts, positions with and without a host, duplicates, SQL projections), the `SqlProjectionHost` guard and stream-type filter, the skill example verbatim |
+| `Tarol.Queries.Generators.Tests` | 34 | snapshots (every column type, nullable columns, a computed `[Sort]` member, an entity event, a nested projection, `RecordedEvent` on create and update), generated code compiles without warnings, incrementality (unrelated file, `When` body edit: nothing regenerated; a new column regenerates), each diagnostic TQRY001–TQRY004 with its message |
+| `Tarol.Queries.AotSmoke` | 9 checks | ProjectionTest catch-up, cursor pages, filter + count, offset, cursor binding, offset bound, ETag, the hosted projection with read-your-writes through DI; Native AOT, 0 IL warnings |
+| `Tarol.Queries.PackageTests` | 1 | the packed package: the bundled generator implements `IProjection` on a consumer's record, a page sorted descending |
+
+Timing: no test asserts a count inside a wall-clock window; waits are bounded by events with a 30 s cap.
+
+### 15.5 Skill evaluation checklist (`tarol-queries`, projections part)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| a list of open auctions sorted by end | `[Projection("auction-list")]` row record with a static and instance `When`s, `[Sort] EndsAt`; `ListQuery { Filters = [new("status", AuctionStatus.Open)], Sort = "ends_at" }` | querying `streams.state`; reading the projection in a change's `Execute` |
+| page through a large list | `After = page.Next` | `Offset` beyond 1,000; building cursors by hand; `Count = true` on every page |
+| add a column to a list | a new member, `Version = 2`, wait for `ProjectionState.Current` | altering the read table; truncating it |
+| totals per seller | `ISqlProjection` with an upsert keyed by (tenant, seller) | a per-stream row record keyed by seller |
+| test it | `ProjectionTest<TRow>.Create().Given(…)`, `CatchUp()`, `Search(…)` | a database in a unit test |
+| host it | `UseInMemoryReadModels()` / `UseNpgsqlReadModels()` + `AddProjections(p => p.Add<AuctionRow>())` in the worker | a hand-written polling loop over `IEventFeed` |
+
+### 15.6 Suppressions and analyzer configuration
+
+* `CA1040` on `IQuery<TRow>` (`[SuppressMessage]` with justification): an empty marker the endpoint generator reads.
+* Test and smoke domains: `#pragma warning disable CA1822` around an `On` handler whose event changes nothing the
+  aggregate decides on (not package code).
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+
+`main` at `7af7845` before the change: 1262 tests, 18 AOT smoke apps. On this branch: `dotnet build Tarol.slnx` 0 warnings,
+0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker: **1342 of 1342**
+(1262 + 46 `Tarol.Queries.Tests` + 34 `Tarol.Queries.Generators.Tests`); `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`,
+`TAROL_RABBITMQ`: **19 apps** (18 + `Tarol.Queries.AotSmoke`), 0 IL warnings each, all checks passed; `dotnet pack -c Release`
++ `eng/verify-packages.sh`: OK (`Tarol.Queries` contains `lib/`, README, LICENSE, `analyzers/dotnet/cs/Tarol.Queries.Generators.dll`
+and `skills/tarol-queries/SKILL.md`; its package consumer runs (`5 rows, first page note 4, note 3`) and lists the skill).

@@ -48,6 +48,10 @@
     <Project Path="src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" />
     <Project Path="src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
   </Folder>
+  <Folder Name="/src/Queries/">
+    <Project Path="src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj" />
+    <Project Path="src/Queries/Tarol.Queries/Tarol.Queries.csproj" />
+  </Folder>
   <Folder Name="/src/Results/">
     <Project Path="src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj" />
     <Project Path="src/Results/Tarol.Results/Tarol.Results.csproj" />
@@ -116,6 +120,11 @@
     <Project Path="tests/Primitives/Tarol.Primitives.AotSmoke/Tarol.Primitives.AotSmoke.csproj" />
     <Project Path="tests/Primitives/Tarol.Primitives.Generators.Tests/Tarol.Primitives.Generators.Tests.csproj" />
     <Project Path="tests/Primitives/Tarol.Primitives.Tests/Tarol.Primitives.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Queries/">
+    <Project Path="tests/Queries/Tarol.Queries.AotSmoke/Tarol.Queries.AotSmoke.csproj" />
+    <Project Path="tests/Queries/Tarol.Queries.Generators.Tests/Tarol.Queries.Generators.Tests.csproj" />
+    <Project Path="tests/Queries/Tarol.Queries.Tests/Tarol.Queries.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Results/">
     <Project Path="tests/Results/Tarol.Results.AotSmoke/Tarol.Results.AotSmoke.csproj" />

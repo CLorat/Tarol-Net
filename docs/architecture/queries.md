@@ -13,7 +13,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/queries/`](../migration/probes/queries/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions QR-1 … QR-7, [migration/queries.md](../migration/queries.md) §9); PRs 12A–12D.
+**Status: designed** (owner decisions QR-1 … QR-7, [migration/queries.md](../migration/queries.md) §9); PRs 12A–12D. **12A implemented** (`Tarol.Queries`, migration/queries.md §15).
 
 ## 1. What a user of Tarol needs
 
