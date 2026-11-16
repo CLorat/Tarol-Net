@@ -337,7 +337,11 @@ Not asked because already decided: GET by id through `IView<,>` / `Read<T>` (R-1
 
 ## 13. Verification of this PR (SDK 11.0.100, 2026-11-16) **[verified]**
 
-Docs and probes only. See the PR body for the run; filled in below before the PR is opened.
+Docs and probes only; the package code is `main` at `833f37c` (step 11 merged). `dotnet build Tarol.slnx` 0 warnings,
+0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker: 1262 of 1262 (at the
+start on `main` and again at the end on this branch); `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`:
+18 apps, 0 IL warnings, all checks passed; `dotnet pack -c Release` + `eng/verify-packages.sh`: OK. CI of `main` after
+#35 (run 122): `build`, `aot-smoke`, `integration` green. The probe: `all.sh` sections 1–9 ([`output.txt`](probes/queries/output.txt)).
 
 ## 14. Open items
 
