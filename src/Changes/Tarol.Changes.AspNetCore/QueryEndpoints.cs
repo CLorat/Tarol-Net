@@ -50,6 +50,34 @@ public static class Positions
     }
 }
 
+/// <summary>
+/// The HTTP caching headers of list and view answers (CA-6): browsers may store an answer and must revalidate it
+/// (<c>ETag</c>/<c>If-None-Match</c> → 304), shared caches must not store it, and a stored answer belongs to the
+/// <c>Authorization</c> it was answered for. There is no output caching: the page cache of <c>Tarol.Caching</c> sits
+/// behind <c>CheckList</c> and <c>Tarol-Read-After</c>.
+/// </summary>
+public static class CacheHeaders
+{
+    /// <summary>The <c>Cache-Control</c> value: <c>private, no-cache</c>.</summary>
+    public const string CacheControl = "private, no-cache";
+
+    /// <summary>The <c>Vary</c> value: <c>Authorization</c>.</summary>
+    public const string Vary = "Authorization";
+
+    /// <summary>Sets <see cref="CacheControl"/> and adds <see cref="Vary"/> to the response (kept when already there).</summary>
+    /// <param name="http">The request.</param>
+    public static void Apply(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var headers = http.Response.Headers;
+        headers.CacheControl = CacheControl;
+        foreach (var value in headers.Vary)
+            if (value is not null && value.Split(',', StringSplitOptions.TrimEntries).Contains(Vary, StringComparer.OrdinalIgnoreCase))
+                return;
+        headers.Vary = StringValues.Concat(headers.Vary, Vary);
+    }
+}
+
 public sealed partial class ChangeEndpoints
 {
     /// <summary>The code of a 503 while the projection is building (a new version catching up, QR-3).</summary>
@@ -67,6 +95,7 @@ public sealed partial class ChangeEndpoints
         where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
     {
         ArgumentNullException.ThrowIfNull(http);
+        CacheHeaders.Apply(http);                                        // every list answer: 200, 304 and the problems
         var (context, options, refused) = Edge(http);
         if (refused is not null)
         {
