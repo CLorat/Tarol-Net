@@ -1,0 +1,42 @@
+# SDK 11.0.100, 2026-11-16, x86_64, 4 cores, 15 GB, postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1) in Docker (default settings, max_connections=300)
+
+## 1. JIT: functional checks (memory = the ProjectionTest shape; postgres = the production shape)
+# selftest memory (JIT)
+PASS projection from the feed: one row per auction of tenant A, other stream types ignored  (feed events 63, rows 23)
+PASS rows equal the aggregates (bids, highest, status)
+PASS tenant isolation: tenant B sees only its row
+PASS cursor pages (5 per page) = the full ordered list, no duplicate
+PASS offset pages = cursor pages while nothing changes
+PASS filter + descending sort with id tie-break
+PASS a cursor is bound to its sort and filters (another sort or filter is refused, never a wrong page)
+PASS page ETag stable while the page's rows do not change
+PASS read-your-writes: WaitFor(commit position) times out while no host runs
+PASS read-your-writes: WaitFor returns once the host passed the commit's position
+PASS page ETag changes when a row of the page changes
+PASS replay from an older checkpoint is idempotent (row version guard; A2: rows and checkpoint in separate statements): bids unchanged
+ALL 12 CHECKS PASSED (selftest memory, JIT)
+# selftest postgres (JIT)
+PASS projection from the feed: one row per auction of tenant A, other stream types ignored  (feed events 63, rows 23)
+PASS rows equal the aggregates (bids, highest, status)
+PASS tenant isolation: tenant B sees only its row
+PASS cursor pages (5 per page) = the full ordered list, no duplicate
+PASS offset pages = cursor pages while nothing changes
+PASS filter + descending sort with id tie-break
+PASS a cursor is bound to its sort and filters (another sort or filter is refused, never a wrong page)
+PASS page ETag stable while the page's rows do not change
+PASS read-your-writes: WaitFor(commit position) times out while no host runs
+PASS read-your-writes: WaitFor returns once the host passed the commit's position
+PASS page ETag changes when a row of the page changes
+PASS replay from an older checkpoint is idempotent (row version guard; A2: rows and checkpoint in separate statements): bids unchanged
+PASS crash before the write: no rows, checkpoint unchanged; the restart applies every event once  (rows after crash 0)
+PASS two runners at once: exact rows (checkpoint guard + version guard)  (conflicts 19, applied 63+0)
+PASS offset under an insert before the page: page 2 repeats the last row of page 1 (found)
+PASS cursor under the same insert: page 2 continues after page 1, no repeat, no gap
+PASS rebuild as a new version: v2 built from the start equals v1, v1 served unchanged meanwhile
+PASS found: a timestamptz column cannot be GENERATED from jsonb (not immutable): the host writes typed columns  (42P17 generation expression is not immutable)
+PASS an open transaction elsewhere holds the projection back until it ends
+PASS read-your-writes across processes: polling the checkpoint row ≥ the commit's position, then the query sees the bid
+PASS stored state: the open count matches the projection; a wrong path is silently empty (no error)  (state {"id": "01a1e2d7-0725-7048-9723-cc69b7b7eff9", "bids": 0, "title": "lot 4", "endsAt": "2026-11-16T09:35:45.317672+00:00", "schema": 1325599224, "seller": "sue", "status": "Open", "version": 1, "highestBid": 0})
+ALL 21 CHECKS PASSED (selftest postgres, JIT)
+
+## 2. Seed: 10,000 auctions x (open + 8 bids + close) through the store, 8 writers, one commit per event; copied by SQL to 1e6 events
