@@ -488,3 +488,73 @@ None. The broad `catch (Exception e) when (e is not OutOfMemoryException)` of th
 ### 15.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
 VERIFICATION
+
+## 16. Implementation: PR 13B (2026-11-16)
+
+`caching: list pages`: the new package `Tarol.Caching` (CA-1, CA-2, CA-5, CA-7, CA-8). It depends on `Tarol.Queries`
+only: no ASP.NET Core, no Npgsql, no third-party package.
+
+### 16.1 Public API (new package `Tarol.Caching`)
+
+| Type | Role |
+|---|---|
+| `CachedReadModels : IReadModels` (`inner`, `positions`, `cache`, `json`; `Inner`, `Cache`, `Store<TRow>()`) | the decorator: per row type a store whose `Search` reads `IProjectionPositions.Checkpoint<TRow>()` first, asks the cache for that position, on a miss searches the inner store and caches the page stamped with that position; `Prepare`, `Checkpoint`, `Load`, `Write`, `Find` pass through |
+| `IPageCache` (`TryGet<TRow>(key, position, out page)`, `Put<TRow>(key, position, page, size)`, `Clear()`) | the port |
+| `MemoryPageCache : IPageCache, IDisposable` (`options`, `time`, `meters`; `Count`, `Bytes`, `MeterName` = `Tarol.Caching`) | the in-process cache: entry and byte caps, idle expiry on `TimeProvider`, no eviction thread |
+| `PageKey` (`Tenant`, `Projection`, `Version`, `Query`; `Of<TRow>(ListQueryPlan<TRow>)`) | the key: the tenant first, then name and version, then the canonical query |
+| `CacheOptions` (`MaxEntries` 10,000, `MaxBytes` 64 MB, `IdleExpiry` 5 min) | the bounds (memory only) |
+| `CachingTarolBuilderExtensions.AddCaching(configure)`, `InnerReadModelsKey` | the registration: the registered `IReadModels` becomes a keyed service (`Tarol.Caching.Inner`), `IReadModels` the decorator; `MemoryPageCache` unless an `IPageCache` is registered |
+
+Meter `Tarol.Caching`: counters `tarol.caching.hits`, `tarol.caching.misses`, `tarol.caching.evictions` (tag `reason`:
+`idle`, `entries`, `bytes`), each tagged `tarol.projection`; observable gauges `tarol.caching.entries`, `tarol.caching.bytes`.
+
+### 16.2 Deliberate differences from §6 and §11
+
+* **`Put` instead of `Set`**: CA1716 refuses `Set` as an interface member (a reserved word in Visual Basic).
+* **`Put` takes the page's size**: the cache cannot measure a `Page<TRow>`; the decorator estimates it (the rows' UTF-8
+  JSON through the application's `JsonSerializerContext`, written to a counting buffer without allocating the bytes, plus
+  the key, ETag and cursor; 256 bytes per row for a row not in the context). The objects in memory take more than their
+  JSON (≈ 2–3×), so `MaxBytes` is an estimate; the README says so.
+* **The cache holds `Page<TRow>` objects, not answer bytes** (the probe cached the serialized body): the decorator sits
+  below HTTP (CA-8), and the endpoints serialize the page as before. A hit returns the same immutable page instance.
+* **Nothing is cached while the projection is `Building`**: its pages are incomplete, and its checkpoint moves every batch.
+* **A query the plan refuses** (`Invalid`: limit, offset, cursor) goes to the inner store unchanged and is not cached; an
+  unknown column throws `ArgumentException` as before.
+* **A stale entry is replaced, not removed, on a miss**: the miss is followed by `Put`, so a removal would only cost a
+  second dictionary operation. An older stamp never replaces a newer one (a slower search that read an older checkpoint).
+* **Trimming** goes to 90 % of the caps (idle entries first, then the least recently used, by a snapshot of the last use),
+  so a full cache does not trim on every write; one writer trims at a time, others skip. The meter's gauges are
+  observable (read at collection), not up-down counters.
+* **`MemoryPageCache` takes an `IMeterFactory`** (the host's, from DI) and owns its meter only without one.
+* **`AddCaching()` throws** before any read store is registered and when called twice.
+
+### 16.3 Changes against steps 7–12
+
+None in the existing packages: 13B only adds `Tarol.Caching`. `Directory.Packages.props` is unchanged.
+
+### 16.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Caching.Tests` | 29 | hit (the same page instance, one inner search); a batch moves the checkpoint and the next request misses and shows it; the tenant in the key; filters in the key in any order, a claim value (a `[FromClaim]` member is a filter) per entry; every member of the query in the key (sort, direction, cursor, offset, limit, count; `id` = the default sort, offset 0 = none); a batch during the search (a gated inner store): the entry carries the checkpoint read before it and the next request misses; nothing cached while building; refused queries pass through, uncached; pass-through of `Prepare`, `Checkpoint`, `Load`, `Write`, `Find` (counted on a decorated store); idle expiry and renewal on `FakeTimeProvider`; the entry cap evicts the least recently used; the byte cap and a page above it; the size estimate with and without the JSON context; `MemoryPageCache`: position-bound entries, another row type is no hit, an older stamp does not replace a newer one, `Clear`, idle entries trimmed first, bad bounds refused, 8 threads × 20,000 operations without a torn entry and with exact totals, the meter (a scoped `IMeterFactory`); `PageKey`: layout, length prefixes (no forged keys, `null` ≠ `"-"`), canonical values; `AddCaching`: decoration without a DI cycle, a registered `IPageCache` kept, read stores registered by instance or type, errors; the skill's example |
+| `Tarol.Caching.IntegrationTests` (new; CI `integration` job) | 3 | the "postgres" page rows of §3 with the checkpoint pushed by the worker's batch: a hit per tenant and a commit of tenant B makes the entries miss (same rows, same ETag); a bid on page 1 misses and shows it (ETag = the uncached page's); an open transaction elsewhere (run alone: it holds the cluster-wide xmin): cached page = uncached page, after it ends both show the bid |
+| `Tarol.Caching.AotSmoke` (new) | 8 checks | `AddCaching` over the in-memory stores: decoration, a hit counted by the meter, the tenant in the key, a miss after a batch, entries and bytes; with `TAROL_PG`: the pushed checkpoint, a hit over the read table, the batch's NOTIFY makes the next search miss and show the bid; Native AOT, 0 IL warnings |
+| `Tarol.Caching.PackageTests` (new) | 1 | the packed package over the in-memory stores: the second search is a hit |
+
+Timing: no test asserts a count inside a wall-clock window; the concurrency test is bounded by operations, the idle expiry
+by a `FakeTimeProvider`, the integration waits by known positions with a 30 s cap. Repeated in Release: REPEATS.
+
+### 16.5 Skill evaluation checklist (`tarol-caching`)
+
+§12 is the checklist; the skill's rules cover each row: `AddCaching()` + `PushCheckpoints` in worker and API (rule 2),
+nothing for GET by id or loads (rule 1), read-after instead of clearing (rule 6), `CacheOptions` instead of a TTL (rules
+3, 4), `FakeTimeProvider` + `InMemoryReadModels` under `CachedReadModels` (the example). Run in 13C (§17).
+
+### 16.6 Suppressions and analyzer configuration
+
+None. Test and smoke domains: `#pragma warning disable CA1822` around an `On` handler whose event changes nothing the
+aggregate decides on (not package code).
+
+### 16.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+
+VERIFICATION16
