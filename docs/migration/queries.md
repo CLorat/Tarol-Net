@@ -529,9 +529,94 @@ None.
 
 ### 16.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
-On this branch: `dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test
---solution Tarol.slnx` with Docker: **1370 of 1370** (12A's 1342 + 23 `Tarol.Queries.Npgsql.IntegrationTests` + 5 new store
-tests: the contract's position checks on both stores, `NotifyFeed` on and off); `eng/aot-smoke.sh` with `TAROL_PG`,
-`TAROL_NATS`, `TAROL_RABBITMQ`: **20 apps** (19 + `Tarol.Queries.Npgsql.AotSmoke`), 0 IL warnings each, all checks passed;
-`dotnet pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Queries.Npgsql` contains `lib/`, README, LICENSE and
-`skills/tarol-queries-npgsql/SKILL.md`; its package consumer runs (`tarol.rm_notes_v1, 19 script lines`) and lists the skill).
+VERIFICATION_12B
+
+## 17. Implementation: PR 12C (2026-11-16)
+
+`changes.aspnetcore: list queries`: list entries in `Tarol.Changes.AspNetCore` and its generator, the position of a commit
+on change answers, and the list authorization in `Tarol.Changes` / `Tarol.Security`.
+
+### 17.1 Public API
+
+| Type | Role |
+|---|---|
+| `[Endpoint("GET …")]` on a record implementing `Tarol.Queries.IQuery<TRow>` | a generated list entry (`List_<input>` delegate, `MapChanges`) |
+| `FromClaimAttribute(type)` | a member set from the caller's claim (403 `Auth.Claim` without it), never from the request |
+| `Positions` (`PositionHeader` = `Tarol-Position`, `ReadAfterHeader` = `Tarol-Read-After`, `StaleHeader` = `Tarol-Stale`, `Format`, `TryParse`) | the text form `<tx>.<pos>` of a `GlobalPosition` |
+| `QueryEndpointOptions` (`ChangeEndpointOptions.Queries`: `MaxLimit` 200, `DefaultLimit` 50, `MaxOffset` 1,000, `ReadAfterTimeout` 2 s, `RetryAfter` 5 s) | limits and waits; the limits may be lowered, not raised above `ListQuery`'s |
+| `ChangeEndpoints.ListAccess<TAggregate>`, `Paging`, `List<TRow>`, `Claim`, `One`, `TryFilter<T>`, `TryEnum<TEnum>`, `BuildingCode` | the runtime the generated delegates call (`EditorBrowsable(Never)`) |
+| `TarolEndpointMetadata.Query`, `QueryParameter` | the list's query parameters, for OpenAPI |
+| `Tarol.Changes`: `ChangeOutcome.Position`; `IChangeAuthorization.CheckList<T>(context, principal, ct)` (default: refuse) | QR-5, QR-6 |
+| `Tarol.Security`: `ChangeAuthorization.CheckList<T>` | `AuthorizeAsync(principal, resource: null, Read<T>)`: only the role map can grant; logged (1002) and counted like a denied change |
+
+A list request: route values → `ListAccess` (the edge: tenant from the claims, then `CheckList<TAggregate>`) → claim
+members → route filters → query-string filters (`One`: a key given twice is `Multiple`; enums by name, case-insensitive,
+numbers refused; other types `ISpanParsable<T>` in the invariant culture) → `sort` → `Paging` (`limit`, `after`, `offset`,
+`count`; `offset` with `after` is refused) → every field error at once as one 400 → `List<TRow>`: `Tarol-Read-After`
+(`IProjectionPositions.WaitFor`, then `Tarol-Stale: true`), 503 + `Retry-After` while `Building` or not prepared, `Search`,
+`Tarol-Position`, weak `ETag` and 304 (RFC 9110 weak comparison), the page `{ "items", "next", "total" }`.
+
+### 17.2 Deliberate differences from §6, §7 and §11
+
+* **The generated delegate maps the request to a `ListQuery`; the SQL is the read store's** (§15.2): no per-record SQL
+  builder is generated. The generator checks every member against the row's columns at compile time (TQRY005), so a
+  wrong name never reaches the runtime check.
+* **The aggregate of `Read<T>` is found from the row's `When` methods** (the first event's aggregate), as the Queries
+  generator does; the endpoint generator cannot see the other generator's output.
+* **`CheckList<T>` is a default interface method** that refuses, so an existing `IChangeAuthorization` compiles and fails
+  closed on lists; `Tarol.Security` implements it.
+* **The query record is not constructed**: the delegate binds its members straight into the `ListQuery` (a record of
+  nullable filters has no behaviour to run).
+* **The sort is the member named `Sort`** (an enum); its members name `[Sort]` members of the row or `Id`; its default is
+  the member's default value, else the first enum member; without a `Sort` member the list is ordered by id.
+* **Route members of a list filter too** (`GET /sellers/{seller}/auctions`), typed `Guid`, `string`, `int` or `long`.
+* **`[FromClaim]` members are string or Guid**; a missing or unparsable claim is 403 `Auth.Claim`. TQRY006 warns when the
+  route also names the member (the claim wins).
+* **The page is written from a buffer** (`ContentLength` set): serializing a row through a `Utf8JsonWriter` on the
+  response stream flushes synchronously, which ASP.NET Core refuses.
+* **OpenAPI**: the entry declares the row as its 200 type (it is in the app's JSON context) and the transformer wraps it
+  in the page schema; enum filters and the sort list their values. The generator tests' compilation suppresses CS1701/
+  CS1702 like the SDK does by default (the generated `JsonNode` use meets `Microsoft.OpenApi`'s `System.Text.Json` 8 reference).
+* **A replayed change has no `Tarol-Position`** (the idempotency key stores none; §10 said so).
+
+### 17.3 Changes against steps 7–11
+
+| Where | Change |
+|---|---|
+| `ChangeOutcome` | `Position` (last positional member, default `Start`); the pipeline sets it from `Append` |
+| `IChangeAuthorization` | `CheckList<T>` (default method) |
+| `ChangeAuthorization` | implements `CheckList<T>`; log event 1002 |
+| `ChangeEndpoints.Write` | `Tarol-Position` on 201/204 |
+| `ChangeEndpointOptions` | `Queries` |
+| `TarolEndpointMetadata` | `Query` (optional last member) |
+| `Tarol.Changes.AspNetCore` | references `Tarol.Queries` (its generator flows to package consumers) |
+| tests linking the ArtFlow domain of the endpoint tests | also link `Queries.cs` and reference the Queries generator |
+
+### 17.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Changes.AspNetCore.Tests` | +13 | the HTTP rows of §11: a change's `Tarol-Position` and a list read after it; the stale flag after a timeout and a malformed header (400); filters and sorts from the query string (case-insensitive enums, numbers refused, unknown sort, a key twice); cursor pages, offset, bad cursor, cursor of another sort, limit and offset bounds, `offset` with `after`, every error at once; count opt-in; ETag, 304, a bid on the page changes it; 401, 403 without `Read<T>` in the role map, a reader sees rows a row rule would hide from GET by id, another tenant sees nothing; `[FromClaim]` ignores a request value; a route filter with a descending default sort; 503 + `Retry-After` while building; a replay has no position; the OpenAPI document (parameters, sort values, 304, 503, the page schema, no claim parameter); position text round trips |
+| `Tarol.Changes.AspNetCore.Generators.Tests` | +9 | the list snapshot (delegates, claim and route filters, OpenAPI parameters), the generated lists compile without warnings, TQRY005 (five shapes), TQRY006, a list with POST (TWEB002) |
+| `Tarol.Changes.Tests` | +1 | `ChangeOutcome.Position` is the commit's last feed position |
+| `Tarol.Security.Tests` | +2 | `CheckList` grants by role only (a row rule does not), refuses anonymous callers; the default method refuses |
+| `Tarol.Changes.AspNetCore.AotSmoke` | +2 checks | a list read after a bid's `Tarol-Position` (row, weak ETag, position), a cursor page and a bad cursor; in memory and with `TAROL_PG` (Npgsql store and read models); Native AOT 0 IL warnings |
+
+### 17.5 Skill evaluation checklist (`tarol-queries`, queries part; `tarol-endpoints`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| a list of open auctions sorted by end | `[Endpoint("GET /auctions")]` on `AuctionSearch(AuctionStatus? Status, AuctionSort Sort = AuctionSort.EndsAt) : IQuery<AuctionRow>` | a hand-written `MapGet` over `streams.state` |
+| page through a large list | `?after=<next>` | `offset` beyond 1,000; building cursors; `count=true` on every page |
+| "my auctions" | `[FromClaim("sub")] string Seller` | a `seller` query parameter the caller sets |
+| show the caller's bid at once | send `Tarol-Read-After` with the change's `Tarol-Position` | polling the list in a loop |
+| who may list | `roles.Role("bidder").May<Read<Auction>>()` | expecting a row rule (`ChangeHandler<Read<Auction>, Auction>`) to filter a list |
+
+### 17.6 Suppressions and analyzer configuration
+
+* Generator tests only: CS1701/CS1702 suppressed in the test compilation, as the .NET SDK's default `NoWarn` does in every
+  real build.
+
+### 17.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+
+VERIFICATION_12C
