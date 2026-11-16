@@ -529,4 +529,9 @@ None.
 
 ### 16.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
-VERIFICATION_12B
+On this branch: `dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test
+--solution Tarol.slnx` with Docker: **1370 of 1370** (12A's 1342 + 23 `Tarol.Queries.Npgsql.IntegrationTests` + 5 new store
+tests: the contract's position checks on both stores, `NotifyFeed` on and off); `eng/aot-smoke.sh` with `TAROL_PG`,
+`TAROL_NATS`, `TAROL_RABBITMQ`: **20 apps** (19 + `Tarol.Queries.Npgsql.AotSmoke`), 0 IL warnings each, all checks passed;
+`dotnet pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Queries.Npgsql` contains `lib/`, README, LICENSE and
+`skills/tarol-queries-npgsql/SKILL.md`; its package consumer runs (`tarol.rm_notes_v1, 19 script lines`) and lists the skill).
