@@ -182,6 +182,21 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * `Tarol.Persistence`: `OutboxReactions.Combine`, `TarolBuilder.WithOutboxRows` and `TarolBuilder.OutboxTable` (the
   store's table: reactions and added rows).
 
+* `Tarol.Queries` (step 12A): projections and read models. `[Projection(name, Version)]` on a `sealed partial record`
+  row with static/instance `When(event)` methods and `[Sort]` members; the bundled generator implements
+  `IProjection<TRow>` explicitly (`Name`, `Version`, `StreamType`, `Columns`, `Apply`); `ProjectionColumn<TRow>` /
+  `ColumnType` / `ColumnValues` (typed columns in snake case, enums as numbers, times in UTC microseconds, uuids in
+  PostgreSQL order); `ProjectionHost<TRow>` (`BackgroundService`: feed after the checkpoint, batch 2,000, versions ≤ the
+  row's skipped, one guarded write of rows + checkpoint, `Building` → `Current`, backoff, a span per batch of
+  `Tarol.Queries`, logs 12001–12003), `ISqlProjection` / `ISqlProjectionStore` / `SqlProjectionHost`, `ProjectionOptions`,
+  `IFeedSignal`; `IReadModelStore<TRow>` / `IReadModels`, `RowKey`, `Versioned<TRow>`, `ProjectionCheckpoint`,
+  `ProjectionState`, `ProjectionBatch<TRow>`; list queries `ListQuery` (tenant, `ColumnFilter`s, sort, `After` cursor,
+  `Offset` ≤ 1,000, `Limit` ≤ 200, `Count`), `ListQueryPlan<TRow>`, `Page<T>` (`Next`, weak `ETag` over (id, version),
+  `Position`, `Total`), `Cursor`; `IProjectionPositions` / `ProjectionPositions` (`WaitFor`); `InMemoryReadModels`,
+  `InMemoryReadModelStore<TRow>`, `ProjectionTest<TRow>`; `TarolBuilder.UseInMemoryReadModels()`, `AddProjections(…)`,
+  `AddProjectionPositions()`; `IQuery<TRow>` and `[Descending]` for the list endpoints of 12C; diagnostics TQRY001–TQRY004;
+  agent skill `tarol-queries`.
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Queries package (no ProjectReference). Proves that the package works, that its bundled
+    generator implements IProjection on a consumer's row record, and that the Primitives generator flows from its
+    dependencies. Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated
+    packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Queries" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckQueriesAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolQueriesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Queries.Generators'" />
+      <_TarolPrimitivesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Primitives.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolQueriesGenerator)' == '' or '@(_TarolPrimitivesGenerator)' == ''" Text="The Queries / Primitives generators did not flow from Tarol.Queries." />
+    <Message Importance="high" Text="Tarol.Queries analyzers: @(_TarolQueriesGenerator);@(_TarolPrimitivesGenerator)" />
+  </Target>
+</Project>
