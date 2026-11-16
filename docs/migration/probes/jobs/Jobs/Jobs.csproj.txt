@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Step 14 probe: scheduled jobs on the Npgsql store. Variants: (A) a row per (tenant, job) with a lease and the occurrence
+       as the idempotency key, (B) one leader by advisory lock, (D) the outbox: a schedule aggregate whose Due events are
+       scheduled reactions run by Tarol's ReactionWorker. Cron by Cronos or a small parser of our own (-p:WithCronos=false
+       builds without Cronos for the AOT size). Built against today's packages (TarolRoot = the repository).
+       Modes: selftest <cron|test|postgres>, worker …, chaos …, bench <claim|tenants|backlog|lease|cron>. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <PublishAot>true</PublishAot><TrimmerSingleWarn>false</TrimmerSingleWarn><InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <AssemblyName>Probe.Jobs</AssemblyName><RootNamespace>Probe.Jobs</RootNamespace>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <WithCronos Condition="'$(WithCronos)' == ''">true</WithCronos>
+    <DefineConstants Condition="'$(WithCronos)' == 'true'">$(DefineConstants);CRONOS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Cronos" Version="0.12.0" Condition="'$(WithCronos)' == 'true'" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
+    <ProjectReference Include="$(TarolRoot)src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
