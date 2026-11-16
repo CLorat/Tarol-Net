@@ -44,3 +44,10 @@ INFO seed: 100000 commits (one event each) by 8 writers in 152.7 s = 655 commits
 INFO seed: copied to 1000000 events (10 x) in 15.2 s; aliases auction.bid_placed, auction.closed, auction.opened; events table 393 MB
 
 ## 3. Catch-up from the start over 1e6 events (rows + checkpoint per batch; A1 = in one transaction, A2 = separate statements)
+INFO catch-up A1 batch 500: 1000000 events in 14.9 s = 66998 events/s, 100000 rows, table 71 MB (feed 1000000)
+INFO catch-up A1 batch 2000: 1000000 events in 7.5 s = 132894 events/s, 100000 rows, table 65 MB (feed 1000000)
+INFO catch-up A1 batch 5000: 1000000 events in 6.5 s = 152992 events/s, 100000 rows, table 64 MB (feed 1000000)
+INFO catch-up A2 batch 2000: 1000000 events in 7.7 s = 129750 events/s, 100000 rows, table 65 MB (feed 1000000)
+INFO feed alone (ReadAll 2000, decode): 1000000 events in 2.7 s = 366009 events/s
+
+## 4. Rebuild: truncate + replay (what readers see) vs a new version + swap (rename under query load)
