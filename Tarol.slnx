@@ -11,6 +11,9 @@
     <File Path="nuget.config" />
   </Folder>
   <Folder Name="/src/" />
+  <Folder Name="/src/Caching/">
+    <Project Path="src/Caching/Tarol.Caching/Tarol.Caching.csproj" />
+  </Folder>
   <Folder Name="/src/Changes/">
     <Project Path="src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" />
     <Project Path="src/Changes/Tarol.Changes/Tarol.Changes.csproj" />
@@ -66,6 +69,10 @@
     <Project Path="src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/Caching/">
+    <Project Path="tests/Caching/Tarol.Caching.IntegrationTests/Tarol.Caching.IntegrationTests.csproj" />
+    <Project Path="tests/Caching/Tarol.Caching.Tests/Tarol.Caching.Tests.csproj" />
+  </Folder>
   <Folder Name="/tests/Changes/">
     <Project Path="tests/Changes/Tarol.Changes.AotSmoke/Tarol.Changes.AotSmoke.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.AspNetCore.AotSmoke/Tarol.Changes.AspNetCore.AotSmoke.csproj" />
