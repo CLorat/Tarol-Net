@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Projections and read models for Tarol: a row record with When(event) methods under [Projection(name, Version)] gets a generated switch and column map; a hosted ProjectionHost per projection reads the event feed after its checkpoint and writes the rows and the checkpoint in one guarded batch, idempotent by stream version; list queries with equality filters, whitelisted sorts, an opaque cursor, a bounded offset and a page ETag; read-your-writes waits; an in-memory read store and ProjectionTest. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;cqrs;projection;read-model;query;pagination;cursor;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hosting, DI and logging abstractions (and the LoggerMessage generator) are part of .NET 11's base framework. -->
+    <ProjectReference Include="../../Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
+    <!-- D-10: the queries generator ([Projection]; TQRY001-TQRY004) ships inside this package. -->
+    <ProjectReference Include="../Tarol.Queries.Generators/Tarol.Queries.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>
