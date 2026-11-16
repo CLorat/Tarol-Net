@@ -2,7 +2,8 @@
 name: tarol-queries-npgsql
 description: >-
   Use when storing Tarol projections in PostgreSQL: UseNpgsqlReadModels, the read tables rm_<name>_v<n> and the
-  projections checkpoint table, NotifyFeed with the LISTEN wake-up, rebuilds by Version and DropVersion, SQL projections
+  projections checkpoint table, NotifyFeed with the LISTEN wake-up, PushCheckpoints and NpgsqlProjectionPositions
+  (pushed checkpoints for read-after and the page cache), rebuilds by Version and DropVersion, SQL projections
   (ISqlProjection) on Npgsql, and the integration test setup. Do not write DDL for read tables by hand, alter or truncate
   them, or poll the events table yourself.
 ---
@@ -22,7 +23,13 @@ description: >-
    on the registered instance: `provider.GetRequiredService<NpgsqlReadModels>().DropVersion("auction-list", 1, ct)`.
 5. A list answers `Error.Unavailable` (`NpgsqlReadModelStore<TRow>.NotPreparedCode`) until a host prepared the table,
    and the checkpoint reports `ProjectionState.Building` until the projection reached the head of the feed.
-6. An `ISqlProjection` runs its statements on the `connection` and `transaction` it is given, keys its rows by tenant
+6. `UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })` in **both** the worker and the API
+   process: every batch sends `NOTIFY <schema>_checkpoint` in its transaction (delivered after the commit), and
+   `IProjectionPositions` becomes `NpgsqlProjectionPositions` (one `LISTEN` connection, the checkpoints in memory, a 1 s
+   poll and a poll after every reconnect as the fallback). `Checkpoint<TRow>` then costs no round trip and
+   `WaitFor` (`Tarol-Read-After`) wakes on the notification instead of polling every 5 ms. `Tarol.Caching` needs it.
+   `IsListening` tells a health check whether the connection is up.
+7. An `ISqlProjection` runs its statements on the `connection` and `transaction` it is given, keys its rows by tenant
    first, and creates its tables in `Prepare` with `CREATE TABLE IF NOT EXISTS`.
 
 ## Example
@@ -30,7 +37,7 @@ description: >-
 ```csharp
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
     .UseNpgsqlStore(connectionString, new NpgsqlStoreOptions { NotifyFeed = true })
-    .UseNpgsqlReadModels()
+    .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })   // the same in the API process
     .AddProjections(p => p.Add<AuctionRow>().Add(new SellerTotals("tarol")));
 
 public sealed class SellerTotals(string schema) : ISqlProjection
@@ -70,6 +77,8 @@ public sealed class SellerTotals(string schema) : ISqlProjection
 | `ALTER TABLE rm_auction_list_v1 …` after adding a member | the host writes the generated column list: missing column, `42703`; raise `Version` instead |
 | a test that calls `CatchUp()` once and asserts the newest rows on a shared database | an older transaction of another test hides commits: catch up until `host.Position >= ` the position `Append` returned |
 | `Listen = true` without `NotifyFeed` on the store | nothing is ever notified; the 1 s fallback poll is all that wakes the host |
+| `PushCheckpoints` only in the API process | the worker sends nothing: `Checkpoint` moves only with the 1 s poll, cached lists lag up to 1 s |
+| `PushCheckpoints` behind a pooler in transaction mode (PgBouncer) | `LISTEN` needs a session: the positions fall back to the 1 s poll; give the read models a direct data source |
 | an `ISqlProjection` that opens its own connection | its writes commit apart from the checkpoint: no longer exactly once |
 | `DateTimeOffset` parameters with an offset in your own SQL | Npgsql refuses them for `timestamptz`: pass `ToUniversalTime()` |
 

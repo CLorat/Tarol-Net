@@ -43,7 +43,8 @@ advisory lock when it starts. Text columns are `COLLATE "C"` so pages sort as in
 | `NpgsqlReadModelStore<TRow>` | `Write`: one transaction, first `UPDATE projections … WHERE tx = $from AND pos = $from` (a second runner waits on the row lock, finds 0 rows and re-reads), then one `INSERT … SELECT unnest(…) ON CONFLICT DO UPDATE … WHERE t.version < excluded.version`; `Search`: the checkpoint, the page (`(sort, id) > ($v, $id)` for the cursor) and the count in one round trip; before any host prepared the table, `Checkpoint` is `Building` at the start and `Search` is `Error.Unavailable("Projection.NotPrepared")` |
 | `NpgsqlReadModels` | `IReadModels` and `ISqlProjectionStore` (SQL projections: checkpoint guard, then your `Apply` in the same transaction); `DropVersion(name, version)` drops an old version's table and checkpoint (never automatic; refused for a version this process uses) |
 | `NpgsqlFeedSignal` | one `LISTEN <schema>_feed` connection, reconnected after a failure; the hosts keep a 1 s poll because the feed shows a commit only after every older transaction ended |
-| `UseNpgsqlReadModels(options, dataSource)` | registers the above and `IProjectionPositions`; `Schema` and `Listen` default to the store's |
+| `NpgsqlProjectionPositions` | with `PushCheckpoints`: every batch (row and SQL projections) sends `NOTIFY <schema>_checkpoint, '<name>:<version>:<tx>:<pos>:<state>'` in its transaction after the guarded update (delivered after the commit); this `IProjectionPositions` holds one `LISTEN` connection per process, answers `Checkpoint` from memory and wakes `WaitFor` on the notification; it polls every checkpoint every 1 s and after a reconnect (backoff 250 ms … 10 s) |
+| `UseNpgsqlReadModels(options, dataSource)` | registers the above and `IProjectionPositions` (`NpgsqlProjectionPositions` with `PushCheckpoints = true`, set in the worker and the API process); `Schema` and `Listen` default to the store's |
 
 ## Rebuild
 

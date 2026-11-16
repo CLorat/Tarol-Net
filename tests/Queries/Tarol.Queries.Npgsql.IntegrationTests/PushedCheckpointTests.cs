@@ -166,6 +166,7 @@ public sealed class PushedCheckpointTests(Postgres postgres)
         await setup.CatchUp(host);
         (await positions.WaitFor<AuctionRow>(host.Position, Cap, Ct)).ShouldBeTrue();
         var current = await positions.Checkpoint<AuctionRow>(Ct);
+        await Until(() => positions.IsListening);                                     // a notice before LISTEN is lost (the poll covers that)
 
         var channel = setup.Schema + "_checkpoint";
         await postgres.Execute($"SELECT pg_notify('{channel}', 'auction-list:1:1:1:building'), pg_notify('{channel}', 'auction-list:1:x'), pg_notify('{channel}', 'nonsense')");
