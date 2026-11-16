@@ -307,6 +307,7 @@ source-generated `IHybridCacheSerializer<T>` and pages were `byte[]`. Every chec
 Rounds:
 * **Round 1**, after the load, lookup, CPU, list and L2 numbers: CA-1 … CA-3.
 * **Round 2**, after the conflict, HTTP, staleness, hit-ratio and AOT numbers: CA-4 … CA-7.
+* **Round 3**, at the start of the implementation (13A): CA-8.
 
 The prefix CA- was free (taken: C-, D-, M-, P-, Q-, QR-, R-, S-). Not asked because already decided: §7.
 
@@ -319,6 +320,7 @@ The prefix CA- was free (taken: C-, D-, M-, P-, Q-, QR-, R-, S-). Not asked beca
 | CA-5 | Invalidation of a cached page? (staleness: uncached 8.7 ms; checkpoint pushed 7.0 / 10.9 ms; tenant tag 8.0 / 11.0 ms; TTL 1 s up to 998 ms; HybridCache tags across processes not within 5 s; hit ratio at ~75 commits/s 99.6 % both; another tenant's writes 99.8 % vs 100 %; an open transaction elsewhere: cached = uncached) | **The projection checkpoint**: an entry is stamped with the checkpoint it was read at; every move (NOTIFY from the batch transaction, 1 s poll fallback) makes it miss; never staler than the uncached path; bounded size and an idle TTL for memory only (recommended). |
 | CA-6 | HTTP caching? (the default output-cache policy never caches with `Authorization`; a caching policy without vary served tenant A's page to B; a cached answer ignores `Tarol-Read-After`; per-process store; a list 304 today 1.2 ms vs 0.06 ms from the page cache) | **ETag/304 + headers**: no output caching; lists and views answer `Cache-Control: private, no-cache` and `Vary: Authorization`; 304 from the page cache's ETag without a query; read-after waits on the pushed checkpoint, then reads; the docs explain why (recommended). |
 | CA-7 | Packages and PRs? (HybridCache 9 IL warnings under Native AOT; the page cache needs no new dependency) | **A new `Tarol.Caching` package** with the port, the in-memory cache and the glue (the recommendation was no new package, three PRs). §11 places it: the glue is a decorator of `IReadModels` (no ASP.NET Core dependency is needed, because the endpoints call `Checkpoint` and `Search`); the pushed checkpoint stays in `Tarol.Queries.Npgsql` (it needs Npgsql, and read-after gains from it without a cache); the headers stay in `Tarol.Changes.AspNetCore` (they are right without a cache). |
+| CA-8 | Package placement (asked at the start of 13A, because CA-7's option text said `Tarol.Caching` holds "the port, the in-memory cache and the ASP.NET Core glue" while §9 and §11 place the glue elsewhere) | **Split placement** (recommended): `Tarol.Caching` depends on `Tarol.Queries` only (`IPageCache`, `MemoryPageCache`, the `IReadModels` decorator, `AddCaching()`; no ASP.NET Core); the pushed checkpoint is in `Tarol.Queries.Npgsql` (it needs Npgsql and helps read-after without a cache); the headers are in `Tarol.Changes.AspNetCore` (they are right without a cache). |
 
 ## 10. Changes against steps 7–12 (announced here, made in 13A and 13C)
 
@@ -408,3 +410,97 @@ The probe: `all.sh` sections 0–12 ([`output.txt`](probes/caching/output.txt)).
 * A shared L2 (Redis/Garnet) if many API processes warm the same pages: needs a backplane and an AOT-clean client first (§5 items 4–6).
 * Caching views if a measured use needs it: an invalidation from the feed per stream, and the docs must say the view then lags.
 * The SignalR reconnect test's timeout under full-suite load (§13): step 15 (test infrastructure), or earlier if CI flakes.
+
+## 15. Implementation: PR 13A (2026-11-16)
+
+`queries.npgsql: pushed checkpoints`: the checkpoint `NOTIFY` in the batch transaction and `NpgsqlProjectionPositions` in
+`Tarol.Queries.Npgsql` (CA-2, CA-8). No new package.
+
+### 15.1 Public API (`Tarol.Queries.Npgsql`)
+
+| Member | Role |
+|---|---|
+| `NpgsqlReadModelOptions.PushCheckpoints` (default `false`) | every batch sends the checkpoint `NOTIFY`, and `IProjectionPositions` is `NpgsqlProjectionPositions`; set it in the worker and the API process |
+| `NpgsqlReadModels(dataSource, json, schema, pushCheckpoints = false)`, `NpgsqlReadModels.PushesCheckpoints` | row and SQL projection batches send `SELECT pg_notify('<schema>_checkpoint', '<name>:<version>:<tx>:<pos>:<state>')` after the guarded checkpoint update, in the batch transaction |
+| `NpgsqlReadModelStore<TRow>(dataSource, json, schema, pushCheckpoints = false)`, `NpgsqlReadModelStore<TRow>.PushesCheckpoints` | the same for one row type |
+| `NpgsqlProjectionPositions : IProjectionPositions, IAsyncDisposable` (`dataSource`, `schema`, `hosts`, `time`, `logger`) | one `LISTEN <schema>_checkpoint` connection per process, opened on the first call; `Checkpoint<TRow>` from memory once seen (else one read, then remembered); `WaitFor<TRow>` woken by the notification (a host of this process answers for its own projection, as in `ProjectionPositions`) |
+| `NpgsqlProjectionPositions.Channel`, `ChannelSuffix` (`_checkpoint`), `IsListening` | the channel; whether the `LISTEN` connection is up (for the health check of step 15) |
+| `NpgsqlProjectionPositions.PollInterval` (1 s), `Backoff` (250 ms), `MaxBackoff` (10 s) | the poll of every checkpoint (one `SELECT` of the `projections` table, also after every reconnect); the reconnect backoff, doubling |
+
+Logs: 12101 (Warning: the `LISTEN` connection failed, reconnecting in …), 12102 (Information: the connection is down, the
+checkpoints are polled every 1 s until it is back; once per outage), 12103 (Information: `LISTEN` is up again).
+
+### 15.2 Deliberate differences from §6 and §11
+
+* **The payload carries the state**: `<name>:<version>:<tx>:<pos>:<state>` (§6: `<name>:<version>:<tx>:<pos>`). A list
+  answers 503 while the projection builds (QR-3); with the state in the notice, the move `Building` → `Current` at the same
+  position is pushed too, and `Checkpoint<TRow>` from memory returns the same value as the store.
+* **The notice is a second statement** (`SELECT pg_notify($1, $2)`) after the guarded `UPDATE`, only when the update moved
+  the checkpoint (a refused batch rolls back and sends nothing). One more statement per batch, not per request.
+* **"Only forward" includes the state**: a notice or poll result is taken when its position is later, or equal with
+  `Current` over `Building`; older or malformed notices are ignored. Consequence: after `DropVersion` and a rebuild of the
+  *same* version in a running process, the remembered checkpoint stays ahead until the process restarts. `DropVersion`
+  is meant for versions no running code reads (QR-3), so this is documented, not handled.
+* **The poll runs every second also while connected** (one `SELECT` of the small `projections` table on the `LISTEN`
+  connection), not only after a reconnect: a notification is delivered reliably while connected, but the poll is what
+  makes a worker without `PushCheckpoints` (a configuration mistake) still visible within 1 s.
+* **While the connection is down**, the poll runs on pooled connections of the data source every `PollInterval` during the
+  backoff, so positions keep moving at the poll's pace; log 12102 says so once per outage.
+* **`IsListening`** is public (§6 did not name it): the health check of step 15 and the tests need it.
+* **Registration**: with `PushCheckpoints`, `UseNpgsqlReadModels` registers `NpgsqlProjectionPositions` (also as itself)
+  before `AddProjectionPositions`, so `ProjectionPositions` is not registered; it takes the read models' schema and the
+  process's `ProjectionHost`s.
+
+### 15.3 Changes against steps 7–12
+
+| Where | Change |
+|---|---|
+| `NpgsqlReadModelOptions` | new `PushCheckpoints` (opt-in; default unchanged) |
+| `NpgsqlReadModels`, `NpgsqlReadModelStore<TRow>` constructors | a new optional last parameter `pushCheckpoints` (source compatible; binary change of the constructors) and `PushesCheckpoints` |
+| `UseNpgsqlReadModels` | with `PushCheckpoints`, `IProjectionPositions` is `NpgsqlProjectionPositions` instead of `ProjectionPositions` (read-after no longer polls every 5 ms) |
+
+No change without the option: nothing is sent, `ProjectionPositions` is registered as before.
+
+### 15.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Queries.Npgsql.IntegrationTests` (`PushedCheckpointTests`, new class in the CI `integration` job's existing step) | 10 | a listener learns the checkpoint from the batch's `NOTIFY` with the poll an hour away (equal to the stored checkpoint, `Current`); the open-transaction case (an older transaction holds xmin: the host and the pushed checkpoint stay below the hidden commit, `WaitFor` times out; after it commits both pass it); the poll fallback after `pg_terminate_backend` of the `LISTEN` connection (no reconnect: log 12101 and 12102, the checkpoint moves by the poll); the reconnect (12101, 12103, then a batch is delivered by the new `LISTEN` with the poll an hour away); `WaitFor` from a second `NpgsqlProjectionPositions` ("another process") woken by the worker's batch, and the worker's own wait through its host; an `ISqlProjection` batch sends the notice; positions only move forward and malformed notices are ignored; the registration with and without `PushCheckpoints`; a schema whose channel name is too long is refused |
+| `Tarol.Queries.Npgsql.AotSmoke` | +1 check | "a pushed checkpoint wakes WaitFor in another process" (Native AOT, 0 IL warnings) |
+
+Every wait is for a known position (the one `Append` or the host returned) with a 30 s cap; nothing counts inside a
+wall-clock window. Repeated in Release with no other load: `PushedCheckpointTests` 20 of 20 runs; the whole
+`Tarol.Queries.Npgsql.IntegrationTests` project 10 of 10 runs (after moving the open-transaction test into its own
+collection, see below).
+
+Found on the way **[verified]**: the open-transaction test first ran in parallel with the other classes of the project and
+made two `NpgsqlReadModelTests` fail in the full suite (a single `CatchUp` saw an empty feed). The xmin horizon is
+cluster-wide, so a test that holds an older transaction hides commits from every test on the container. It now runs in
+`PushedCheckpointXminTests`, a collection with `DisableParallelization = true`.
+
+### 15.5 Skill evaluation checklist (`tarol-queries-npgsql`, pushed checkpoints)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| read-after without 5 ms polling | `UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })` in worker and API | a `LISTEN` loop of one's own; a shorter `ProjectionPositions.PollInterval` |
+| health check of the API process | `NpgsqlProjectionPositions.IsListening` | a query per probe; opening a second `LISTEN` |
+| run behind PgBouncer in transaction mode | a direct data source for the read models (`dataSource:` of `UseNpgsqlReadModels`) | expecting notices through the pooler (`LISTEN` needs a session; only the 1 s poll then) |
+| the worker does not push | `PushCheckpoints = true` in the worker too | sending `pg_notify` from application code |
+
+### 15.6 Suppressions and analyzer configuration
+
+None. The broad `catch (Exception e) when (e is not OutOfMemoryException)` of the listener and the fallback poll follows
+`ProjectionHost.ExecuteAsync` (a background loop must survive any failure of the connection).
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+
+`main` at `593aefb` before the change: 1395 tests, 20 AOT smoke apps; `main`'s CI (`build`, `aot-smoke`, `integration`)
+green at the start. On this branch (`4e807ef`):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors. `dotnet format --verify-no-changes`: clean.
+* `dotnet test --solution Tarol.slnx` with Docker: **1404 of 1405** (1395 + 10 `PushedCheckpointTests`). The one failure was
+  `Tarol.Messaging.SignalR.Tests.PushTests.After_a_reconnect_the_subscriptions_are_replayed`: a 30 s timeout under
+  full-suite load while another build ran on the machine, the known flake of §14. All 17 `PushTests` passed in 5 of 5
+  runs alone.
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **20 apps**, 0 IL warnings each, all checks passed
+  (`Tarol.Queries.Npgsql.AotSmoke` with the new check).
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Tarol.Persistence;
 using Tarol.Persistence.Npgsql;
@@ -17,6 +18,14 @@ public sealed record NpgsqlReadModelOptions
     /// registered store sends the feed <c>NOTIFY</c> (<see cref="NpgsqlStoreOptions.NotifyFeed"/>).
     /// </summary>
     public bool? Listen { get; init; }
+
+    /// <summary>
+    /// Whether checkpoints are pushed (CA-2; default <see langword="false"/>): every projection batch sends
+    /// <c>NOTIFY &lt;schema&gt;_checkpoint</c> in its transaction (delivered after the commit), and
+    /// <see cref="IProjectionPositions"/> is <see cref="NpgsqlProjectionPositions"/>, which listens and answers
+    /// <c>Checkpoint</c> from memory. Set it in the worker (it sends) and in the API process (it listens).
+    /// </summary>
+    public bool PushCheckpoints { get; init; }
 }
 
 /// <summary>The PostgreSQL read stores on the <see cref="TarolBuilder"/>.</summary>
@@ -24,8 +33,9 @@ public static class NpgsqlQueriesTarolBuilderExtensions
 {
     /// <summary>
     /// The read tables on PostgreSQL: <see cref="NpgsqlReadModels"/> as <see cref="IReadModels"/> and
-    /// <see cref="ISqlProjectionStore"/>, <see cref="IProjectionPositions"/>, and the feed wake-up (<see cref="NpgsqlFeedSignal"/>)
-    /// when the store notifies. The data source is the store's (<c>UseNpgsqlStore(connectionString)</c> registers it) unless
+    /// <see cref="ISqlProjectionStore"/>, <see cref="IProjectionPositions"/> (<see cref="NpgsqlProjectionPositions"/> with
+    /// <see cref="NpgsqlReadModelOptions.PushCheckpoints"/>), and the feed wake-up (<see cref="NpgsqlFeedSignal"/>) when the
+    /// store notifies. The data source is the store's (<c>UseNpgsqlStore(connectionString)</c> registers it) unless
     /// <paramref name="dataSource"/> resolves another. Register it in every process that reads or hosts projections.
     /// </summary>
     /// <param name="builder">The builder (after <c>UseNpgsqlStore</c>).</param>
@@ -41,8 +51,9 @@ public static class NpgsqlQueriesTarolBuilderExtensions
             NpgsqlReadModelSchema.Validate(schema);
         var json = builder.Json;
         dataSource ??= static provider => provider.GetRequiredService<NpgsqlDataSource>();
+        var push = options.PushCheckpoints;
         builder.Services.TryAddSingleton(provider => new NpgsqlReadModels(dataSource(provider), json,
-            options.Schema ?? provider.GetService<NpgsqlAggregateStore>()?.Schema ?? NpgsqlReadModelSchema.DefaultSchema));
+            options.Schema ?? provider.GetService<NpgsqlAggregateStore>()?.Schema ?? NpgsqlReadModelSchema.DefaultSchema, push));
         builder.Services.TryAddSingleton<IReadModels>(static provider => provider.GetRequiredService<NpgsqlReadModels>());
         builder.Services.TryAddSingleton<ISqlProjectionStore>(static provider => provider.GetRequiredService<NpgsqlReadModels>());
         builder.Services.TryAddSingleton(provider =>
@@ -54,6 +65,13 @@ public static class NpgsqlQueriesTarolBuilderExtensions
                 : null);
         });
         builder.Services.TryAddSingleton<IFeedSignal>(static provider => (IFeedSignal?)provider.GetRequiredService<FeedSignalSlot>().Signal ?? NoSignal.Instance);
+        if (push)
+        {
+            builder.Services.TryAddSingleton(provider => new NpgsqlProjectionPositions(dataSource(provider),
+                provider.GetRequiredService<NpgsqlReadModels>().Schema, provider.GetServices<ProjectionHost>(),
+                provider.GetService<TimeProvider>(), provider.GetService<ILogger<NpgsqlProjectionPositions>>()));
+            builder.Services.TryAddSingleton<IProjectionPositions>(static provider => provider.GetRequiredService<NpgsqlProjectionPositions>());
+        }
         return builder.AddProjectionPositions();
     }
 

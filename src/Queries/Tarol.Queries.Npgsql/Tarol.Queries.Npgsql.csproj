@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>PostgreSQL read tables for Tarol projections on plain Npgsql: a table per projection version (rm_name_vN) with typed columns from the generated column map plus the row as jsonb, the tenant first in every key and index, an index per sort, the checkpoint in a projections table moved first and guarded in the same transaction as the rows, the building/current state of a rebuild, list queries over the columns, SQL projections in the batch transaction, and the LISTEN wake-up on the store's feed NOTIFY. Native-AOT ready.</Description>
+    <Description>PostgreSQL read tables for Tarol projections on plain Npgsql: a table per projection version (rm_name_vN) with typed columns from the generated column map plus the row as jsonb, the tenant first in every key and index, an index per sort, the checkpoint in a projections table moved first and guarded in the same transaction as the rows, the building/current state of a rebuild, list queries over the columns, SQL projections in the batch transaction, the LISTEN wake-up on the store's feed NOTIFY, and pushed checkpoints (a NOTIFY from the batch transaction, NpgsqlProjectionPositions in memory with a poll fallback). Native-AOT ready.</Description>
     <PackageTags>tarol;ddd;event-sourcing;cqrs;projection;read-model;postgresql;npgsql;aot</PackageTags>
   </PropertyGroup>
 

@@ -56,7 +56,11 @@ else
         }
         Check("Append returns the commit's position", last > GlobalPosition.Start);
 
-        var readModels = new NpgsqlReadModels(db, json, schema);
+        var readModels = new NpgsqlReadModels(db, json, schema, pushCheckpoints: true);           // the worker sends the checkpoint NOTIFY
+        await using var pushed = new NpgsqlProjectionPositions(db, schema) { PollInterval = TimeSpan.FromHours(1) };   // another API process listens
+        _ = await pushed.Checkpoint<AuctionRow>(default);
+        for (var wait = 0; !pushed.IsListening && wait < 3000; wait++)
+            await Task.Delay(10);
         await using var signal = new NpgsqlFeedSignal(db, store.FeedChannel);
         var host = new ProjectionHost<AuctionRow>(store, readModels.Store<AuctionRow>(), new ProjectionOptions { Batch = 10 }, signal: signal);
         await host.StartAsync(default);
@@ -65,6 +69,9 @@ else
         var more = Auction.Open("Woken", start.AddDays(3), start);
         var woken = await store.Append(more, 0, context, Option.None, default);
         Check("NotifyFeed wakes the host", woken.TryGetValue(out GlobalPosition wokenAt) && await host.WaitFor(wokenAt, TimeSpan.FromSeconds(30), default));
+        Check("a pushed checkpoint wakes WaitFor in another process",
+            pushed.IsListening && await pushed.WaitFor<AuctionRow>(wokenAt, TimeSpan.FromSeconds(30), default)
+                               && (await pushed.Checkpoint<AuctionRow>(default)).Position >= wokenAt);
         await host.StopAsync(default);
 
         var reads = readModels.Store<AuctionRow>();
