@@ -167,6 +167,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   retry queue with `x-tarol-attempt`, `user_id` as `AuthenticatedAs`, a passive declare of another system's exchange,
   `ExchangeOf`, `QueueOf`, `Unroutable`), `RabbitMqTransportOptions` (`Prefix`, `StampUserId`, …), `UseRabbitMq(…)`; agent
   skill `tarol-messaging-rabbitmq`.
+* `Tarol.Messaging.SignalR` (step 11E): the UI push. `PushToUi(…)` (`UiPushOptions`: `Forward`, `Rules`, `Name`, `HubPath`,
+  claims) with `UiPushForwarder` (a consumer subscription → SignalR groups `<tenant>/<topic>`, trust as for consumers);
+  `MessageHub` (a plain `[Authorize]` hub: `Subscribe`, `Unsubscribe`, `Publish`, the tenant from the principal, the sender
+  stamped by the server, `Group`), `ITopicAuthorizer`, `TopicRules`, `TopicOperation`, `HubConnections` (connections aborted
+  when the application stops), `PushedMessage`, `SignalRJson`; `MapMessageHub()`; the .NET client `MessagePushClient`
+  (`Connect`, `Start`, `Subscribe` with handles, `Publish`, `Stop`; replays subscriptions on reconnect); agent skill
+  `tarol-messaging-signalr`. Replaces the old Messaging projects (Protocol, Transport, Backplane, Gateway; review findings
+  F1–F23, docs/migration/messaging.md §19).
 * `samples/Sagas`: billing as a second system (consumes `artflow.auction-settled`, publishes `billing.invoice-paid`), NATS
   JetStream under the AppHost (RabbitMQ with `ARTFLOW_BROKER=rabbitmq`).
 * `Tarol.Changes`: `IOutboxRowHandler` (an outbox row kind the reaction worker runs) and `OutboxRows` (handlers joined);

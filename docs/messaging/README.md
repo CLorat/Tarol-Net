@@ -1,8 +1,8 @@
 # Messaging
 
 User guide for `Tarol.Messaging` (consumers, PR 11A; publications and effects, PR 11B) and `Tarol.Messaging.Npgsql` (the
-in-database bus and dead letters, PR 11C), `Tarol.Messaging.Nats` and `Tarol.Messaging.RabbitMq` (the brokers, PR 11D);
-the UI push follows in 11E. The runnable two-system sample is [`samples/Sagas`](../../samples/Sagas/README.md). Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
+in-database bus and dead letters, PR 11C), `Tarol.Messaging.Nats` and `Tarol.Messaging.RabbitMq` (the brokers, PR 11D),
+`Tarol.Messaging.SignalR` (the UI push, PR 11E). The runnable two-system sample is [`samples/Sagas`](../../samples/Sagas/README.md). Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
 
 ## Design in six points
 
@@ -32,7 +32,7 @@ the UI push follows in 11E. The runnable two-system sample is [`samples/Sagas`](
 | `Tarol.Messaging.Npgsql` | `NpgsqlBus` (`UseNpgsqlBus`), `NpgsqlBusOptions`, `NpgsqlBusSchema` (bus, row-level security, grants), `NpgsqlMessageDeadLetters` (`UseNpgsqlDeadLetters`) | 11C |
 | `Tarol.Messaging.Nats` | `NatsTransport` (`UseNats`), `NatsTransportOptions` | 11D |
 | `Tarol.Messaging.RabbitMq` | `RabbitMqTransport` (`UseRabbitMq`), `RabbitMqTransportOptions` | 11D |
-| `Tarol.Messaging.SignalR` | the UI push | 11E |
+| `Tarol.Messaging.SignalR` | `PushToUi`, `MapMessageHub`, `MessageHub`, `ITopicAuthorizer`/`TopicRules`, `PushedMessage`, `MessagePushClient` | 11E |
 
 ## Declaring a consumer
 
@@ -187,6 +187,36 @@ role is not its prefix (`Messaging.SourceMismatch`). An unknown role arrives as 
 
 Both take a `Prefix` (a namespace in front of every name) for environments that share a server. With RabbitMQ name each
 system's user like its prefix, or set `StampUserId = false` when all systems share one user.
+
+## The UI push (`Tarol.Messaging.SignalR`)
+
+```csharp
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
+    .UseNpgsqlStore(connectionString)
+    .AddMessaging("artflow", m => m
+        .Trust("billing", t => t.AnyTenant())
+        .UseNats(natsUrl)
+        .PushToUi(o =>
+        {
+            o.Forward("artflow.auction-settled", "billing.invoice-paid");
+            o.Rules.Subscribe("artflow.*").Subscribe("billing.invoice-paid").Publish("artflow.chat", role: "member");
+        }));
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapMessageHub();                                           // /tarol/messages
+```
+
+* **Forwarding**: a consumer subscription `<app>.UiPush` sends each forwarded message to the SignalR group
+  `<tenant>/<topic>` of its envelope's tenant; only this application's messages and those of a trusted source for an
+  allowed tenant are forwarded. A disconnected client misses it: the push notifies, the store is the truth.
+* **The hub** (`MessageHub`, `[Authorize]`): `Subscribe`, `Unsubscribe`, `Publish`. The tenant comes from the caller's
+  claim, never from the client; `ITopicAuthorizer` decides every subscribe and publish (nothing is allowed by default); a
+  client's publish carries the caller's `sub` as `Sender`.
+* **The .NET client** `MessagePushClient`: subscribe any time (before `Start` too), handles that remove one handler,
+  subscriptions replayed after every reconnect, failing handlers isolated.
+* **Native AOT**: `SignalRJson` (source-generated hub JSON) and, in the app, the feature switch
+  `Microsoft.AspNetCore.SignalR.Hub.IsCustomAwaitableSupported=false`.
+* **Scale-out**: one forwarder name per web node (`o.Name = "UiPush-" + Environment.MachineName`).
 
 ## Dead letters in the database
 

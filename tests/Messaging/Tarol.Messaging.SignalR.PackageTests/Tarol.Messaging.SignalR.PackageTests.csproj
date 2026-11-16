@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Consumer of the PACKED Tarol.Messaging.SignalR package (no ProjectReference): the UI push registers, the hub maps, the
+    client is built with the source-generated hub JSON.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Messaging.SignalR" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+</Project>

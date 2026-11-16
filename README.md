@@ -32,6 +32,7 @@ time; see the [migration plan](docs/migration/plan.md).
 | `Tarol.Messaging.Nats` | the NATS JetStream transport: a stream per source, durable pull consumers, dedup by (event, contract, version), delayed retries, subject permissions per system | new (step 11, PR 11D) |
 | `Tarol.Messaging.Npgsql` | the in-database message bus: systems on one PostgreSQL exchange messages through a `bus` schema (publish in one statement, deduplicated; claim with `SKIP LOCKED` in publish order; NOTIFY opt-in; the publisher's role stamped by the database, row-level security per contract prefix); dead letters in `messages_dead` | new (step 11, PR 11C) |
 | `Tarol.Messaging.RabbitMq` | the RabbitMQ transport: a topic exchange per source, quorum queues, publisher confirms, TTL retry queues, `user_id` as the authenticated publisher | new (step 11, PR 11D) |
+| `Tarol.Messaging.SignalR` | the UI push: messages forwarded to SignalR groups per tenant and topic, an authenticated hub that authorizes every subscribe and publish, a .NET client that replays its subscriptions on reconnect | new (step 11, PR 11E) |
 | … | | planned (see plan) |
 
 Packages are private: they are published only to the owner's GitHub Packages feed, never to nuget.org.
