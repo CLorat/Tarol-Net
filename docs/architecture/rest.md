@@ -156,7 +156,7 @@ reports `reserve: Required, endsAt: Required`.
   `Stream.VersionConflict`, changes.md §6; RFC 9110 would say 412, the 409 is Tarol's decided mapping); a malformed value →
   400 `errors.If-Match`; `If-None-Match` on GET → 304 **[verified]**.
   Step 13 ([caching.md](caching.md), CA-6): list and view answers add `Cache-Control: private, no-cache` and `Vary: Authorization`;
-  no output caching for authenticated GETs.
+  no output caching for authenticated GETs. Implemented in 13C (`CacheHeaders`; guide: [docs/queries/caching.md](../queries/caching.md)).
 
 ## 7. Reads: GET by id (R-1, R-8 = G2)
 

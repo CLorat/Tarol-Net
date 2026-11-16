@@ -3,6 +3,7 @@ using ArtFlow.Api;
 using Microsoft.AspNetCore.Authorization;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Tarol.Caching;
 using Tarol.Changes;
 using Tarol.Changes.AspNetCore;
 using Tarol.Persistence.Npgsql;
@@ -22,7 +23,8 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
     .WithReactions(GeneratedReactions.Set)                     // the API's commits write the worker's outbox rows …
     .WithOutboxRows(GeneratedPublications.Set)                 // … and its publication rows (the worker publishes them)
     .UseNpgsqlStore(connectionString)
-    .UseNpgsqlReadModels()                                     // reads the worker's auction list (and its checkpoint for Tarol-Read-After)
+    .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })   // the worker's auction list; its checkpoint pushed (LISTEN)
+    .AddCaching()                                              // list pages from memory while the checkpoint stands
     .AddSecurity(roles =>
     {
         roles.Role("seller").May<CreateAuction>().May<SettleAuction>().May<Read<Auction>>();

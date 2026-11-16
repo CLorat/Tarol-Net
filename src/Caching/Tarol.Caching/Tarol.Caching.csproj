@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>List page caching for Tarol read models: a decorator of IReadModels whose stores answer Search from an in-process page cache, keyed by tenant, projection version and the canonical query, valid exactly while the projection's checkpoint it was read at is current (pushed by Tarol.Queries.Npgsql). Bounded by entries, bytes and an idle expiry on TimeProvider; the meter Tarol.Caching. No HybridCache, no Redis. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;cqrs;read-model;query;cache;pagination;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- DI and metrics abstractions are part of .NET 11's base framework; no third-party package (CA-7). -->
+    <ProjectReference Include="../../Queries/Tarol.Queries/Tarol.Queries.csproj" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

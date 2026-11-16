@@ -361,7 +361,7 @@ public sealed partial class ChangeEndpoints
     // ── views (GET by id) ───────────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Loads the aggregate (tenant-scoped: another tenant's is 404), authorizes <c>Read&lt;T&gt;</c>, sets
-    /// <c>ETag</c> and answers 304 for a matching <c>If-None-Match</c>; <see langword="null"/> when the response is written.</summary>
+    /// <c>ETag</c> and the <see cref="CacheHeaders"/>, and answers 304 for a matching <c>If-None-Match</c>; <see langword="null"/> when the response is written.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
     /// <param name="http">The request.</param>
     /// <param name="id">The id from the route.</param>
@@ -390,6 +390,7 @@ public sealed partial class ChangeEndpoints
         }
         var etag = $"\"{aggregate.Version}\"";
         http.Response.Headers.ETag = etag;
+        CacheHeaders.Apply(http);                                        // the view's 200 and 304
         if (http.Request.Headers.IfNoneMatch.Any(value => value == etag || value == "*"))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;

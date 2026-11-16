@@ -26,6 +26,10 @@ description: >-
    `IView<Auction, TSelf>` with `static TSelf From(Auction)`; grant `Read<Auction>`.
 7. **Lists over projections** are `[Endpoint("GET …")]` on an `IQuery<TRow>` record: see the skill `tarol-queries`
    (filters, `Sort` enum, `[FromClaim]`, cursor, `Tarol-Read-After`). Change answers carry `Tarol-Position` for it.
+   List and view answers carry `Cache-Control: private, no-cache` and `Vary: Authorization` (`CacheHeaders`): browsers
+   revalidate by `ETag`, shared caches do not store them. For fast lists add `AddCaching()` (skill `tarol-caching`),
+   never `AddOutputCache()`/`.CacheOutput()` (it skips `Authorization`, leaks across tenants without a vary rule, and
+   ignores `Tarol-Read-After`).
 8. **Webhooks**: `[Webhook(sender, type, Version = "2")]` on `public static TChange From(TPayload)`; configure
    `WebhookOptions.Senders[sender].Secrets`; a duplicate *business* event must be a success in the domain.
 

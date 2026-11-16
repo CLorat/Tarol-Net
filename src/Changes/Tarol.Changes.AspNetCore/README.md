@@ -47,6 +47,9 @@ app.MapChanges();
   then answers with `Tarol-Stale: true`; 503 + `Retry-After` while a projection version builds. A list needs the role map's
   `Read<TAggregate>`, is always tenant-scoped, and runs no row rules. Limits in `ChangeEndpointOptions.Queries`.
   Diagnostics TQRY005–TQRY006.
+* **Cache headers** (step 13): list answers (200, 304, problems) and view answers (200, 304) carry
+  `Cache-Control: private, no-cache` and `Vary: Authorization` (`CacheHeaders`). No output caching; for fast lists,
+  `Tarol.Caching`'s `AddCaching()` caches the pages behind `CheckList` and `Tarol-Read-After`.
 * **Webhooks**: `[Webhook("payments", "payment.succeeded", Version = "2")]` on a `static From(Payload)` factory; served at
   `POST /webhooks/payments` (and `/webhooks/payments/{tenant}`); HMAC-SHA256 over `timestamp.body`, ±5 minutes, secrets from
   `WebhookOptions` (rotation), delivery-id key; 200 / 202 (unknown type) / 401 / 422 / 503 (retry).
