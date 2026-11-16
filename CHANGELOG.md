@@ -237,6 +237,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `Prepare`, `Checkpoint`, `Load`, `Write`, `Find` pass through. `MemoryPageCache` (`CacheOptions`: 10,000 entries,
   64 MB estimated, 5 min idle expiry on `TimeProvider`; no eviction thread), `AddCaching(configure)`, the meter
   `Tarol.Caching` (hits, misses, evictions, entries, bytes); agent skill `tarol-caching`.
+* `Tarol.Changes.AspNetCore` (step 13C): `CacheHeaders` (`private, no-cache`, `Authorization`, `Apply`). `samples/Sagas`
+  caches the auction list (`AddCaching()` in the API, `PushCheckpoints` in both processes); the guide
+  `docs/queries/caching.md` (what is cached, how a request goes, why there is no output caching).
 
 ### Fixed
 
@@ -245,6 +248,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   deterministic (docs/migration/sagas.md §18.3).
 
 ### Changed
+
+* Step 13C (announced in docs/migration/caching.md §10): list answers of `Tarol.Changes.AspNetCore` (200, 304 and the
+  problems) and view answers (200, 304) carry `Cache-Control: private, no-cache` and `Vary: Authorization`: shared caches
+  no longer store them, browsers revalidate by `ETag`.
 
 * Step 12C (announced in docs/migration/queries.md §10): change answers carry `Tarol-Position`; `ChangeOutcome` gains
   `Position` as a last positional member with a default (source compatible; a replayed outcome has `GlobalPosition.Start`).
