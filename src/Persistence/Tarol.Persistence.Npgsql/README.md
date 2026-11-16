@@ -69,6 +69,9 @@ Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for yo
   writers (≈ 30 % commits/s with 16 writers); the default is polling. The worker is `Tarol.Sagas`.
 * **Schema**: `NpgsqlSchema.Script(schema)` is idempotent and versioned (`schema_version`); `EnsureSchema` runs it and
   refuses a database with a newer version.
+* **The feed's wake-up**: `NotifyFeed = true` sends `NOTIFY <schema>_feed` (`FeedChannel`) with every commit, so projection
+  hosts (`Tarol.Queries.Npgsql`) wake at once instead of polling; off by default like `Notify`. `Append` returns the
+  commit's `GlobalPosition` (its transaction and the position of its last event).
 
 ## AOT
 

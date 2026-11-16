@@ -15,7 +15,8 @@ description: >-
 1. **Tenant from the context.** Every call takes the `OperationContext`; its `Tenant` scopes the stream, the lookups and
    (by convention) the `IdempotencyKey`. Never pass a tenant from user input.
 2. **Load → decide → Prepare → Append → Committed.** Remember `expected = aggregate.Version` right after the load.
-   `Append(aggregate, expected, context, key, ct)` returns a `Result`; on success call
+   `Append(aggregate, expected, context, key, ct)` returns a `Result<GlobalPosition>` (the commit's position in the feed,
+   for read-your-writes; `GlobalPosition.Start` when nothing was appended); on success call
    `AggregateChanges.Committed(aggregate)`. On any failure discard the instance. Creating: expected version `0`.
 3. **Conflicts are results.** `StoreErrors.IsVersionConflict(result)` → someone committed first; return it (409) or,
    in a worker, retry later with a fresh load. `Idempotency.DuplicateKey` and `Lookup.Taken` are also `Error.Conflict`.

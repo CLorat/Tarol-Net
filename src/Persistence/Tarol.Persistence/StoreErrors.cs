@@ -45,4 +45,12 @@ public static class StoreErrors
     /// <returns><see langword="true"/> for <see cref="VersionConflictCode"/>.</returns>
     public static bool IsVersionConflict(Result result)
         => result.TryGetValue(out Violation? violation) && violation is Error { Type: ErrorType.Conflict, Code: VersionConflictCode };
+
+    /// <summary>Whether <paramref name="result"/> is a version conflict (an <see cref="IAggregateStore.Append{T}"/> result).</summary>
+    /// <typeparam name="T">The success value (the commit's <see cref="GlobalPosition"/>).</typeparam>
+    /// <param name="result">An append result.</param>
+    /// <returns><see langword="true"/> for <see cref="VersionConflictCode"/>.</returns>
+    public static bool IsVersionConflict<T>(Result<T> result)
+        where T : notnull
+        => result.TryGetValue(out Violation? violation) && violation is Error { Type: ErrorType.Conflict, Code: VersionConflictCode };
 }

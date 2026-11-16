@@ -36,6 +36,14 @@ public sealed record NpgsqlStoreOptions
     /// </summary>
     public bool Notify { get; init; }
 
+    /// <summary>
+    /// Send a <c>NOTIFY</c> on <see cref="NpgsqlAggregateStore.FeedChannel"/> (<c>&lt;schema&gt;_feed</c>) with every commit, so
+    /// projection hosts (<c>Tarol.Queries.Npgsql</c>) wake at once: lag p50 3.6 ms instead of 56 ms with the 100 ms poll
+    /// (queries.md §4.3). Off by default, like <see cref="Notify"/> (S-10). The hosts keep polling (1 s) as the fallback:
+    /// the feed holds a commit back while an older transaction runs, after its notification.
+    /// </summary>
+    public bool NotifyFeed { get; init; }
+
     /// <summary>The unique lookups; share one instance with the in-memory store of your tests.</summary>
     public StoreLookups Lookups { get; init; } = new();
 }

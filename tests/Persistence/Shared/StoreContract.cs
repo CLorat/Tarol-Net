@@ -44,7 +44,7 @@ public abstract class StoreContract
     private async Task<T> Committed<T>(T aggregate, long expected = 0, OperationContext? context = null)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
-        (await Store.Append(aggregate, expected, context ?? Alice, Option.None, Ct)).ShouldBe(Result.Success());
+        (await Store.Append(aggregate, expected, context ?? Alice, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
         AggregateChanges.Committed(aggregate);
         return aggregate;
     }
@@ -87,7 +87,7 @@ public abstract class StoreContract
     {
         var member = await Committed(NewMember("a@x"));
         var result = await Store.Append(Member.Join(member.Id, "b@x"), 0, Alice, Option.None, Ct);
-        result.ShouldBe(Result.Failure(StoreErrors.VersionConflict(0, 1)));
+        result.ToResult().ShouldBe(Result.Failure(StoreErrors.VersionConflict(0, 1)));
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public abstract class StoreContract
         second.Earn(2).IsSuccess.ShouldBeTrue();
 
         (await Store.Append(first, 1, Alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
-        (await Store.Append(second, 1, Alice, Option.None, Ct)).ShouldBe(Result.Failure(StoreErrors.VersionConflict(1, 2)));
+        (await Store.Append(second, 1, Alice, Option.None, Ct)).ToResult().ShouldBe(Result.Failure(StoreErrors.VersionConflict(1, 2)));
         (await Loaded(member.Id)).Points.ShouldBe(1);
     }
 
@@ -146,7 +146,7 @@ public abstract class StoreContract
         var key = new IdempotencyKey(_tenant, "payments", "evt_1");
         (await Store.Append(NewMember("a@x"), 0, Alice, key, Ct)).IsSuccess.ShouldBeTrue();
         var second = NewMember("b@x");
-        (await Store.Append(second, 0, Alice, key, Ct)).ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key)));
+        (await Store.Append(second, 0, Alice, key, Ct)).ToResult().ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key)));
         (await Store.Load(second.Id, Alice, Ct)).IsNone.ShouldBeTrue();
     }
 
@@ -171,7 +171,7 @@ public abstract class StoreContract
             .ShouldBe("sha256:abc");                                                    // found by (tenant, scope, key)
         (await Store.Seen(new IdempotencyKey(_tenant, "http", "k-1"), Ct)).IsSome.ShouldBeTrue();
         (await Store.Append(NewMember("b@x"), 0, Alice, key with { Fingerprint = "sha256:other" }, Ct))
-            .ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key with { Fingerprint = "sha256:other" })));
+            .ToResult().ShouldBe(Result.Failure(StoreErrors.DuplicateKey(key with { Fingerprint = "sha256:other" })));
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public abstract class StoreContract
         (await Store.Find<Member>("email", "a@x", Alice, Ct)).ShouldBe(member.Id);
 
         var taken = NewMember("a@x");
-        (await Store.Append(taken, 0, Alice, Option.None, Ct)).ShouldBe(Result.Failure(StoreErrors.LookupTaken("email", "a@x")));
+        (await Store.Append(taken, 0, Alice, Option.None, Ct)).ToResult().ShouldBe(Result.Failure(StoreErrors.LookupTaken("email", "a@x")));
         (await Store.Load(taken.Id, Alice, Ct)).IsNone.ShouldBeTrue();
 
         var loaded = await Loaded(member.Id);
@@ -240,7 +240,8 @@ public abstract class StoreContract
         member.Earn(1).IsSuccess.ShouldBeTrue();
         var badge = member.Award("gold");
         var context = Alice.AsSystem("Jobs.Test").CausedBy(Id<ICausation>.New(Time));
-        (await Store.Append(member, 0, context, Option.None, Ct)).IsSuccess.ShouldBeTrue();
+        var appended = await Store.Append(member, 0, context, Option.None, Ct);
+        appended.TryGetValue(out GlobalPosition position).ShouldBeTrue();
 
         // A database feed returns a commit once every older transaction has finished (P-14), so poll for a while.
         var mine = new List<PositionedEvent>();
@@ -271,6 +272,26 @@ public abstract class StoreContract
         mine[2].Event.Event.ParentId.ShouldBe(member.Id.Value);
         mine[0].Event.Event.Event.ShouldBe(new Member.Joined("a@x"));
         mine.Select(e => e.Position).ShouldBeInOrder();
+        mine[^1].Position.ShouldBe(position);                                  // Append returns the commit's last feed position
+        mine.ShouldAllBe(e => e.Position.Transaction == position.Transaction);
+    }
+
+    [Fact]
+    public async Task Append_returns_a_position_after_every_earlier_commit()
+    {
+        var member = NewMember("p@x");
+        var first = await Store.Append(member, 0, Alice, Option.None, Ct);
+        AggregateChanges.Committed(member);
+        member.Earn(3).IsSuccess.ShouldBeTrue();
+        var second = await Store.Append(member, 1, Alice, Option.None, Ct);
+
+        first.TryGetValue(out GlobalPosition one).ShouldBeTrue();
+        second.TryGetValue(out GlobalPosition two).ShouldBeTrue();
+        one.ShouldBeGreaterThan(GlobalPosition.Start);
+        two.ShouldBeGreaterThan(one);
+        AggregateChanges.Committed(member);
+        (await Store.Append(member, 2, Alice, Option.None, Ct)).TryGetValue(out GlobalPosition nothing).ShouldBeTrue();
+        nothing.ShouldBe(GlobalPosition.Start);                                // nothing appended: nothing to wait for
     }
 
     [Fact]

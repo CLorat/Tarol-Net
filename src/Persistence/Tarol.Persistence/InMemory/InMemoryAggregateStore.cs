@@ -159,7 +159,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
     }
 
     /// <inheritdoc />
-    public ValueTask<Result> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key,
+    public ValueTask<Result<GlobalPosition>> Append<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key,
         CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
@@ -169,7 +169,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         cancellationToken.ThrowIfCancellationRequested();
         var changes = aggregate.UncommittedChanges.ToArray();
         if (changes.Length == 0)
-            return ValueTask.FromResult(Result.Success());
+            return ValueTask.FromResult<Result<GlobalPosition>>(GlobalPosition.Start);
         if (changes[0].Version != expectedVersion + 1)
             throw new ArgumentException(
                 $"The uncommitted changes of {typeof(T).Name} start at version {changes[0].Version}, not at expected version {expectedVersion} + 1.",
@@ -188,14 +188,14 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
             _streams.TryGetValue(streamKey, out var stream);
             var actual = stream?.Events.Count ?? 0;
             if (actual != expectedVersion)
-                return ValueTask.FromResult<Result>(StoreErrors.VersionConflict(expectedVersion, actual));
+                return ValueTask.FromResult<Result<GlobalPosition>>(StoreErrors.VersionConflict(expectedVersion, actual));
             if (key.TryGetValue(out IdempotencyKey idempotency) && _keys.ContainsKey(Identity(idempotency)))
-                return ValueTask.FromResult<Result>(StoreErrors.DuplicateKey(idempotency));
+                return ValueTask.FromResult<Result<GlobalPosition>>(StoreErrors.DuplicateKey(idempotency));
             foreach (var (lookup, newKey) in keys)
             {
                 if (newKey is not null && newKey != stream?.Lookups.GetValueOrDefault(lookup)
                     && _lookups.TryGetValue((tenant, type, lookup, newKey), out var owner) && owner != aggregate.Id.Value)
-                    return ValueTask.FromResult<Result>(StoreErrors.LookupTaken(lookup, newKey));
+                    return ValueTask.FromResult<Result<GlobalPosition>>(StoreErrors.LookupTaken(lookup, newKey));
             }
 
             // everything checked: commit atomically
@@ -222,8 +222,8 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
             }
             if (key.TryGetValue(out idempotency))
                 _keys[Identity(idempotency)] = new StoredOutcome(aggregate.Id.Value, changes[^1].Version, changes.Length, idempotency.Fingerprint);
+            return ValueTask.FromResult<Result<GlobalPosition>>(_recorded[^1].Position);
         }
-        return ValueTask.FromResult(Result.Success());
     }
 
     private static StreamEvent[] RoundTrip<T>(EventCodec codec, StreamEvent[] changes)
