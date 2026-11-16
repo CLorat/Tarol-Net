@@ -619,4 +619,12 @@ numbers refused; other types `ISpanParsable<T>` in the invariant culture) → `s
 
 ### 17.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
-VERIFICATION_12C
+On this branch: `dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test
+--solution Tarol.slnx` with Docker: **1395 of 1395** (12B's 1370 + 13 endpoint tests + 9 generator tests + 1 pipeline test
++ 2 authorization tests). The first full run had one failure in a step-11 test
+(`Tarol.Messaging.SignalR.Tests` … `A_connection_that_closed_for_good_is_started_again_by_the_client`: the client's own
+restart did not reconnect within its 30 s wait) while native binaries were being published in parallel on this machine;
+the project then ran 10 times in a row without load, 18 of 18 each, and the suite again, 1395 of 1395. `eng/aot-smoke.sh`
+with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **20 apps**, 0 IL warnings each, all checks passed (the AspNetCore app with
+its two list checks, in memory and on PostgreSQL); `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the AspNetCore
+package consumer now also references `Tarol.Queries.Npgsql`: it shares the smoke app's `Program.cs`).
