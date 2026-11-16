@@ -393,7 +393,10 @@ merged into its stale stacked base and #42 had to bring 12C to `main`).
 
 ## 13. Verification of this PR (SDK 11.0.100, 2026-11-16) **[verified]**
 
-Docs and probes only; the package code is `main` at `ab86313` (step 12 merged). See the PR body for the counts of this run.
+Docs and probes only; the package code is `main` at `ab86313` (step 12 merged). On this branch: `dotnet build Tarol.slnx` 0 warnings,
+0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker: 1395 of 1395; `eng/aot-smoke.sh`
+with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: 20 apps, 0 IL warnings, all checks passed; `dotnet pack -c Release` +
+`eng/verify-packages.sh`: OK.
 At the start on `main`: `dotnet build Tarol.slnx` 0 warnings; `dotnet test --solution Tarol.slnx` with Docker: 1394 of 1395.
 The one failure was `PushTests.A_connection_that_closed_for_good_is_started_again_by_the_client` (SignalR, 30 s timeout under
 full-suite load). It passed 5 of 5 alone and in CI run 135 of `main` (`build`, `aot-smoke`, `integration` green).
