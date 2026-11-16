@@ -13,8 +13,10 @@ description: >-
 1. Only list pages are cached (`IReadModelStore<TRow>.Search`). GET by id (`IView<,>`), aggregate loads in a change,
    `ILoads<T>.Find` and projection writes always read the store: a decision never reads a cache.
 2. Register in the API process, after the read stores: `.UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true }).AddCaching()`.
-   Set `PushCheckpoints = true` in the worker too: its batches send the NOTIFY that moves the checkpoint.
-   `AddCaching()` before any read store, or twice, throws `InvalidOperationException`.
+   Set `PushCheckpoints = true` in the worker too (its batches send the NOTIFY that moves the checkpoint), but no
+   `AddCaching()` there: the worker writes, it does not serve lists. `NotifyFeed` (the store's feed NOTIFY) is separate:
+   it wakes the worker's projection sooner; the cache needs only `PushCheckpoints`. `AddCaching()` also works over
+   `UseInMemoryReadModels()` (tests). Before any read store, or twice, it throws `InvalidOperationException`.
 3. Validity is the projection's checkpoint, never time: an entry answers only while `IProjectionPositions.Checkpoint<TRow>()`
    equals the position read before its search. Any batch of that projection (any tenant) makes its entries miss once.
 4. `CacheOptions` (`MaxEntries` 10,000, `MaxBytes` 64 MB estimated from the rows' JSON, `IdleExpiry` 5 min) bound
@@ -31,6 +33,10 @@ description: >-
 
 ## Example
 
+Namespaces: `Tarol.Caching`, `Tarol.Queries` (`InMemoryReadModels`, `ProjectionPositions`, `ListQuery`, `Page<T>`),
+`Tarol.Queries.Npgsql`, `Tarol.Persistence` (`GlobalPosition`); `FakeTimeProvider` is in the package
+`Microsoft.Extensions.TimeProvider.Testing` (`Microsoft.Extensions.Time.Testing`).
+
 ```csharp
 // API process (worker: the same UseNpgsqlReadModels options plus AddProjections)
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
@@ -43,10 +49,12 @@ var time = new FakeTimeProvider();
 var inner = new InMemoryReadModels();
 using var cache = new MemoryPageCache(new CacheOptions { IdleExpiry = TimeSpan.FromMinutes(5) }, time);
 var store = new CachedReadModels(inner, new ProjectionPositions(inner), cache, AppJson.Default.Options).Store<AuctionRow>();
+// rows: IReadOnlyList<Versioned<AuctionRow>>, e.g. [new(new RowKey(tenant, id), 1, new AuctionRow(…))]; tenant: a Guid
 await store.Write(new ProjectionBatch<AuctionRow>(rows, GlobalPosition.Start, new GlobalPosition(1, 1), ProjectionState.Current), ct);
 var first = await store.Search(new ListQuery(tenant), ct);    // a miss: searches the in-memory store
 var second = await store.Search(new ListQuery(tenant), ct);   // a hit: the same Page<AuctionRow> instance
 time.Advance(TimeSpan.FromMinutes(6));                        // idle: the next search misses
+// Search returns Result<Page<AuctionRow>>: first.TryGetValue(out Page<AuctionRow>? page)
 ```
 
 ## Common mistakes

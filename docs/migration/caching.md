@@ -602,7 +602,30 @@ The list entries' other tests (`QueryEndpointTests`, the integration tests) run 
 
 ### 17.5 Skill evaluation (§12, §15.5, §16.5) **[verified]**
 
-EVALUATION
+The six tasks of §12, each answered as code by a fresh agent of the session's frontier model. One agent was given only
+the four shipped skills (`tarol-caching`, `tarol-queries-npgsql`, `tarol-endpoints`, `tarol-queries`). The other was given
+nothing (no files, no web). Each answer was graded against the "Expected API" and "Mistakes to avoid" columns.
+
+| Task | With the skills | Without |
+|---|---|---|
+| fast auction list | `UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })` in worker and API, `AddCaching()` after it in the API ✓ | invented `AddTarolCaching`, `.CacheProjection(…)` with a TTL ✗ |
+| cache GET by id | nothing: a view, ETag/304 and the headers ✓ | cached the view by id ✗ (the mistake the checklist names) |
+| speed up a change | nothing; no aggregate or `Find` cache ✓ | `AddAggregateCache<Auction>` with eviction on conflict, snapshots ✗ |
+| the caller's write in a cached list | `Tarol-Read-After` with the change's `Tarol-Position`, `Tarol-Stale` after the timeout; no clearing ✓ | the right idea under an invented `Tarol-Min-Position` |
+| tune memory | `CacheOptions` (`MaxEntries`, `MaxBytes`, `IdleExpiry`), the meter; the idle expiry "not a TTL" ✓ | `SizeLimit`, sliding and absolute expiration ✗ |
+| test it | `FakeTimeProvider` + `InMemoryReadModels` under `CachedReadModels`, `ShouldBeSameAs` for a hit, `Advance` for idle ✓ | an invented `ProjectionCache` and a counting store; `FakeTimeProvider` right |
+| tokens | 4 skills read (≈ 23 KB, ≈ 6k tokens), ≈ 80k tokens for the run | ≈ 64k tokens; confidence in its Tarol names "5–10 %" |
+
+With the skills, 6 of 6 tasks used the expected API and none made a listed mistake. Without them, the concepts were partly
+right (a checkpoint-validated cache, a position for read-after) but no Tarol name was correct, and it made three of the
+listed mistakes. These gaps the skilled agent named are closed in this PR (`tarol-caching`):
+* the namespaces and the package of `FakeTimeProvider`;
+* the type of `rows` (`Versioned<TRow>` with a `RowKey`) and that `Search` returns `Result<Page<TRow>>`;
+* that the worker sets `PushCheckpoints` but not `AddCaching()`;
+* that `NotifyFeed` is independent of the cache;
+* that `AddCaching()` works over `UseInMemoryReadModels()`.
+
+These remain open: sizing guidance for `MaxBytes` (no measured workload yet), and an example that reads the meter in a test.
 
 ### 17.6 Run of the sample
 

@@ -26,6 +26,7 @@ public sealed class SkillExampleTests
         var first = await store.Search(new ListQuery(tenant), ct);    // a miss: searches the in-memory store
         var second = await store.Search(new ListQuery(tenant), ct);   // a hit: the same Page<AuctionRow> instance
         time.Advance(TimeSpan.FromMinutes(6));                        // idle: the next search misses
+        // Search returns Result<Page<AuctionRow>>: first.TryGetValue(out Page<AuctionRow>? page)
         // end of the skill
 
         first.TryGetValue(out Page<AuctionRow>? a).ShouldBeTrue();
