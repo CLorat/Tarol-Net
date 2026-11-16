@@ -122,6 +122,8 @@
     <Project Path="tests/Primitives/Tarol.Primitives.Tests/Tarol.Primitives.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Queries/">
+    <Project Path="tests/Queries/Tarol.Queries.AotSmoke/Tarol.Queries.AotSmoke.csproj" />
+    <Project Path="tests/Queries/Tarol.Queries.Generators.Tests/Tarol.Queries.Generators.Tests.csproj" />
     <Project Path="tests/Queries/Tarol.Queries.Tests/Tarol.Queries.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Results/">
