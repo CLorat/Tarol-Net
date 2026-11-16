@@ -38,9 +38,9 @@ internal static class Bench
             await Lab.Exec($"""
                 INSERT INTO {schema}.jobs (tenant, name, next_at)
                 SELECT gen_random_uuid(), 'job-' || (g % 10), CASE WHEN g <= 16 THEN now() - interval '1 second' ELSE now() + (g || ' seconds')::interval END
-                FROM generate_series(1, $1) g;
-                ANALYZE {schema}.jobs;
+                FROM generate_series(1, $1) g
                 """, total);
+            await Lab.Exec($"ANALYZE {schema}.jobs");
             var xs = new List<double>();
             await using var conn = await Lab.Db.OpenConnectionAsync();
             for (var i = 0; i < 600; i++)
