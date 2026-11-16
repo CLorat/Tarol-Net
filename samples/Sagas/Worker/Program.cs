@@ -13,6 +13,8 @@ using Tarol.Messaging.Npgsql;
 using Tarol.Options;
 using Tarol.Persistence;
 using Tarol.Persistence.Npgsql;
+using Tarol.Queries;
+using Tarol.Queries.Npgsql;
 using Tarol.Sagas;
 
 // ArtFlow's reaction worker. Under the AppHost the connection string "tarol" and the OTLP endpoint come from Aspire.
@@ -22,7 +24,9 @@ var connectionString = builder.Configuration.GetConnectionString("tarol")
                        ?? throw new InvalidOperationException("No connection string 'tarol' (run it through the AppHost).");
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>())
     .WithReactions(GeneratedReactions.Set)
-    .UseNpgsqlStore(connectionString)                              // EnsureSchema when the host starts
+    .UseNpgsqlStore(connectionString, new NpgsqlStoreOptions { NotifyFeed = true })   // EnsureSchema when the host starts; NOTIFY per commit
+    .UseNpgsqlReadModels()                                         // the read tables next to the store's (LISTEN on its feed)
+    .AddProjections(p => p.Add<AuctionRow>())                      // the auction list the API serves (GET /auctions)
     .AddReactionWorker()                                           // reactions and publications; the store's key purge is used
     .AddMessaging("artflow", m => m
         .Publish(GeneratedPublications.Set)                        // artflow.auction-settled
@@ -33,7 +37,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("worker"))
         // not "Npgsql": every idle claim (every 100 ms per worker) would be a span and bury the reactions in the dashboard
-        .WithTracing(t => t.AddSource([.. Broker.Sources, Producer.SourceName]).AddOtlpExporter());
+        .WithTracing(t => t.AddSource([.. Broker.Sources, Producer.SourceName, ProjectionHost.ActivitySourceName]).AddOtlpExporter());
 
 using var host = builder.Build();
 await host.StartAsync();

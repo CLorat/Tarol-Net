@@ -6,6 +6,7 @@ using OpenTelemetry.Trace;
 using Tarol.Changes;
 using Tarol.Changes.AspNetCore;
 using Tarol.Persistence.Npgsql;
+using Tarol.Queries.Npgsql;
 using Tarol.Security;
 using Tarol.Security.Zitadel;
 
@@ -21,6 +22,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
     .WithReactions(GeneratedReactions.Set)                     // the API's commits write the worker's outbox rows …
     .WithOutboxRows(GeneratedPublications.Set)                 // … and its publication rows (the worker publishes them)
     .UseNpgsqlStore(connectionString)
+    .UseNpgsqlReadModels()                                     // reads the worker's auction list (and its checkpoint for Tarol-Read-After)
     .AddSecurity(roles =>
     {
         roles.Role("seller").May<CreateAuction>().May<SettleAuction>().May<Read<Auction>>();

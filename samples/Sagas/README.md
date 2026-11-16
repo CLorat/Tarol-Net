@@ -1,11 +1,14 @@
 # Sample: ArtFlow and billing under an Aspire AppHost
 
-The runnable sample of steps 9, 10 and 11 (D-15, M-15). It runs on the real packages:
+The runnable sample of steps 9, 10, 11 and 12 (D-15, M-15, QR-7). It runs on the real packages:
 - **`Worker/`** is ArtFlow's reaction worker (`Tarol.Sagas`, `Tarol.Persistence.Npgsql`, the generated
   `GeneratedReactions.Set`, the settlement saga of `docs/architecture/sagas.md` §5).
 - **`Api/`** is its HTTP API (`Tarol.Changes.AspNetCore`, `Tarol.Security`, `Tarol.Security.Zitadel`). It links the
-  worker's domain and changes and adds their entries as partial declarations (`[Endpoint]`, `[Webhook]`), a creation and
-  a view.
+  worker's domain and changes and adds their entries as partial declarations (`[Endpoint]`, `[Webhook]`), a creation,
+  a view and two lists over the auction list (`GET /auctions`, `GET /my/auctions`, `Tarol.Queries.Npgsql`).
+- **The auction list** (`Worker/AuctionList.cs`, step 12): a `[Projection("auction-list")]` row record the worker hosts
+  (`AddProjections`, woken by the store's feed `NOTIFY`) and the API lists; change answers carry `Tarol-Position`, and
+  the script reads the list after each bid with `Tarol-Read-After` (docs/queries/README.md).
 - **`Billing/`** is the second system (`Tarol.Messaging`): it consumes ArtFlow's `artflow.auction-settled`
   (`IssueInvoice`), pays each invoice in a reaction (a stand-in payment provider, `PayInvoice`) and publishes
   `billing.invoice-paid` from its outbox. ArtFlow's worker consumes it into `RecordPayment` (the same change as the
@@ -41,8 +44,10 @@ ARTFLOW_BROKER=rabbitmq samples/Sagas/apphost.sh "$(dirname "$(find samples/Saga
 `apphost.sh` runs the AppHost without dev certificates (`ASPIRE_ALLOW_UNSECURED_TRANSPORT`, anonymous dashboard on
 `http://localhost:18888`). For each auction:
 1. it gets client-credentials tokens from Zitadel (`http://localhost:8080`);
-2. alice creates the auction, bob bids, bob tries to settle (403, the seller-only rule), alice settles;
-3. it reads the result from both databases (ArtFlow's and billing's) and every resource's spans from the dashboard's
+2. alice creates the auction, bob bids and reads the auction list after his bid (`Tarol-Read-After` with the bid's
+   `Tarol-Position`), bob tries to settle (403, the seller-only rule), alice settles;
+3. it reads the list (total, a page with its cursor, alice's and bob's own auctions, the page ETag and a 304), the
+   projection's checkpoint, and the result from both databases (ArtFlow's and billing's) and every resource's spans from the dashboard's
    telemetry API;
 4. finally it removes the containers.
 
