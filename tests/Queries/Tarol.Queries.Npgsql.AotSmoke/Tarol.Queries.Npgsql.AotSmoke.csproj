@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native-AOT smoke test of Tarol.Queries.Npgsql (the generated DDL, and with TAROL_PG set: the read table, the guarded
+    batch, list queries, a SQL projection, NotifyFeed with the LISTEN wake-up, read-your-writes from another "process").
+    Publish with
+      dotnet publish tests/Queries/Tarol.Queries.Npgsql.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
+    <ProjectReference Include="../../../src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

@@ -116,6 +116,11 @@ jobs:
           dotnet test --project tests/Messaging/Tarol.Messaging.Npgsql.IntegrationTests -c Release
           --report-trx --results-directory artifacts/test-results
 
+      - name: Integration tests of the read tables (PostgreSQL via Testcontainers)
+        run: >-
+          dotnet test --project tests/Queries/Tarol.Queries.Npgsql.IntegrationTests -c Release
+          --report-trx --results-directory artifacts/test-results
+
       - name: Integration tests of the NATS JetStream transport (nats:2.11 via Testcontainers)
         run: >-
           dotnet test --project tests/Messaging/Tarol.Messaging.Nats.IntegrationTests -c Release

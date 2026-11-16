@@ -51,6 +51,7 @@
   <Folder Name="/src/Queries/">
     <Project Path="src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj" />
     <Project Path="src/Queries/Tarol.Queries/Tarol.Queries.csproj" />
+    <Project Path="src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
   </Folder>
   <Folder Name="/src/Results/">
     <Project Path="src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj" />
@@ -124,6 +125,8 @@
   <Folder Name="/tests/Queries/">
     <Project Path="tests/Queries/Tarol.Queries.AotSmoke/Tarol.Queries.AotSmoke.csproj" />
     <Project Path="tests/Queries/Tarol.Queries.Generators.Tests/Tarol.Queries.Generators.Tests.csproj" />
+    <Project Path="tests/Queries/Tarol.Queries.Npgsql.AotSmoke/Tarol.Queries.Npgsql.AotSmoke.csproj" />
+    <Project Path="tests/Queries/Tarol.Queries.Npgsql.IntegrationTests/Tarol.Queries.Npgsql.IntegrationTests.csproj" />
     <Project Path="tests/Queries/Tarol.Queries.Tests/Tarol.Queries.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Results/">
