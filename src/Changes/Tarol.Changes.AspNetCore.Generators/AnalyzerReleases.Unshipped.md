@@ -11,3 +11,5 @@ TWEB003 | Tarol.Changes.AspNetCore | Error | Diagnostics
 TWEB004 | Tarol.Changes.AspNetCore | Error | Diagnostics
 TWEB005 | Tarol.Changes.AspNetCore | Error | Diagnostics
 TWEB006 | Tarol.Changes.AspNetCore | Error | Diagnostics
+TQRY005 | Tarol.Queries | Error | Diagnostics
+TQRY006 | Tarol.Queries | Warning | Diagnostics

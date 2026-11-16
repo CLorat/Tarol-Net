@@ -146,8 +146,9 @@ public sealed class ChangePipeline
         var appended = await _store.Append(aggregate, expected, context, options.Key, cancellationToken);
         if (appended.TryGetValue(out Violation? conflict))
             return conflict;
+        var position = appended.TryGetValue(out GlobalPosition at) ? at : GlobalPosition.Start;
         AggregateChanges.Committed(aggregate);
-        return new ChangeOutcome(aggregate.Id.Value, aggregate.Version, events);
+        return new ChangeOutcome(aggregate.Id.Value, aggregate.Version, events, Position: position);
     }
 
     private async ValueTask<Violation?> Permission<T>(object change, T aggregate, ChangeContext context, ChangeOptions options,

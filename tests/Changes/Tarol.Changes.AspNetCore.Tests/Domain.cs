@@ -111,4 +111,5 @@ public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
 [JsonSerializable(typeof(decimal)), JsonSerializable(typeof(string)), JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]
 [JsonSerializable(typeof(Auction.Watched)), JsonSerializable(typeof(Bid.Placed)), JsonSerializable(typeof(Payout.Due))]
+[JsonSerializable(typeof(AuctionRow))]
 public sealed partial class AppJson : JsonSerializerContext;

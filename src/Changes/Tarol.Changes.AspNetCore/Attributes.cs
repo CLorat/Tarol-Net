@@ -23,6 +23,18 @@ public sealed class EndpointAttribute(string route) : Attribute
 }
 
 /// <summary>
+/// Binds a member of a list query record (<c>IQuery&lt;TRow&gt;</c>) to a claim of the caller, never to the request (QR-6):
+/// <c>[FromClaim("sub")] string Seller</c> lists the caller's own rows. A request without the claim is refused (403).
+/// </summary>
+/// <param name="type">The claim type, e.g. <c>"sub"</c>.</param>
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
+public sealed class FromClaimAttribute(string type) : Attribute
+{
+    /// <summary>The claim type.</summary>
+    public string Type { get; } = type;
+}
+
+/// <summary>
 /// A webhook entry on a static factory <c>From(TPayload)</c> of a change: the sender's event type (and contract version)
 /// mapped to the change (anti-corruption layer). Served at <c>POST /webhooks/{sender}</c> and
 /// <c>POST /webhooks/{sender}/{tenant}</c>; configured in <see cref="WebhookOptions"/>.
@@ -56,12 +68,21 @@ public interface IView<TAggregate, TSelf>
 }
 
 /// <summary>What the generator knows about an entry, as endpoint metadata (read by the generated OpenAPI transformers).</summary>
-/// <param name="Kind">"change", "creation", "view" or "webhook".</param>
+/// <param name="Kind">"change", "creation", "view", "list" or "webhook".</param>
 /// <param name="Input">The input (change or view) type.</param>
 /// <param name="RouteValues">The route values the input binds.</param>
 /// <param name="BodyMembers">The JSON names of the members read from the body (empty: no body).</param>
 /// <param name="Policy">The endpoint policy, if any.</param>
-public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyList<RouteValue> RouteValues, IReadOnlyList<string> BodyMembers, string? Policy);
+/// <param name="Query">The query-string parameters of a list (filters, <c>sort</c>, <c>after</c>, <c>limit</c>, <c>offset</c>, <c>count</c>).</param>
+public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyList<RouteValue> RouteValues, IReadOnlyList<string> BodyMembers, string? Policy,
+    IReadOnlyList<QueryParameter>? Query = null);
+
+/// <summary>A query-string parameter of a list entry.</summary>
+/// <param name="Name">Its key (<c>status</c>, <c>sort</c>).</param>
+/// <param name="Kind"><c>"string"</c>, <c>"uuid"</c>, <c>"boolean"</c>, <c>"int32"</c>, <c>"int64"</c>, <c>"number"</c>, <c>"date-time"</c> or <c>"enum"</c>.</param>
+/// <param name="Values">The allowed values of an enum (its member names).</param>
+/// <param name="Description">What it does.</param>
+public sealed record QueryParameter(string Name, string Kind, IReadOnlyList<string> Values, string Description);
 
 /// <summary>A route value of an entry.</summary>
 /// <param name="Name">Its name in the pattern (<c>auction</c>).</param>

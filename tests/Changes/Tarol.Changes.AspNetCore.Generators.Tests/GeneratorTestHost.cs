@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Tarol.Changes.Generators;
 using Tarol.Primitives.Generators;
+using Tarol.Queries.Generators;
 using Tarol.Validations.Generators;
 
 namespace Tarol.Changes.AspNetCore.Generators.Tests;
@@ -18,6 +19,7 @@ internal static class GeneratorTestHost
                 .Split(Path.PathSeparator)
                 .Concat([
                     typeof(ChangeEndpoints).Assembly.Location,
+                    typeof(Tarol.Queries.ListQuery).Assembly.Location,
                     typeof(Tarol.Security.ChangeAuthorization).Assembly.Location,
                     typeof(ChangePipeline).Assembly.Location,
                     typeof(Tarol.Persistence.IAggregateStore).Assembly.Location,
@@ -43,6 +45,7 @@ internal static class GeneratorTestHost
         using Tarol.Changes;
         using Tarol.Changes.AspNetCore;
         using Tarol.Primitives;
+        using Tarol.Queries;
         using Tarol.Results;
         using Tarol.StronglyTypedId;
         using Tarol.Validations;
@@ -70,6 +73,15 @@ internal static class GeneratorTestHost
             private void On(Opened e) => Items = 0;
             private void On(Added e) => Items += e.Items;
         }
+
+        public enum OrderState { Open, Paid }
+
+        [Tarol.Queries.Projection("order-list")]
+        public sealed partial record OrderRow(System.Guid Id, string Customer, [Tarol.Queries.Sort] int Items, OrderState State, System.Guid Owner)
+        {
+            public static OrderRow When(Order.Opened e, RecordedEvent r) => new(r.StreamId, "", 0, OrderState.Open, System.Guid.Empty);
+            public OrderRow When(Order.Added e) => this with { Items = Items + e.Items };
+        }
         """;
 
     public static CSharpCompilation Compile(bool openApi, params string[] sources)
@@ -77,7 +89,9 @@ internal static class GeneratorTestHost
             "Shop.Api",
             sources.Select((s, i) => CSharpSyntaxTree.ParseText(s, Parse, path: $"Source{i}.cs")),
             References(openApi),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable)
+                // the SDK's default NoWarn: unification notes (Microsoft.OpenApi references System.Text.Json 8, the app runs 11)
+                .WithSpecificDiagnosticOptions([new("CS1701", ReportDiagnostic.Suppress), new("CS1702", ReportDiagnostic.Suppress)]));
 
     public static GeneratorDriver Run(CSharpCompilation compilation)
         => CSharpGeneratorDriver
@@ -91,7 +105,7 @@ internal static class GeneratorTestHost
         var compilation = Compile(openApi, [Domain, .. sources]);
         _ = CSharpGeneratorDriver
             .Create([new AggregateGenerator().AsSourceGenerator(), new ChangesGenerator().AsSourceGenerator(), new ValidationGenerator().AsSourceGenerator(),
-                new EndpointGenerator().AsSourceGenerator()], parseOptions: Parse)
+                new ProjectionGenerator().AsSourceGenerator(), new EndpointGenerator().AsSourceGenerator()], parseOptions: Parse)
             .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
         return [.. generatorDiagnostics, .. output.GetDiagnostics().Where(static d => d.Severity >= DiagnosticSeverity.Warning)];
     }
@@ -101,6 +115,17 @@ internal static class GeneratorTestHost
 
 internal static class Sources
 {
+    public const string Lists = GeneratorTestHost.Usings + """
+        namespace Shop;
+
+        public enum OrderSort { [Descending] Items, Id }
+
+        [Endpoint("GET /orders", Policy = "orders:read")]
+        public sealed record OrderSearch(OrderState? State, string? Customer, OrderSort Sort = OrderSort.Items) : IQuery<OrderRow>;
+
+        [Endpoint("GET /customers/{customer}/orders")]
+        public sealed record CustomerOrders(string Customer, [FromClaim("owner")] Guid Owner) : IQuery<OrderRow>;
+        """;
     public const string Entries = GeneratorTestHost.Usings + """
         namespace Shop;
 

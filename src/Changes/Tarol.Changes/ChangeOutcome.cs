@@ -9,7 +9,12 @@ namespace Tarol.Changes;
 /// <param name="Version">The stream's version after the commit.</param>
 /// <param name="Events">How many events were committed (0: the behaviour raised nothing, nothing was appended).</param>
 /// <param name="Replayed">The idempotency key had been seen: this is the first outcome, nothing ran.</param>
-public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Events, bool Replayed = false);
+/// <param name="Position">
+/// The commit's position in the event feed (QR-5): wait for a projection to pass it to read your own write
+/// (<c>Tarol-Position</c> on HTTP). <see cref="GlobalPosition.Start"/> when nothing was committed or the outcome is replayed
+/// (the idempotency key stores no position).
+/// </param>
+public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Events, bool Replayed = false, GlobalPosition Position = default);
 
 /// <summary>What a channel passes along with a change.</summary>
 /// <param name="Key">An idempotency key: a redelivery with it returns the first outcome (C-8).</param>

@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>HTTP entries for Tarol changes: [Endpoint] on a change record or a view becomes a generated RequestDelegate (route + JSON body bound member by member, every error at once), the context comes from the ClaimsPrincipal (actor, tenant, a new correlation), Idempotency-Key and If-Match map to the pipeline, outcomes map to 201/204 with ETag and RFC 9457 problem details with JSON-cased paths; GET by id through views with ETag/304; signed webhooks ([Webhook] on From factories: HMAC, timestamp window, delivery-id key, contract versions); complete OpenAPI metadata. Fails closed without a policy. Native-AOT ready.</Description>
+    <Description>HTTP entries for Tarol changes: [Endpoint] on a change record or a view becomes a generated RequestDelegate (route + JSON body bound member by member, every error at once), the context comes from the ClaimsPrincipal (actor, tenant, a new correlation), Idempotency-Key and If-Match map to the pipeline, outcomes map to 201/204 with ETag and RFC 9457 problem details with JSON-cased paths; GET by id through views with ETag/304; signed webhooks ([Webhook] on From factories: HMAC, timestamp window, delivery-id key, contract versions); list queries over projections ([Endpoint("GET …")] on an IQuery&lt;TRow&gt; record: equality filters, whitelisted sorts, an opaque cursor, a bounded offset, claim-bound filters, Tarol-Read-After, page ETag/304, 503 while a projection builds); complete OpenAPI metadata. Fails closed without a policy. Native-AOT ready.</Description>
     <PackageTags>tarol;ddd;event-sourcing;aspnetcore;minimal-api;rest;webhook;openapi;source-generator;aot</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../Security/Tarol.Security/Tarol.Security.csproj" />
+    <ProjectReference Include="../../Queries/Tarol.Queries/Tarol.Queries.csproj" />
     <!-- D-10: the endpoint generator (TWEB001-TWEB006) ships inside this package. -->
     <ProjectReference Include="../Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj"
                       ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />

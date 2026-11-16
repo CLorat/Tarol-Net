@@ -20,7 +20,7 @@ app.MapChanges();
 
 | Request | Answer |
 |---|---|
-| a change committed | 204, `ETag: "<version>"` |
+| a change committed | 204, `ETag: "<version>"`, `Tarol-Position: <tx>.<pos>` (the commit's place in the feed) |
 | a creation committed | 201, `Location`, `{"id":…,"version":…}`, `ETag` |
 | the same `Idempotency-Key` again | the first outcome (200 for a creation), `Idempotent-Replayed: true`; another body → 422 |
 | invalid input (binder or value rules) | 400 problem details, `errors` keyed by JSON paths, every field at once |
@@ -38,6 +38,15 @@ app.MapChanges();
   authorization. Authentication itself is the app's.
 * **Views**: `[Endpoint("GET /auctions/{auction}")]` on a record implementing `IView<Auction, TSelf>` (`static TSelf
   From(Auction)`): load, `Read<Auction>` authorization, `ETag`, 304 on `If-None-Match`.
+* **Lists** (step 12): `[Endpoint("GET /auctions", Policy = "auctions:read")]` on a record implementing `IQuery<TRow>`
+  over a `[Projection]` row (`Tarol.Queries`): nullable members named like a row column are equality filters from the query
+  string (`?status=Open`), a `Sort` enum member names `[Sort]` columns (`[Descending]`; the id breaks ties), route members
+  filter too, `[FromClaim("sub")]` members come from the caller only. Paging: `limit` (≤ 200), `after` (the opaque cursor of
+  the previous page's `next`), `offset` (≤ 1,000), `count=true`. The answer is `{"items":[…],"next":…,"total":…}` with a weak
+  `ETag` (304 on `If-None-Match`) and `Tarol-Position`; `Tarol-Read-After: <position>` waits up to 2 s for the projection,
+  then answers with `Tarol-Stale: true`; 503 + `Retry-After` while a projection version builds. A list needs the role map's
+  `Read<TAggregate>`, is always tenant-scoped, and runs no row rules. Limits in `ChangeEndpointOptions.Queries`.
+  Diagnostics TQRY005–TQRY006.
 * **Webhooks**: `[Webhook("payments", "payment.succeeded", Version = "2")]` on a `static From(Payload)` factory; served at
   `POST /webhooks/payments` (and `/webhooks/payments/{tenant}`); HMAC-SHA256 over `timestamp.body`, ±5 minutes, secrets from
   `WebhookOptions` (rotation), delivery-id key; 200 / 202 (unknown type) / 401 / 422 / 503 (retry).

@@ -209,6 +209,18 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   every commit, off by default), `NpgsqlAggregateStore.FeedChannel`, `NotifiesFeed`.
 * `Tarol.Persistence`: `StoreErrors.IsVersionConflict<T>(Result<T>)`.
 
+* `Tarol.Changes.AspNetCore` (step 12C): list entries. `[Endpoint("GET …")]` on an `IQuery<TRow>` record over a
+  projection: nullable filter members from the query string, a `Sort` enum over `[Sort]` columns (`[Descending]`, the id
+  as tie-break), route members, `[FromClaim(type)]` members from the caller; `limit`/`after`/`offset`/`count`; the page
+  as `{items, next, total}` with a weak `ETag` and 304, `Tarol-Position`, `Tarol-Read-After` (waits, then
+  `Tarol-Stale: true`), 503 + `Retry-After` while the projection builds; `Positions` (header names, `Format`, `TryParse`),
+  `QueryEndpointOptions` (`ChangeEndpointOptions.Queries`: `MaxLimit`, `DefaultLimit`, `MaxOffset`, `ReadAfterTimeout`,
+  `RetryAfter`), `FromClaimAttribute`, `QueryParameter`, `TarolEndpointMetadata.Query`, `ChangeEndpoints.BuildingCode`;
+  OpenAPI for lists (query parameters with enum values, `Tarol-Read-After`, the page schema, 304, 503); diagnostics
+  TQRY005–TQRY006; the queries part of the skill `tarol-queries`.
+* `Tarol.Changes`: `ChangeOutcome.Position` (the commit's feed position) and `IChangeAuthorization.CheckList<T>` (a
+  default method that refuses); `Tarol.Security`: `ChangeAuthorization.CheckList<T>` (the role map's `Read<T>`, no row rules).
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
@@ -217,6 +229,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* Step 12C (announced in docs/migration/queries.md §10): change answers carry `Tarol-Position`; `ChangeOutcome` gains
+  `Position` as a last positional member with a default (source compatible; a replayed outcome has `GlobalPosition.Start`).
+  `IChangeAuthorization` gains `CheckList<T>` as a default interface method (existing implementations compile and refuse
+  lists). `Tarol.Changes.AspNetCore` depends on `Tarol.Queries`.
 * Step 12B (announced in docs/migration/queries.md §10): `IAggregateStore.Append` returns `Result<GlobalPosition>`
   (the commit's position in the feed: its transaction and the position of its last event; `GlobalPosition.Start` when
   nothing was appended) instead of `Result`, in `InMemoryAggregateStore` and `NpgsqlAggregateStore`. Callers that only

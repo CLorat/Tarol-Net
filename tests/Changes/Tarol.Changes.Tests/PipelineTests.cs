@@ -37,6 +37,21 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task The_outcome_carries_the_commits_position_in_the_feed()
+    {
+        var test = Test();
+
+        var then = await test.When(new CreateAuction("L-1", new Title("Sunflowers"), new Amount(100), Start.AddDays(7)), Actor.User("alice"));
+
+        var outcome = then.Result.GetValueOrThrow();
+        GlobalPosition last = default;
+        await foreach (var e in test.Store.ReadAll(GlobalPosition.Start, 100, TestContext.Current.CancellationToken))
+            last = e.Position;
+        outcome.Position.ShouldBe(last);
+        outcome.Position.ShouldBeGreaterThan(GlobalPosition.Start);
+    }
+
+    [Fact]
     public async Task Invalid_input_returns_every_field_before_any_read()
     {
         var test = Test();
@@ -75,7 +90,7 @@ public sealed class PipelineTests
 
         var then = await test.When(new CloseAuction(auction.Id));
 
-        then.Result.GetValueOrThrow().ShouldBe(new ChangeOutcome(auction.Id.Value, 2, 1));
+        (then.Result.GetValueOrThrow() with { Position = default }).ShouldBe(new ChangeOutcome(auction.Id.Value, 2, 1));
         then.Events.ShouldBe([new Auction.Closed(Start.AddHours(2))]);
         test.Load(auction.Id).Status.ShouldBe(AuctionStatus.Closed);
     }
@@ -191,7 +206,7 @@ public sealed class PipelineTests
         var loads = test.Store.Loads;
         var again = await test.When(new CloseAuction(auction.Id), options: key);
 
-        again.Result.GetValueOrThrow().ShouldBe(first.Result.GetValueOrThrow() with { Replayed = true });
+        again.Result.GetValueOrThrow().ShouldBe(first.Result.GetValueOrThrow() with { Replayed = true, Position = GlobalPosition.Start });   // a replay has no position
         again.Events.ShouldBeEmpty();
         test.Store.Loads.ShouldBe(loads);
     }
@@ -242,7 +257,7 @@ public sealed class PipelineTests
 
         var then = await test.When(new TouchAuction(auction.Id));
 
-        then.Result.GetValueOrThrow().ShouldBe(new ChangeOutcome(auction.Id.Value, 1, 0));
+        (then.Result.GetValueOrThrow() with { Position = default }).ShouldBe(new ChangeOutcome(auction.Id.Value, 1, 0));
         then.Recorded.ShouldBeEmpty();
     }
 
@@ -280,7 +295,7 @@ public sealed class PipelineTests
         var unmarked = await test.When(create with { Lot = "L-3" }, Actor.User("alice"), new ChangeOptions(new IdempotencyKey(Option.None, "http", "k-1")));
 
         first.Result.GetValueOrThrow().Replayed.ShouldBeFalse();
-        again.Result.GetValueOrThrow().ShouldBe(first.Result.GetValueOrThrow() with { Replayed = true });
+        again.Result.GetValueOrThrow().ShouldBe(first.Result.GetValueOrThrow() with { Replayed = true, Position = GlobalPosition.Start });   // a replay has no position
         Failure(reused.Result).ShouldBe(StoreErrors.KeyReused(key with { Fingerprint = "POST /auctions #2" }));
         Failure(reused.Result).ShouldBeOfType<Error>().Type.ShouldBe(ErrorType.UnprocessableEntity);
         unmarked.Result.GetValueOrThrow().Replayed.ShouldBeTrue();                      // nothing to compare: the first outcome

@@ -69,6 +69,28 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
         return anonymous ? Error.Unauthorized(RequiredCode) : Error.Forbidden(code);
     }
 
+    /// <inheritdoc />
+    public async ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        cancellationToken.ThrowIfCancellationRequested();
+        // no resource: resource handlers (row rules, ChangeHandler<TChange, TAggregate>) never run; the role map may grant Read<T>
+        var result = await _authorization.AuthorizeAsync(principal, null, new ChangeRequirement(Read<T>.Instance, context)).ConfigureAwait(false);
+        if (result.Succeeded)
+            return Result.Success();
+        var anonymous = principal.Identity?.IsAuthenticated != true;
+        var code = anonymous ? RequiredCode : result.Failure?.FailureReasons.FirstOrDefault()?.Message ?? ForbiddenCode;
+        var actor = context.Operation.Actor;
+        Denied.Add(1, new KeyValuePair<string, object?>("change", "List<" + typeof(T).Name + ">"), new KeyValuePair<string, object?>("reason", code),
+            new KeyValuePair<string, object?>("actor.kind", actor.Kind.ToString()));
+        ListRefused(_log, typeof(T).Name, actor.Kind, actor.Id, code);
+        return anonymous ? Error.Unauthorized(RequiredCode) : Error.Forbidden(code);
+    }
+
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Warning, Message = "Refused a list of {Aggregate} for {ActorKind} {ActorId}: {Reason}")]
+    private static partial void ListRefused(ILogger logger, string aggregate, ActorKind actorKind, string actorId, string reason);
+
     private static string Name(object change) => change.GetType() is { IsGenericType: true } generic && generic.GetGenericTypeDefinition() == typeof(Read<>)
         ? change.ToString()!
         : change.GetType().Name;
