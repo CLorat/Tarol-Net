@@ -225,6 +225,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `NOTIFY`), `GET /auctions` and `GET /my/auctions` (claim-bound) in the API, read-your-writes after each bid in
   `apphost.sh`; the user guide `docs/queries/README.md`.
 
+* `Tarol.Queries.Npgsql` (step 13A): pushed checkpoints. `NpgsqlReadModelOptions.PushCheckpoints` makes every
+  projection batch (row and SQL projections) send `NOTIFY <schema>_checkpoint, '<name>:<version>:<tx>:<pos>:<state>'`
+  in its transaction (delivered after the commit), and registers `NpgsqlProjectionPositions` as `IProjectionPositions`:
+  one `LISTEN` connection per process, the checkpoints in memory (`Checkpoint<TRow>` without a round trip), `WaitFor`
+  woken by the notification, a 1 s poll and a poll after every reconnect as the fallback, `IsListening`; logs 12101–12103.
 * `Tarol.Caching` (step 13B, new): cached list pages. `CachedReadModels` decorates `IReadModels`; its stores answer
   `Search` from an `IPageCache` (`TryGet`, `Put`, `Clear`), keyed by `PageKey` (the tenant, the projection's name and
   version, the canonical query with `[FromClaim]` values as filters) and valid only while
