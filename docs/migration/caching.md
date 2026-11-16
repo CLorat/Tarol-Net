@@ -469,7 +469,14 @@ No change without the option: nothing is sent, `ProjectionPositions` is register
 | `Tarol.Queries.Npgsql.AotSmoke` | +1 check | "a pushed checkpoint wakes WaitFor in another process" (Native AOT, 0 IL warnings) |
 
 Every wait is for a known position (the one `Append` or the host returned) with a 30 s cap; nothing counts inside a
-wall-clock window. Repeated in Release: REPEATS.
+wall-clock window. Repeated in Release with no other load: `PushedCheckpointTests` 20 of 20 runs; the whole
+`Tarol.Queries.Npgsql.IntegrationTests` project 10 of 10 runs (after moving the open-transaction test into its own
+collection, see below).
+
+Found on the way **[verified]**: the open-transaction test first ran in parallel with the other classes of the project and
+made two `NpgsqlReadModelTests` fail in the full suite (a single `CatchUp` saw an empty feed). The xmin horizon is
+cluster-wide, so a test that holds an older transaction hides commits from every test on the container. It now runs in
+`PushedCheckpointXminTests`, a collection with `DisableParallelization = true`.
 
 ### 15.5 Skill evaluation checklist (`tarol-queries-npgsql`, pushed checkpoints)
 
@@ -487,4 +494,13 @@ None. The broad `catch (Exception e) when (e is not OutOfMemoryException)` of th
 
 ### 15.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
-VERIFICATION
+`main` at `593aefb` before the change: 1395 tests, 20 AOT smoke apps; `main`'s CI (`build`, `aot-smoke`, `integration`)
+green at the start. On this branch (`4e807ef`):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors. `dotnet format --verify-no-changes`: clean.
+* `dotnet test --solution Tarol.slnx` with Docker: **1404 of 1405** (1395 + 10 `PushedCheckpointTests`). The one failure was
+  `Tarol.Messaging.SignalR.Tests.PushTests.After_a_reconnect_the_subscriptions_are_replayed`: a 30 s timeout under
+  full-suite load while another build ran on the machine, the known flake of §14. All 17 `PushTests` passed in 5 of 5
+  runs alone.
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **20 apps**, 0 IL warnings each, all checks passed
+  (`Tarol.Queries.Npgsql.AotSmoke` with the new check).
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
