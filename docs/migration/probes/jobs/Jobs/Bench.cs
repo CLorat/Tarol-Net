@@ -103,9 +103,10 @@ internal static class Bench
             var store = await Lab.Store(schema, fresh: true, set);
             var ids = new Guid[tenants];
             for (var t = 0; t < tenants; t++) ids[t] = Guid.CreateVersion7();
-            var due = Lab.Second(DateTimeOffset.UtcNow).AddSeconds(2);
-            await Seed(store, ids, "nightly", schedule: true, due);
-            while (DateTimeOffset.UtcNow < due) await Task.Delay(10);
+            // seed an hour ahead (a row is never due before its commit), then make every first occurrence due at once
+            await Seed(store, ids, "nightly", schedule: true, Lab.Second(DateTimeOffset.UtcNow).AddHours(1));
+            var due = Lab.Second(DateTimeOffset.UtcNow);
+            await Lab.Exec($"UPDATE {schema}.outbox SET due_at = $1", due);
             var pipeline = new ChangePipeline(store, Time);
             var sw = Stopwatch.StartNew();
             using var stop = new CancellationTokenSource();
