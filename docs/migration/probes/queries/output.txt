@@ -40,3 +40,7 @@ PASS stored state: the open count matches the projection; a wrong path is silent
 ALL 21 CHECKS PASSED (selftest postgres, JIT)
 
 ## 2. Seed: 10,000 auctions x (open + 8 bids + close) through the store, 8 writers, one commit per event; copied by SQL to 1e6 events
+INFO seed: 100000 commits (one event each) by 8 writers in 152.7 s = 655 commits/s
+INFO seed: copied to 1000000 events (10 x) in 15.2 s; aliases auction.bid_placed, auction.closed, auction.opened; events table 393 MB
+
+## 3. Catch-up from the start over 1e6 events (rows + checkpoint per batch; A1 = in one transaction, A2 = separate statements)
