@@ -22,7 +22,7 @@ namespace Tarol.Changes.AspNetCore;
 /// the member binder's helpers, the outcome → HTTP mapping (changes.md §6) and GET by id. Generated code calls it;
 /// applications rarely do.
 /// </summary>
-public sealed class ChangeEndpoints
+public sealed partial class ChangeEndpoints
 {
     private static readonly ClaimsPrincipal NoOne = new(new ClaimsIdentity());
     private readonly TimeProvider _time;
@@ -255,6 +255,8 @@ public sealed class ChangeEndpoints
         }
         var outcome = result.GetValueOrThrow();
         http.Response.Headers.ETag = $"\"{outcome.Version}\"";
+        if (outcome.Position != GlobalPosition.Start)
+            http.Response.Headers[Positions.PositionHeader] = Positions.Format(outcome.Position);
         if (outcome.Replayed)
             http.Response.Headers["Idempotent-Replayed"] = "true";
         if (!created)

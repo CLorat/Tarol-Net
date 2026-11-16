@@ -39,12 +39,47 @@ public sealed class ChangeEndpointOptions
     /// when one is registered; else (or when <see langword="false"/>) they are written directly.</summary>
     public bool UseProblemDetailsService { get; set; } = true;
 
+    /// <summary>Limits and waits of list entries (<c>[Endpoint("GET …")]</c> on an <c>IQuery&lt;TRow&gt;</c> record).</summary>
+    public QueryEndpointOptions Queries { get; } = new();
+
     internal void Validate()
     {
+        Queries.Validate();
         ArgumentNullException.ThrowIfNull(Json);
         ArgumentException.ThrowIfNullOrWhiteSpace(SubjectClaim);
         ArgumentException.ThrowIfNullOrWhiteSpace(ClientClaim);
         ArgumentException.ThrowIfNullOrWhiteSpace(TenantClaim);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxBody, 1);
+    }
+}
+
+/// <summary>Limits and waits of list entries (QR-4, QR-5).</summary>
+public sealed class QueryEndpointOptions
+{
+    /// <summary>The largest <c>limit</c> (default and at most <see cref="Tarol.Queries.ListQuery.MaxLimit"/>, 200); larger is 400.</summary>
+    public int MaxLimit { get; set; } = Tarol.Queries.ListQuery.MaxLimit;
+
+    /// <summary>The page size without <c>limit</c> (default 50).</summary>
+    public int DefaultLimit { get; set; } = Tarol.Queries.ListQuery.DefaultLimit;
+
+    /// <summary>The deepest <c>offset</c> (default and at most <see cref="Tarol.Queries.ListQuery.MaxOffset"/>, 1,000); deeper is 400.</summary>
+    public int MaxOffset { get; set; } = Tarol.Queries.ListQuery.MaxOffset;
+
+    /// <summary>How long a <c>Tarol-Read-After</c> request waits for the projection (default 2 s); then 200 with <c>Tarol-Stale: true</c>.</summary>
+    public TimeSpan ReadAfterTimeout { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>The <c>Retry-After</c> of a 503 while the projection builds (default 5 s).</summary>
+    public TimeSpan RetryAfter { get; set; } = TimeSpan.FromSeconds(5);
+
+    internal void Validate()
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaxLimit, 1, nameof(MaxLimit));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(MaxLimit, Tarol.Queries.ListQuery.MaxLimit, nameof(MaxLimit));
+        ArgumentOutOfRangeException.ThrowIfLessThan(DefaultLimit, 1, nameof(DefaultLimit));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(DefaultLimit, MaxLimit, nameof(DefaultLimit));
+        ArgumentOutOfRangeException.ThrowIfNegative(MaxOffset, nameof(MaxOffset));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(MaxOffset, Tarol.Queries.ListQuery.MaxOffset, nameof(MaxOffset));
+        ArgumentOutOfRangeException.ThrowIfLessThan(ReadAfterTimeout, TimeSpan.Zero, nameof(ReadAfterTimeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(RetryAfter, TimeSpan.Zero, nameof(RetryAfter));
     }
 }

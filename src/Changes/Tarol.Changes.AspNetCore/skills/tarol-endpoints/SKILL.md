@@ -3,7 +3,7 @@ name: tarol-endpoints
 description: >-
   Use when exposing Tarol changes over HTTP: [Endpoint] on a change or an IView<TAggregate, TSelf> (GET by id), the
   generated MapChanges(), AddEndpoints, ChangeEndpointOptions (claims, actor and tenant hooks), Idempotency-Key, If-Match
-  and ETag, problem details, [Webhook] factories with WebhookOptions, and OpenAPI (AddTarolEndpoints); fixing TWEB001-TWEB006.
+  and ETag, problem details, [Webhook] factories with WebhookOptions, and OpenAPI (AddTarolEndpoints); fixing TWEB001-TWEB006. Lists over projections: skill tarol-queries.
   Do not hand-write MapPost lambdas per change, do not decompile the generator, do not web-search ASP.NET Core binding.
 ---
 # Tarol.Changes.AspNetCore: HTTP entries
@@ -24,7 +24,9 @@ description: >-
    `ETag` (stale → 409). Creations without a key are not deduplicated.
 6. **GET by id is a view**, never the aggregate: `[Endpoint("GET /auctions/{auction}")]` on a record implementing
    `IView<Auction, TSelf>` with `static TSelf From(Auction)`; grant `Read<Auction>`.
-7. **Webhooks**: `[Webhook(sender, type, Version = "2")]` on `public static TChange From(TPayload)`; configure
+7. **Lists over projections** are `[Endpoint("GET …")]` on an `IQuery<TRow>` record: see the skill `tarol-queries`
+   (filters, `Sort` enum, `[FromClaim]`, cursor, `Tarol-Read-After`). Change answers carry `Tarol-Position` for it.
+8. **Webhooks**: `[Webhook(sender, type, Version = "2")]` on `public static TChange From(TPayload)`; configure
    `WebhookOptions.Senders[sender].Secrets`; a duplicate *business* event must be a success in the domain.
 
 ## Example

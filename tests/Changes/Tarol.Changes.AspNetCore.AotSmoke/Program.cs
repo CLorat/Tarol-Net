@@ -12,6 +12,8 @@ using Tarol.Changes;
 using Tarol.Changes.AspNetCore;
 using Tarol.Changes.AspNetCore.Tests;
 using Tarol.Persistence.Npgsql;
+using Tarol.Queries;
+using Tarol.Queries.Npgsql;
 using Tarol.Security;
 
 var failures = 0;
@@ -31,6 +33,11 @@ if (pg is { Length: > 0 })
     tarol.UseNpgsqlStore(pg, new NpgsqlStoreOptions { Schema = "aot_http" });
 else
     tarol.UseInMemoryStore();
+if (pg is { Length: > 0 })
+    tarol.UseNpgsqlReadModels();
+else
+    tarol.UseInMemoryReadModels();
+tarol.AddProjections(p => p.Add<AuctionRow>(o => o.Poll = TimeSpan.FromMilliseconds(20)));
 tarol.AddSecurity(roles =>
     {
         roles.Role("seller").May<CreateAuction>().May<CloseAuction>();
@@ -94,6 +101,15 @@ Check("another tenant: 404", foreign.Status == HttpStatusCode.NotFound, foreign.
 var view = await Send(HttpMethod.Get, $"/auctions/{id}", null, "alice");
 var notModified = await Send(HttpMethod.Get, $"/auctions/{id}", null, "alice", h => h.IfNoneMatch.Add(new EntityTagHeaderValue("\"2\"")));
 Check("view 200 with ETag, 304 for If-None-Match", view.Status == HttpStatusCode.OK && view.Body.Contains("\"highestBid\":150") && notModified.Status == HttpStatusCode.NotModified, view.Body);
+var position = bid.R.Headers.TryGetValues(Positions.PositionHeader, out var values) ? values.Single() : "";
+var list = await Send(HttpMethod.Get, "/auctions?seller=alice&status=Open&count=true", null, "alice", h => h.Add(Positions.ReadAfterHeader, position));
+var listed = list.Status == HttpStatusCode.OK ? JsonElement.Parse(list.Body) : default;
+Check("list after the bid's Tarol-Position: the row, its ETag and the position", list.Status == HttpStatusCode.OK && position.Length > 0
+    && listed.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id && i.GetProperty("bids").GetInt32() == 1)
+    && list.R.Headers.ETag is { IsWeak: true } && list.R.Headers.Contains(Positions.PositionHeader) && !list.R.Headers.Contains(Positions.StaleHeader), list.Body);
+var page = await Send(HttpMethod.Get, "/auctions?limit=1&sort=Id", null, "alice");
+var badCursor = await Send(HttpMethod.Get, "/auctions?after=x", null, "alice");
+Check("list: cursor page, bad cursor 400", page.Status == HttpStatusCode.OK && badCursor.Status == HttpStatusCode.BadRequest && badCursor.Body.Contains("\"after\""), badCursor.Body);
 var close = await Send(HttpMethod.Post, $"/auctions/{id}/close", null, "alice");
 Check("close by the seller: 204", close.Status == HttpStatusCode.NoContent, close.Body);
 var anonymous = await Send(HttpMethod.Post, "/auctions", auction, null);

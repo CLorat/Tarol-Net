@@ -146,6 +146,55 @@ internal static class OpenApiEmitter
                             },
                         };
                 }
+                else if (metadata.Kind == "list" && operation.Responses.TryGetValue("200", out var listed) && listed is global::Microsoft.OpenApi.OpenApiResponse page)
+                {
+                    foreach (var parameter in metadata.Query ?? global::System.Array.Empty<global::Tarol.Changes.AspNetCore.QueryParameter>())
+                        operation.Parameters.Add(new global::Microsoft.OpenApi.OpenApiParameter
+                        {
+                            Name = parameter.Name,
+                            In = global::Microsoft.OpenApi.ParameterLocation.Query,
+                            Description = parameter.Description,
+                            Schema = QuerySchema(parameter),
+                        });
+                    operation.Parameters.Add(new global::Microsoft.OpenApi.OpenApiParameter
+                    {
+                        Name = "Tarol-Read-After",
+                        In = global::Microsoft.OpenApi.ParameterLocation.Header,
+                        Description = "Wait until the list contains the change that answered this Tarol-Position (bounded; then Tarol-Stale: true)",
+                        Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String },
+                    });
+                    var row = page.Content is { } content && content.TryGetValue("application/json", out var media) ? media.Schema : null;
+                    page.Description = "A page of the list";
+                    page.Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>
+                    {
+                        ["ETag"] = new global::Microsoft.OpenApi.OpenApiHeader { Description = "A weak ETag of the page's rows, for If-None-Match", Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String } },
+                        ["Tarol-Position"] = new global::Microsoft.OpenApi.OpenApiHeader { Description = "The projection's position: every change at or before it is in the list", Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String } },
+                        ["Tarol-Stale"] = new global::Microsoft.OpenApi.OpenApiHeader { Description = "true when Tarol-Read-After timed out", Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String } },
+                    };
+                    page.Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType>
+                    {
+                        ["application/json"] = new global::Microsoft.OpenApi.OpenApiMediaType
+                        {
+                            Schema = new global::Microsoft.OpenApi.OpenApiSchema
+                            {
+                                Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                                Required = new global::System.Collections.Generic.HashSet<string> { "items", "next" },
+                                Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+                                {
+                                    ["items"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = row },
+                                    ["next"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String | global::Microsoft.OpenApi.JsonSchemaType.Null, Description = "The cursor of the next page (after); null on the last" },
+                                    ["total"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int64", Description = "With count=true: the rows of the filters" },
+                                },
+                            },
+                        },
+                    };
+                    operation.Responses["304"] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "Not modified (If-None-Match)" };
+                    operation.Responses["503"] = new global::Microsoft.OpenApi.OpenApiResponse
+                    {
+                        Description = "The projection is being built (a new version); Retry-After says when to ask again",
+                        Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType> { ["application/problem+json"] = new global::Microsoft.OpenApi.OpenApiMediaType() },
+                    };
+                }
                 else if (operation.Responses.TryGetValue("200", out var ok) && ok is global::Microsoft.OpenApi.OpenApiResponse view)
                 {
                     view.Headers = etag;
@@ -153,7 +202,7 @@ internal static class OpenApiEmitter
                 }
                 foreach (var (status, description) in Problems)
                 {
-                    if (metadata.Kind == "view" && status is "409" or "415" or "422")
+                    if (metadata.Kind is "view" or "list" && status is "409" or "415" or "422")
                         continue;
                     operation.Responses[status] = new global::Microsoft.OpenApi.OpenApiResponse
                     {
@@ -166,6 +215,22 @@ internal static class OpenApiEmitter
                 }
                 if (metadata.Policy is not null)
                     operation.Description = (operation.Description is { Length: > 0 } d ? d + "\n\n" : "") + "Policy: " + metadata.Policy;
+            }
+
+            private static global::Microsoft.OpenApi.OpenApiSchema QuerySchema(global::Tarol.Changes.AspNetCore.QueryParameter parameter)
+            {
+                var schema = parameter.Kind switch
+                {
+                    "boolean" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Boolean },
+                    "int32" or "int64" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = parameter.Kind },
+                    "number" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Number },
+                    "uuid" or "date-time" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String, Format = parameter.Kind },
+                    _ => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String },
+                };
+                if (parameter.Values.Count > 0)
+                    schema.Enum = global::System.Linq.Enumerable.ToList(global::System.Linq.Enumerable.Select(parameter.Values,
+                        static v => (global::System.Text.Json.Nodes.JsonNode)global::System.Text.Json.Nodes.JsonValue.Create(v)!));
+                return schema;
             }
 
 

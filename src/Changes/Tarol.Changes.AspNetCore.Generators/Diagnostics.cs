@@ -48,8 +48,24 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "The generated binder reads route and body members and calls the input's constructor once, with all of them.");
 
+    /// <summary>TQRY005: a query record member that names no column, or a sort that names no [Sort] column.</summary>
+    public static readonly DiagnosticDescriptor QueryMember = new(
+        "TQRY005", "Query member names no column of the projection",
+        "'{0}.{1}': {2}",
+        "Tarol.Queries", DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A list query record (IQuery<TRow>) has nullable filter members named like a typed column of the row (equality; absent = no filter), at most one enum member named Sort whose members name [Sort] members of the row (or Id), route members and [FromClaim] members. Nothing else becomes part of the query.");
+
+    /// <summary>TQRY006: a [FromClaim] member also named by the route.</summary>
+    public static readonly DiagnosticDescriptor ClaimAlsoRouted = new(
+        "TQRY006", "Claim-bound member is also a route value",
+        "'{0}.{1}' is bound from the claim '{2}' and named by the route value '{{{3}}}'; the claim wins and the route value is ignored",
+        "Tarol.Queries", DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "A [FromClaim] member is set from the caller's principal, never from the request (QR-6). Remove the route value, or the attribute.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
+        "TQRY005" => QueryMember,
+        "TQRY006" => ClaimAlsoRouted,
         "TWEB001" => BadRoute,
         "TWEB002" => NotAnEntry,
         "TWEB003" => RouteValue,
