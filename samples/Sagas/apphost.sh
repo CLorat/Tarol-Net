@@ -29,6 +29,10 @@ for n in $(seq 1 "$count"); do
   [ "$stale" = 0 ] || stale_lists=$((stale_lists + 1))
   [ "$n" = 1 ] && echo "auction 1: bid $bid (Tarol-Position $position), list read after it: $listed, stale $stale; settle by bob $wrong, settle by alice $settle; view: $(curl -s "$api/auctions/$id" -H "Authorization: Bearer $bob")"
 done
+# the cached list (step 13): the same request again revalidates by ETag (304 from the page cache), with the cache headers
+cached="$(mktemp)"; curl -s -o /dev/null -D "$cached" "$api/auctions?limit=50" -H "Authorization: Bearer $bob"
+etag=$(grep -i '^ETag:' "$cached" | tr -d '\r' | cut -d' ' -f2-)
+echo "cached list: 304 by ETag $(curl -s -o /dev/null -w '%{http_code}' "$api/auctions?limit=50" -H "Authorization: Bearer $bob" -H "If-None-Match: $etag"); $(grep -iE '^(cache-control|vary):' "$cached" | tr -d '\r' | tr '\n' ';' )"
 q() { docker exec -e PGPASSWORD="$pw" "$pg" psql -h localhost -U postgres -d "${2:-tarol}" -tAc "$1" 2>/dev/null; }
 pg=$(docker ps --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^pg-/ {print $1}' | head -1); pw=$(docker exec "$pg" printenv POSTGRES_PASSWORD)
 for i in $(seq 1 60); do n=$(q "SELECT count(*) FROM tarol.events WHERE type = 'payout'"); [ "${n:-0}" -ge "$count" ] && break; sleep 1; done

@@ -33,6 +33,7 @@ User guide for `Tarol.Queries`, `Tarol.Queries.Npgsql` and the list entries of `
 | `Tarol.Persistence(.Npgsql)` | `Append` returns the commit's `GlobalPosition`; `NpgsqlStoreOptions.NotifyFeed` |
 | `Tarol.Changes(.AspNetCore)` | `ChangeOutcome.Position`, `Tarol-Position`; list entries on `IQuery<TRow>`, `[FromClaim]`, `Tarol-Read-After`, page ETag/304, 503 while building, OpenAPI (TQRY005–TQRY006) |
 | `Tarol.Security` | `CheckList<T>`: the role map's `Read<T>` without a resource |
+| `Tarol.Caching` (step 13) | cached list pages in the API process, valid while the pushed checkpoint stands: [caching.md](caching.md) |
 
 ## Guide: a list from scratch
 

@@ -25,7 +25,7 @@ var connectionString = builder.Configuration.GetConnectionString("tarol")
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>())
     .WithReactions(GeneratedReactions.Set)
     .UseNpgsqlStore(connectionString, new NpgsqlStoreOptions { NotifyFeed = true })   // EnsureSchema when the host starts; NOTIFY per commit
-    .UseNpgsqlReadModels()                                         // the read tables next to the store's (LISTEN on its feed)
+    .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })   // the read tables (LISTEN on the feed); NOTIFY per batch
     .AddProjections(p => p.Add<AuctionRow>())                      // the auction list the API serves (GET /auctions)
     .AddReactionWorker()                                           // reactions and publications; the store's key purge is used
     .AddMessaging("artflow", m => m

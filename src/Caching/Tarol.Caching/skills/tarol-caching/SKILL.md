@@ -24,7 +24,9 @@ description: >-
    has its own entry. Authorization (`CheckList`, `Read<T>`) runs in the endpoint before `Search`: a hit never skips it.
 6. Read-your-writes: the client sends `Tarol-Read-After` with the change's `Tarol-Position`; the endpoint waits for the
    pushed checkpoint, then `Search` misses and reads. Never clear the cache from a change.
-7. Watch `tarol.caching.hits` / `tarol.caching.misses` (tag `tarol.projection`), `tarol.caching.entries`,
+7. HTTP (`Tarol.Changes.AspNetCore`): list and view answers carry `Cache-Control: private, no-cache` and
+   `Vary: Authorization`; a list 304 (`If-None-Match` = the page ETag) from a warm cache runs no query.
+8. Watch `tarol.caching.hits` / `tarol.caching.misses` (tag `tarol.projection`), `tarol.caching.entries`,
    `tarol.caching.bytes`, `tarol.caching.evictions` (tag `reason`) on the meter `MemoryPageCache.MeterName`.
 
 ## Example
