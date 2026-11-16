@@ -13,6 +13,8 @@ namespace Tarol.Persistence;
 /// </summary>
 public sealed class TarolBuilder
 {
+    private readonly List<IOutboxReactions> _rows = [];
+
     /// <summary>Creates the builder; called by <c>AddTarol</c>.</summary>
     /// <param name="services">The application's services.</param>
     /// <param name="json">The JSON options of the event payloads and the stored state (the app's context, value objects first).</param>
@@ -41,6 +43,12 @@ public sealed class TarolBuilder
     /// <summary>The reactions the store writes outbox rows for, if any (<see cref="WithReactions"/>).</summary>
     public IOutboxReactions? Reactions { get; private set; }
 
+    /// <summary>
+    /// Everything the store writes outbox rows for: <see cref="Reactions"/> and the rows other packages add with
+    /// <see cref="WithOutboxRows"/> (publications and effects of <c>Tarol.Messaging</c>). Stores read it when they are resolved.
+    /// </summary>
+    public IOutboxReactions? OutboxTable => OutboxReactions.Combine([Reactions, .. _rows]);
+
     /// <summary>Whether a store was registered.</summary>
     public bool HasStore { get; private set; }
 
@@ -55,6 +63,19 @@ public sealed class TarolBuilder
         return this;
     }
 
+    /// <summary>
+    /// Adds outbox rows next to the reactions (publications, effects): the store writes them in the same commit and the
+    /// reaction worker runs them with the handler the package registers. Order-independent with <see cref="WithReactions"/>.
+    /// </summary>
+    /// <param name="rows">The rows' table.</param>
+    /// <returns>The builder.</returns>
+    public TarolBuilder WithOutboxRows(IOutboxReactions rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        _rows.Add(rows);
+        return this;
+    }
+
     /// <summary>The in-memory store (tests, prototypes): <see cref="IAggregateStore"/>, <see cref="IAggregateReader"/>,
     /// <see cref="IEventFeed"/> and <see cref="IOutbox"/>.</summary>
     /// <param name="lookups">The unique lookups, if any.</param>
@@ -64,7 +85,7 @@ public sealed class TarolBuilder
         {
             Codec = Codec,
             StateOptions = Json,
-            Reactions = Reactions,
+            Reactions = OutboxTable,
             Lookups = lookups ?? new StoreLookups(),
         }), static store => store.Outbox);
 

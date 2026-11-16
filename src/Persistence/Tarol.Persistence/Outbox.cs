@@ -41,6 +41,58 @@ public static class OutboxReactions
         return new Table(table);
     }
 
+    /// <summary>
+    /// Joins the outbox rows of several parts into the one table of a store (reactions, publications, effects): the rows
+    /// of an event are the parts' rows in order; a row's due time and schedule are its part's. A single part is returned as is.
+    /// </summary>
+    /// <param name="parts">The parts; <see langword="null"/> entries are skipped.</param>
+    /// <returns>The combined table, or <see langword="null"/> when no part is given.</returns>
+    public static IOutboxReactions? Combine(params IOutboxReactions?[] parts)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+        var given = parts.OfType<IOutboxReactions>().ToArray();
+        return given.Length switch
+        {
+            0 => null,
+            1 => given[0],
+            _ => new Combined(given),
+        };
+    }
+
+    private sealed class Combined(IOutboxReactions[] parts) : IOutboxReactions
+    {
+        public ReadOnlySpan<string> ReactionsTo(DomainEvent domainEvent)
+        {
+            List<string>? all = null;
+            ReadOnlySpan<string> only = default;
+            foreach (var part in parts)
+            {
+                var names = part.ReactionsTo(domainEvent);
+                if (names.IsEmpty)
+                    continue;
+                if (all is null && only.IsEmpty)
+                {
+                    only = names;                                       // one part with rows: its static array, no copy
+                    continue;
+                }
+                all ??= [.. only];
+                foreach (var name in names)
+                    all.Add(name);
+            }
+            return all is null ? only : all.ToArray();
+        }
+
+        public DateTimeOffset? DueAt(DomainEvent domainEvent, string reaction)
+        {
+            foreach (var part in parts)
+                if (part.DueAt(domainEvent, reaction) is { } due)
+                    return due;
+            return null;
+        }
+
+        public bool IsScheduled(string reaction) => parts.Any(p => p.IsScheduled(reaction));
+    }
+
     private sealed class Table(ReactionTable table) : IOutboxReactions
     {
         public ReadOnlySpan<string> ReactionsTo(DomainEvent domainEvent) => table(domainEvent);

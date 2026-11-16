@@ -11,8 +11,23 @@ using Tarol.StronglyTypedId;
 var test = MessageTest.At(DateTimeOffset.UnixEpoch, GeneratedConsumers.Set, ConsumerJson.Default.Options, "consumer").Trust("billing");
 await test.Send(test.Message("billing.noted", 1, new NotedV1("hello"), ConsumerJson.Default.NotedV1));
 var attempts = await test.Drain();
-Console.WriteLine(attempts is [{ Verdict: Verdict.Done }] && test.Load((Id<Board>)Board.Main).Notes == 1 ? "ALL CHECKS PASSED" : "FAILED");
-return attempts is [{ Verdict: Verdict.Done }] ? 0 : 1;
+var consumed = attempts is [{ Verdict: Verdict.Done }] && test.Load((Id<Board>)Board.Main).Notes == 1;
+
+// A publication and an effect from the packed package's generator, drained through MessagingTest.
+var keys = new List<string>();
+var two = MessagingTest.At(DateTimeOffset.UnixEpoch).System("consumer", ConsumerJson.Default.Options, o =>
+{
+    o.Consumers = GeneratedConsumers.Set;
+    o.Publications = GeneratedPublications.Set;
+    o.Effects = new EffectSet().Add<Board.Noted>("log", _ => new LogNote(keys));
+    o.Trust("billing");
+});
+await two.Transport.Publish(test.Message("billing.noted", 1, new NotedV1("again"), ConsumerJson.Default.NotedV1), default);
+await two.Drain();
+var published = two.Transport.Published is [_, { Type: "consumer.board-noted" }] && keys.Count == 1;
+
+Console.WriteLine(consumed && published ? "ALL CHECKS PASSED" : $"FAILED (consumed {consumed}, published {published})");
+return consumed && published ? 0 : 1;
 
 namespace PackageConsumer
 {
@@ -39,6 +54,24 @@ namespace PackageConsumer
         public Result Execute(Board board, ChangeContext context) => board.Note(Text);
     }
 
+    public sealed record BoardNotedV1(string Text);
+
+    public static class Publications
+    {
+        [Publishes<Board.Noted>("consumer.board-noted", 1)]
+        public static BoardNotedV1 Noted(Board.Noted e) => new(e.Text);
+    }
+
+    public sealed class LogNote(List<string> keys) : IEffect<Board.Noted>
+    {
+        public ValueTask<Result> Run(Board.Noted domainEvent, EffectContext context, CancellationToken cancellationToken)
+        {
+            keys.Add(context.IdempotencyKey);
+            return ValueTask.FromResult(Result.Success());
+        }
+    }
+
+    [JsonSerializable(typeof(BoardNotedV1))]
     [JsonSerializable(typeof(NotedV1))]
     [JsonSerializable(typeof(Board.Noted))]
     public sealed partial class ConsumerJson : JsonSerializerContext;

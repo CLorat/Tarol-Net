@@ -16,12 +16,14 @@ namespace Tarol.Sagas;
 public sealed record ReactionAttempt(OutboxRow Row, Verdict Verdict, Option<string> Reason, bool Kept);
 
 /// <summary>
-/// One worker loop over an <see cref="IOutbox"/> (docs/architecture/sagas.md §3): claim a batch, run each row's reaction
-/// through the <see cref="ChangePipeline"/> (<see cref="ReactionSet.Run"/>: as the system on behalf of the user, caused
-/// by the event, keyed by reaction and event id), then complete, retry with backoff, or bury the row.
+/// One worker loop over an <see cref="IOutbox"/> (docs/architecture/sagas.md §3): claim a batch, run each row through its
+/// <see cref="IOutboxRowHandler"/> (a reaction: <see cref="ReactionSet.Run"/> through the <see cref="ChangePipeline"/>, as
+/// the system on behalf of the user, caused by the event, keyed by reaction and event id; a publication or an effect of
+/// <c>Tarol.Messaging</c>), then complete, retry with backoff, or bury the row.
 /// </summary>
 /// <remarks>
-/// Every row runs in its own <see cref="ActivityKind.Consumer"/> activity of <see cref="ActivitySourceName"/>, linked to
+/// Every row runs in its own <see cref="ActivityKind.Consumer"/> activity of <see cref="ActivitySourceName"/>, named by its
+/// handler (<c>reaction &lt;name&gt;</c>, <c>publish &lt;contract&gt;</c>, <c>effect &lt;name&gt;</c>), linked to
 /// the trace that committed the event (a saga's next step can be days later; it is never a child). The reaction's own
 /// commit records that activity, so the next hop links to it.
 /// </remarks>
@@ -33,7 +35,7 @@ public sealed partial class ReactionWorker
     private static readonly ActivitySource Source = new(ActivitySourceName);
 
     private readonly IOutbox _outbox;
-    private readonly ReactionSet _reactions;
+    private readonly IOutboxRowHandler _rows;
     private readonly ChangePipeline _pipeline;
     private readonly TimeProvider _time;
     private readonly ReactionOptions _options;
@@ -41,22 +43,25 @@ public sealed partial class ReactionWorker
 
     /// <summary>Creates a worker loop.</summary>
     /// <param name="outbox">The store's outbox.</param>
-    /// <param name="reactions">The application's reactions (<c>GeneratedReactions.Set</c>, or a combined set).</param>
+    /// <param name="rows">
+    /// What runs the rows: the application's reactions (<c>GeneratedReactions.Set</c>, or a combined set), or
+    /// <see cref="OutboxRows"/> joining them with publications and effects (<c>Tarol.Messaging</c>).
+    /// </param>
     /// <param name="pipeline">The pipeline the reactions run through.</param>
     /// <param name="time">The clock of retry times (the store's clock decides what is due).</param>
     /// <param name="options">Batch, lease, poll interval and policy.</param>
     /// <param name="logger">Logs retries, dead letters and lost leases; <see langword="null"/> = none.</param>
-    public ReactionWorker(IOutbox outbox, ReactionSet reactions, ChangePipeline pipeline, TimeProvider time, ReactionOptions? options = null,
+    public ReactionWorker(IOutbox outbox, IOutboxRowHandler rows, ChangePipeline pipeline, TimeProvider time, ReactionOptions? options = null,
         ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(outbox);
-        ArgumentNullException.ThrowIfNull(reactions);
+        ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(pipeline);
         ArgumentNullException.ThrowIfNull(time);
         options ??= new ReactionOptions();
         options.Validate();
         _outbox = outbox;
-        _reactions = reactions;
+        _rows = rows;
         _pipeline = pipeline;
         _time = time;
         _options = options;
@@ -129,7 +134,7 @@ public sealed partial class ReactionWorker
         ActivityLink[]? links = row.Traceparent.TryGetValue(out string? traceparent) && ActivityContext.TryParse(traceparent, null, out var origin)
             ? [new ActivityLink(origin)]
             : null;
-        using var activity = Source.StartActivity(ActivityKind.Consumer, default(ActivityContext), links: links, name: "reaction " + row.Reaction);
+        using var activity = Source.StartActivity(ActivityKind.Consumer, default(ActivityContext), links: links, name: _rows.ActivityName(row.Reaction));
         activity?.SetTag("tarol.reaction", row.Reaction);
         activity?.SetTag("tarol.stream.type", row.Event.StreamType);
         activity?.SetTag("tarol.stream.id", row.Event.Event.StreamId.ToString());
@@ -140,7 +145,7 @@ public sealed partial class ReactionWorker
         string? reason = null;
         try
         {
-            var result = await _reactions.Run(_pipeline, row.Reaction, row.Event.Event, cancellationToken).ConfigureAwait(false);
+            var result = await _rows.Run(_pipeline, row.Reaction, row.Event.Event, cancellationToken).ConfigureAwait(false);
             verdict = DeliveryPolicy.Classify(result);
             if (result.TryGetValue(out Violation? violation))
                 reason = Describe(violation);

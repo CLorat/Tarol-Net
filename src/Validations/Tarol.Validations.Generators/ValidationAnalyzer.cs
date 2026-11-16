@@ -214,6 +214,7 @@ public sealed class ValidationAnalyzer : DiagnosticAnalyzer
 
         // Inside a static entry factory of a validated change ([OnEvent<T>], [Webhook], [Consumes]): the factory maps a
         // committed event or a foreign payload, and the pipeline validates the change it returns before any read (C-13).
+        // Inside a [Publishes<T>] mapping method: it maps a committed event, whose values were validated when it was raised.
         if (InEntryFactory(context.ContainingSymbol))
             return;
 
@@ -227,6 +228,9 @@ public sealed class ValidationAnalyzer : DiagnosticAnalyzer
         {
             if (current is not IMethodSymbol { IsStatic: true, MethodKind: MethodKind.Ordinary } method)
                 continue;
+            if (method.GetAttributes().Any(static a => a.AttributeClass is { ContainingNamespace: { } ns } attribute
+                && ns.ToDisplayString() == "Tarol.Messaging" && attribute.OriginalDefinition.MetadataName == "PublishesAttribute`1"))
+                return true;                                                                    // step 11B
             var entry = method.GetAttributes().Any(static a => a.AttributeClass is { ContainingNamespace: { } ns } attribute
                 && ns.ToDisplayString() is "Tarol.Changes" or "Tarol.Changes.AspNetCore" or "Tarol.Messaging"   // [Webhook]: step 10, [Consumes]: step 11
                 && attribute.OriginalDefinition.MetadataName is "OnEventAttribute`1" or "WebhookAttribute" or "ConsumesAttribute");

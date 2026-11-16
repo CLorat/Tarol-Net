@@ -34,6 +34,44 @@ public sealed partial record CreditAccount(Guid Account, Amount Amount) : ILoads
     public Result Execute(Account account, ChangeContext context) => account.Credit(Amount.Value);
 }
 
+public sealed record AccountCreditedV1(Guid Account, decimal Amount);
+
+public static class Publications
+{
+    [Publishes<Account.Credited>("smoke.account-credited", 1)]
+    public static AccountCreditedV1 Credited(Account.Credited e, RecordedEvent r) => new(r.StreamId, e.Amount);
+}
+
+public sealed class Notifier
+{
+    private readonly List<string> _keys = [];
+
+    public IReadOnlyList<string> Keys
+    {
+        get
+        {
+            lock (_keys)
+                return [.. _keys];
+        }
+    }
+
+    public void Add(string key)
+    {
+        lock (_keys)
+            _keys.Add(key);
+    }
+}
+
+public sealed class Notify(Notifier notifier) : IEffect<Account.Credited>
+{
+    public ValueTask<Result> Run(Account.Credited domainEvent, EffectContext context, CancellationToken cancellationToken)
+    {
+        notifier.Add(context.IdempotencyKey);
+        return ValueTask.FromResult(Result.Success());
+    }
+}
+
 [JsonSerializable(typeof(PaidV1))]
+[JsonSerializable(typeof(AccountCreditedV1))]
 [JsonSerializable(typeof(Account.Credited))]
 public sealed partial class SmokeJson : JsonSerializerContext;

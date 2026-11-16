@@ -68,7 +68,7 @@ public delegate DateTimeOffset? ReactionSchedule(DomainEvent domainEvent, string
 /// <c>GeneratedReactions.Set</c>; <see cref="Combine"/> joins several. Pass it to the store
 /// (<c>NpgsqlStoreOptions.Reactions</c>, <see cref="InMemoryStoreOptions.Reactions"/>) and to the worker.
 /// </summary>
-public sealed class ReactionSet : IOutboxReactions
+public sealed class ReactionSet : IOutboxRowHandler
 {
     private readonly Dictionary<string, ReactionRunner> _runners;
     private readonly ReactionTable[] _tables;
@@ -113,8 +113,15 @@ public sealed class ReactionSet : IOutboxReactions
         Names = [.. runners.Keys];
     }
 
+    /// <summary>A set without reactions (an application that only publishes).</summary>
+    public static ReactionSet Empty { get; } = new([], static _ => ReadOnlySpan<string>.Empty, static (_, _) => null, [],
+        static (_, reaction, _, _) => throw new InvalidOperationException($"No reaction named '{reaction}' is registered."));
+
     /// <summary>Every reaction name.</summary>
     public IReadOnlyList<string> Names { get; }
+
+    /// <inheritdoc />
+    public string ActivityName(string reaction) => "reaction " + reaction;
 
     /// <summary>
     /// The table the store writes outbox rows from: one set returns its static arrays directly; a combined set concatenates

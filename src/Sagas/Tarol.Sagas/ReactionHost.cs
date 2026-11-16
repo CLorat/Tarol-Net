@@ -15,7 +15,7 @@ namespace Tarol.Sagas;
 public sealed partial class ReactionHost : BackgroundService
 {
     private readonly IOutbox _outbox;
-    private readonly ReactionSet _reactions;
+    private readonly IOutboxRowHandler _rows;
     private readonly ChangePipeline _pipeline;
     private readonly TimeProvider _time;
     private readonly ReactionOptions _options;
@@ -23,21 +23,21 @@ public sealed partial class ReactionHost : BackgroundService
 
     /// <summary>Creates the host.</summary>
     /// <param name="outbox">The store's outbox.</param>
-    /// <param name="reactions">The application's reactions.</param>
+    /// <param name="rows">What runs the rows: the application's reactions, or <see cref="OutboxRows"/> with publications and effects.</param>
     /// <param name="pipeline">The pipeline the reactions run through.</param>
     /// <param name="time">The clock.</param>
     /// <param name="options">Workers, policy and key purge.</param>
     /// <param name="logger">The logger of the workers and the purge.</param>
-    public ReactionHost(IOutbox outbox, ReactionSet reactions, ChangePipeline pipeline, TimeProvider time, ReactionOptions options, ILogger<ReactionHost>? logger = null)
+    public ReactionHost(IOutbox outbox, IOutboxRowHandler rows, ChangePipeline pipeline, TimeProvider time, ReactionOptions options, ILogger<ReactionHost>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(outbox);
-        ArgumentNullException.ThrowIfNull(reactions);
+        ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(pipeline);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
         _outbox = outbox;
-        _reactions = reactions;
+        _rows = rows;
         _pipeline = pipeline;
         _time = time;
         _options = options;
@@ -49,7 +49,7 @@ public sealed partial class ReactionHost : BackgroundService
     {
         var loops = new List<Task>(_options.Workers + 1);
         for (var i = 0; i < _options.Workers; i++)
-            loops.Add(new ReactionWorker(_outbox, _reactions, _pipeline, _time, _options, _log).Run(stoppingToken));
+            loops.Add(new ReactionWorker(_outbox, _rows, _pipeline, _time, _options, _log).Run(stoppingToken));
         if (_options.PurgeKeys is not null)
             loops.Add(Purge(_options.PurgeKeys, stoppingToken));
         return Task.WhenAll(loops);
@@ -105,7 +105,8 @@ public static class ReactionServiceCollectionExtensions
     /// <summary>
     /// Adds <see cref="ReactionHost"/> for <paramref name="reactions"/>. It resolves the <see cref="IOutbox"/> (register
     /// the store's: <c>services.AddSingleton&lt;IOutbox&gt;(store.Outbox)</c>), the <see cref="ChangePipeline"/> and the
-    /// <see cref="TimeProvider"/> (default <see cref="TimeProvider.System"/>) from the container.
+    /// <see cref="TimeProvider"/> (default <see cref="TimeProvider.System"/>) from the container, and joins every
+    /// <see cref="IOutboxRowHandler"/> registered there (publications and effects of <c>Tarol.Messaging</c>) with the reactions.
     /// </summary>
     /// <param name="services">The services.</param>
     /// <param name="reactions">The application's reactions (<c>GeneratedReactions.Set</c>, or <see cref="ReactionSet.Combine"/>).</param>
@@ -130,9 +131,12 @@ public static class ReactionServiceCollectionExtensions
             var options = provider.GetRequiredService<ReactionOptions>();
             if (options.PurgeKeys is null && provider.GetService<IIdempotencyKeyPurge>() is { } purge)
                 options.PurgeKeys = purge.PurgeKeys;                                // the store's, when it has one
+            // other packages register row handlers (Tarol.Messaging: publications, effects); one worker runs them all
+            var reactions = provider.GetRequiredService<ReactionSet>();
+            var others = provider.GetServices<IOutboxRowHandler>().ToArray();
             return new ReactionHost(
                 provider.GetRequiredService<IOutbox>(),
-                provider.GetRequiredService<ReactionSet>(),
+                others.Length == 0 ? reactions : OutboxRows.Combine([reactions, .. others]),
                 provider.GetRequiredService<ChangePipeline>(),
                 provider.GetRequiredService<TimeProvider>(),
                 options,
@@ -150,15 +154,19 @@ public static class ReactionServiceCollectionExtensions
     /// <param name="configure">Workers, policy, key purge.</param>
     /// <param name="reactions">The reactions, when <see cref="TarolBuilder.WithReactions"/> was not called (it is then called).</param>
     /// <returns>The builder.</returns>
-    /// <exception cref="InvalidOperationException">The builder has no <see cref="ReactionSet"/>.</exception>
+    /// <exception cref="InvalidOperationException">The builder's reactions are not a <see cref="ReactionSet"/> (none at all is
+    /// <see cref="ReactionSet.Empty"/>: an application that only publishes).</exception>
     public static TarolBuilder AddReactionWorker(this TarolBuilder builder, Action<ReactionOptions>? configure = null, ReactionSet? reactions = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
         if (reactions is not null)
             builder.WithReactions(reactions);
-        if (builder.Reactions is not ReactionSet set)
-            throw new InvalidOperationException("The worker runs a ReactionSet: call WithReactions(GeneratedReactions.Set) first, or pass it.");
-        reactions = set;
+        reactions = builder.Reactions switch
+        {
+            ReactionSet set => set,
+            null => ReactionSet.Empty,                                              // publications or effects only
+            _ => throw new InvalidOperationException("The worker runs a ReactionSet: call WithReactions(GeneratedReactions.Set) first, or pass it."),
+        };
         builder.Services.AddTarolReactions(reactions, configure);
         return builder;
     }

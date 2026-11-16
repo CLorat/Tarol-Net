@@ -373,7 +373,7 @@ await test.Drain();                                           // outbox rows, de
 ## 9. Owner answers (2026-11-15)
 
 Rounds: 1 (scope, before probing) M-1 … M-3; 2 (after the measurements) M-4, M-5, M-8, M-9; 3 M-6, M-7, M-10, M-11;
-4 M-12 … M-15. Not asked because already decided: the delivery table (C-9, S-7), unknown version → bury by default (R-10),
+4 M-12 … M-15; implementation (11B) M-16. Not asked because already decided: the delivery table (C-9, S-7), unknown version → bury by default (R-10),
 the backoff and attempts (S-13), dead letters for reactions (S-5), NOTIFY opt-in (S-10), no principal for internal
 entries (R-6), the context as a parameter (C-11), the key stored with successes only (C-8), purge after 7 days (P-11).
 
@@ -394,6 +394,7 @@ entries (R-6), the context as a parameter (C-11), the key stored with successes 
 | M-13 | What may a consumer take from an envelope? | **The contract's prefix is the source**, enforced by the transport's permissions; the consumer buries a disagreeing `ce-source`, an unknown source, and a tenant the source is not allowed for (allow-list per source, default none, `AnyTenant` opt-in); correlation taken, causation = message id (recommended). |
 | M-14 | Where does the PostgreSQL bus ship? | **`Tarol.Messaging.Npgsql`**, a package of its own; five new packages in step 11 (recommended). |
 | M-15 | The runnable sample? | **Extend `samples/Sagas` in 11D** with a Billing project and NATS (RabbitMQ as an AppHost switch) (recommended). |
+| M-16 | (11B) How does an application declare an effect (S-2)? The decisions fix the rows and the key, not the declaration; effects need services. | **A handler class** `IEffect<TEvent>` with `ValueTask<Result> Run(TEvent, EffectContext, CancellationToken)`, registered with `AddMessaging(…).Effect<TEvent, THandler>(name)` and resolved from DI per row; `EffectContext.IdempotencyKey` = the event id; the result classified like a change's, an exception a retry (recommended; not an attribute + generator, not a delegate). |
 
 ## 10. Changes against steps 7–10 (announced here, made in 11A–11D)
 
@@ -533,3 +534,99 @@ Tarol.slnx` with Docker: **1129 of 1129** (1049 + 18 generator + 61 runtime + 1 
 `TAROL_PG`: **14 apps** (13 + `Tarol.Messaging.AotSmoke`), 0 IL warnings, all checks passed; `dotnet pack -c Release` +
 `eng/verify-packages.sh`: OK (`Tarol.Messaging` contains `lib/`, the generator under `analyzers/dotnet/cs/`, README,
 LICENSE and `skills/tarol-messaging/SKILL.md`; its package consumer runs and lists the skill).
+
+## 16. Implementation: PR 11B (2026-11-15)
+
+`messaging: publications and effects from the outbox`: publications and effects in `Tarol.Messaging` (+ generator), the
+worker's row handlers in `Tarol.Sagas`, the outbox rows in `Tarol.Changes` and `Tarol.Persistence`. Owner answer M-16
+(effects as handler classes).
+
+### 16.1 Public API
+
+| Type | Package | Role |
+|---|---|---|
+| `PublishesAttribute<TEvent>` (`Contract`, `Version`) | Tarol.Messaging | the mapping method (M-7) |
+| `PublicationInfo` (+ `NameOf`), `PublicationMapper`, `PublicationSet` (`Names`, `Topics`, `Find`, `Map`, `Serialize<T>`, `Combine`, `Empty`; an `IOutboxReactions`) | Tarol.Messaging | the generated set: rows `publish:<contract>@<version>`, the table over static arrays, the map through the app's JSON options |
+| `MessagePublisher` (an `IOutboxRowHandler`) | Tarol.Messaging | runs publication rows: map → `Message.Of` → `IMessageTransport.Publish`; declares its topics before the first publish |
+| `Message.Of(recorded, contract, version, data, traceparent)` | Tarol.Messaging | the envelope of a committed event |
+| `IEffect<TEvent>`, `EffectContext` (`Name`, `Recorded`, `IdempotencyKey`), `EffectSet` (`Add<T>`, `WithServices`, `RowOf`; an `IOutboxRowHandler`) | Tarol.Messaging | effects (S-2, M-16): rows `effect:<name>`, a handler from a service scope per row |
+| `MessagingBuilder.Publish(set)`, `.Effect<TEvent, THandler>(name)`, `.Effect<TEvent>(name, factory)` | Tarol.Messaging | registration: `WithOutboxRows` for the store, an `IOutboxRowHandler` service for the worker |
+| `MessagingTest`, `MessagingSystem`, `MessagingSystemOptions` (`Reactions`, `Publications`, `Consumers`, `Effects`, `Policy`, `PublishThrough`, `Trust`), `MessagingStep` | Tarol.Messaging | several systems in memory: outbox → transport → consumers → … |
+| generator | Tarol.Messaging | `GeneratedPublications.Set`; TMSG004, TMSG005 (error; warning for two prefixes), TMSG006 also for contract records |
+| `IOutboxRowHandler` (`Names`, `ActivityName`, `Run`), `OutboxRows` (`Combine`, `Parts`), `ReactionSet.Empty`, `ReactionSet.ActivityName` | Tarol.Changes | an outbox row kind the worker runs; the handlers joined |
+| `OutboxReactions.Combine`, `TarolBuilder.WithOutboxRows`, `TarolBuilder.OutboxTable` | Tarol.Persistence | the store's table: reactions and the rows other packages add, order-independent |
+
+### 16.2 Deliberate differences from §6, §7, §10 and §11
+
+* **The worker's row handlers** are an interface in `Tarol.Changes` (`IOutboxRowHandler`, which `ReactionSet` implements),
+  not prefixes: the worker dispatches by row name through `OutboxRows`. Claim, head per (stream, row name), backoff, lease,
+  `outbox_dead`, links and the log messages are unchanged; only the span name comes from the handler (`reaction <name>`,
+  `publish <contract>`, `effect <name>`).
+* **Registration is order-independent**: `AddMessaging` adds its rows to the store's table with
+  `TarolBuilder.WithOutboxRows` (the stores read `OutboxTable` when they are resolved) and registers its handlers as
+  `IOutboxRowHandler` services; the hosted worker joins them with the reactions. `AddReactionWorker()` without reactions
+  now uses `ReactionSet.Empty` (an application that only publishes) instead of throwing; a hand-written
+  `IOutboxReactions` that is not a `ReactionSet` still throws.
+* **The map serializes through the application's `JsonSerializerOptions`** (`AddTarol(AppJson.Default, …)`,
+  `PublicationSet.Serialize<T>` via `GetTypeInfo`), like the consumer side's `MessageScope.Payload<T>`, instead of naming a
+  context property (`AppJson.Default.AuctionSettledV1`): the generator cannot know which context or property name an app
+  uses. A record missing from the context is TMSG006 at build time and an `InvalidOperationException` (retried, then
+  `outbox_dead`) at runtime.
+* **`ce-causation`** is the causation of the event's operation (what caused the event at the publisher, as 11A's
+  `Message.Causation` documents), not the event id as in the probe; the consumer's causation is the message id anyway.
+  `ce-subject` is the stream id in `D` format.
+* **The publisher declares its topics** (`Prepare(topics, [])`) lazily before its first publish and again after a failed
+  publish, so a publishing-only process needs no `MessagingHost`; `MessagingHost` still declares only subscriptions.
+* **`AddMessaging` needs a dead-letter store only with consumers** (a publishing-only app has none).
+* **Effects have no generator** (M-16): `Effect<TEvent, THandler>(name)` registers the handler as transient (unless it is
+  registered) and resolves it from a scope per row; the name is validated at registration (letters, digits, `-`, `_`, `.`).
+* **`MessagingTest`** is the two-system harness; `MessageTest` stays the consumer-only one. History given with `Given`
+  is neither reacted to nor published (its rows complete without running), as in `ReactionTest`.
+* **TMSG003's message** names the attribute (`[Consumes("…", 1)]` or `[Publishes<T>("…", 1)]`); the rule is unchanged.
+* **TMSG005 as a warning** (two prefixes) is the error rule reported with a warning severity (one id in the release file).
+
+### 16.3 Changes against steps 7–10
+
+* `Tarol.Persistence`: `OutboxReactions.Combine`; `TarolBuilder.WithOutboxRows`/`OutboxTable`; `UseInMemoryStore` and
+  `UseNpgsqlStore` read `OutboxTable` instead of `Reactions` (identical when no rows were added).
+* `Tarol.Changes`: `IOutboxRowHandler`, `OutboxRows`; `ReactionSet` implements the interface (`ActivityName`, `Empty`).
+* `Tarol.Sagas`: `ReactionWorker` and `ReactionHost` take an `IOutboxRowHandler` (source compatible); the host joins the
+  `IOutboxRowHandler` services; `AddReactionWorker()` without reactions (above).
+* `Tarol.Validations` analyzer: TVAL006 is exempt inside `[Publishes<T>]` methods of `Tarol.Messaging` (the event's values
+  were validated when it was raised); test `TVAL006_Exempt_In_A_Publication_Method_Of_Messaging`.
+
+### 16.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Messaging.Tests` | +19 (80) | **round trip** ArtFlow → billing → ArtFlow (settled → invoice + sale → invoice-paid → payment → payment-recorded, unsubscribed); the **envelope** of a committed event and the consumer's context (actor `for alice` over two hops, correlation, causation); the **`publish` span** is the `traceparent`, links to the commit, the consumer's span links to it; a **crash after publish** → published twice, one invoice (replayed); a failing transport → retries → `outbox_dead`; **version order per stream with two worker loops** (4 streams × 12 notes); **dual publish** v1 + v2 → one invoice, v2 buried by the v1-only consumers, one payment from v1 + v2 of invoice-paid; an unsubscribed contract and a `null` mapping; an **effect** down once and crashing after sending → 3 calls, 1 key, 1 mail; an effect's key and context, `Invalid` → `outbox_dead`; given history is not published; the sets (names, topics, table, map, `Combine` and its refusals, malformed names, `Serialize` without metadata), `Message.Of`, `EffectSet` (names, derived events, refusals), `OutboxRows` (join, dispatch, activity names, a name twice); `AddMessaging` with `Publish` + `Effect` on a real host with the reaction worker and no reactions; the skill's publication example verbatim |
+| `Tarol.Messaging.Generators.Tests` | +20 (38) | snapshot `publications` (two versions, `internal` and nullable, a base event's row on a derived event, with and without `RecordedEvent`), compiles warning-free, consumers and publications as two files, incrementality (unrelated file, mapping body), TMSG004 (9 shapes + a hidden type), TMSG003 on publications (2), TMSG005 (duplicate; two prefixes as a warning that still generates), TMSG006 for contract records |
+| `Tarol.Sagas.Tests` | +2 (29) | a worker without reactions runs a DI-registered row handler; the store's table joins reactions and added rows; the "hand-written table" refusal |
+| `Tarol.Validations.Generators.Tests` | +1 | the TVAL006 exemption in `[Publishes<T>]` methods |
+| `Tarol.Messaging.AotSmoke` | 8 checks (+3) | publication and effect through `MessagingTest`, the hosted worker publishing and running a DI effect; Native AOT 0 IL warnings, 5.4 MB |
+| `Tarol.Messaging.PackageTests` | 1 | the packed generator also emits `GeneratedPublications`; a publication and an effect drained through `MessagingTest` |
+
+### 16.5 Skill evaluation checklist (`tarol-messaging`, publications part)
+
+As §12, rows "publish an own event" (expected `[Publishes<Auction.Settled>("artflow.auction-settled", 1)]` on a static
+mapping method, `AddMessaging(…).Publish(GeneratedPublications.Set)` and `AddReactionWorker()`; mistakes: publishing the
+domain event, no prefix, no worker) and "send an e-mail once per payment" (expected `IEffect<Auction.PaymentRecorded>`
+with `context.IdempotencyKey`, `.Effect<TEvent, THandler>(name)`; mistakes: sending in `Execute` or a reaction, a key that
+changes per attempt). Plus: "test two systems together" → `MessagingTest.System(…)`, `Drain()`, `Later(…)`; mistake: a
+broker container in unit tests. The skill grew to 9.2 KB (above the ≈ 8 KB guide) with both parts; it stays one skill
+because consumers and publications share registration and testing.
+
+### 16.6 Suppressions and analyzer configuration
+
+None.
+
+### 16.7 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
+
+`dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker: **1171 of 1171** (1129 + 19 runtime + 20 generator + 2 Sagas + 1 analyzer; the new runtime tests
+also 6 times in a row); `eng/aot-smoke.sh` with `TAROL_PG`: **14 apps**, 0 IL warnings each, all checks passed
+(`Tarol.Messaging.AotSmoke` 8 checks, 5.4 MB); `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Messaging`
+contains `lib/`, the generator under `analyzers/dotnet/cs/`, README, LICENSE and `skills/tarol-messaging/SKILL.md`; its
+package consumer generates and runs a consumer, a publication and an effect). CI of `main` after #31 (run 89): `build`,
+`aot-smoke`, `integration` green.
+

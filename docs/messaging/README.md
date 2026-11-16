@@ -1,7 +1,7 @@
 # Messaging
 
-User guide for `Tarol.Messaging` (consumers, PR 11A; publications, the PostgreSQL bus, the brokers and the UI push follow in
-11B–11E). Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
+User guide for `Tarol.Messaging` (consumers, PR 11A; publications and effects, PR 11B; the PostgreSQL bus, the brokers and
+the UI push follow in 11C–11E). Concept: [architecture/messaging.md](../architecture/messaging.md); decisions: [migration/messaging.md](../migration/messaging.md) §9.
 
 ## Design in six points
 
@@ -16,14 +16,18 @@ User guide for `Tarol.Messaging` (consumers, PR 11A; publications, the PostgreSQ
    can be re-driven.
 5. **The context tells who acted.** `System("Consumers.<name>")` on behalf of the sender's actor, in the sender's tenant
    and conversation, caused by the message.
-6. **Tests need no broker.** `MessageTest` runs the consumers on the in-memory store and transport with a standing clock.
+6. **Tests need no broker.** `MessageTest` runs the consumers on the in-memory store and transport with a standing clock;
+   `MessagingTest` runs several systems together.
+7. **Your events leave through the outbox.** A `[Publishes<TEvent>]` mapping method per contract version; the commit
+   writes a row, the reaction worker publishes it at least once and in order per stream. An effect is an outgoing call
+   run the same way, with the event id as the receiver's idempotency key.
 
 ## Packages
 
 | Package | Contents | PR |
 |---|---|---|
 | `Tarol.Messaging` (+ generator) | `Message`, `IMessageTransport`, `InMemoryTransport`, `[Consumes]`, `GeneratedConsumers.Set`, `MessageConsumers`, `MessagingHost`, `AddMessaging`, `IMessageDeadLetters`, `MessageTest` | 11A |
-| | publications `[Publishes<T>]` and effects from the outbox | 11B |
+| | publications `[Publishes<T>]` (`GeneratedPublications.Set`, `MessagePublisher`), effects `IEffect<T>` (`EffectSet`), `MessagingTest` | 11B |
 | `Tarol.Messaging.Npgsql` | the in-database bus and `messages_dead` | 11C |
 | `Tarol.Messaging.Nats`, `Tarol.Messaging.RabbitMq` | the brokers | 11D |
 | `Tarol.Messaging.SignalR` | the UI push | 11E |
@@ -68,6 +72,62 @@ default 1: the transport's order holds), `Lease`. Several assemblies: call `Cons
 `MessageConsumers.ActivitySourceName` (`Tarol.Messaging`); each delivery is a `consume <contract>` span linked to the
 publisher's `traceparent`.
 
+## Publishing
+
+```csharp
+public static class Publications
+{
+    [Publishes<Auction.Settled>("artflow.auction-settled", 1)]
+    public static AuctionSettledV1 SettledV1(Auction.Settled e, RecordedEvent r) => new(r.StreamId, e.Price);
+
+    [Publishes<Auction.Settled>("artflow.auction-settled", 2)]                      // while consumers migrate: both
+    public static AuctionSettledV2 SettledV2(Auction.Settled e, RecordedEvent r) => new(r.StreamId, new MoneyV2(e.Price, "EUR"));
+
+    [Publishes<Auction.PaymentRecorded>("artflow.payment-recorded", 1)]
+    public static PaymentRecordedV1? Paid(Auction.PaymentRecorded e, RecordedEvent r)
+        => e.Internal ? null : new(r.StreamId, e.Invoice, e.Amount);              // null: not published
+}
+
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
+    .UseNpgsqlStore(connectionString)
+    .AddReactionWorker()
+    .AddMessaging("artflow", m => m.Publish(GeneratedPublications.Set).UseInMemoryTransport());
+```
+
+* The method is `static` (public or internal), takes the event or `(event, RecordedEvent)` and returns the contract record
+  (TMSG004); it is the outward anti-corruption layer, so the domain event is never the contract. List the record in the
+  JSON context (TMSG006). One method per contract version in an assembly (TMSG005); an assembly publishes under its own
+  system's prefix (a second prefix is a TMSG005 warning).
+* The commit writes `publish:<contract>@<version>` rows to the outbox (M-10). Add `AddReactionWorker()` wherever they
+  should leave; it needs no reactions. The worker's span is `publish <contract>`, linked to the commit; it is the
+  message's `traceparent`.
+* The envelope (`Message.Of`): id = the event id, `ce-source` = the contract's prefix, `ce-subject` = the stream id,
+  `ce-time` = when it was recorded, tenant, correlation and causation of the event's operation, `ce-actor`
+  `Kind:id[:for]`.
+* At least once: a crash after publishing publishes again; the transport drops the duplicate by
+  `Message.DedupId` (event, contract, version) or the consumer's key replays it. A transport that fails retries the row
+  with the worker's backoff, then `outbox_dead`.
+
+## Effects
+
+```csharp
+public sealed class SendReceipt(IMailer mailer) : IEffect<Auction.PaymentRecorded>
+{
+    public async ValueTask<Result> Run(Auction.PaymentRecorded e, EffectContext context, CancellationToken cancellationToken)
+    {
+        var sent = await mailer.Send(e.Buyer, "Receipt " + e.Invoice, idempotencyKey: context.IdempotencyKey, cancellationToken);
+        return sent ? Result.Success() : Error.Unavailable("Mail.Down");
+    }
+}
+
+m.Effect<Auction.PaymentRecorded, SendReceipt>("send-receipt");      // rows effect:send-receipt; the handler from DI per row
+```
+
+An effect runs at least once: the receiver must deduplicate by `context.IdempotencyKey` (the event id, the same on every
+attempt). The result is classified like a change's: `Unavailable`, a timeout or an exception retry; `Invalid`,
+`Forbidden` or `Gone` go to `outbox_dead`. Keep the name when renaming the handler (it is stored in the rows). An effect
+that should change state is a reaction instead.
+
 ## Dead letters
 
 `MessageConsumers.DeadLetters.List(max, ct)` lists them (subscription, topic, message id, attempts, reason, headers,
@@ -85,3 +145,18 @@ await test.Send(test.Message("billing.invoice-paid", 1, new InvoicePaidV1(invoic
 var attempts = await test.Drain();                 // ConsumerAttempt: consumer, verdict, reason, outcome
 await test.Later(TimeSpan.FromSeconds(2)).Drain(); // retries
 ```
+
+Several systems together, with publications and effects:
+
+```csharp
+var test = MessagingTest.At(start)
+    .System("artflow", AppJson.Default.Options, o => { o.Publications = GeneratedPublications.Set; o.Consumers = GeneratedConsumers.Set; o.Trust("billing"); })
+    .System("billing", BillingJson.Default.Options, o => { o.Publications = Billing.GeneratedPublications.Set; o.Consumers = Billing.GeneratedConsumers.Set; o.Trust("artflow"); });
+test["artflow"].Given(auction);
+await test["artflow"].When(new SettleAuction(auction.Id, 150m), Actor.User("alice"));
+var steps = await test.Drain();            // MessagingStep: application, outbox row or delivery
+await test.Later(TimeSpan.FromSeconds(2)).Drain();
+```
+
+`o.Effects = new EffectSet().Add<T>("name", _ => fake)` plugs in test doubles; `o.PublishThrough` wraps the transport
+(e.g. one that fails after publishing, to see the duplicate replayed); `test[app].OutboxDead()` lists given-up rows.

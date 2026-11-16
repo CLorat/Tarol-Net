@@ -178,6 +178,29 @@ public class DiagnosticTests
     }
 
     [Fact]
+    public void TVAL006_Exempt_In_A_Publication_Method_Of_Messaging()
+    {
+        // step 11B: a [Publishes<T>] method maps a committed event (its values were validated when it was raised) to a contract.
+        var found = Of("TVAL006", """
+            namespace Tarol.Messaging { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class PublishesAttribute<T>(string c, int v) : System.Attribute; }
+            namespace Elsewhere { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class PublishesAttribute<T>(string c, int v) : System.Attribute; }
+            public readonly partial record struct Q([Range(1, 2)] int Value);
+            public sealed record Settled(int Amount);
+            public sealed record SettledV1(Q Amount);
+            public static class Publications
+            {
+                [Tarol.Messaging.Publishes<Settled>("artflow.settled", 1)]
+                public static SettledV1 V1(Settled e) => new(new Q(e.Amount));                        // exempt
+                [Elsewhere.Publishes<Settled>("artflow.settled", 1)]
+                public static SettledV1 Foreign(Settled e) => new(new Q(e.Amount));                   // reported: not Tarol's attribute
+            }
+            """);
+
+        found.Length.ShouldBe(1);
+        found[0].Location.GetLineSpan().StartLinePosition.Line.ShouldBe(11);
+    }
+
+    [Fact]
     public void TVAL007_DataAnnotations_Attributes_Have_No_Effect()
     {
         var found = Of("TVAL007",

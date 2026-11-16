@@ -119,4 +119,37 @@ internal static class Sources
             public Result<Order> Execute(ChangeContext context) => Order.Open();
         }
         """;
+
+    public const string Publications = GeneratorTestHost.Usings + """
+        namespace Shop;
+
+        public sealed record OrderPaidV1(Guid Order, decimal Amount);
+        public sealed record OrderPaidV2(Guid Order, MoneyV2 Paid);
+        public sealed record MoneyV2(decimal Amount, string Currency);
+        public sealed record OrderMovedV1(Guid Order);
+        public sealed record OrderShippedV1(string Carrier);
+
+        public partial class Order
+        {
+            public Result Ship(string carrier) => Raise(new Shipped(carrier));
+            public abstract record Moved : Event;
+            public sealed record Shipped(string Carrier) : Moved;
+            private void On(Shipped e) { }
+        }
+
+        public static class Publications
+        {
+            [Publishes<Order.PaymentRecorded>("shop.order-paid", 1)]
+            public static OrderPaidV1 PaidV1(Order.PaymentRecorded e, RecordedEvent r) => new(r.StreamId, e.Amount);
+
+            [Publishes<Order.PaymentRecorded>("shop.order-paid", 2)]
+            internal static OrderPaidV2? PaidV2(Order.PaymentRecorded e, RecordedEvent r) => e.Amount > 0 ? new(r.StreamId, new(e.Amount, "EUR")) : null;
+
+            [Publishes<Order.Moved>("shop.order-moved", 1)]
+            public static OrderMovedV1 Moved(Order.Moved e, RecordedEvent r) => new(r.StreamId);
+
+            [Publishes<Order.Shipped>("shop.order-shipped", 1)]
+            public static OrderShippedV1 Shipped(Order.Shipped e) => new(e.Carrier);
+        }
+        """;
 }
