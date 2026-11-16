@@ -1,0 +1,141 @@
+# SDK 11.0.100, 2026-11-16, x86_64, 4 cores, 15 GB, postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1) in Docker (default settings, max_connections=300)
+
+## 1. JIT: functional checks (memory = the ProjectionTest shape; postgres = the production shape)
+# selftest memory (JIT)
+PASS projection from the feed: one row per auction of tenant A, other stream types ignored  (feed events 63, rows 23)
+PASS rows equal the aggregates (bids, highest, status)
+PASS tenant isolation: tenant B sees only its row
+PASS cursor pages (5 per page) = the full ordered list, no duplicate
+PASS offset pages = cursor pages while nothing changes
+PASS filter + descending sort with id tie-break
+PASS a cursor is bound to its sort and filters (another sort or filter is refused, never a wrong page)
+PASS page ETag stable while the page's rows do not change
+PASS read-your-writes: WaitFor(commit position) times out while no host runs
+PASS read-your-writes: WaitFor returns once the host passed the commit's position
+PASS page ETag changes when a row of the page changes
+PASS replay from an older checkpoint is idempotent (row version guard; A2: rows and checkpoint in separate statements): bids unchanged
+ALL 12 CHECKS PASSED (selftest memory, JIT)
+# selftest postgres (JIT)
+PASS projection from the feed: one row per auction of tenant A, other stream types ignored  (feed events 63, rows 23)
+PASS rows equal the aggregates (bids, highest, status)
+PASS tenant isolation: tenant B sees only its row
+PASS cursor pages (5 per page) = the full ordered list, no duplicate
+PASS offset pages = cursor pages while nothing changes
+PASS filter + descending sort with id tie-break
+PASS a cursor is bound to its sort and filters (another sort or filter is refused, never a wrong page)
+PASS page ETag stable while the page's rows do not change
+PASS read-your-writes: WaitFor(commit position) times out while no host runs
+PASS read-your-writes: WaitFor returns once the host passed the commit's position
+PASS page ETag changes when a row of the page changes
+PASS replay from an older checkpoint is idempotent (row version guard; A2: rows and checkpoint in separate statements): bids unchanged
+PASS crash before the write: no rows, checkpoint unchanged; the restart applies every event once  (rows after crash 0)
+PASS two runners at once: exact rows (checkpoint guard + version guard)  (conflicts 19, applied 63+0)
+PASS offset under an insert before the page: page 2 repeats the last row of page 1 (found)
+PASS cursor under the same insert: page 2 continues after page 1, no repeat, no gap
+PASS rebuild as a new version: v2 built from the start equals v1, v1 served unchanged meanwhile
+PASS found: a timestamptz column cannot be GENERATED from jsonb (not immutable): the host writes typed columns  (42P17 generation expression is not immutable)
+PASS an open transaction elsewhere holds the projection back until it ends
+PASS read-your-writes across processes: polling the checkpoint row ≥ the commit's position, then the query sees the bid
+PASS stored state: the open count matches the projection; a wrong path is silently empty (no error)  (state {"id": "01a1e2d7-0725-7048-9723-cc69b7b7eff9", "bids": 0, "title": "lot 4", "endsAt": "2026-11-16T09:35:45.317672+00:00", "schema": 1325599224, "seller": "sue", "status": "Open", "version": 1, "highestBid": 0})
+ALL 21 CHECKS PASSED (selftest postgres, JIT)
+
+## 2. Seed: 10,000 auctions x (open + 8 bids + close) through the store, 8 writers, one commit per event; copied by SQL to 1e6 events
+INFO seed: 100000 commits (one event each) by 8 writers in 152.7 s = 655 commits/s
+INFO seed: copied to 1000000 events (10 x) in 15.2 s; aliases auction.bid_placed, auction.closed, auction.opened; events table 393 MB
+
+## 3. Catch-up from the start over 1e6 events (rows + checkpoint per batch; A1 = in one transaction, A2 = separate statements)
+INFO catch-up A1 batch 500: 1000000 events in 14.9 s = 66998 events/s, 100000 rows, table 71 MB (feed 1000000)
+INFO catch-up A1 batch 2000: 1000000 events in 7.5 s = 132894 events/s, 100000 rows, table 65 MB (feed 1000000)
+INFO catch-up A1 batch 5000: 1000000 events in 6.5 s = 152992 events/s, 100000 rows, table 64 MB (feed 1000000)
+INFO catch-up A2 batch 2000: 1000000 events in 7.7 s = 129750 events/s, 100000 rows, table 65 MB (feed 1000000)
+INFO feed alone (ReadAll 2000, decode): 1000000 events in 2.7 s = 366009 events/s
+
+## 4. Rebuild: truncate + replay (what readers see) vs a new version + swap (rename under query load)
+INFO rebuild by truncate + replay: 10.0 s; a reader saw 20 partial counts, e.g. 0, 2203, 4804, 7004, 9603, 12203 … of 100000
+INFO swap by rename (3 renames in one transaction) under 4 query loops: 12.6 ms; queries meanwhile p50 0.82 ms, p99 44.63 ms, max 132.36 ms (n=4242)
+
+## 5. Commit cost per candidate (2,000 sequential bids each; the first baseline warms up) and the outbox-row projection loop
+INFO commit baseline: p50 1.54 ms, p99 2.64 ms, max 5.64 ms (n=2000)
+INFO commit outbox-row: p50 1.85 ms, p99 3.15 ms, max 4.54 ms (n=2000)
+INFO outbox projection rows (claim 100, load + upsert + complete per row, one loop): 2200 of 2200 rows in 9.7 s = 227 rows/s
+INFO commit inline-trigger: p50 1.45 ms, p99 2.27 ms, max 74.40 ms (n=2000)
+INFO commit notify-trigger: p50 1.36 ms, p99 2.45 ms, max 9.69 ms (n=2000)
+INFO commit baseline: p50 1.35 ms, p99 2.34 ms, max 24.50 ms (n=2000)
+
+## 6. Query latency, offset vs cursor at depth (page of 50; 100 runs, 20 at depth >= 100,000; p50 / p99)
+INFO query table: 1000000 rows (tenant A) + 100000 (tenant B) in 31.1 s, 676 MB with 4 indexes
+| tenant rows | query | depth | offset | cursor |
+|---|---|---|---|---|
+| 1 000 000 | all, endsAt | 0 | 0.99 / 1.39 ms | 1.03 / 2.52 ms |
+| 1 000 000 | all, endsAt | 1 000 | 2.37 / 5.30 ms | 0.91 / 1.48 ms |
+| 1 000 000 | all, endsAt | 10 000 | 19.20 / 30.42 ms | 0.87 / 1.44 ms |
+| 1 000 000 | all, endsAt | 100 000 | 362.19 / 402.40 ms | 0.66 / 2.87 ms |
+| 1 000 000 | all, endsAt | 500 000 | 1762.82 / 1877.88 ms | 0.50 / 1.02 ms |
+| 1 000 000 | all, endsAt | 900 000 | 3186.59 / 3371.05 ms | 0.56 / 0.88 ms |
+| 1 000 000 | status=Closed, endsAt | 0 | 0.59 / 1.13 ms | 0.46 / 0.83 ms |
+| 1 000 000 | status=Closed, endsAt | 1 000 | 2.31 / 3.23 ms | 0.65 / 0.89 ms |
+| 1 000 000 | status=Closed, endsAt | 10 000 | 19.39 / 27.20 ms | 0.56 / 0.86 ms |
+| 1 000 000 | status=Closed, endsAt | 100 000 | 373.98 / 456.04 ms | 0.73 / 0.97 ms |
+| 1 000 000 | all, highestBid desc | 0 | 0.66 / 1.15 ms | 0.58 / 0.95 ms |
+| 1 000 000 | all, highestBid desc | 1 000 | 2.23 / 3.13 ms | 0.66 / 1.09 ms |
+| 1 000 000 | all, highestBid desc | 10 000 | 19.84 / 28.11 ms | 0.51 / 0.88 ms |
+| 1 000 000 | all, highestBid desc | 100 000 | 381.49 / 415.41 ms | 0.67 / 0.96 ms |
+| 1 000 000 | all, highestBid desc | 500 000 | 1833.37 / 1934.30 ms | 0.59 / 1.00 ms |
+| 1 000 000 | all, highestBid desc | 900 000 | 3340.07 / 3674.53 ms | 0.57 / 0.88 ms |
+| 100 000 | all, endsAt | 0 | 0.51 / 2.44 ms | 0.58 / 0.92 ms |
+| 100 000 | all, endsAt | 1 000 | 2.23 / 3.46 ms | 0.59 / 1.17 ms |
+| 100 000 | all, endsAt | 10 000 | 21.36 / 27.20 ms | 0.75 / 1.24 ms |
+| 100 000 | status=Closed, endsAt | 0 | 0.76 / 0.92 ms | 0.73 / 0.87 ms |
+| 100 000 | status=Closed, endsAt | 1 000 | 2.85 / 3.19 ms | 0.68 / 0.95 ms |
+| 100 000 | status=Closed, endsAt | 10 000 | 17.78 / 27.99 ms | 0.56 / 0.86 ms |
+| 100 000 | all, highestBid desc | 0 | 0.60 / 0.87 ms | 0.43 / 0.82 ms |
+| 100 000 | all, highestBid desc | 1 000 | 2.18 / 3.05 ms | 0.63 / 0.91 ms |
+| 100 000 | all, highestBid desc | 10 000 | 17.64 / 26.57 ms | 0.75 / 1.11 ms |
+INFO total count (status=Closed) of a 1000000 row tenant: 62.04 / 70.94 ms
+INFO total count (status=Closed) of a 100000 row tenant: 5.86 / 7.28 ms
+INFO plan offset 500000: Limit (actual time=2082.578..2082.763 rows=51 loops=1)
+INFO plan offset 500000:   Buffers: shared hit=181766 read=322886
+INFO plan offset 500000:   ->  Index Scan using q_bench_rm_q_rows_v1_ends on rm_q_rows_v1 (actual time=0.053..2044.712 rows=500051 loops=1)
+INFO plan offset 500000:         Index Cond: (tenant = '01a1e2da-e440-75da-8b24-49f38816e3e8'::uuid)
+INFO plan offset 500000:         Buffers: shared hit=181766 read=322886
+INFO plan offset 500000: Planning Time: 0.096 ms
+INFO plan offset 500000: Execution Time: 2083.301 ms
+
+## 7. The stored state (streams.state) as the read model vs the projection table (1e5 auction streams after section 2)
+INFO stored state: tenant with 25000 of 100000 streams
+INFO state, highestBid desc, no index: 29.78 / 33.89 ms
+INFO state, highestBid desc, expression index: 0.53 / 0.72 ms
+INFO projection table, highestBid desc, SQL only: 0.35 / 0.52 ms
+INFO projection table, highestBid desc, Search (SQL + 51 rows deserialized + cursor + ETag): 1.07 / 3.28 ms
+INFO state, status='Open' + highestBid desc (all closed: empty), expression index: 18.91 / 23.19 ms
+
+## 8. Lag: commit returned -> the projection's checkpoint passed it (50 commits/s for 10 s; first 10 % skipped)
+| wake-up | writers | lag | |
+|---|---|---|---|
+| poll100 | 1 | p50 56.33 ms, p99 108.38 ms, max 112.10 ms (n=450) | 96 batches |
+| poll100 | 4 | p50 57.52 ms, p99 108.60 ms, max 110.02 ms (n=450) | 95 batches |
+| poll10 | 1 | p50 9.17 ms, p99 16.90 ms, max 18.20 ms (n=450) | 501 batches |
+| poll10 | 4 | p50 10.48 ms, p99 20.94 ms, max 21.77 ms (n=450) | 167 batches |
+| notify | 1 | p50 3.58 ms, p99 6.07 ms, max 10.83 ms (n=450) | 501 batches |
+| notify | 4 | p50 4.36 ms, p99 7.81 ms, max 9.77 ms (n=450) | 246 batches |
+
+INFO read-your-writes, NOTIFY host, in process (WaitFor): p50 3.74 ms, p99 6.35 ms, max 88.85 ms (n=200)
+INFO read-your-writes, NOTIFY host, other process (poll checkpoint row every 5 ms): p50 8.16 ms, p99 11.15 ms, max 11.33 ms (n=200)
+
+## 9. Native AOT: publish (warnings, size), the same checks natively, lag and read-your-writes natively
+IL warnings: 0
+native binary: 7761312 bytes
+# selftest memory (Native AOT)
+ALL 12 CHECKS PASSED (selftest memory, Native AOT)
+# selftest postgres (Native AOT)
+ALL 21 CHECKS PASSED (selftest postgres, Native AOT)
+| wake-up | writers | lag | |
+|---|---|---|---|
+| notify | 4 | p50 3.97 ms, p99 7.42 ms, max 8.47 ms (n=450) | 240 batches |
+INFO read-your-writes, NOTIFY host, in process (WaitFor): p50 3.09 ms, p99 6.21 ms, max 14.08 ms (n=200)
+INFO read-your-writes, NOTIFY host, other process (poll checkpoint row every 5 ms): p50 9.03 ms, p99 10.97 ms, max 18.99 ms (n=200)
+INFO catch-up A1 batch 500: 1000000 events in 14.1 s = 70934 events/s, 100000 rows, table 71 MB (feed 1000000)
+INFO catch-up A1 batch 2000: 1000000 events in 7.6 s = 131522 events/s, 100000 rows, table 40 MB (feed 1000000)
+INFO catch-up A1 batch 5000: 1000000 events in 8.1 s = 123686 events/s, 100000 rows, table 64 MB (feed 1000000)
+INFO catch-up A2 batch 2000: 1000000 events in 9.5 s = 105571 events/s, 100000 rows, table 64 MB (feed 1000000)
+INFO feed alone (ReadAll 2000, decode): 1000000 events in 3.5 s = 282928 events/s
