@@ -2,9 +2,10 @@
 name: tarol-queries
 description: >-
   Use when adding a read model, list or search over a Tarol event-sourced application: a [Projection] row record with
-  When(event) methods, its ProjectionHost (AddProjections), ListQuery pages with cursor, filters, sorts and ETag,
-  read-your-writes (IProjectionPositions.WaitFor), ISqlProjection, and testing with ProjectionTest. Do not query
-  streams.state, read a projection inside a change, or decompile the package.
+  When(event) methods, its ProjectionHost (AddProjections), list endpoints ([Endpoint("GET …")] on an IQuery<TRow>
+  record with filters, a Sort enum, [FromClaim], cursor, Tarol-Read-After), ListQuery pages with ETag, read-your-writes,
+  ISqlProjection, and testing with ProjectionTest; fixing TQRY001-TQRY006. Do not query streams.state, read a projection
+  inside a change, or decompile the package.
 ---
 # Tarol.Queries: projections and list queries
 
@@ -61,6 +62,28 @@ result.TryGetValue(out Page<AuctionRow>? page).ShouldBeTrue();   // page.Items, 
 
 `ProjectionTest<TRow>.Over(changeTest.Store)` projects the events a `ChangeTest` committed.
 
+## List endpoints (Tarol.Changes.AspNetCore)
+
+```csharp
+public enum AuctionSort { EndsAt, [Descending] HighestBid }
+
+[Endpoint("GET /auctions", Policy = "auctions:read")]
+public sealed record AuctionSearch(AuctionStatus? Status, string? Seller, AuctionSort Sort = AuctionSort.EndsAt) : IQuery<AuctionRow>;
+
+[Endpoint("GET /my/auctions")]
+public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<AuctionRow>;
+```
+
+* Filter members are **nullable** and named like a row member (`Status` → column `status`); `?status=Open` (enum names,
+  case-insensitive). A member named `Sort` of an enum whose members name `[Sort]` members (or `Id`) is the order.
+* `[FromClaim("sub")]` binds the caller's claim (403 without it); never add a request parameter for "my" rows.
+* Paging keys: `limit` (≤ 200), `after` = the previous page's `next`, `offset` (≤ 1,000), `count=true`. Answer:
+  `{ "items": […], "next": "…" | null, "total": n }`, weak `ETag` (304), `Tarol-Position`.
+* Read your own write: send the change answer's `Tarol-Position` as `Tarol-Read-After`; after 2 s the list answers with
+  `Tarol-Stale: true`. 503 + `Retry-After` while a new projection version builds.
+* Grant the list with the role map: `roles.Role("bidder").May<Read<Auction>>()`. Row rules do not run on lists.
+* Register the read models in the API process too (`UseNpgsqlReadModels()` / `UseInMemoryReadModels()`).
+
 ## Common mistakes
 
 | Mistake | What happens |
@@ -74,6 +97,10 @@ result.TryGetValue(out Page<AuctionRow>? page).ShouldBeTrue();   // page.Items, 
 | a cursor reused with another sort or filter, `Limit = 500`, `Offset = 5000` | `Invalid` with field `after`, `limit` or `offset` (HTTP 400) |
 | reading `ProjectionHost.Position` in the API process | it is only this process's view: use `IProjectionPositions` |
 | an `ISqlProjection` without `UseNpgsqlReadModels()` | `InvalidOperationException` when the host is resolved |
+| a non-nullable filter, a member naming no column, a sort naming a non-`[Sort]` member | TQRY005 |
+| `[FromClaim]` on a member the route also names | TQRY006 (warning: the claim wins) |
+| `IQuery<TRow>` with POST | TWEB002 |
+| a list answer 403 for a caller who may read single auctions by a row rule | lists need the role map's `Read<T>` |
 
 ## AOT
 

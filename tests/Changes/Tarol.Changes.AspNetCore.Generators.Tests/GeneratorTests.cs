@@ -11,6 +11,14 @@ public sealed class GeneratorTests
         => Snapshot.Match("endpoints", GeneratorTestHost.Run(GeneratorTestHost.Compile(false, GeneratorTestHost.Domain, Sources.Entries)));
 
     [Fact]
+    public void Lists_get_their_delegates_and_openapi_parameters()
+        => Snapshot.Match("lists", GeneratorTestHost.Run(GeneratorTestHost.Compile(true, GeneratorTestHost.Domain, Sources.Lists)));
+
+    [Fact]
+    public void The_generated_lists_compile_without_warnings()
+        => string.Join("\n", GeneratorTestHost.Diagnose(true, Sources.Lists).Select(d => d.ToString())).ShouldBeEmpty();
+
+    [Fact]
     public void With_OpenApi_referenced_the_transformers_are_generated_too()
         => Snapshot.Match("openapi", GeneratorTestHost.Run(GeneratorTestHost.Compile(true, GeneratorTestHost.Domain, Sources.Entries)));
 
@@ -139,6 +147,24 @@ public sealed class DiagnosticTests
                 public Result Execute(Order o, ChangeContext c) => o.Add(1);
             }
             """).ShouldContain("TWEB006");
+
+    [Theory]
+    [InlineData("public sealed record Q(int? Nope) : IQuery<OrderRow>;", "has no typed column 'Nope'")]
+    [InlineData("public sealed record Q(int Items) : IQuery<OrderRow>;", "a filter member is nullable")]
+    [InlineData("public sealed record Q(long? Items) : IQuery<OrderRow>;", "holds int, not long")]
+    [InlineData("public sealed record Q(S Sort = S.Customer) : IQuery<OrderRow>; public enum S { Customer }", "names no [Sort] member")]
+    [InlineData("public sealed record Q([FromClaim(\"sub\")] OrderState State) : IQuery<OrderRow>;", "a string or a Guid")]
+    public void TQRY005_query_members_name_columns(string record, string message)
+        => Message("[Endpoint(\"GET /q\")] " + record, "TQRY005").ShouldContain(message);
+
+    [Fact]
+    public void TQRY006_a_claim_member_named_by_the_route_warns()
+        => Message("""[Endpoint("GET /c/{customer}")] public sealed record Q([FromClaim("sub")] string Customer) : IQuery<OrderRow>;""", "TQRY006")
+            .ShouldContain("the claim wins");
+
+    [Fact]
+    public void A_list_is_read_with_GET()
+        => Message("""[Endpoint("POST /q")] public sealed record Q(string? Customer) : IQuery<OrderRow>;""", "TWEB002").ShouldContain("read with GET");
 
     [Fact]
     public void Valid_entries_report_nothing()

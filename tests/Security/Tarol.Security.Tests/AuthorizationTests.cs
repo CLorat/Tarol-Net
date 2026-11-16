@@ -7,6 +7,7 @@ using Tarol.Changes;
 using Tarol.Kernel;
 using Tarol.Options;
 using Tarol.Persistence;
+using Tarol.Primitives;
 using Tarol.Results;
 
 namespace Tarol.Security.Tests;
@@ -122,6 +123,35 @@ public sealed class AuthorizationTests : IAsyncDisposable
         (await _pipeline.Run(new WatchAuction(auction.Id), As("zoe"), new ChangeOptions(Principal: User("zoe")), Ct)).IsSuccess.ShouldBeTrue();
         Failure(await _pipeline.Run(new WatchAuction(auction.Id), As("x"), new ChangeOptions(Principal: Anonymous), Ct))
             .ShouldBe(Error.Unauthorized(ChangeAuthorization.RequiredCode));
+    }
+
+    [Fact]
+    public async Task A_list_is_granted_by_the_role_map_only_row_rules_do_not_run()
+    {
+        var authorization = _provider.GetRequiredService<IChangeAuthorization>();
+        var context = new ChangeContext(As("x"), TimeProvider.System.GetUtcNow());
+
+        (await authorization.CheckList<Auction>(context, User("rita", "reader"), Ct)).IsSuccess.ShouldBeTrue();
+        (await authorization.CheckList<Auction>(context, User("alice"), Ct))                    // ReadOwnAuction would grant one of hers
+            .ShouldBe(Result.Failure(Error.Forbidden(ChangeAuthorization.ForbiddenCode)));
+        (await authorization.CheckList<Auction>(context, Anonymous, Ct)).ShouldBe(Result.Failure(Error.Unauthorized(ChangeAuthorization.RequiredCode)));
+    }
+
+    [Fact]
+    public async Task An_authorization_without_lists_refuses_them()
+    {
+        IChangeAuthorization legacy = new CheckOnly();
+        var context = new ChangeContext(As("x"), TimeProvider.System.GetUtcNow());
+
+        (await legacy.CheckList<Auction>(context, User("rita", "reader"), Ct)).ShouldBe(Result.Failure(Error.Forbidden("Auth.Forbidden")));
+        (await legacy.CheckList<Auction>(context, Anonymous, Ct)).ShouldBe(Result.Failure(Error.Unauthorized("Auth.Required")));
+    }
+
+    private sealed class CheckOnly : IChangeAuthorization
+    {
+        public ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+            where T : AggregateRoot<T>, IAggregateRoot<T>
+            => ValueTask.FromResult(Result.Success());
     }
 
     [Fact]

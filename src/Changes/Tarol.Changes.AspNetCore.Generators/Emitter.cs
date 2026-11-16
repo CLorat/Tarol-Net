@@ -45,6 +45,8 @@ internal static class Emitter
         {
             if (e.Kind == EntryKind.View)
                 View(sb, e);
+            else if (e.Kind == EntryKind.List)
+                List(sb, e);
             else
                 Change(sb, e);
         }
@@ -57,7 +59,7 @@ internal static class Emitter
     private static void MapEntry(StringBuilder sb, EntryModel e)
     {
         var method = Method(e);
-        var kind = e.Kind switch { EntryKind.Creation => "creation", EntryKind.View => "view", _ => "change" };
+        var kind = e.Kind switch { EntryKind.Creation => "creation", EntryKind.View => "view", EntryKind.List => "list", _ => "change" };
         var route = e.Members.Where(m => m.RouteKind is not null).ToArray();
         var body = e.Members.Where(m => m.RouteKind is null).ToArray();
         sb.Append("        {\n");
@@ -65,13 +67,14 @@ internal static class Emitter
           .Append(Pascal(e.Verb)).Append(", (").Append(Http).Append(".RequestDelegate)").Append(method).Append(");\n");
         sb.Append("            ").Append(Builder).Append(".RoutingEndpointConventionBuilderExtensions.WithName(endpoint, names + \"").Append(e.Name).Append("\");\n");
         sb.Append("            ").Append(Builder).Append(".RoutingEndpointConventionBuilderExtensions.WithMetadata(endpoint,\n");
-        if (e.Kind != EntryKind.View)
+        if (e.Kind is not (EntryKind.View or EntryKind.List))
             sb.Append("                new ").Append(Http).Append(".Metadata.AcceptsMetadata(new[] { \"application/json\" }, typeof(").Append(e.FullName).Append("), isOptional: ")
               .Append(e.HasBody ? "false" : "true").Append("),\n");
         sb.Append("                new ").Append(Http).Append(".ProducesResponseTypeMetadata(").Append(e.Kind switch
         {
             EntryKind.Creation => "201",
             EntryKind.View => $"200, typeof({e.FullName}), new[] {{ \"application/json\" }}",
+            EntryKind.List => $"200, typeof({e.Query!.Row}), new[] {{ \"application/json\" }}",     // the row; the OpenAPI transformer wraps it in the page
             _ => "204",
         }).Append("),\n");
         sb.Append("                ((").Append(Http).Append(".RequestDelegate)").Append(method).Append(").Method,                // OpenAPI describes endpoints that carry a MethodInfo\n");
@@ -79,7 +82,23 @@ internal static class Emitter
         sb.Append("                    new global::Tarol.Changes.AspNetCore.RouteValue[] { ")
           .Append(string.Join(", ", route.Select(m => $"new(\"{m.RouteName}\", \"{m.RouteKind}\", {NameOf(m)})"))).Append(" },\n");
         sb.Append("                    new string[] { ").Append(string.Join(", ", body.Select(NameOf))).Append(" },\n");
-        sb.Append("                    ").Append(e.Policy is null ? "null" : Literal(e.Policy)).Append("));\n");
+        sb.Append("                    ").Append(e.Policy is null ? "null" : Literal(e.Policy));
+        if (e.Query is { } q)
+        {
+            sb.Append(",\n                    new global::Tarol.Changes.AspNetCore.QueryParameter[]\n                    {\n");
+            foreach (var f in q.Filters.Where(f => f.Source == "query"))
+                sb.Append("                        new(web.Names((\"").Append(f.Member).Append("\", null))[0], \"").Append(f.OpenApiKind).Append("\", new string[] { ")
+                  .Append(string.Join(", ", f.Values.Select(Literal))).Append(" }, \"Equal to the row's ").Append(f.Column).Append("; absent: any\"),\n");
+            if (q.SortMember is not null)
+                sb.Append("                        new(\"sort\", \"enum\", new string[] { ").Append(string.Join(", ", q.Sorts.Select(o => Literal(o.EnumMember))))
+                  .Append(" }, \"The order (default ").Append(q.DefaultSort).Append("); the id breaks ties\"),\n");
+            sb.Append("                        new(\"after\", \"string\", global::System.Array.Empty<string>(), \"The cursor of the previous page (its next)\"),\n");
+            sb.Append("                        new(\"limit\", \"int32\", global::System.Array.Empty<string>(), \"The page size (default and maximum: the endpoint options)\"),\n");
+            sb.Append("                        new(\"offset\", \"int32\", global::System.Array.Empty<string>(), \"Rows to skip, bounded; page deeper with after\"),\n");
+            sb.Append("                        new(\"count\", \"boolean\", global::System.Array.Empty<string>(), \"Also count every row of the filters (total)\"),\n");
+            sb.Append("                    }");
+        }
+        sb.Append("));\n");
         sb.Append("            ").Append(Builder).Append(".AuthorizationEndpointConventionBuilderExtensions.")
           .Append(e.Anonymous ? "AllowAnonymous(endpoint)" : e.Policy is null ? "RequireAuthorization(endpoint)" : $"RequireAuthorization(endpoint, {Literal(e.Policy)})")
           .Append(';').Append(e.Anonymous || e.Policy is not null ? "" : "                   // no Policy: the default policy (fail closed, C-11)").Append('\n');
@@ -117,6 +136,73 @@ internal static class Emitter
         sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
         sb.Append("        if (aggregate is null)\n            return;                                                     // 404, 403, 401 or 304 written\n");
         sb.Append("        await web.WriteView(http, ").Append(e.FullName).Append(".From(aggregate));\n    }\n");
+    }
+
+    // a list (step 12C): access (tenant, Read<T>), filters from claims, route and query string, sort, paging, then the answer
+    private static void List(StringBuilder sb, EntryModel e)
+    {
+        var q = e.Query!;
+        var query = q.Filters.Where(f => f.Source == "query").ToArray();
+        if (query.Length > 0)
+            sb.Append("\n    private static string[]? names_").Append(Key(e)).Append(";\n");
+        sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
+        sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
+        foreach (var m in e.Members)
+            Route(sb, m);
+        sb.Append("        var tenant = await web.ListAccess<").Append(e.Aggregate).Append(">(http);\n");
+        sb.Append("        if (tenant is null)\n            return;                                                     // 401, 403 or 404 written\n");
+        sb.Append("        global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;\n");
+        sb.Append("        var filters = new global::System.Collections.Generic.List<global::Tarol.Queries.ColumnFilter>(").Append(q.Filters.Count).Append(");\n");
+        foreach (var f in q.Filters.Where(f => f.Source == "claim"))
+        {
+            sb.Append("        var claim_").Append(f.Member).Append(" = ").Append(Web).Append(".Claim(http, ").Append(Literal(f.Claim!)).Append(");\n");
+            var guid = f.Type == "global::System.Guid";
+            sb.Append("        if (claim_").Append(f.Member).Append(" is null").Append(guid ? $" || !global::System.Guid.TryParse(claim_{f.Member}, out var claimed_{f.Member})" : "").Append(")\n        {\n");
+            sb.Append("            await web.Problem(http, global::Tarol.Results.Error.Forbidden(\"Auth.Claim\", ").Append(Literal(f.Claim!)).Append("));\n            return;\n        }\n");
+            sb.Append("        filters.Add(new(").Append(Literal(f.Column)).Append(", ").Append(guid ? "claimed_" : "claim_").Append(f.Member).Append("));   // from the caller, never the request (QR-6)\n");
+        }
+        foreach (var f in q.Filters.Where(f => f.Source == "route"))
+            sb.Append("        filters.Add(new(").Append(Literal(f.Column)).Append(", route_").Append(f.Member).Append("));\n");
+        if (query.Length > 0)
+            sb.Append("        var names = names_").Append(Key(e)).Append(" ??= web.Names(").Append(string.Join(", ", query.Select(f => $"(\"{f.Member}\", null)"))).Append(");\n");
+        for (var i = 0; i < query.Length; i++)
+        {
+            var f = query[i];
+            sb.Append("        if (!").Append(Web).Append(".One(http, names[").Append(i).Append("], out var q_").Append(f.Member).Append("))\n");
+            sb.Append("            (errors ??= new()).Add(new(\"").Append(f.Member).Append("\", \"Multiple\"));\n");
+            sb.Append("        else if (q_").Append(f.Member).Append(" is not null)\n        {\n");
+            if (f.Parse == "string")
+            {
+                sb.Append("            filters.Add(new(").Append(Literal(f.Column)).Append(", q_").Append(f.Member).Append("));\n");
+            }
+            else
+            {
+                sb.Append("            if (").Append(Web).Append(f.Parse == "enum" ? ".TryEnum<" : ".TryFilter<").Append(f.Type).Append(">(q_").Append(f.Member).Append(", out var v_").Append(f.Member).Append("))\n");
+                sb.Append("                filters.Add(new(").Append(Literal(f.Column)).Append(", v_").Append(f.Member).Append("));\n");
+                sb.Append("            else\n                (errors ??= new()).Add(new(\"").Append(f.Member).Append("\", \"Format\"));\n");
+            }
+            sb.Append("        }\n");
+        }
+        var defaultSort = q.Sorts.FirstOrDefault(o => o.EnumMember == q.DefaultSort);
+        sb.Append("        string? sort = ").Append(defaultSort is null ? "null" : Literal(defaultSort.Column)).Append(";\n");
+        sb.Append("        var descending = ").Append(defaultSort is { Descending: true } ? "true" : "false").Append(";\n");
+        if (q.SortMember is not null)
+        {
+            sb.Append("        if (!").Append(Web).Append(".One(http, \"sort\", out var q_sort))\n            (errors ??= new()).Add(new(\"sort\", \"Multiple\"));\n");
+            sb.Append("        else if (q_sort is not null)\n        {\n");
+            var sorts = q.Sorts.ToArray();
+            for (var i = 0; i < sorts.Length; i++)
+            {
+                var o = sorts[i];
+                sb.Append("            ").Append(i == 0 ? "if" : "else if").Append(" (string.Equals(q_sort, ").Append(Literal(o.EnumMember)).Append(", global::System.StringComparison.OrdinalIgnoreCase))\n");
+                sb.Append("                (sort, descending) = (").Append(Literal(o.Column)).Append(", ").Append(o.Descending ? "true" : "false").Append(");\n");
+            }
+            sb.Append(q.Sorts.Count > 0 ? "            else\n    " : "").Append("            (errors ??= new()).Add(new(\"sort\", \"Format\"));\n");
+            sb.Append("        }\n");
+        }
+        sb.Append("        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters, Sort = sort, Descending = descending }, ref errors);\n");
+        sb.Append("        if (errors is not null)\n        {\n            await web.Problem(http, new global::Tarol.Results.Invalid(errors));\n            return;\n        }\n");
+        sb.Append("        await web.List<").Append(q.Row).Append(">(http, query);\n    }\n");
     }
 
     private static void Change(StringBuilder sb, EntryModel e)
@@ -223,7 +309,7 @@ internal static class Emitter
     /// <summary>The error path of a body member: its C# name (converted by the naming policy), or its own JSON name.</summary>
     private static string Field(Member m) => m.JsonName ?? m.Name;
 
-    private static string Method(EntryModel e) => (e.Kind == EntryKind.View ? "View_" : "Run_") + Key(e);
+    private static string Method(EntryModel e) => (e.Kind switch { EntryKind.View => "View_", EntryKind.List => "List_", _ => "Run_" }) + Key(e);
 
     /// <summary>Unique per input (two inputs may share a name in different namespaces), deterministic.</summary>
     private static string Key(EntryModel e) => Ident(e.FullName.StartsWith("global::", System.StringComparison.Ordinal) ? e.FullName.Substring(8) : e.FullName);

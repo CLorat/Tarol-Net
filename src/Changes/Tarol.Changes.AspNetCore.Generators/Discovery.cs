@@ -36,6 +36,9 @@ internal static class Discovery
         var pattern = route.Substring(space + 1);
         var placeholders = Placeholders(pattern);
 
+        if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IQuery<TRow>") is { } query)
+            return List(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)query.TypeArguments[0], location, ct);
+
         string? aggregate = null;
         var kind = EntryKind.Change;
         foreach (var i in type.AllInterfaces)
@@ -106,6 +109,219 @@ internal static class Discovery
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), kind, aggregate, verb, pattern, policy, anonymous,
             new EquatableArray<Member>(members.ToImmutableArray()), location);
         return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), default);
+    }
+
+    private static readonly HashSet<string> Reserved = new(StringComparer.Ordinal) { "tenant", "id", "version", "doc" };
+
+    /// <summary>A list entry: an IQuery&lt;TRow&gt; record read with GET (step 12C, QR-4, QR-6).</summary>
+    private static EntryResult List(INamedTypeSymbol type, AttributeData attribute, string verb, string pattern, List<string> placeholders,
+        INamedTypeSymbol row, LocationInfo? location, CancellationToken ct)
+    {
+        var diagnostics = new List<DiagnosticInfo>();
+        EntryResult Fail(DiagnosticDescriptor d, params string[] args)
+            => new(null, default, new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(DiagnosticInfo.Create(d, location, args))));
+        if (verb != "GET")
+            return Fail(Diagnostics.NotAnEntry, type.Name, "a list query is read with GET");
+        if (type.IsGenericType || type.DeclaredAccessibility != Accessibility.Public)
+            return Fail(Diagnostics.NotAnEntry, type.Name, "an entry is a public, non-generic type");
+        var aggregate = RowAggregate(row);
+        if (aggregate is null)
+            return Fail(Diagnostics.NotAnEntry, type.Name, $"{row.Name} is not a [Projection] row record with When methods over an aggregate's events");
+
+        // the row's typed columns: scalar public members except the key, in snake case
+        var ctorParameters = row.InstanceConstructors.SelectMany(c => c.Parameters).ToList();
+        var columns = new Dictionary<string, (ITypeSymbol Type, string Column, bool Sortable)>(StringComparer.Ordinal);
+        foreach (var property in row.GetMembers().OfType<IPropertySymbol>())
+        {
+            if (property.IsStatic || property.IsIndexer || property.DeclaredAccessibility != Accessibility.Public || property.Name == "EqualityContract")
+                continue;
+            var column = Snake(property.Name);
+            if (Reserved.Contains(column) || !IsScalar(Underlying(property.Type)))
+                continue;
+            var sortable = HasAttribute(property, "Tarol.Queries.SortAttribute")
+                           || ctorParameters.Any(p => p.Name == property.Name && HasAttribute(p, "Tarol.Queries.SortAttribute"));
+            columns[property.Name] = (property.Type, column, sortable && !IsNullable(property.Type));
+        }
+
+        var ctor = type.InstanceConstructors
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !(c.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, type)))
+            .OrderByDescending(c => c.Parameters.Length).FirstOrDefault();
+        if (ctor is null)
+            return new(null, default, new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(DiagnosticInfo.Create(Diagnostics.NoConstructor, location, type.Name))));
+
+        var members = new List<Member>();
+        var filters = new List<FilterModel>();
+        var sorts = new List<SortModel>();
+        string? sortMember = null, defaultSort = null;
+        foreach (var p in ctor.Parameters)
+        {
+            ct.ThrowIfCancellationRequested();
+            var name = char.ToUpperInvariant(p.Name[0]) + p.Name.Substring(1);
+            var property = type.GetMembers(name).OfType<IPropertySymbol>().FirstOrDefault();
+            var claim = ClaimOf(p) ?? (property is null ? null : ClaimOf(property));
+            var placeholder = placeholders.FirstOrDefault(h => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase));
+            var underlying = Underlying(p.Type);
+            void Bad(string why) => diagnostics.Add(DiagnosticInfo.Create(Diagnostics.QueryMember, location, type.Name, name, why));
+
+            if (claim is null && string.Equals(name, "Sort", StringComparison.Ordinal) && underlying.TypeKind == TypeKind.Enum)
+            {
+                sortMember = name;
+                foreach (var field in underlying.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue))
+                {
+                    var descending = HasAttribute(field, "Tarol.Queries.DescendingAttribute");
+                    if (field.Name == "Id")
+                        sorts.Add(new SortModel(field.Name, "id", descending));
+                    else if (columns.TryGetValue(field.Name, out var c) && c.Sortable)
+                        sorts.Add(new SortModel(field.Name, c.Column, descending));
+                    else
+                        Bad($"the sort '{underlying.Name}.{field.Name}' names no [Sort] member of {row.Name} (nor Id)");
+                    if (p.HasExplicitDefaultValue && Equals(p.ExplicitDefaultValue, field.ConstantValue))
+                        defaultSort = field.Name;
+                }
+                defaultSort ??= sorts.FirstOrDefault()?.EnumMember;
+                continue;
+            }
+            if (!columns.TryGetValue(name, out var target))
+            {
+                Bad($"{row.Name} has no typed column '{name}' (filters compare equal to a scalar member of the row)");
+                continue;
+            }
+            if (!SymbolEqualityComparer.Default.Equals(underlying, Underlying(target.Type)))
+            {
+                Bad($"the column '{target.Column}' holds {Underlying(target.Type).ToDisplayString()}, not {underlying.ToDisplayString()}");
+                continue;
+            }
+            var (parse, openApi) = ParseKind(underlying);
+            var values = underlying.TypeKind == TypeKind.Enum
+                ? underlying.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue).Select(f => f.Name).ToImmutableArray()
+                : ImmutableArray<string>.Empty;
+            var typeName = underlying.ToDisplayString(Fq);
+            if (claim is not null)
+            {
+                if (underlying.SpecialType != SpecialType.System_String && underlying.ToDisplayString() != "System.Guid")
+                {
+                    Bad("a [FromClaim] member is a string or a Guid");
+                    continue;
+                }
+                if (placeholder is not null)
+                    diagnostics.Add(DiagnosticInfo.Create(Diagnostics.ClaimAlsoRouted, location, type.Name, name, claim, placeholder));
+                filters.Add(new FilterModel(name, typeName, target.Column, parse ?? "string", "claim", claim, openApi, new EquatableArray<string>(values)));
+                continue;
+            }
+            if (placeholder is not null)
+            {
+                var routeKind = RouteKind(p.Type);
+                if (routeKind is null or "id")
+                {
+                    diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name,
+                        $"route member '{name}' of a list is a Guid, string, int or long"));
+                    continue;
+                }
+                members.Add(new Member(name, p.Type.ToDisplayString(Fq), null, placeholder, routeKind, false, null));
+                filters.Add(new FilterModel(name, typeName, target.Column, parse ?? "string", "route", null, openApi, new EquatableArray<string>(values)));
+                continue;
+            }
+            if (!IsNullable(p.Type))
+            {
+                Bad("a filter member is nullable: absent means no filter");
+                continue;
+            }
+            if (parse is null)
+            {
+                Bad($"{underlying.ToDisplayString()} cannot be read from the query string");
+                continue;
+            }
+            filters.Add(new FilterModel(name, typeName, target.Column, parse!, "query", null, openApi, new EquatableArray<string>(values)));
+        }
+        foreach (var h in placeholders.Where(h => !ctor.Parameters.Any(p => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase))))
+            diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name, $"the route value '{{{h}}}' is not a member of the input"));
+        if (diagnostics.Any(d => d.Id != Diagnostics.ClaimAlsoRouted.Id))
+            return new(null, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
+
+        var policy = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Policy").Value.Value as string;
+        var anonymous = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Anonymous").Value.Value is true;
+        var model = new EntryModel(type.Name, type.ToDisplayString(Fq), EntryKind.List, aggregate, verb, pattern, policy, anonymous,
+            new EquatableArray<Member>(members.ToImmutableArray()), location,
+            new QueryModel(row.ToDisplayString(Fq), new EquatableArray<FilterModel>(filters.ToImmutableArray()), sortMember,
+                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort));
+        return new(model, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
+    }
+
+    private static string? ClaimOf(ISymbol symbol)
+        => symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "Tarol.Changes.AspNetCore.FromClaimAttribute")
+            is { ConstructorArguments.Length: 1 } a ? a.ConstructorArguments[0].Value as string : null;
+
+    private static bool HasAttribute(ISymbol symbol, string name) => symbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == name);
+
+    private static bool IsNullable(ITypeSymbol type)
+        => type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T || (type.IsReferenceType && type.NullableAnnotation == NullableAnnotation.Annotated);
+
+    private static ITypeSymbol Underlying(ITypeSymbol type)
+        => type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } n ? n.TypeArguments[0] : type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+
+    private static bool IsScalar(ITypeSymbol type)
+        => type.TypeKind == TypeKind.Enum ? ((INamedTypeSymbol)type).EnumUnderlyingType?.SpecialType != SpecialType.System_UInt64
+         : type.SpecialType is SpecialType.System_String or SpecialType.System_Boolean or SpecialType.System_Int16 or SpecialType.System_Int32
+             or SpecialType.System_Int64 or SpecialType.System_Decimal or SpecialType.System_Double
+           || type.ToDisplayString() is "System.Guid" or "System.DateTimeOffset";
+
+    /// <summary>How the binder parses a filter ("string", "enum", "parsable") and its OpenAPI kind.</summary>
+    private static (string? Parse, string OpenApi) ParseKind(ITypeSymbol type)
+        => type.TypeKind == TypeKind.Enum ? ("enum", "enum")
+         : type.SpecialType switch
+         {
+             SpecialType.System_String => ("string", "string"),
+             SpecialType.System_Boolean => ("parsable", "boolean"),
+             SpecialType.System_Int16 or SpecialType.System_Int32 => ("parsable", "int32"),
+             SpecialType.System_Int64 => ("parsable", "int64"),
+             SpecialType.System_Decimal or SpecialType.System_Double => ("parsable", "number"),
+             _ => type.ToDisplayString() switch
+             {
+                 "System.Guid" => ("parsable", "uuid"),
+                 "System.DateTimeOffset" => ("parsable", "date-time"),
+                 _ => (null, "string"),
+             },
+         };
+
+    /// <summary>The aggregate of a projection row: the root of its When methods' first event (AggregateRoot&lt;T&gt; or Entity&lt;TRoot, _&gt;).</summary>
+    private static string? RowAggregate(INamedTypeSymbol row)
+    {
+        foreach (var method in row.GetMembers("When").OfType<IMethodSymbol>())
+        {
+            if (method.Parameters.Length == 0 || method.Parameters[0].Type is not INamedTypeSymbol domainEvent)
+                continue;
+            for (var current = domainEvent.BaseType; current is not null; current = current.BaseType)
+            {
+                if (current.ContainingType is not { } owner || owner.ContainingNamespace?.ToDisplayString() != "Tarol.Primitives")
+                    continue;
+                if (owner.MetadataName is "AggregateRoot`1" or "Entity`2")
+                    return owner.TypeArguments[0].ToDisplayString(Fq);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The column name of a member (the Queries generator's rule): EndsAt → ends_at.</summary>
+    internal static string Snake(string name)
+    {
+        var sb = new System.Text.StringBuilder(name.Length + 4);
+        for (var i = 0; i < name.Length; i++)
+        {
+            var c = name[i];
+            if (char.IsUpper(c))
+            {
+                var previousLower = i > 0 && (char.IsLower(name[i - 1]) || char.IsDigit(name[i - 1]));
+                var nextLower = i + 1 < name.Length && char.IsLower(name[i + 1]);
+                if (i > 0 && name[i - 1] != '_' && (previousLower || (nextLower && char.IsUpper(name[i - 1]))))
+                    sb.Append('_');
+                sb.Append(char.ToLowerInvariant(c));
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString();
     }
 
     public static ImmutableArray<HookResult> Hooks(GeneratorAttributeSyntaxContext context, CancellationToken ct)

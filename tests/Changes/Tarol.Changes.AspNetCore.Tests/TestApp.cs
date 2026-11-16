@@ -29,7 +29,7 @@ internal sealed class TestApp : IAsyncDisposable
     public InMemoryAggregateStore Store => App.Services.GetRequiredService<InMemoryAggregateStore>();
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
-        Action<TarolBuilder>? store = null)
+        Action<TarolBuilder>? store = null, bool projections = true)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
@@ -45,7 +45,8 @@ internal sealed class TestApp : IAsyncDisposable
                 roles.Role("admin").May<CloseAuction>().May<Read<Auction>>();
                 roles.Authenticated().May<WatchAuction>();
             })
-            .AddEndpoints(endpoints);
+            .AddEndpoints(endpoints)
+            .Projections(projections);
         foreach (var rule in new IAuthorizationHandler[] { new CloseAuctionRule(), new CreateAuctionRule(), new ReadOwnAuction() })
             builder.Services.AddSingleton(rule);
         if (problemDetailsService)
@@ -153,6 +154,14 @@ internal sealed class TestApp : IAsyncDisposable
 
 internal static class TestStores
 {
+    /// <summary>The auction list: read models always (the API reads them), the host only when <paramref name="hosted"/> (else it stays building).</summary>
+    public static TarolBuilder Projections(this TarolBuilder builder, bool hosted)
+    {
+        if (!builder.Services.Any(static d => d.ServiceType == typeof(Tarol.Queries.IReadModels)))
+            Tarol.Queries.QueriesTarolBuilderExtensions.UseInMemoryReadModels(builder);
+        return hosted ? Tarol.Queries.QueriesTarolBuilderExtensions.AddProjections(builder, p => p.Add<AuctionRow>(o => o.Poll = TimeSpan.FromMilliseconds(5))) : builder;
+    }
+
     public static TarolBuilder Store(this TarolBuilder builder, Action<TarolBuilder>? store)
     {
         if (store is null)

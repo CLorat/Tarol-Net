@@ -22,4 +22,18 @@ public interface IChangeAuthorization
     /// <returns>Success, or <c>Error.Unauthorized</c> / <c>Error.Forbidden</c>.</returns>
     ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>;
+
+    /// <summary>
+    /// Whether the caller may list <typeparamref name="T"/> (a list query over a projection of its events, QR-6): the read
+    /// intent without a resource, so only grants by role apply; row rules, which judge one loaded aggregate, do not run on
+    /// lists. The default refuses (fail closed); <c>Tarol.Security</c> asks its role map for <c>Read&lt;T&gt;</c>.
+    /// </summary>
+    /// <typeparam name="T">The aggregate whose projection is listed.</typeparam>
+    /// <param name="context">The operation and the time.</param>
+    /// <param name="principal">The caller's claims.</param>
+    /// <param name="cancellationToken">Cancels the check.</param>
+    /// <returns>Success, or <c>Error.Unauthorized</c> / <c>Error.Forbidden</c>.</returns>
+    ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => ValueTask.FromResult<Result>(principal?.Identity?.IsAuthenticated == true ? Error.Forbidden("Auth.Forbidden") : Error.Unauthorized("Auth.Required"));
 }
