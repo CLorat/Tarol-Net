@@ -182,8 +182,8 @@ internal static class Bench
     // ------------------------------------------------ a run longer than the lease
     private static async Task Lease()
     {
-        Console.WriteLine("| variant | lease | run takes | workers | runs of the occurrence | commits |");
-        Console.WriteLine("|---|---|---|---|---|---|");
+        Console.WriteLine("| variant | lease | run takes | workers | occurrences started | runs | most runs of one occurrence | commits |");
+        Console.WriteLine("|---|---|---|---|---|---|---|---|");
         foreach (var (variant, heartbeat) in new[] { ("A", true), ("A", false), ("D", false) })
         {
             var schema = "bench_lease_" + variant.ToLowerInvariant() + (heartbeat ? "h" : "");
@@ -217,9 +217,12 @@ internal static class Bench
             await Task.Delay(9000);
             stop.Cancel();
             await Task.WhenAll(loops);
-            var runs = await Lab.Scalar<long>($"SELECT count(*) FROM {schema}.runs WHERE occurrence = $1", due);
+            // variant D's schedule fires every second (AdvanceSchedule: At + 1 s), A's once: count every occurrence that started
+            var started = await Lab.Scalar<long>($"SELECT count(DISTINCT occurrence) FROM {schema}.runs");
+            var runs = await Lab.Scalar<long>($"SELECT count(*) FROM {schema}.runs");
+            var most = await Lab.Scalar<long>($"SELECT max(n) FROM (SELECT count(*) n FROM {schema}.runs GROUP BY occurrence) x");
             var commits = await Lab.Scalar<long>($"SELECT count(*) FROM {schema}.events WHERE stream_id = $1 AND jsonb_exists(payload, 'occurrence')", id);
-            Console.WriteLine($"| {variant}{(variant == "A" ? heartbeat ? " + heartbeat" : " no heartbeat" : " outbox")} | 2 s | 5 s | 3 | {runs} | {commits} |");
+            Console.WriteLine($"| {variant}{(variant == "A" ? heartbeat ? " + heartbeat" : " no heartbeat" : " outbox (every second)")} | 2 s | 5 s | 3 | {started} | {runs} | {most} | {commits} |");
         }
     }
 
