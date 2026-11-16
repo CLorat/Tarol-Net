@@ -72,7 +72,7 @@ public sealed class SpecialChangeTests
         var found = await test.When(new CloseByLot("L-42"));
         var unknown = await test.When(new CloseByLot("L-0"));
 
-        found.Result.GetValueOrThrow().ShouldBe(new ChangeOutcome(auction.Id.Value, 2, 1));
+        (found.Result.GetValueOrThrow() with { Position = default }).ShouldBe(new ChangeOutcome(auction.Id.Value, 2, 1));
         Failure(unknown.Result).ShouldBe(Error.NotFound("Auction.NotFound", "lot L-0"));
     }
 
@@ -85,7 +85,7 @@ public sealed class SpecialChangeTests
         var first = await test.When(new ApprovePayout(id, 150), Actor.System("Jobs.Payouts"));
         var second = await test.When(new ApprovePayout(id, 150), Actor.System("Jobs.Payouts"));
 
-        first.Result.GetValueOrThrow().ShouldBe(new ChangeOutcome(id.Value, 2, 2));
+        (first.Result.GetValueOrThrow() with { Position = default }).ShouldBe(new ChangeOutcome(id.Value, 2, 2));
         first.Events.ShouldBe([new Payout.BecameDue(150), new Payout.WasApproved()]);
         Failure(second.Result).ShouldBe(Error.Conflict("Payout.AlreadyApproved"));
     }
