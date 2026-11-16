@@ -558,7 +558,12 @@ None in the existing packages: 13B only adds `Tarol.Caching`. `Directory.Package
 | `Tarol.Caching.PackageTests` (new) | 1 | the packed package over the in-memory stores: the second search is a hit |
 
 Timing: no test asserts a count inside a wall-clock window; the concurrency test is bounded by operations, the idle expiry
-by a `FakeTimeProvider`, the integration waits by known positions with a 30 s cap. Repeated in Release: REPEATS.
+by a `FakeTimeProvider`, the integration waits by known positions with a 30 s cap. Repeated in Release: `Tarol.Caching.Tests` 15 of 15 runs,
+`Tarol.Caching.IntegrationTests` 15 of 15 runs (part of them while the Aspire AppHost of 13C ran on the machine).
+
+Found on the way **[verified]**: the concurrency test first failed with `Array.Sort`'s "IComparer.Compare() method returns
+inconsistent results". The trim sorted entries by their last use, which readers kept moving. It now sorts a snapshot of
+the timestamps.
 
 ### 16.5 Skill evaluation checklist (`tarol-caching`)
 
@@ -573,7 +578,15 @@ aggregate decides on (not package code).
 
 ### 16.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
-VERIFICATION16
+On this branch (`b5b032f`, 13A merged in):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors. `dotnet format --verify-no-changes`: clean.
+* `dotnet test --solution Tarol.slnx` with Docker: **1437 of 1437** (13A's 1405 + 29 `Tarol.Caching.Tests` + 3
+  `Tarol.Caching.IntegrationTests`).
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **21 apps** (20 + `Tarol.Caching.AotSmoke`), 0 IL warnings
+  each, all checks passed.
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK. `Tarol.Caching` contains `lib/`, its XML docs, README, LICENSE and
+  `skills/tarol-caching/SKILL.md`. Its consumer runs (`3 rows, the second search a hit, 1 entry of 938 bytes`) and lists the
+  skill in `project.assets.json`.
 
 ## 17. Implementation: PR 13C (2026-11-16)
 
