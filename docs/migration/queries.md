@@ -444,3 +444,89 @@ Timing: no test asserts a count inside a wall-clock window; waits are bounded by
 `TAROL_RABBITMQ`: **19 apps** (18 + `Tarol.Queries.AotSmoke`), 0 IL warnings each, all checks passed; `dotnet pack -c Release`
 + `eng/verify-packages.sh`: OK (`Tarol.Queries` contains `lib/`, README, LICENSE, `analyzers/dotnet/cs/Tarol.Queries.Generators.dll`
 and `skills/tarol-queries/SKILL.md`; its package consumer runs (`5 rows, first page note 4, note 3`) and lists the skill).
+
+## 16. Implementation: PR 12B (2026-11-16)
+
+`queries.npgsql: read tables and checkpoints`: the new package `Tarol.Queries.Npgsql`, and in `Tarol.Persistence(.Npgsql)`
+`Append` returning the commit's position and the opt-in feed `NOTIFY` (§10).
+
+### 16.1 Public API
+
+| Type | Role |
+|---|---|
+| `NpgsqlReadModelStore<TRow>` (`IReadModelStore<TRow>`; `Table`, `NotPreparedCode`) | the read table of one projection version: `Prepare` (the script under an advisory lock), `Checkpoint`, `Load`, the guarded `Write`, `Find`, `Search` |
+| `NpgsqlReadModels` (`IReadModels`, `ISqlProjectionStore`; `Schema`, `Typed<TRow>()`, `DropVersion(name, version)`) | the stores of an application, SQL projections, the explicit drop of an old version |
+| `NpgsqlReadModelSchema` (`DefaultSchema`, `ProjectionsTable`, `Script<TRow>`, `SqlType`) | the SQL derived from the generated column map |
+| `NpgsqlFeedSignal` (`IFeedSignal`, `IAsyncDisposable`; `Channel`) | `LISTEN <schema>_feed`, reconnecting |
+| `NpgsqlReadModelOptions` (`Schema`, `Listen`), `NpgsqlQueriesTarolBuilderExtensions.UseNpgsqlReadModels(options, dataSource)` | registration: `IReadModels`, `ISqlProjectionStore`, `IFeedSignal`, `IProjectionPositions` |
+| `Tarol.Persistence`: `IAggregateStore.Append` → `ValueTask<Result<GlobalPosition>>`; `StoreErrors.IsVersionConflict<T>(Result<T>)` | the commit's position (§10) |
+| `Tarol.Persistence.Npgsql`: `NpgsqlStoreOptions.NotifyFeed`, `NpgsqlAggregateStore.FeedChannel`, `NotifiesFeed` | the feed's wake-up |
+
+Tables: `<schema>.projections (name, version, tx xid8, pos, state 'building'|'current', updated_at)`, one row per projection
+version; `<schema>.rm_<name>_v<n> (tenant, id, version, <columns>, doc jsonb)`, key (tenant, id), index `rm_…_s<k>` (tenant,
+column, id) per `[Sort]` column.
+
+### 16.2 Deliberate differences from §6, §7 and §11
+
+* **The DDL and the upsert are derived from the generated column map** at run time (once per store), as announced in
+  §15.2; `NpgsqlReadModelSchema.Script<TRow>` is public for migration tools and tested against `information_schema`.
+* **Text columns are `COLLATE "C"`**: the database's default collation (`en_US.utf8` in the image) would order pages
+  differently from the in-memory store and from the cursor's ordinal comparison.
+* **The commit's position comes from the commit's batch**: the statement that read the stream version now also returns
+  `pg_current_xact_id()` and the commit's highest event position (`version > expected AND tx_id = pg_current_xact_id()`),
+  no extra round trip. A refused commit returns its violation as before. Nothing to append returns `GlobalPosition.Start`.
+* **`NotifyFeed` is one `pg_notify` statement in the commit's batch** guarded like the outbox's (only when this commit's
+  first event exists), not a trigger; a refused commit rolls back and notifies nothing.
+* **Before any host prepared the table**, `Checkpoint` answers `Building` at `Start` and `Search` answers
+  `Error.Unavailable("Projection.NotPrepared")` instead of throwing `42P01` (found by the AOT smoke app: the API process
+  asks before the worker has started). 12C answers both with 503.
+* **`UseNpgsqlReadModels` listens only when the registered store notifies** (`Listen` = `null` → `NotifiesFeed`): a
+  `LISTEN` without `NotifyFeed` would replace the 100 ms poll by the 1 s fallback and nothing would ever wake it.
+* **`DropVersion(name, version)`** is the explicit drop of QR-3 (step 15 may schedule it); it refuses a version this
+  process uses.
+* **No advisory lock between runners** (§5 item 3): the checkpoint guard serializes them; two runners at once give exact
+  rows (tested). The DDL runs under an advisory lock (parallel `CREATE … IF NOT EXISTS` race on the catalog, as for the bus).
+
+### 16.3 Changes against steps 7–11
+
+| Where | Change |
+|---|---|
+| `IAggregateStore.Append`, `InMemoryAggregateStore`, `NpgsqlAggregateStore` | returns `Result<GlobalPosition>` instead of `Result` (QR-5). Callers that test `IsSuccess` or `TryGetValue(out Violation?)` compile unchanged (the pipeline, `ChangeTest`, `ReactionTest`, `MessageTest`, `MessagingTest`, `ProjectionTest`); test code comparing with `Result.Success()` now calls `.ToResult()` (19 assertions in the persistence tests, mechanical) |
+| `NpgsqlStoreOptions` | `NotifyFeed` (default `false`); `NpgsqlAggregateStore.FeedChannel`, `NotifiesFeed` |
+| `StoreErrors` | `IsVersionConflict<T>(Result<T>)` next to `IsVersionConflict(Result)` |
+| store contract (`tests/Persistence/Shared`) | the returned position is the commit's last feed position, later than any earlier commit; `Start` for nothing appended |
+| CI `integration` job | runs `tests/Queries/Tarol.Queries.Npgsql.IntegrationTests` |
+
+### 16.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Queries.Npgsql.IntegrationTests` | 23 | every "postgres" row of §3: one row per auction equal to the aggregates with another stream type ignored and tenants isolated; cursor pages, filters, descending sort, offset, ETag, `Next`, `Position` and count equal to the in-memory store's for six queries; a cursor bound to sort and filters, bounds; the page ETag; read-your-writes from "another process" (`ProjectionPositions` polling the row); replay from an older checkpoint changes nothing; a crash before the write; two runners at once (exact rows, versions) and a deterministic refusal; offset repeating a row under an insert where the cursor does not; v2 built from the start next to v1 that keeps serving, `DropVersion`; `42P17` for a `timestamptz` generated from `jsonb`; an open transaction holding the projection back until it ends (the fallback poll picks it up); the feed signal waking at a commit; the stored state's counts and its silently empty wrong path; the catch-up of 1e5 events; plus the DDL against `information_schema`, the not-prepared answers, a SQL projection with two runners, `UseNpgsqlReadModels` wiring (schema, `LISTEN` only with `NotifyFeed`), a row type missing from the JSON context, the skill example verbatim |
+| `Tarol.Persistence.Npgsql.IntegrationTests` | +3 | the contract's position checks; `NotifyFeed` on: one notification per committed commit, none for a refused one; off: none |
+| `Tarol.Persistence.Tests` | +1 (contract) | the position checks on the in-memory store |
+| `Tarol.Queries.Npgsql.AotSmoke` | 10 checks | the DDL; with `TAROL_PG`: `Append`'s position, read-your-writes from another process, `NotifyFeed` waking the host, the checkpoint, cursor pages, descending sort + count, a bad cursor, a SQL projection; Native AOT 0 IL warnings, 7.7 MB |
+| `Tarol.Queries.Npgsql.PackageTests` | 1 | the packed package: the Queries generator flows, the script from a consumer's row, `UseNpgsqlReadModels` resolves |
+
+**Integration tests on a shared cluster catch up to a known position**, not "until the feed is empty": a parallel test's
+open transaction hides later commits from the feed (§5 item 4), so a single `CatchUp` may stop early. The first run showed
+it (13 of 20 rows in one test); `Setup.CatchUp(host)` runs until the host passed the last commit `Append` returned, with
+a 60 s cap. The integration project ran **10 times in a row in Release, 21 of 21 each**, while the AOT apps were
+publishing (before the last two tests were added).
+
+### 16.5 Skill evaluation checklist (`tarol-queries-npgsql`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| store the auction list in PostgreSQL | `UseNpgsqlStore(…)` + `UseNpgsqlReadModels()`, the row in the `JsonSerializerContext` | hand-written DDL; an ORM |
+| make the list follow commits within milliseconds | `NpgsqlStoreOptions { NotifyFeed = true }` | a tight poll loop over `events`; removing the fallback poll |
+| add a column | `Version = 2`, wait for `Current`, later `DropVersion("auction-list", 1, ct)` | `ALTER TABLE`, `TRUNCATE` |
+| totals per seller | `ISqlProjection` writing on the given connection and transaction, keyed by tenant first | its own connection (not exactly once) |
+| an integration test of a projection | catch up until `host.Position >=` the position `Append` returned | one `CatchUp()` on a shared database |
+
+### 16.6 Suppressions and analyzer configuration
+
+None.
+
+### 16.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+
+VERIFICATION_12B

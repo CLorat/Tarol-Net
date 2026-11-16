@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Queries.Npgsql package (no ProjectReference): the Queries generator flows from its
+    dependency, the read table's script is derived from a consumer's row record, and the registration resolves.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Queries.Npgsql" VersionOverride="$(TarolPackageVersion)" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckQueriesNpgsqlAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolQueriesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Queries.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolQueriesGenerator)' == ''" Text="The Queries generator did not flow from Tarol.Queries.Npgsql's dependencies." />
+  </Target>
+</Project>
