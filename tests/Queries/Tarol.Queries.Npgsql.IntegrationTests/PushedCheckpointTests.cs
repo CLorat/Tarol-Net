@@ -16,7 +16,7 @@ namespace Tarol.Queries.Npgsql.IntegrationTests;
 [Trait("Category", "Integration")]
 public sealed class PushedCheckpointTests(Postgres postgres)
 {
-    private static readonly TimeSpan Cap = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan Cap = TimeSpan.FromSeconds(30);
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -37,35 +37,6 @@ public sealed class PushedCheckpointTests(Postgres postgres)
         pushed.ShouldBe(await setup.ReadModels.Store<AuctionRow>().Checkpoint(Ct));
         pushed.Position.ShouldBeGreaterThanOrEqualTo(setup.Last);
         pushed.State.ShouldBe(ProjectionState.Current);
-    }
-
-    [Fact]
-    public async Task The_checkpoint_does_not_move_past_a_commit_while_an_older_transaction_is_open()
-    {
-        var setup = await postgres.Create(pushCheckpoints: true);
-        await using var positions = new NpgsqlProjectionPositions(postgres.DataSource, setup.Schema);
-        await setup.Seed(2, TenantA);
-        var host = setup.Host<AuctionRow>();
-        await setup.CatchUp(host);
-        (await positions.WaitFor<AuctionRow>(host.Position, Cap, Ct)).ShouldBeTrue();
-
-        await using var open = await postgres.DataSource.OpenConnectionAsync(Ct);
-        await using var transaction = await open.BeginTransactionAsync(Ct);
-        await using (var xid = new NpgsqlCommand("SELECT pg_current_xact_id()", open, transaction))
-            await xid.ExecuteScalarAsync(Ct);                                          // holds the xmin horizon below the next commit
-        var auction = Auction.Open("ada", "Behind an open transaction", Postgres.Now.AddDays(1), Postgres.Now);
-        var hidden = await setup.Commit(auction, TenantA);
-
-        await host.CatchUp(Ct);                                                        // the feed hides the commit
-        host.Position.ShouldBeLessThan(hidden);
-        (await positions.WaitFor<AuctionRow>(hidden, TimeSpan.FromMilliseconds(300), Ct)).ShouldBeFalse();
-        (await positions.Checkpoint<AuctionRow>(Ct)).Position.ShouldBeLessThan(hidden);
-
-        await transaction.CommitAsync(Ct);
-        await setup.CatchUp(host);
-        (await positions.WaitFor<AuctionRow>(hidden, Cap, Ct)).ShouldBeTrue();
-        var page = (await setup.ReadModels.Store<AuctionRow>().Search(Query(TenantA), Ct)).Ok();
-        page.Items.ShouldContain(row => row.Id == auction.Id.Value);
     }
 
     [Fact]
@@ -218,9 +189,9 @@ public sealed class PushedCheckpointTests(Postgres postgres)
         => (await postgres.Scalar($"SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE application_name = '{applicationName}'"))
             .ShouldBeOfType<long>().ShouldBeGreaterThan(0);
 
-    private static Task Until(Func<bool> condition) => Until(() => Task.FromResult(condition()));
+    internal static Task Until(Func<bool> condition) => Until(() => Task.FromResult(condition()));
 
-    private static async Task Until(Func<Task<bool>> condition)
+    internal static async Task Until(Func<Task<bool>> condition)
     {
         var waited = System.Diagnostics.Stopwatch.StartNew();
         while (!await condition())
@@ -243,5 +214,50 @@ public sealed class PushedCheckpointTests(Postgres postgres)
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             => _events.Enqueue(eventId.Id);
+    }
+}
+
+/// <summary>
+/// Tests that hold the xmin horizon with an open transaction. The horizon is cluster-wide, so it hides commits from every
+/// other test on the container: they run alone, after the parallel collections.
+/// </summary>
+[CollectionDefinition(nameof(XminHorizon), DisableParallelization = true)]
+public sealed class XminHorizon;
+
+[Collection(nameof(XminHorizon))]
+[Trait("Category", "Integration")]
+public sealed class PushedCheckpointXminTests(Postgres postgres)
+{
+    private static readonly TimeSpan Cap = PushedCheckpointTests.Cap;
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task The_checkpoint_does_not_move_past_a_commit_while_an_older_transaction_is_open()
+    {
+        var setup = await postgres.Create(pushCheckpoints: true);
+        await using var positions = new NpgsqlProjectionPositions(postgres.DataSource, setup.Schema);
+        await setup.Seed(2, TenantA);
+        var host = setup.Host<AuctionRow>();
+        await setup.CatchUp(host);
+        (await positions.WaitFor<AuctionRow>(host.Position, Cap, Ct)).ShouldBeTrue();
+
+        await using var open = await postgres.DataSource.OpenConnectionAsync(Ct);
+        await using var transaction = await open.BeginTransactionAsync(Ct);
+        await using (var xid = new NpgsqlCommand("SELECT pg_current_xact_id()", open, transaction))
+            await xid.ExecuteScalarAsync(Ct);                                          // holds the xmin horizon below the next commit
+        var auction = Auction.Open("ada", "Behind an open transaction", Postgres.Now.AddDays(1), Postgres.Now);
+        var hidden = await setup.Commit(auction, TenantA);
+
+        await host.CatchUp(Ct);                                                        // the feed hides the commit
+        host.Position.ShouldBeLessThan(hidden);
+        (await positions.WaitFor<AuctionRow>(hidden, TimeSpan.FromMilliseconds(300), Ct)).ShouldBeFalse();
+        (await positions.Checkpoint<AuctionRow>(Ct)).Position.ShouldBeLessThan(hidden);
+
+        await transaction.CommitAsync(Ct);
+        await setup.CatchUp(host);
+        (await positions.WaitFor<AuctionRow>(hidden, Cap, Ct)).ShouldBeTrue();
+        var page = (await setup.ReadModels.Store<AuctionRow>().Search(Query(TenantA), Ct)).Ok();
+        page.Items.ShouldContain(row => row.Id == auction.Id.Value);
     }
 }
