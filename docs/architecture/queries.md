@@ -176,7 +176,8 @@ stored state is not an API (R-8). An app may still query it by hand; Tarol gener
 Owns: `[Projection]` and its generator, `ProjectionHost`, the read stores (in-memory, Npgsql) and their checkpoints,
 versions and rebuild, `ISqlProjection`, `ProjectionTest`, the list queries (query records, cursor, offset, ETag,
 read-after) in `Tarol.Changes.AspNetCore`. Does not own: the feed and its NOTIFY (Persistence), GET by id and `Read<T>`
-(Changes.AspNetCore, Security), caching (step 13), dropping old versions and lag metrics (step 15).
+(Changes.AspNetCore, Security), caching (step 13), dropping old versions and lag metrics (step 15). Step 13 ([caching.md](caching.md)) caches list
+pages in the API process, valid while the projection's checkpoint is current (CA-1, CA-5); GET by id stays uncached.
 
 ## New insights
 
