@@ -558,3 +558,60 @@ aggregate decides on (not package code).
 ### 16.7 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
 
 VERIFICATION16
+
+## 17. Implementation: PR 13C (2026-11-16)
+
+`changes.aspnetcore: cache headers; samples and docs`: the headers in `Tarol.Changes.AspNetCore` (CA-6, CA-8), the HTTP
+tests over `Tarol.Caching`, `samples/Sagas` with the cache, the guide, and the skill evaluation of §12.
+
+### 17.1 Public API (`Tarol.Changes.AspNetCore`)
+
+| Member | Role |
+|---|---|
+| `CacheHeaders` (`CacheControl` = `private, no-cache`, `Vary` = `Authorization`, `Apply(HttpContext)`) | the headers; `Apply` sets `Cache-Control` and adds `Authorization` to `Vary` unless it is there |
+
+`ListAccess` applies them first, so every list answer of the endpoint carries them (200, 304, 400, 403, 503); `Load` (the
+view) applies them with the `ETag`, so the view's 200 and 304 carry them.
+
+### 17.2 Deliberate differences from §6 and §11
+
+* **The view's problems (404, 403) carry no cache headers**: §11 asks for the view's 200 and 304; a problem of a view is
+  not cacheable content, and adding headers there would change answers §11 did not name.
+* **The list's problems carry them because they are set in `ListAccess`**, before authorization, so even its 403 has them.
+  Answers that the ASP.NET Core authorization middleware writes before the endpoint runs (401, 403 of a `Policy`) are the
+  framework's and unchanged.
+* **The headers are a public `CacheHeaders` class** (not named in §6), so applications and tests can refer to the values.
+* **No endpoint change for the cache**, as §6 said: the list 304 from a warm cache runs no query because `Checkpoint` and
+  `Search` are the cached calls; the tests prove it with a counting store under the cache.
+
+### 17.3 Changes against steps 7–12
+
+| Where | Change |
+|---|---|
+| `Tarol.Changes.AspNetCore` list answers (200, 304, problems) and view answers (200, 304) | `Cache-Control: private, no-cache` and `Vary: Authorization` (a behaviour change: shared caches no longer store these answers; browsers revalidate) |
+| `Tarol.Changes.AspNetCore` | new public `CacheHeaders` |
+| `samples/Sagas` | `PushCheckpoints = true` in the API and the worker, `AddCaching()` in the API; the API references `Tarol.Caching`; `apphost.sh` checks a list 304 by ETag and prints the headers |
+
+### 17.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Changes.AspNetCore.Tests` (`CacheTests`, new) | 5 | the headers on a list 200, 304, 400 (bad filter) and 403 (no `Read<T>`) and on a view 200 and 304; a list 304 from a warm cache runs no query (a counting store under the cache) and a second 200 neither; read-after with the cache (a warm entry, a new auction, `Tarol-Read-After`: the next page shows it, no `Tarol-Stale`; a timeout answers `Tarol-Stale: true`); `CheckList` runs on every hit (Sam is denied 403 after Alice and Rita warmed the entry, no query; another tenant has its own entry); a `[FromClaim]` list caches per claim value |
+
+The list entries' other tests (`QueryEndpointTests`, the integration tests) run unchanged without the cache.
+
+### 17.5 Skill evaluation (§12, §15.5, §16.5) **[verified]**
+
+EVALUATION
+
+### 17.6 Run of the sample
+
+APPHOST
+
+### 17.7 Suppressions and analyzer configuration
+
+None.
+
+### 17.8 Verification (SDK 11.0.100, 2026-11-16) **[verified]**
+
+VERIFICATION17
