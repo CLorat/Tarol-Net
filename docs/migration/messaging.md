@@ -868,4 +868,10 @@ None.
 
 ### 19.8 Verification (SDK 11.0.100, 2026-11-15) **[verified]**
 
-VERIFICATION_11E
+`dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker: **1262 of 1262** (1244 + 18 in `Tarol.Messaging.SignalR.Tests`); the SignalR tests also **20 times in
+a row in Release while another test suite loaded the machine, all green**; `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`
+and `TAROL_RABBITMQ`: **18 apps** (17 + `Tarol.Messaging.SignalR.AotSmoke`), 0 IL warnings each, all checks passed; `dotnet
+pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Messaging.SignalR` contains `lib/`, README, LICENSE and
+`skills/tarol-messaging-signalr/SKILL.md`; its package consumer runs and lists the skill). An earlier full run failed once in
+the reconnect test (a client gave up under load), which led to the reconnect policy of §19.3.
