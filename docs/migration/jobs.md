@@ -539,8 +539,8 @@ No change to `IAggregateStore`, `ChangePipeline`, `IOutbox` or the reaction gene
   regenerates nothing; a schedule change regenerates only `GeneratedJobs.g.cs`); diagnostics TCHG009 (7 shapes + not a change +
   3 attribute values), TCHG010 (16 invalid expressions, each message asserted), 5 valid expressions, TCHG011.
 * `Tarol.Validations.Generators.Tests`: TVAL006 exempt in a `[Scheduled]` factory, reported in a foreign attribute's.
-* `tests/Persistence/Shared/JobRowsContract.cs` (17, run on the in-memory rows here and on PostgreSQL in 14B): sync, one claim
-  per due row, oldest first, move/advance, a lost lease changes nothing, the heartbeat, retry backoff, bury, re-drive first and
+* `tests/Persistence/Shared/JobRowsContract.cs` (18, run on the in-memory rows here and on PostgreSQL in 14B): sync, one claim
+  per due row, oldest first, move/advance, a move restarts the next occurrence's attempts, a lost lease changes nothing, the heartbeat, retry backoff, bury, re-drive first and
   never beside the row, a re-drive that fails again, a schedule change drops the claim, disable/re-enable without catch-up,
   undeclared rows disabled, tenants, duplicates and sub-second times throw, the cursor round trip.
 * `Tarol.Sagas.Tests/BuilderTests`: `IJobRows` is the store's `Jobs`.

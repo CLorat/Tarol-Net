@@ -136,7 +136,12 @@ internal sealed class InMemoryJobRows(TimeProvider time) : IJobRows
     public Task<bool> Move(JobRow row, DateTimeOffset cursor, CancellationToken cancellationToken)
     {
         JobTimes.ThrowIfNotWholeSecond(cursor, nameof(cursor));
-        return Owned(row, owned => owned.NextAt = cursor);
+        return Owned(row, owned =>
+        {
+            owned.NextAt = cursor;
+            owned.Attempts = 1;                                                 // the next occurrence's first attempt is this claim
+            owned.LastError = Option.None;
+        });
     }
 
     public Task<bool> Advance(JobRow row, DateTimeOffset cursor, CancellationToken cancellationToken)
