@@ -539,7 +539,7 @@ No change to `IAggregateStore`, `ChangePipeline`, `IOutbox` or the reaction gene
   regenerates nothing; a schedule change regenerates only `GeneratedJobs.g.cs`); diagnostics TCHG009 (7 shapes + not a change +
   3 attribute values), TCHG010 (16 invalid expressions, each message asserted), 5 valid expressions, TCHG011.
 * `Tarol.Validations.Generators.Tests`: TVAL006 exempt in a `[Scheduled]` factory, reported in a foreign attribute's.
-* `tests/Persistence/Shared/JobRowsContract.cs` (18, run on the in-memory rows here and on PostgreSQL in 14B): sync, one claim
+* `tests/Persistence/Shared/JobRowsContract.cs` (17, run on the in-memory rows here and on PostgreSQL in 14B): sync, one claim
   per due row, oldest first, move/advance, a lost lease changes nothing, the heartbeat, retry backoff, bury, re-drive first and
   never beside the row, a re-drive that fails again, a schedule change drops the claim, disable/re-enable without catch-up,
   undeclared rows disabled, tenants, duplicates and sub-second times throw, the cursor round trip.
@@ -555,3 +555,14 @@ need `tarol-jobs` (14C). Size 9.0 KB (was 8.0 KB).
 ### 15.6 Suppressions
 
 None.
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `9357564` (the code of this PR; the notes followed), in a separate worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1506 of 1506** (1442 at the start, + 64);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **21 apps, 0 IL warnings**, all checks passed (the new checks
+  of `Tarol.Changes.AotSmoke` and `Tarol.Persistence.AotSmoke` natively);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Changes.PackageTests` runs the job from the package);
+* `main`'s CI before the start (run 164 at `bfd8d88`, after #47): `build`, `aot-smoke`, `integration` green.
