@@ -63,6 +63,13 @@ Check("claim, bury, re-drive, complete", row.Reaction == "Welcome" && await with
                                         && (await withOutbox.Outbox.Claim(10, TimeSpan.FromMinutes(1), default)) is [var redriven]
                                         && await withOutbox.Outbox.Complete(redriven, default) && await withOutbox.Outbox.Pending(default) == 0);
 
+var due = new DateTimeOffset(2026, 11, 16, 1, 0, 0, TimeSpan.Zero);
+var jobs = store.Jobs;
+Check("job rows sync", (await jobs.Sync([new JobSchedule("Nightly", Option.None, "0 2 * * * UTC", true, due)], default)) is [{ Kind: JobSyncKind.Added }]);
+Check("job row claimed once", (await jobs.Claim(TimeSpan.FromMinutes(1), default)).TryGetValue(out JobRow? job) && job.Occurrence == due
+                              && (await jobs.Claim(TimeSpan.FromMinutes(1), default)).TryGetValue(out None _));
+Check("job row advanced with its claim", await jobs.Advance(job!, due.AddDays(1), default) && (await jobs.Rows(default))[0].NextAt == due.AddDays(1));
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
 
