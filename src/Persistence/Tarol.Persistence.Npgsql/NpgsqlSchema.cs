@@ -3,18 +3,22 @@ using System.Text.RegularExpressions;
 namespace Tarol.Persistence.Npgsql;
 
 /// <summary>
-/// The store's SQL schema: one versioned, idempotent script (docs/architecture/persistence.md §2). Run it with
-/// <see cref="NpgsqlAggregateStore.EnsureSchema"/> or hand it to your migration tool: <c>NpgsqlSchema.Script("tarol")</c>.
+/// The store's SQL schema (docs/architecture/persistence.md §2, operations.md §4): the version 1 baseline <see cref="Script"/>
+/// and the upgrade <see cref="Steps"/> after it. <see cref="NpgsqlAggregateStore.EnsureSchema(CancellationToken)"/> applies
+/// them; a migration tool runs <see cref="UpgradeScript"/> and the application uses <see cref="SchemaMode.VerifyOnly"/>.
 /// </summary>
 public static partial class NpgsqlSchema
 {
-    /// <summary>The version of the script; stored in <c>&lt;schema&gt;.schema_version</c>.</summary>
-    public const int Version = 1;
+    /// <summary>The version this package knows; stored in <c>&lt;schema&gt;.schema_version</c> with <c>compatible_from</c>.</summary>
+    public const int Version = 2;
 
     /// <summary>The default schema name.</summary>
     public const string DefaultSchema = "tarol";
 
-    /// <summary>The script for <paramref name="schema"/>: creates what is missing, changes nothing that exists.</summary>
+    /// <summary>
+    /// The version 1 baseline for <paramref name="schema"/>: creates what is missing, changes nothing that exists, and stores
+    /// version 1. The current schema is this plus <see cref="Steps"/>: <see cref="UpgradeScript"/> with <c>from: 0</c>.
+    /// </summary>
     /// <param name="schema">The PostgreSQL schema name: lowercase letters, digits and <c>_</c>, starting with a letter or <c>_</c>.</param>
     /// <returns>The SQL.</returns>
     /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
@@ -143,8 +147,66 @@ public static partial class NpgsqlSchema
             CREATE INDEX IF NOT EXISTS jobs_dead_redrive ON {s}.jobs_dead (tenant, name, id) WHERE redrive;
 
             CREATE TABLE IF NOT EXISTS {s}.schema_version (version integer NOT NULL);
-            INSERT INTO {s}.schema_version SELECT {Version} WHERE NOT EXISTS (SELECT 1 FROM {s}.schema_version);
+            INSERT INTO {s}.schema_version SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM {s}.schema_version);
             """;
+    }
+
+    /// <summary>
+    /// The steps after version 1, additive only (no volatile defaults, no plain <c>CREATE INDEX</c>, no drops or renames within a
+    /// major version). Version 2: <c>operations_audit</c>, and the <c>dead_at</c> indexes of <c>outbox_dead</c> and
+    /// <c>jobs_dead</c> built concurrently (the retention of step 15).
+    /// </summary>
+    /// <param name="schema">The PostgreSQL schema name.</param>
+    /// <returns>The steps, in order.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static IReadOnlyList<UpgradeStep> Steps(string schema = DefaultSchema)
+    {
+        Validate(schema);
+        var s = schema;
+        return
+        [
+            new(2, 1, AuditScript(s)),
+            new(2, 1, $"CREATE INDEX CONCURRENTLY IF NOT EXISTS outbox_dead_at ON {s}.outbox_dead (dead_at)", Concurrently: true, Index: "outbox_dead_at"),
+            new(2, 1, $"CREATE INDEX CONCURRENTLY IF NOT EXISTS jobs_dead_at ON {s}.jobs_dead (dead_at)", Concurrently: true, Index: "jobs_dead_at"),
+        ];
+    }
+
+    /// <summary>The store's schema as a definition for <see cref="NpgsqlSchemaUpgrader"/>.</summary>
+    /// <param name="schema">The PostgreSQL schema name.</param>
+    /// <returns>The definition (baseline <see cref="Script"/>, <see cref="Steps"/>, table <c>schema_version</c>).</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static NpgsqlSchemaDefinition Definition(string schema = DefaultSchema)
+        => new("Tarol.Persistence.Npgsql", schema, "schema_version", Script(schema), Steps(schema));
+
+    /// <summary>
+    /// The SQL that takes the store's schema from version <paramref name="from"/> to <see cref="Version"/> (0 = an empty
+    /// database), for a migration tool; see <see cref="NpgsqlSchemaDefinition.UpgradeScript"/>.
+    /// </summary>
+    /// <param name="schema">The PostgreSQL schema name.</param>
+    /// <param name="from">The stored version (0 = nothing yet).</param>
+    /// <returns>The SQL.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static string UpgradeScript(string schema, int from) => Definition(schema).UpgradeScript(from);
+
+    /// <summary>
+    /// The audit of the operations entry (step 15, O-3): one row per re-drive, discard, drop or purge, written in the same
+    /// statement as the act. The store's and <c>messages_dead</c>'s steps create it in their schema.
+    /// </summary>
+    /// <param name="schema">The PostgreSQL schema name.</param>
+    /// <returns>The SQL.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static string AuditScript(string schema = DefaultSchema)
+    {
+        Validate(schema);
+        return $"""
+        CREATE TABLE IF NOT EXISTS {schema}.operations_audit (
+            id      bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            at      timestamptz NOT NULL,
+            actor   text        NOT NULL,          -- the principal's name
+            action  text        NOT NULL,          -- redrive, discard, drop, purge
+            target  text        NOT NULL,          -- e.g. reactions:42
+            detail  jsonb       NULL)
+        """;
     }
 
     internal static void Validate(string schema)

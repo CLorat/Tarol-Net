@@ -7,6 +7,8 @@
   <ItemGroup>
     <PackageReference Include="Npgsql" />
     <ProjectReference Include="../Tarol.Messaging/Tarol.Messaging.csproj" />
+    <!-- the schema upgrader (NpgsqlSchemaUpgrader, step 15): a sibling on Npgsql, not an upward reference -->
+    <ProjectReference Include="../../Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
     <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"

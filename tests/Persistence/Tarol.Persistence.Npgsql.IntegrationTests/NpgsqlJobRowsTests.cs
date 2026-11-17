@@ -15,6 +15,13 @@ public sealed class NpgsqlJobRowsContractTests(Postgres postgres) : JobRowsContr
     protected override async Task<IJobRows> Create(TimeProvider time) => (await postgres.IsolatedStore(time)).Jobs;
 }
 
+/// <summary>The job-rows contract on upgraded version 1 schemas.</summary>
+[Trait("Category", "Integration")]
+public sealed class UpgradedJobRowsContractTests(Postgres postgres) : JobRowsContract
+{
+    protected override async Task<IJobRows> Create(TimeProvider time) => (await postgres.UpgradedIsolatedStore(time)).Jobs;
+}
+
 /// <summary>What only the PostgreSQL rows can show: racing claimers, the stored precision, crashes, concurrent syncs.</summary>
 [Trait("Category", "Integration")]
 public sealed class NpgsqlJobRowsTests(Postgres postgres)

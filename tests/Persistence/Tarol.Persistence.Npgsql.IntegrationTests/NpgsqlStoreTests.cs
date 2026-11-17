@@ -361,8 +361,11 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     [Fact]
     public async Task EnsureSchema_adds_the_fingerprint_column_to_a_key_table_from_before_step_10()
     {
-        var store = await postgres.IsolatedStore(_time);
-        await postgres.Execute($"ALTER TABLE {store.Schema}.idempotency_keys DROP COLUMN fingerprint");   // the table as 8B created it
+        // the database as 8B left it: version 1, not yet versioned (step 15 runs the baseline once more on such a schema only)
+        var schema = postgres.NewSchema();
+        await postgres.Execute(NpgsqlSchema.Script(schema));
+        await postgres.Execute($"ALTER TABLE {schema}.idempotency_keys DROP COLUMN fingerprint");
+        var store = postgres.Upgraded(schema, _time);
 
         await store.EnsureSchema(Ct);
         var context = NewTenant();
@@ -373,14 +376,17 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     }
 
     [Fact]
-    public async Task EnsureSchema_is_idempotent_and_refuses_a_newer_schema()
+    public async Task EnsureSchema_is_idempotent_accepts_a_newer_compatible_schema_and_refuses_an_incompatible_one()
     {
         var store = await postgres.IsolatedStore(_time);
-        await store.EnsureSchema(Ct);
+        (await store.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 0));
         await store.EnsureSchema(Ct);
         (await postgres.Scalar($"SELECT count(*) FROM {store.Schema}.schema_version")).ShouldBe(1L);
         await postgres.Execute($"UPDATE {store.Schema}.schema_version SET version = {NpgsqlSchema.Version + 1}");
-        await Should.ThrowAsync<InvalidOperationException>(() => store.EnsureSchema(Ct));
+        (await store.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version + 1, 1, 0));   // step 15: a rolling deploy
+        await postgres.Execute($"UPDATE {store.Schema}.schema_version SET compatible_from = {NpgsqlSchema.Version + 1}");
+        (await Should.ThrowAsync<InvalidOperationException>(() => store.EnsureSchema(Ct))).Message
+            .ShouldContain($"version {NpgsqlSchema.Version + 1}, compatible from version {NpgsqlSchema.Version + 1}; this Tarol.Persistence.Npgsql knows version {NpgsqlSchema.Version}");
     }
 
     [Fact]

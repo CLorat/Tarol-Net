@@ -24,7 +24,7 @@ var db = new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays().Build(
 var codec = new EventCodec(ValueObjectJson.Options(AppJson.Default)).Add<Auction>();
 var lookups = new StoreLookups().Define<Auction>("lot", a => a.Lot);                   // share with your in-memory tests
 var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Lookups = lookups });
-await store.EnsureSchema(ct);                                                          // or run NpgsqlSchema.Script() yourself
+await store.EnsureSchema(ct);                                                          // or NpgsqlSchema.UpgradeScript(schema, 0) + SchemaMode.VerifyOnly
 
 // then exactly as with any IAggregateStore: Load → decide → Prepare → Append(expected, key) → Committed
 ```
@@ -74,8 +74,14 @@ Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for yo
   `jobs_due`); `Move`, `Advance`, `Extend`, `Retry` and `Bury` are one statement each, guarded by the claim id, and return
   `false` after a lost lease. `Sync` runs in one transaction under an advisory lock. Times are whole seconds; the cursor
   reads back unchanged from `timestamptz`.
-* **Schema**: `NpgsqlSchema.Script(schema)` is idempotent and versioned (`schema_version`); `EnsureSchema` runs it and
-  refuses a database with a newer version.
+* **Schema** (operations.md §4): versioned. `NpgsqlSchema.Script(schema)` is the version 1 baseline; `NpgsqlSchema.Steps`
+  follow it (version 2: `operations_audit`, `dead_at` indexes built `CONCURRENTLY`). `EnsureSchema` takes a session advisory
+  lock per schema by polling `pg_try_advisory_lock`, runs the baseline only on an empty (or pre-step-15) schema, then the
+  missing steps with `lock_timeout` (`SchemaLockTimeout`, 2 s) and up to 5 attempts, and stores the version in the step's
+  transaction. `schema_version.compatible_from` lets old and new code share a schema: a newer schema is accepted while it is
+  compatible (a rolling deploy), otherwise refused with both versions. With a migration tool run
+  `NpgsqlSchema.UpgradeScript(schema, from)` and set `SchemaMode = SchemaMode.VerifyOnly`. Tarol's steps stay additive
+  within a major version: no volatile defaults, no plain `CREATE INDEX`, no drops or renames.
 * **The feed's wake-up**: `NotifyFeed = true` sends `NOTIFY <schema>_feed` (`FeedChannel`) with every commit, so projection
   hosts (`Tarol.Queries.Npgsql`) wake at once instead of polling; off by default like `Notify`. `Append` returns the
   commit's `GlobalPosition` (its transaction and the position of its last event).

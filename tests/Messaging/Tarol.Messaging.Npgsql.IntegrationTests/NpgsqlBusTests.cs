@@ -160,15 +160,58 @@ public sealed class NpgsqlBusTests(Postgres postgres)
     }
 
     [Fact]
-    public async Task The_schema_is_created_once_by_many_at_once_and_a_newer_version_is_refused()
+    public async Task The_schema_is_created_once_by_many_at_once_and_an_incompatible_newer_version_is_refused()
     {
         var schema = Postgres.NewSchema();
         await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Bus(schema).EnsureSchema(Ct)));
 
         (await postgres.Scalar($"SELECT count(*) FROM {schema}.schema_version")).ShouldBe(1L);
+        (await postgres.Scalar($"SELECT compatible_from FROM {schema}.schema_version")).ShouldBe(1);
         await postgres.Execute($"UPDATE {schema}.schema_version SET version = 99");
-        (await Should.ThrowAsync<InvalidOperationException>(() => Bus(schema).EnsureSchema(Ct))).Message.ShouldContain("version 99");
+        (await Bus(schema).EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(99, 1, 0));        // newer, still compatible
+        await postgres.Execute($"UPDATE {schema}.schema_version SET compatible_from = 99");
+        (await Should.ThrowAsync<InvalidOperationException>(() => Bus(schema).EnsureSchema(Ct))).Message.ShouldContain("version 99, compatible from version 99");
         Should.Throw<ArgumentException>(() => Bus("Bad-Schema"));
+    }
+
+    [Fact]
+    public async Task A_bus_schema_of_step_14_gains_compatible_from_and_VerifyOnly_checks_without_changing()
+    {
+        var schema = Postgres.NewSchema();
+        var verify = await Should.ThrowAsync<InvalidOperationException>(() => Bus(schema).EnsureSchema(SchemaMode.VerifyOnly, Ct));
+        verify.Message.ShouldContain("needs version 1");
+        await postgres.Execute(NpgsqlBusSchema.Script(schema));                                              // what steps 11–14 created
+        (await Bus(schema).EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(1, 1, 0));
+        (await Bus(schema).EnsureSchema(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(1, 1, 0));
+        NpgsqlBusSchema.UpgradeScript(schema, 0).ShouldContain($"CREATE TABLE IF NOT EXISTS {schema}.deliveries");
+        NpgsqlBusSchema.UpgradeScript(schema, 1).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Dead_letters_of_step_14_are_upgraded_next_to_the_store_and_keep_their_rows()
+    {
+        var schema = Postgres.NewSchema();
+        await postgres.Execute(NpgsqlBusSchema.DeadLettersScript(schema));                                    // unversioned, as steps 11–14 left it
+        var dead = new NpgsqlMessageDeadLetters(postgres.DataSource, TimeProvider.System, schema);
+        var message = Raw("billing.invoice-paid", "{\"x\":1}");
+        await dead.Add("artflow.RecordPayment", new Incoming(message, 3, "billing", message.Data, message.Type), "Error NotFound", Ct);
+
+        // the store and messages_dead share the schema and upgrade at once: one advisory lock per schema serializes them
+        var store = new NpgsqlAggregateStore(postgres.DataSource, new EventCodec(new System.Text.Json.JsonSerializerOptions(ContractJson.Default.Options)), TimeProvider.System,
+            new NpgsqlStoreOptions { Schema = schema });
+        var results = await Task.WhenAll(
+            dead.EnsureSchema(SchemaMode.Upgrade, Ct), new NpgsqlMessageDeadLetters(postgres.DataSource, TimeProvider.System, schema).EnsureSchema(SchemaMode.Upgrade, Ct),
+            store.EnsureSchema(SchemaMode.Upgrade, Ct), store.EnsureSchema(SchemaMode.Upgrade, Ct));
+
+        results[0].Version.ShouldBe(NpgsqlBusSchema.DeadLettersVersion);
+        (results[0].StepsRun + results[1].StepsRun).ShouldBe(NpgsqlBusSchema.DeadLettersSteps(schema).Count);
+        results[2].Version.ShouldBe(NpgsqlSchema.Version);
+        (await postgres.Scalar($"SELECT version FROM {schema}.messages_dead_version")).ShouldBe(2);
+        (await postgres.Scalar($"SELECT indisvalid FROM pg_index WHERE indexrelid = '{schema}.messages_dead_at'::regclass")).ShouldBe(true);
+        (await postgres.Scalar($"SELECT count(*) FROM {schema}.operations_audit")).ShouldBe(0L);
+        (await dead.List(10, Ct)).ShouldHaveSingleItem().Reason.ShouldBe("Error NotFound");
+        (await dead.EnsureSchema(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(2, 1, 0));
+        NpgsqlBusSchema.DeadLettersUpgradeScript(schema, 1).ShouldContain($"messages_dead_at ON {schema}.messages_dead (dead_at)");
     }
 
     [Fact]

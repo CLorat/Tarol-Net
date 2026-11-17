@@ -1,17 +1,26 @@
 using System.Text.RegularExpressions;
+using Tarol.Persistence.Npgsql;
 
 namespace Tarol.Messaging.Npgsql;
 
 /// <summary>
-/// The SQL of the in-database bus (docs/architecture/messaging.md §6): one versioned, idempotent script for the bus schema
-/// every system reaches, the consumer's <c>messages_dead</c> table, and the row-level-security policy that binds a
-/// publisher's role to its contract prefix. Run them with <see cref="NpgsqlBus.EnsureSchema"/> and
-/// <see cref="NpgsqlMessageDeadLetters.EnsureSchema"/>, or hand them to your migration tool.
+/// The SQL of the in-database bus (docs/architecture/messaging.md §6): the versioned scripts of the bus schema every system
+/// reaches and of the consumer's <c>messages_dead</c> table, and the row-level-security policy that binds a publisher's role
+/// to its contract prefix. <see cref="NpgsqlBus.EnsureSchema(CancellationToken)"/> and
+/// <see cref="NpgsqlMessageDeadLetters.EnsureSchema(CancellationToken)"/> apply them under an advisory lock
+/// (<see cref="NpgsqlSchemaUpgrader"/>, operations.md §4); a migration tool runs <see cref="UpgradeScript"/> and
+/// <see cref="DeadLettersUpgradeScript"/>.
 /// </summary>
 public static partial class NpgsqlBusSchema
 {
-    /// <summary>The version of the bus script; stored in <c>&lt;schema&gt;.schema_version</c>.</summary>
+    /// <summary>
+    /// The version of the bus schema this package knows; stored in <c>&lt;schema&gt;.schema_version</c> with
+    /// <c>compatible_from</c> (step 15 added the column, not a step: code of steps 11–14 still runs on it).
+    /// </summary>
     public const int Version = 1;
+
+    /// <summary>The version of the <c>messages_dead</c> schema this package knows; stored in <c>&lt;schema&gt;.messages_dead_version</c>.</summary>
+    public const int DeadLettersVersion = 2;
 
     /// <summary>The default bus schema.</summary>
     public const string DefaultSchema = "bus";
@@ -65,7 +74,65 @@ public static partial class NpgsqlBusSchema
             """;
     }
 
-    /// <summary>The consumer's dead letters (M-9) in its own schema (usually the store's, <c>tarol</c>).</summary>
+    /// <summary>The steps of the bus schema after version 1: none yet.</summary>
+    /// <param name="schema">A plain PostgreSQL identifier.</param>
+    /// <returns>The steps.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static IReadOnlyList<UpgradeStep> Steps(string schema = DefaultSchema)
+    {
+        Validate(schema);
+        return [];
+    }
+
+    /// <summary>The bus schema as a definition for <see cref="NpgsqlSchemaUpgrader"/>.</summary>
+    /// <param name="schema">A plain PostgreSQL identifier.</param>
+    /// <returns>The definition (baseline <see cref="Script"/>, <see cref="Steps"/>, table <c>schema_version</c>).</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static NpgsqlSchemaDefinition Definition(string schema = DefaultSchema)
+        => new("Tarol.Messaging.Npgsql", schema, "schema_version", Script(schema), Steps(schema));
+
+    /// <summary>The SQL that takes the bus schema from version <paramref name="from"/> (0 = nothing yet) to <see cref="Version"/>.</summary>
+    /// <param name="schema">A plain PostgreSQL identifier.</param>
+    /// <param name="from">The stored version.</param>
+    /// <returns>The SQL (see <see cref="NpgsqlSchemaDefinition.UpgradeScript"/>).</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static string UpgradeScript(string schema, int from) => Definition(schema).UpgradeScript(from);
+
+    /// <summary>
+    /// The steps of <c>messages_dead</c> after version 1 (today's table). Version 2: <c>operations_audit</c> in the schema and
+    /// the <c>dead_at</c> index, built concurrently (the retention of step 15).
+    /// </summary>
+    /// <param name="schema">A plain PostgreSQL identifier.</param>
+    /// <returns>The steps.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static IReadOnlyList<UpgradeStep> DeadLettersSteps(string schema = "tarol")
+    {
+        Validate(schema);
+        return
+        [
+            new(2, 1, NpgsqlSchema.AuditScript(schema)),
+            new(2, 1, $"CREATE INDEX CONCURRENTLY IF NOT EXISTS messages_dead_at ON {schema}.messages_dead (dead_at)", Concurrently: true, Index: "messages_dead_at"),
+        ];
+    }
+
+    /// <summary>
+    /// The <c>messages_dead</c> schema as a definition for <see cref="NpgsqlSchemaUpgrader"/>: version table
+    /// <c>messages_dead_version</c>, so it can share the store's schema and still have its own version.
+    /// </summary>
+    /// <param name="schema">A plain PostgreSQL identifier.</param>
+    /// <returns>The definition.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static NpgsqlSchemaDefinition DeadLettersDefinition(string schema = "tarol")
+        => new("Tarol.Messaging.Npgsql (messages_dead)", schema, "messages_dead_version", DeadLettersScript(schema), DeadLettersSteps(schema));
+
+    /// <summary>The SQL that takes <c>messages_dead</c> from version <paramref name="from"/> (0 = nothing yet) to <see cref="DeadLettersVersion"/>.</summary>
+    /// <param name="schema">A plain PostgreSQL identifier.</param>
+    /// <param name="from">The stored version.</param>
+    /// <returns>The SQL.</returns>
+    /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
+    public static string DeadLettersUpgradeScript(string schema, int from) => DeadLettersDefinition(schema).UpgradeScript(from);
+
+    /// <summary>The consumer's dead letters (M-9) in its own schema (usually the store's, <c>tarol</c>): version 1.</summary>
     /// <param name="schema">A plain PostgreSQL identifier.</param>
     /// <returns>The SQL.</returns>
     /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>

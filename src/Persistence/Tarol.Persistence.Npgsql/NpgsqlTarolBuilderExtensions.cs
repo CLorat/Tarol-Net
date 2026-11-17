@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace Tarol.Persistence.Npgsql;
@@ -14,7 +15,7 @@ public static class NpgsqlTarolBuilderExtensions
     /// <param name="builder">The builder.</param>
     /// <param name="connectionString">The connection string.</param>
     /// <param name="options">Schema, lookups, notify, …</param>
-    /// <param name="ensureSchema">Run <see cref="NpgsqlAggregateStore.EnsureSchema"/> when the host starts.</param>
+    /// <param name="ensureSchema">Run <see cref="NpgsqlAggregateStore.EnsureSchema(CancellationToken)"/> when the host starts (upgrade, or verify with <see cref="NpgsqlStoreOptions.SchemaMode"/>).</param>
     /// <returns>The builder.</returns>
     public static TarolBuilder UseNpgsqlStore(this TarolBuilder builder, string connectionString, NpgsqlStoreOptions? options = null, bool ensureSchema = true)
     {
@@ -28,7 +29,7 @@ public static class NpgsqlTarolBuilderExtensions
     /// <param name="builder">The builder.</param>
     /// <param name="dataSource">Resolves the data source; it needs arrays enabled.</param>
     /// <param name="options">Schema, lookups, notify, …</param>
-    /// <param name="ensureSchema">Run <see cref="NpgsqlAggregateStore.EnsureSchema"/> when the host starts.</param>
+    /// <param name="ensureSchema">Run <see cref="NpgsqlAggregateStore.EnsureSchema(CancellationToken)"/> when the host starts (upgrade, or verify with <see cref="NpgsqlStoreOptions.SchemaMode"/>).</param>
     /// <returns>The builder.</returns>
     public static TarolBuilder UseNpgsqlStore(this TarolBuilder builder, Func<IServiceProvider, NpgsqlDataSource> dataSource, NpgsqlStoreOptions? options = null,
         bool ensureSchema = true)
@@ -42,7 +43,7 @@ public static class NpgsqlTarolBuilderExtensions
             {
                 Reactions = configured.Reactions ?? builder.OutboxTable,
                 StateOptions = configured.StateOptions ?? builder.Json,
-            });
+            }, provider.GetService<ILoggerFactory>()?.CreateLogger<NpgsqlAggregateStore>());
         }, static store => store.Outbox, static store => store.Jobs);
         if (ensureSchema)
             builder.Services.AddHostedService(static provider => new EnsureSchemaService(provider.GetRequiredService<NpgsqlAggregateStore>()));

@@ -265,6 +265,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `Tarol.Messaging.Npgsql`: `NpgsqlBusOptions.Retention` (7 days) and `PurgeBatch`, the system job `tarol.purge-messages`.
   `samples/Sagas`: the nightly settlement report in the worker; the guide `docs/jobs/README.md`.
 
+* Step 15A (docs/migration/operations.md §15, O-4): versioned schema upgrades in `Tarol.Persistence.Npgsql`
+  (`UpgradeStep`, `NpgsqlSchemaDefinition`, `NpgsqlSchemaUpgrader`, `SchemaMode.VerifyOnly`, `SchemaState`,
+  `NpgsqlSchema.Steps/Definition/UpgradeScript/AuditScript`, `NpgsqlStoreOptions.SchemaMode/SchemaLockTimeout`, logs
+  8001–8005): a polled session advisory lock per schema, steps with `lock_timeout` and retries, `CONCURRENTLY` steps with
+  invalid-index cleanup, `schema_version.compatible_from`. Store schema version 2: `operations_audit`, `dead_at` indexes on
+  `outbox_dead` and `jobs_dead`. `Tarol.Messaging.Npgsql`: the bus and `messages_dead` on the same upgrader
+  (`NpgsqlBusSchema.Definition/UpgradeScript`, `DeadLettersVersion` 2 with `messages_dead_version`, `NpgsqlBusOptions.SchemaMode`).
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
@@ -273,6 +281,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* Step 15A (announced in docs/migration/operations.md §10): `EnsureSchema` of the store, the bus and `messages_dead` takes a
+  polled advisory lock (6 concurrent first starts no longer fail), runs the version 1 script only on an unversioned schema,
+  and **accepts a newer schema while it is compatible** (`compatible_from` ≤ the package's version) instead of refusing any
+  newer one. `NpgsqlSchema.Version` is 2; code of step 14 refuses a version 2 schema. `NpgsqlSchema.Script` is the version 1
+  baseline (it stores 1); a migration tool runs `NpgsqlSchema.UpgradeScript(schema, 0)`. `Tarol.Messaging.Npgsql` depends on
+  `Tarol.Persistence.Npgsql`.
 * Step 14C (announced in docs/migration/jobs.md §10, J-9): with a job host (`AddJobs`), `AddReactionWorker` no longer sets
   `ReactionOptions.PurgeKeys` from the store: the system job `tarol.purge-keys` purges once per hour across the cluster
   instead of in every worker process. Without a job host nothing changes.

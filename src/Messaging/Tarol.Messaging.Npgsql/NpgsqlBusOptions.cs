@@ -13,6 +13,16 @@ public sealed record NpgsqlBusOptions
     public bool EnsureSchema { get; init; } = true;
 
     /// <summary>
+    /// What the schema step of <see cref="NpgsqlBus.Prepare"/> does: <see cref="Tarol.Persistence.Npgsql.SchemaMode.Upgrade"/>
+    /// (default) or <see cref="Tarol.Persistence.Npgsql.SchemaMode.VerifyOnly"/> when a migration tool runs
+    /// <see cref="NpgsqlBusSchema.UpgradeScript"/>.
+    /// </summary>
+    public Tarol.Persistence.Npgsql.SchemaMode SchemaMode { get; init; } = Tarol.Persistence.Npgsql.SchemaMode.Upgrade;
+
+    /// <summary>The <c>lock_timeout</c> of each upgrade step (default 2 s), retried up to 5 times.</summary>
+    public TimeSpan SchemaLockTimeout { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>
     /// Send a <c>NOTIFY</c> with every publish (in the same statement batch) and <c>LISTEN</c> while idle, so a delivery
     /// arrives in milliseconds instead of at the next poll (S-10: opt-in, it serializes the publishers' commits).
     /// </summary>

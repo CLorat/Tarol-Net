@@ -27,6 +27,29 @@ public sealed class Postgres : IAsyncLifetime
         await _container.StartAsync();
         DataSource = new NpgsqlSlimDataSourceBuilder(_container.GetConnectionString() + ";Maximum Pool Size=150").EnableArrays().Build();
         await Store(TimeProvider.System).EnsureSchema(default);
+        // the contract suites also run on a schema that a step-14 store created (the version 1 script) and this code upgraded
+        await Execute(NpgsqlSchema.Script(UpgradedSchema));
+        await Upgraded(UpgradedSchema).EnsureSchema(default);
+    }
+
+    /// <summary>A schema created by the version 1 script, then upgraded (operations.md §11, 15A).</summary>
+    public const string UpgradedSchema = "upgraded_v1";
+
+    /// <summary>A fresh schema name.</summary>
+    public string NewSchema() => $"t{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}";
+
+    /// <summary>A store on <paramref name="schema"/>, not ensured.</summary>
+    public NpgsqlAggregateStore Upgraded(string schema, TimeProvider? time = null, StoreLookups? lookups = null, IOutboxReactions? reactions = null)
+        => new(DataSource, Codec(), time ?? TimeProvider.System, new NpgsqlStoreOptions { Schema = schema, Lookups = lookups ?? new StoreLookups(), Reactions = reactions });
+
+    /// <summary>A store on a fresh schema created by the version 1 script and then upgraded by <c>EnsureSchema</c>.</summary>
+    public async Task<NpgsqlAggregateStore> UpgradedIsolatedStore(TimeProvider time, IOutboxReactions? reactions = null)
+    {
+        var schema = NewSchema();
+        await Execute(NpgsqlSchema.Script(schema));
+        var store = Upgraded(schema, time, reactions: reactions);
+        await store.EnsureSchema(default);
+        return store;
     }
 
     /// <summary>The codec of the contract models.</summary>
@@ -46,7 +69,7 @@ public sealed class Postgres : IAsyncLifetime
     {
         var store = new NpgsqlAggregateStore(DataSource, codec ?? Codec(), time, new NpgsqlStoreOptions
         {
-            Schema = $"t{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}",
+            Schema = NewSchema(),
             Lookups = lookups ?? new StoreLookups(),
             Reactions = reactions,
             Notify = notify,
@@ -80,6 +103,24 @@ public sealed class Postgres : IAsyncLifetime
 public sealed class NpgsqlStoreContractTests(Postgres postgres) : StoreContract
 {
     protected override IAggregateStore CreateStore(TimeProvider time, StoreLookups lookups) => postgres.Store(time, lookups);
+}
+
+/// <summary>The store contract on a schema the version 1 script created and <c>EnsureSchema</c> upgraded.</summary>
+[Trait("Category", "Integration")]
+public sealed class UpgradedStoreContractTests(Postgres postgres) : StoreContract
+{
+    protected override IAggregateStore CreateStore(TimeProvider time, StoreLookups lookups) => postgres.Upgraded(Postgres.UpgradedSchema, time, lookups);
+}
+
+/// <summary>The outbox contract on upgraded version 1 schemas, a schema per test.</summary>
+[Trait("Category", "Integration")]
+public sealed class UpgradedOutboxContractTests(Postgres postgres) : OutboxContract
+{
+    protected override async Task<(IAggregateStore Store, IOutbox Outbox)> Create(TimeProvider time, IOutboxReactions reactions)
+    {
+        var store = await postgres.UpgradedIsolatedStore(time, reactions);
+        return (store, store.Outbox);
+    }
 }
 
 /// <summary>The outbox contract on PostgreSQL, a schema per test.</summary>
