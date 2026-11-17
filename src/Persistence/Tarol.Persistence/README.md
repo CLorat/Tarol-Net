@@ -96,12 +96,32 @@ one outbox row per (event, reaction), and `store.Outbox` (`IOutbox`) serves them
 Each returns `false` after a lost lease. The in-memory outbox follows the same rules, so tests see event → reaction →
 change → its reactions with a fake clock; the worker is `Tarol.Sagas`.
 
+## Job rows
+
+`IJobRows` (`store.Jobs` here, `NpgsqlJobRows` in `Tarol.Persistence.Npgsql`) holds one row per (tenant, job): the cursor of
+the oldest occurrence not yet run, claimed by the job host of `Tarol.Jobs` (docs/architecture/jobs.md §5):
+
+| Call | Effect |
+|---|---|
+| `Sync(jobs, ct)` | adds declared rows at their first occurrence, recomputes the cursor of a changed schedule, enables, disables (also every row not declared) |
+| `Claim(lease, ct)` | **one** enabled row that is due (or has a pending re-drive) and not leased |
+| `Move(row, cursor, ct)` | moves the cursor after an occurrence, keeps the claim |
+| `Advance(row, cursor, ct)` | moves the cursor and releases the claim (attempts cleared) |
+| `Extend(row, lease, ct)` | the heartbeat: the lease from now |
+| `Retry(row, at, reason, ct)` | the same occurrence again at `at` |
+| `Bury(row, cursor, reason, ct)` | the occurrence to the dead jobs, the cursor on |
+| `DeadJobs(max, ct)`, `Redrive(id, ct)` | read them; run one again at the row's next claim |
+| `Rows(ct)`, `Overdue(ct)` | the stored rows; the oldest due cursor |
+
+Every call after a claim returns `false` once the claim is lost. Times are whole seconds (an occurrence must survive
+`timestamptz`); other times throw.
+
 ## AOT
 
 No reflection: loads call the aggregate's generated static `Rehydrate`/`ReadState`, the state is written by generated
 code, and JSON goes through the options you pass. The smoke app publishes with 0 IL warnings.
 
 `TarolBuilder` (created by `services.AddTarol(…)` in `Tarol.Changes`) registers one store for the application:
-`UseInMemoryStore()` here, `UseNpgsqlStore(…)` in `Tarol.Persistence.Npgsql`, or `UseStore(factory, outbox)` for another
-implementation; it registers `IAggregateStore`, `IAggregateReader`, `IOutbox` and, when implemented, `IEventFeed` and
-`IIdempotencyKeyPurge`.
+`UseInMemoryStore()` here, `UseNpgsqlStore(…)` in `Tarol.Persistence.Npgsql`, or `UseStore(factory, outbox[, jobs])` for
+another implementation; it registers `IAggregateStore`, `IAggregateReader`, `IOutbox`, `IJobRows` (when given) and, when
+implemented, `IEventFeed` and `IIdempotencyKeyPurge`.

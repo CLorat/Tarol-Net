@@ -27,3 +27,9 @@ public sealed class InMemoryOutboxContractTests : OutboxContract
 
     private static EventCodec CreateCodec() => new EventCodec(new System.Text.Json.JsonSerializerOptions(ContractJson.Default.Options)).Add<Member>().Add<Tally>();
 }
+
+/// <summary>The job rows contract on the in-memory store (step 14A).</summary>
+public sealed class InMemoryJobRowsContractTests : JobRowsContract
+{
+    protected override Task<IJobRows> Create(TimeProvider time) => Task.FromResult(new InMemoryAggregateStore(time).Jobs);
+}

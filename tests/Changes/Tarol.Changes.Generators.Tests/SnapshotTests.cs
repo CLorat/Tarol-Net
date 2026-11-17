@@ -28,4 +28,17 @@ public sealed class SnapshotTests
     public void An_assembly_without_reactions_gets_no_reaction_set()
         => GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Changes)).GetRunResult().GeneratedTrees
             .ShouldNotContain(t => t.FilePath.EndsWith("GeneratedReactions.g.cs", StringComparison.Ordinal));
+
+    [Fact]
+    public void Jobs_get_one_public_set_per_assembly()
+        => Snapshot.Match("jobs", GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Jobs)));
+
+    [Fact]
+    public void The_generated_jobs_compile_without_warnings()
+        => string.Join("\n", GeneratorTestHost.Diagnose(Sources.Jobs).Select(d => d.ToString())).ShouldBeEmpty();
+
+    [Fact]
+    public void An_assembly_without_jobs_gets_no_job_set()
+        => GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Reactions)).GetRunResult().GeneratedTrees
+            .ShouldNotContain(t => t.FilePath.EndsWith("GeneratedJobs.g.cs", StringComparison.Ordinal));
 }

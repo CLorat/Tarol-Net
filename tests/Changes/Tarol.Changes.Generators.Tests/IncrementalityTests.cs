@@ -86,4 +86,33 @@ public sealed class IncrementalityTests
         run.GetRunResult().Results.Single().GeneratedSources.Single(s => s.HintName == "GeneratedReactions.g.cs")
             .SourceText.ToString().ShouldContain("\"Orders.CloseAgain\"");
     }
+
+    private static (GeneratorDriver Driver, CSharpCompilation Compilation) FirstWithJobs()
+    {
+        var compilation = GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Jobs);
+        return (GeneratorTestHost.Run(compilation), compilation);
+    }
+
+    [Fact]
+    public void Editing_a_scheduled_factory_body_or_moving_it_regenerates_nothing()
+    {
+        var (driver, compilation) = FirstWithJobs();
+        var next = Replace(compilation, "Source1.cs", Sources.Jobs
+            .Replace("=> new(Id<Order>.Empty);", "=> new( Id<Order>.Empty );", StringComparison.Ordinal)
+            .Replace("namespace Shop;", "namespace Shop;\n\n// moved", StringComparison.Ordinal));
+
+        Incrementality.RegeneratedOutputs(driver.RunGenerators(next, TestContext.Current.CancellationToken)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Changing_a_schedule_regenerates_only_the_job_set()
+    {
+        var (driver, compilation) = FirstWithJobs();
+        var next = Replace(compilation, "Source1.cs", Sources.Jobs.Replace("\"0 2 * * *\"", "\"30 3 * * *\"", StringComparison.Ordinal));
+
+        var run = driver.RunGenerators(next, TestContext.Current.CancellationToken);
+        Incrementality.RegeneratedOutputs(run).Count.ShouldBe(1);
+        run.GetRunResult().Results.Single().GeneratedSources.Single(s => s.HintName == "GeneratedJobs.g.cs")
+            .SourceText.ToString().ShouldContain("\"30 3 * * *\"");
+    }
 }

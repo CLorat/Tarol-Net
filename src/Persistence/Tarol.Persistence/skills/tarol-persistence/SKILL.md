@@ -31,6 +31,8 @@ description: >-
 7. **Outbox** (`IOutbox`, both stores): `InMemoryStoreOptions { Reactions = GeneratedReactions.Set }` writes one row per
    (event, reaction) in the commit; `store.Outbox.Claim` returns heads (oldest per stream and reaction; scheduled ones by
    due time), then `Complete`, `Retry(row, at, reason)` or `Bury(row, reason)`; all `false` after a lost lease.
+8. **Job rows** (`IJobRows`, `store.Jobs`): written for the job host of `Tarol.Jobs` (skill `tarol-jobs`); application code
+   only reads them (`Rows`, `DeadJobs`, `Overdue`) and re-drives (`Redrive(id)`). Times are whole seconds.
 
 ## Example
 

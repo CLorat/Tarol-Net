@@ -477,3 +477,95 @@ Docs and probes only; the package code is `main` at `984e621` (step 13 done).
   committed. A checkpoint per occurrence would help long fan-outs.
 * `PushTests.After_a_reconnect_the_subscriptions_are_replayed` (SignalR) can still time out under full-suite load (caching.md §14);
   it passed in both full runs of this session (`main` and this branch).
+
+## 15. Implementation 14A: scheduled entries and the job rows port
+
+`changes: scheduled entries; persistence: job rows port`. Labels as in the conventions.
+
+### 15.1 Public API
+
+`Tarol.Changes` (`Jobs.cs`):
+* `ScheduledAttribute(string cron)` with `TimeZone`, `Name`, `Missed`, `PerTenant`, on a static `From(JobOccurrence)` factory of an
+  `IChange<T>` or `ICreation<T>`;
+* `enum Missed { Latest, All, Skip }` (Latest is the default, value 0);
+* `JobOccurrence(job, at, zone, tenant)` with `Job`, `At` (UTC), `Zone`, `Tenant`, `Local` and `KeyText`; `at` must be a whole
+  second (else `ArgumentException`);
+* `JobDefinition(Name, Cron, TimeZone, Missed, PerTenant)`, the delegate `JobRunner(pipeline, occurrence, clock, ct)`;
+* `JobSet`: `Definitions`, `Contains`, `Run(pipeline, occurrence, clock, ct)`, `Combine(params JobSet[])` (a name in two sets
+  throws), `Empty`, and the static `Context(occurrence, clock)`, `Key(occurrence, part?)`, `Options(occurrence, part?)`;
+* generated per assembly: `public static class GeneratedJobs { JobSet Set; Run(…) }` (namespace = assembly name);
+* diagnostics TCHG009 (factory shape, empty `Name`/`TimeZone`, an undefined `Missed`), TCHG010 (invalid cron literal), TCHG011
+  (duplicate job name).
+
+`Tarol.Persistence` (`JobRows.cs`, `InMemory/InMemoryJobRows.cs`):
+* `IJobRows`: `Sync`, `Claim`, `Move`, `Advance`, `Extend`, `Retry`, `Bury`, `DeadJobs`, `Redrive`, `Rows`, `Overdue`;
+* records `JobSchedule`, `JobSyncChange` + `enum JobSyncKind`, `JobRow`, `JobState`, `DeadJob`;
+* `InMemoryAggregateStore.Jobs` (in-memory rows on the store's clock);
+* `TarolBuilder.UseStore(factory, outbox, jobs)` (a new overload; it registers `IJobRows`); `UseInMemoryStore` uses it.
+
+### 15.2 Deliberate differences from §6 and §11
+
+| Sketch | Built | Why |
+|---|---|---|
+| `Missed` in `Tarol.Jobs` (§11 14C) | in `Tarol.Changes` | the attribute takes it (`Missed = Missed.All`), and `Tarol.Changes` does not reference `Tarol.Jobs` |
+| `Claim` of rows | `Claim(lease)` returns `Option<JobRow>`: one row | §5 item 3 (one row per claim) made part of the port's shape |
+| `Move(row, next)` … | the parameter is `cursor` | CA1716: `next` is a reserved word in VB (the lessons named `Next`) |
+| `Redrive(id)` "runs it once more" | a pending flag on the dead job; the row's next claim runs it **first**, under the row's own claim (`JobRow.Redrive`, `JobRow.Occurrence`), so it never runs beside the row (J-7). `Advance` then deletes the dead job; `Bury` keeps it dead with the new attempts | a new row per re-drive (as the outbox does) would break `PRIMARY KEY (tenant, name)` and could overlap the row's own run; a re-drive is requested by an admin process without a job host |
+| `Overdue` | `Option<DateTimeOffset>`: the oldest due cursor of an enabled row | step 15's health check computes now − it |
+| (not sketched) | `Rows(ct)` → `JobState` | tests, `JobTest` and admin pages read the cursors |
+| `Sync` registers, recomputes, disables | also **re-enables** at `First` (no catch-up for a pause) and **drops the claim** of a rescheduled row (the old holder's `Advance` returns `false`) | a paused job that resumes must not run its backlog; a holder of the old schedule must not write an old-schedule cursor |
+| a TCHG diagnostic for literals | TCHG010 runs the field rules of `CronSyntax.cs` (`Tarol.Cron.CronFields`), a file 14C links into `Tarol.Jobs`' parser | one set of rules for compile time and startup; the zone is checked at startup (14C), not at compile time (the compiler's zone database is not the server's) |
+| `JobRunner(pipeline, occurrence)` | takes the `TimeProvider` too | `OperationContext.Start` reads the correlation id's timestamp from the clock (a fake one in tests) |
+
+### 15.3 Changes against steps 7–13
+
+| Where | Change | Kind |
+|---|---|---|
+| `TarolBuilder` | `UseStore(factory, outbox, jobs)` overload; `UseInMemoryStore` registers `IJobRows` | additive API |
+| `InMemoryAggregateStore` | `Jobs` property | additive API |
+| `Tarol.Validations` analyzer | TVAL006 exempt inside a static `[Scheduled]` factory of an `IValidatable` change (C-13) | behaviour (fewer warnings) |
+| `Tarol.Changes` generator | `GeneratedJobs.g.cs` for assemblies with `[Scheduled]`; nothing else changes (snapshots of changes and reactions unchanged) | additive |
+| `docs/architecture/changes.md` §5 | the "job" row: `JobSet.Context`, the row's tenant, key (tenant, `job:<name>`, occurrence) | docs |
+
+No change to `IAggregateStore`, `ChangePipeline`, `IOutbox` or the reaction generator.
+
+### 15.4 Tests
+
+* `Tarol.Changes.Tests/JobTests.cs` (8): the generated definitions; an occurrence runs as `System("Jobs.<name>")`, no causation,
+  key text `2026-11-16T01:00:00.0000000Z`; the same occurrence replays, the next commits; tenant occurrences and a `NotFound`;
+  parts of keys; whole seconds and `Local`; `Combine` and duplicates; an unknown job throws.
+* `Tarol.Changes.Generators.Tests`: the `jobs` snapshot (2 jobs, a nested type, a pinned name, `Missed.All`, `PerTenant`); the
+  generated code compiles without warnings; no set without jobs; incrementality (editing a factory body or moving it
+  regenerates nothing; a schedule change regenerates only `GeneratedJobs.g.cs`); diagnostics TCHG009 (7 shapes + not a change +
+  3 attribute values), TCHG010 (16 invalid expressions, each message asserted), 5 valid expressions, TCHG011.
+* `Tarol.Validations.Generators.Tests`: TVAL006 exempt in a `[Scheduled]` factory, reported in a foreign attribute's.
+* `tests/Persistence/Shared/JobRowsContract.cs` (18, run on the in-memory rows here and on PostgreSQL in 14B): sync, one claim
+  per due row, oldest first, move/advance, a move restarts the next occurrence's attempts, a lost lease changes nothing, the heartbeat, retry backoff, bury, re-drive first and
+  never beside the row, a re-drive that fails again, a schedule change drops the claim, disable/re-enable without catch-up,
+  undeclared rows disabled, tenants, duplicates and sub-second times throw, the cursor round trip.
+* `Tarol.Sagas.Tests/BuilderTests`: `IJobRows` is the store's `Jobs`.
+* Smoke and package apps: `Tarol.Changes.AotSmoke` and `Tarol.Changes.PackageTests` run a Vienna nightly job and its replay;
+  `Tarol.Persistence.AotSmoke` syncs, claims and advances the in-memory rows.
+
+### 15.5 Skill checklist (`tarol-changes`, updated)
+
+Rule 10 and three mistakes added (TCHG009, TCHG010, `o.Local` for the zone's day); the evaluation tasks of §12 rows 1, 5 and 8
+need `tarol-jobs` (14C). Size 9.0 KB (was 8.0 KB).
+
+### 15.6 Suppressions
+
+None.
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `9357564` (the code of this PR; the notes followed), in a separate worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1506 of 1506** (1442 at the start, + 64);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **21 apps, 0 IL warnings**, all checks passed (the new checks
+  of `Tarol.Changes.AotSmoke` and `Tarol.Persistence.AotSmoke` natively);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Changes.PackageTests` runs the job from the package);
+* `main`'s CI before the start (run 164 at `bfd8d88`, after #47): `build`, `aot-smoke`, `integration` green.
+
+After this run, `d23457d` changed `Move` (the next occurrence's attempts start at 1, found while writing 14C's runner) and added
+a contract test: `Tarol.Persistence.Tests` 116 of 116. The full verification of 14B (§16.7) includes it.

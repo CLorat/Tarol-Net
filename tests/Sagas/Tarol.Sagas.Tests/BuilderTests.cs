@@ -30,6 +30,7 @@ public sealed class BuilderTests
         provider.GetRequiredService<IAggregateReader>().ShouldBeSameAs(store);
         provider.GetRequiredService<IEventFeed>().ShouldBeSameAs(store);
         provider.GetRequiredService<IOutbox>().ShouldBeSameAs(store.Outbox);
+        provider.GetRequiredService<IJobRows>().ShouldBeSameAs(store.Jobs);
         provider.GetService<IIdempotencyKeyPurge>().ShouldBeNull();
         var host = provider.GetServices<IHostedService>().ShouldHaveSingleItem().ShouldBeOfType<ReactionHost>();
 

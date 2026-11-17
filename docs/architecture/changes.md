@@ -155,13 +155,13 @@ such factories (C-13).
 |---|---|---|---|---|---|
 | REST, user | `Actor.User(sub)` from the `ClaimsPrincipal` | claim, validated against the route; else `None` | new, server-side (tracing.md insight 2) | `None` | `Idempotency-Key` header, scoped to (tenant, caller, route) |
 | REST, service | `Actor.Service(client_id)` | from the token or `None` | new | `None` | header |
-| job / timeout | `Actor.System("Jobs.AuctionSettlement")` | per run | new (`OperationContext.Start`) | `None` | optional |
+| job | `Actor.System("Jobs.<name>")` (`JobSet.Context`) | the job row's | new (`OperationContext.Start`) | `None` | (tenant, `job:<name>`, occurrence UTC), `/<part>` per change of a fan-out (step 14) |
 | saga step | `Actor.System(saga, onBehalfOf)` (`AsSystem`) | the saga's | the saga's | the handled message | outbox row id (step 9) |
 | reaction | `recorded.Context.AsSystem("Reactions." + name)` | the event's | the event's | **the event id** | (reaction, event id) |
 | webhook | `Actor.Service("webhook:" + sender)` | mapped from the payload or route | new | `None` | (sender, delivery id) |
 | consumer | `Actor.System("Consumers.<name>", onBehalfOf: envelope actor)` (M-6) | envelope header, allow-listed per source (M-13) | envelope header | the message id | (`consumer:<name>`, message id) (M-12) |
 
-Step 14 ([jobs.md](jobs.md), J-1, J-4): a job's key is (tenant, `job:<name>`, occurrence), stored with its commit; it is no longer optional.
+Step 14 ([jobs.md](jobs.md), J-1, J-4): a job's key is (tenant, `job:<name>`, occurrence), stored with its commit; it is no longer optional (14A: `JobSet.Key`). A one-shot timeout is a scheduled reaction (step 9), keyed like a reaction.
 
 Reaction and webhook rows **[verified]** (`App/`, `Web/`); the consumer row **[verified]** in step 11 ([messaging.md](messaging.md) §3); the others **[unverified]**. The context is a **parameter**
 of `Run` (C-11): built at the edge, never ambient (identity-context.md §4).

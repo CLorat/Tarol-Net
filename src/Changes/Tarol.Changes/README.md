@@ -96,6 +96,21 @@ The store writes one outbox row per (event, reaction) in the event's commit; the
 `GeneratedReactions.Set.Run(pipeline, row.Reaction, row.Event)`. A reaction is effect-once by its key; answer late or
 repeated events with `Result.Success()` (a Conflict is retried, then dead-lettered). See docs/architecture/sagas.md.
 
+## Scheduled changes
+
+```csharp
+public sealed partial record CloseDay(DateOnly Day) : ICreation<DayBook>
+{
+    [Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")]   // Name =, Missed = Missed.All, PerTenant = true
+    public static CloseDay From(JobOccurrence o) => new(DateOnly.FromDateTime(o.Local.DateTime).AddDays(-1));
+    public Result<DayBook> Execute(ChangeContext context) => DayBook.Close(Day, context.Now);
+}
+```
+
+The job host (`Tarol.Jobs`, `AddJobs(j => j.Add(GeneratedJobs.Set))`) runs every occurrence once across the cluster as
+`Actor.System("Jobs.<name>")`, keyed (tenant, `job:<name>`, occurrence UTC). The schedule is 5-field Unix cron; an invalid
+literal is TCHG010. See docs/architecture/jobs.md.
+
 ## Generated
 
 * `IChange<T>.Target` from the record's only `Id<T>` member (TCHG001 when there is none or several; implement it yourself
@@ -107,6 +122,9 @@ repeated events with `Result.Success()` (a Conflict is retried, then dead-letter
   store's reaction table (static arrays per event type), the schedule of `DueAt` reactions, and the runner
   (name, event) → factory → `pipeline.Run` as `Actor.System("Reactions.<name>")` on behalf of the user, caused by the
   event, with the key (reaction, event id). `ReactionSet.Combine(a, b)` joins assemblies.
+* Per assembly with `[Scheduled]` factories: `public static class GeneratedJobs` with `Set` (a `JobSet`): the definitions
+  (name, cron, zone, missed-run policy, per tenant) and the runner (job name) → factory → `pipeline.Run` as
+  `Actor.System("Jobs.<name>")` with the occurrence key. `JobSet.Combine(a, b)` joins assemblies.
 
 | Diagnostic | When |
 |---|---|
@@ -118,6 +136,9 @@ repeated events with `Result.Success()` (a Conflict is retried, then dead-letter
 | TCHG006 | an `[OnEvent<T>]` factory that is not static, private, generic, not on a change, not returning it, or not `(T)` / `(T, RecordedEvent)` |
 | TCHG007 | a reaction name used twice, or one change with two factories for one event |
 | TCHG008 | `DueAt` names no `DateTimeOffset` property of the event |
+| TCHG009 | a `[Scheduled]` factory that is not static, private, generic, not on a change, not returning it, or not `(JobOccurrence)`; an empty `Name` or `TimeZone` |
+| TCHG010 | an invalid cron literal (5 fields; no seconds, `L W # ?`) |
+| TCHG011 | a job name used by two changes |
 
 ## Testing
 

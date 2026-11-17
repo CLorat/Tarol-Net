@@ -77,7 +77,7 @@ public sealed class TarolBuilder
     }
 
     /// <summary>The in-memory store (tests, prototypes): <see cref="IAggregateStore"/>, <see cref="IAggregateReader"/>,
-    /// <see cref="IEventFeed"/> and <see cref="IOutbox"/>.</summary>
+    /// <see cref="IEventFeed"/>, <see cref="IOutbox"/> and <see cref="IJobRows"/>.</summary>
     /// <param name="lookups">The unique lookups, if any.</param>
     /// <returns>The builder.</returns>
     public TarolBuilder UseInMemoryStore(StoreLookups? lookups = null)
@@ -87,7 +87,7 @@ public sealed class TarolBuilder
             StateOptions = Json,
             Reactions = OutboxTable,
             Lookups = lookups ?? new StoreLookups(),
-        }), static store => store.Outbox);
+        }), static store => store.Outbox, static store => store.Jobs);
 
     /// <summary>Registers a store: itself, <see cref="IAggregateStore"/>, <see cref="IAggregateReader"/>, its
     /// <see cref="IOutbox"/>, and <see cref="IEventFeed"/> / <see cref="IIdempotencyKeyPurge"/> when it implements them.</summary>
@@ -101,6 +101,29 @@ public sealed class TarolBuilder
     {
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(outbox);
+        return Register(factory, outbox, null);
+    }
+
+    /// <summary>Registers a store with its job rows (step 14): as <see cref="UseStore{TStore}(Func{IServiceProvider, TStore}, Func{TStore, IOutbox})"/>,
+    /// and <see cref="IJobRows"/> for the job host (<c>AddJobs</c>, <c>Tarol.Jobs</c>).</summary>
+    /// <typeparam name="TStore">The store type.</typeparam>
+    /// <param name="factory">Creates the store (once, as a singleton).</param>
+    /// <param name="outbox">The store's outbox.</param>
+    /// <param name="jobs">The store's job rows.</param>
+    /// <returns>The builder.</returns>
+    /// <exception cref="InvalidOperationException">A store was registered already.</exception>
+    public TarolBuilder UseStore<TStore>(Func<IServiceProvider, TStore> factory, Func<TStore, IOutbox> outbox, Func<TStore, IJobRows> jobs)
+        where TStore : class, IAggregateStore
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(jobs);
+        return Register(factory, outbox, jobs);
+    }
+
+    private TarolBuilder Register<TStore>(Func<IServiceProvider, TStore> factory, Func<TStore, IOutbox> outbox, Func<TStore, IJobRows>? jobs)
+        where TStore : class, IAggregateStore
+    {
         if (HasStore)
             throw new InvalidOperationException("A store is registered already; a Tarol application has one store.");
         HasStore = true;
@@ -108,6 +131,8 @@ public sealed class TarolBuilder
         Services.AddSingleton<IAggregateStore>(static provider => provider.GetRequiredService<TStore>());
         Services.AddSingleton<IAggregateReader>(static provider => provider.GetRequiredService<TStore>());
         Services.AddSingleton(provider => outbox(provider.GetRequiredService<TStore>()));
+        if (jobs is not null)
+            Services.AddSingleton(provider => jobs(provider.GetRequiredService<TStore>()));
         if (typeof(IEventFeed).IsAssignableFrom(typeof(TStore)))
             Services.AddSingleton(static provider => (IEventFeed)provider.GetRequiredService<TStore>());
         if (typeof(IIdempotencyKeyPurge).IsAssignableFrom(typeof(TStore)))

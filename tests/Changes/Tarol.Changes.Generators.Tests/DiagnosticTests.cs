@@ -236,4 +236,108 @@ public sealed class DiagnosticTests
                 {{ReactionBody}}
             }
             """, "TCHG008").ShouldContain("ReminderSet has no DateTimeOffset property 'Note'");
+
+    private const string JobBody = "public Result Execute(Order o, ChangeContext c) => o.Close();";
+
+    [Theory]
+    [InlineData("public CloseAt From(JobOccurrence o) => new(Id<Order>.Empty);", "the factory must be static")]
+    [InlineData("public static Order From(JobOccurrence o) => null!;", "the factory must return CloseAt")]
+    [InlineData("public static CloseAt From() => new(Id<Order>.Empty);", "the factory takes one JobOccurrence")]
+    [InlineData("public static CloseAt From(DateTimeOffset at) => new(Id<Order>.Empty);", "the factory takes one JobOccurrence")]
+    [InlineData("public static CloseAt From(JobOccurrence o, int x) => new(Id<Order>.Empty);", "the factory takes one JobOccurrence")]
+    [InlineData("private static CloseAt From(JobOccurrence o) => new(Id<Order>.Empty);", "the factory (or a type containing it) is private; generated code must call it")]
+    [InlineData("public static CloseAt From<T>(JobOccurrence o) => new(Id<Order>.Empty);", "the factory cannot be generic")]
+    public void TCHG009_factory_shape(string factory, string why)
+        => Message($$"""
+            public sealed partial record CloseAt(Id<Order> Order) : IChange<Order>
+            {
+                [Scheduled("0 2 * * *")]
+                {{factory}}
+                {{JobBody}}
+            }
+            """, "TCHG009").ShouldBe("[Scheduled] on 'CloseAt.From': " + why);
+
+    [Fact]
+    public void TCHG009_not_on_a_change()
+        => Message("""
+            public static class Helpers
+            {
+                [Scheduled("0 2 * * *")]
+                public static int From(JobOccurrence o) => 1;
+            }
+            """, "TCHG009").ShouldBe("[Scheduled] on 'Helpers.From': Helpers is not a change (IChange<T>, ICreation<T> or ILoads<T>)");
+
+    [Theory]
+    [InlineData("Name = \" \"", "Name is empty")]
+    [InlineData("TimeZone = \"\"", "TimeZone is empty (leave it out for UTC)")]
+    [InlineData("Missed = (Missed)7", "Missed is not a Missed value")]
+    public void TCHG009_attribute_values(string argument, string why)
+        => Message($$"""
+            public sealed partial record CloseAt(Id<Order> Order) : IChange<Order>
+            {
+                [Scheduled("0 2 * * *", {{argument}})]
+                public static CloseAt From(JobOccurrence o) => new(Id<Order>.Empty);
+                {{JobBody}}
+            }
+            """, "TCHG009").ShouldEndWith(why);
+
+    [Theory]
+    [InlineData("0 2 * *", "a schedule has 5 fields (minute hour day-of-month month day-of-week), found 4")]
+    [InlineData("0 0 2 * * *", "a schedule has 5 fields (minute hour day-of-month month day-of-week), found 6 (seconds are not supported)")]
+    [InlineData("60 2 * * *", "minute: '60' is outside 0–59")]
+    [InlineData("0 24 * * *", "hour: '24' is outside 0–23")]
+    [InlineData("0 2 0 * *", "day-of-month: '0' is outside 1–31")]
+    [InlineData("0 2 L * *", "day-of-month: 'L' is not supported (no L W # ?)")]
+    [InlineData("0 2 15W * *", "day-of-month: '15W' is not supported (no L W # ?)")]
+    [InlineData("0 2 ? * MON", "day-of-month: '#' and '?' are not supported")]
+    [InlineData("0 2 * * MON#2", "day-of-week: '#' and '?' are not supported")]
+    [InlineData("0 2 * FOO *", "month: 'FOO' is not a name (JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC)")]
+    [InlineData("0 2 * * 8", "day-of-week: '8' is outside 0–7")]
+    [InlineData("*/0 * * * *", "minute: the step in '*/0' must be 1–60")]
+    [InlineData("0 5-2 * * *", "hour: the range '5-2' runs backwards")]
+    [InlineData("0 2,,3 * * *", "hour: an empty list item in '2,,3'")]
+    [InlineData("x 2 * * *", "minute: 'x' is not a number")]
+    [InlineData("", "the expression is empty")]
+    public void TCHG010_invalid_cron(string cron, string why)
+        => Message($$"""
+            public sealed partial record CloseAt(Id<Order> Order) : IChange<Order>
+            {
+                [Scheduled("{{cron}}")]
+                public static CloseAt From(JobOccurrence o) => new(Id<Order>.Empty);
+                {{JobBody}}
+            }
+            """, "TCHG010").ShouldBe($"[Scheduled(\"{cron}\")] on 'CloseAt.From': {why}");
+
+    [Theory]
+    [InlineData("0 2 * * *")]
+    [InlineData("*/15 9-17 * * MON-FRI")]
+    [InlineData("5/15 * 1,15 jan-mar 7")]
+    [InlineData("0 0 13 * 5")]
+    [InlineData("0\t2  * * sun")]
+    public void Valid_cron_has_no_diagnostic(string cron)
+        => Diagnose($$"""
+            public sealed partial record CloseAt(Id<Order> Order) : IChange<Order>
+            {
+                [Scheduled("{{cron}}")]
+                public static CloseAt From(JobOccurrence o) => new(Id<Order>.Empty);
+                {{JobBody}}
+            }
+            """).ShouldBeEmpty();
+
+    [Fact]
+    public void TCHG011_two_changes_with_one_job_name()
+        => Message($$"""
+            public sealed partial record CloseA(Id<Order> Order) : IChange<Order>
+            {
+                [Scheduled("0 2 * * *", Name = "Close")]
+                public static CloseA From(JobOccurrence o) => new(Id<Order>.Empty);
+                {{JobBody}}
+            }
+            public sealed partial record CloseB(Id<Order> Order) : IChange<Order>
+            {
+                [Scheduled("0 3 * * *", Name = "Close")]
+                public static CloseB From(JobOccurrence o) => new(Id<Order>.Empty);
+                {{JobBody}}
+            }
+            """, "TCHG011").ShouldBe("The job 'Close' is declared more than once (CloseA, CloseB); job names are stored in job rows and idempotency keys and must be unique");
 }

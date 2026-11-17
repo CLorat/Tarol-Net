@@ -70,5 +70,14 @@ public sealed partial record CloseByNumber(string Number) : ILoads<Order>
     public Result Execute(Order order, ChangeContext context) => order.Close(context.Now);
 }
 
+/// <summary>A scheduled change (step 14A): a nightly order at 02:00 Vienna time, numbered by the local day.</summary>
+public sealed partial record OpenNightlyOrder(string Number) : ICreation<Order>
+{
+    [Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")]
+    public static OpenNightlyOrder From(JobOccurrence o) => new("nightly-" + o.Local.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture));
+
+    public Result<Order> Execute(ChangeContext context) => Order.Open(Number, context.Now);
+}
+
 [JsonSerializable(typeof(int))]
 internal sealed partial class SmokeJson : JsonSerializerContext;

@@ -62,8 +62,32 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "DueAt names the event member that holds when the reaction is due (a saga timeout), e.g. DueAt = nameof(MyApp.Settlement.DeadlineSet.DueAt). Qualify the type when a member of the change has the same name.");
 
+    /// <summary>TCHG009: a [Scheduled] factory of the wrong shape.</summary>
+    public static readonly DiagnosticDescriptor JobShape = new(
+        "TCHG009", "Unsupported scheduled factory",
+        "[Scheduled] on '{0}': {1}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A scheduled factory is a static, non-private method of a change (IChange<T> or ICreation<T>) that returns that change and takes one JobOccurrence. It maps the occurrence to the change's input and does nothing else.");
+
+    /// <summary>TCHG010: a cron literal the job host would refuse at startup.</summary>
+    public static readonly DiagnosticDescriptor JobCron = new(
+        "TCHG010", "Invalid cron schedule",
+        "[Scheduled(\"{0}\")] on '{1}': {2}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A schedule is 5-field Unix cron: minute hour day-of-month month day-of-week, with lists, ranges, steps and the names JAN-DEC, SUN-SAT. Seconds, L, W, # and ? are not supported; use Every(TimeSpan) for intervals.");
+
+    /// <summary>TCHG011: two scheduled changes with one job name.</summary>
+    public static readonly DiagnosticDescriptor JobName = new(
+        "TCHG011", "Duplicate job",
+        "The job '{0}' is declared more than once ({1}); job names are stored in job rows and idempotency keys and must be unique",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A job's name is the change's type name, or the Name of its [Scheduled]. Two changes cannot share a name.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
+        "TCHG009" => JobShape,
+        "TCHG010" => JobCron,
+        "TCHG011" => JobName,
         "TCHG006" => ReactionShape,
         "TCHG007" => ReactionName,
         "TCHG008" => ReactionDueAt,

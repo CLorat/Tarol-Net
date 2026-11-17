@@ -13,3 +13,6 @@ TCHG005 | Tarol.Changes | Warning | Diagnostics
 TCHG006 | Tarol.Changes | Error | Diagnostics
 TCHG007 | Tarol.Changes | Error | Diagnostics
 TCHG008 | Tarol.Changes | Error | Diagnostics
+TCHG009 | Tarol.Changes | Error | Diagnostics
+TCHG010 | Tarol.Changes | Error | Diagnostics
+TCHG011 | Tarol.Changes | Error | Diagnostics

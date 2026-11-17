@@ -43,5 +43,14 @@ var again = await test.When(new OpenOrder("O-2"), options: key);
 Check("idempotency key replays", again.Result.TryGetValue(out ChangeOutcome replay) && replay.Replayed && replay.StreamId == first.Result.GetValueOrThrow().StreamId);
 Check("recorded context", test.Store.Recorded.All(r => r.Context.Actor.Kind == ActorKind.User));
 
+var nightly = new JobOccurrence("OpenNightlyOrder", new DateTimeOffset(2026, 11, 16, 1, 0, 0, TimeSpan.Zero),
+    TimeZoneInfo.FindSystemTimeZoneById("Europe/Vienna"), default);
+Check("generated job definitions", GeneratedJobs.Set.Definitions is [{ Name: "OpenNightlyOrder", Cron: "0 2 * * *", TimeZone: "Europe/Vienna", Missed: Missed.Latest }]);
+var ran = await GeneratedJobs.Set.Run(test.Pipeline, nightly, test.Clock);
+var nightlyOpened = test.Store.Recorded[^1];
+Check("job runs as the system with the occurrence key", ran.IsSuccess && nightlyOpened.Context.Actor.Id == "Jobs.OpenNightlyOrder"
+                                                       && nightlyOpened.Event.Event is Order.Opened { Number: "nightly-20261116" });
+Check("job occurrence replays", (await GeneratedJobs.Set.Run(test.Pipeline, nightly, test.Clock)).TryGetValue(out ChangeOutcome rerun) && rerun.Replayed);
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
