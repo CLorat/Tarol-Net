@@ -23,6 +23,26 @@ public sealed class PushTests
         return (client, inbox, handle);
     }
 
+    /// <summary>
+    /// Waits until the server knows the client's subscriptions again: publishes a marker every 200 ms until one comes back
+    /// (bounded by the event, 15 s cap). A fixed delay raced the replay under load (docs/migration/operations.md §5 item 14).
+    /// </summary>
+    private static async Task Replayed(MessagePushClient client, Inbox inbox, string topic)
+    {
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (!inbox.Messages.Any(IsMarker))
+        {
+            if (waited.Elapsed > TimeSpan.FromSeconds(15))
+                throw new TimeoutException($"no marker came back on {topic} after the reconnect; received {inbox.Messages.Count}");
+            await client.Publish(topic, Json.Of("{\"marker\":true}"), Ct);
+            await Task.Delay(200, Ct);
+        }
+    }
+
+    private static bool IsMarker(PushedMessage message) => message.Data.TryGetProperty("marker", out _);
+
+    private static bool IsAfter(PushedMessage message) => message.Data.TryGetProperty("after", out _);
+
     [Fact]
     public async Task A_client_receives_its_own_publish_stamped_by_the_server()
     {
@@ -105,11 +125,11 @@ public sealed class PushTests
         while (client.State != HubConnectionState.Connected && waited.Elapsed < TimeSpan.FromSeconds(30))
             await Task.Delay(50, Ct);
         client.State.ShouldBe(HubConnectionState.Connected);
-        await Task.Delay(300, Ct);                                                                  // the replay runs on Reconnected
+        await Replayed(client, inbox, "artflow.chat");                                              // the replay runs on Reconnected
 
         await client.Publish("artflow.chat", Json.Of("{\"after\":true}"), Ct);
 
-        await inbox.Until(m => m.Count == 1, "the message after the reconnect (F7)");
+        await inbox.Until(m => m.Any(IsAfter), "the message after the reconnect (F7)");
     }
 
     [Fact]
@@ -134,10 +154,11 @@ public sealed class PushTests
         var waited = System.Diagnostics.Stopwatch.StartNew();
         while (client.State != HubConnectionState.Connected && waited.Elapsed < TimeSpan.FromSeconds(30))
             await Task.Delay(50, Ct);
-        await Task.Delay(300, Ct);                                                                  // the replay follows the start
+        client.State.ShouldBe(HubConnectionState.Connected);
+        await Replayed(client, inbox, "artflow.chat");                                              // the replay follows the start
 
-        await client.Publish("artflow.chat", Json.Of("{}"), Ct);
-        await inbox.Until(m => m.Count == 1, "the message after the client's own restart");
+        await client.Publish("artflow.chat", Json.Of("{\"after\":true}"), Ct);
+        await inbox.Until(m => m.Any(IsAfter), "the message after the client's own restart");
     }
 
     [Fact]
