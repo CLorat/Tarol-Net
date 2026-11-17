@@ -635,3 +635,16 @@ and one mistake (an `UPDATE tarol.jobs` to pause a job). The job tasks of §12 a
 ### 16.6 Suppressions
 
 None.
+
+### 16.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `6d34e8b` (the code of this PR; only these notes followed), in a separate worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1531 of 1531** (14A's 1506, + 1 contract test in memory, + 24 on PostgreSQL);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **21 apps, 0 IL warnings**, all checks passed (the job rows of
+  `Tarol.Persistence.Npgsql.AotSmoke` natively);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the chaos test 10 times in Release, alone: 10 of 10 (§16.4).
+
+This run also covers 14A's `d23457d` (a move starts the next occurrence's attempts), pushed to 14A after its own run (§15.7).
