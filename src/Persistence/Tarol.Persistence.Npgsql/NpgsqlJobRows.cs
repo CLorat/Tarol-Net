@@ -17,7 +17,7 @@ namespace Tarol.Persistence.Npgsql;
 /// A claim costs about 1 ms at any table size (the partial index <c>jobs_due</c>). Times are whole seconds, written in UTC:
 /// <c>timestamptz</c> keeps microseconds, so a whole second reads back unchanged (jobs.md §5 item 1).
 /// </remarks>
-public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource
+public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource, IDeadLetterRetention
 {
     private readonly NpgsqlDataSource _db;
     private readonly TimeProvider _time;
@@ -232,6 +232,24 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource
     /// <inheritdoc />
     public Task<bool> Discard(long id, CancellationToken cancellationToken) => Act(_sql.Discard, id, null, cancellationToken);
 
+
+    /// <inheritdoc />
+    /// <remarks>Deletes the oldest first, on the <c>dead_at</c> index of schema version 2, with one audit row per call.</remarks>
+    public async Task<int> Purge(DateTimeOffset olderThan, int max, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        await using var command = _db.CreateCommand(_sql.Purge);
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = olderThan.UtcDateTime });
+        command.Parameters.Add(new NpgsqlParameter { Value = max });
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
+        command.Parameters.Add(new NpgsqlParameter { Value = actor });
+        return (int)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as long? ?? 0);
+    }
+
+    /// <inheritdoc />
+    string IDeadLetterRetention.Kind => DeadLetterKinds.Jobs;
+
     /// <summary>The kind of these dead letters: <see cref="DeadLetterKinds.Jobs"/>.</summary>
     string IDeadLetterSource.Kind => DeadLetterKinds.Jobs;
 
@@ -420,6 +438,13 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource
         public string RedriveAudited => Audited(RedriveRow, "redrive");
 
         public string DiscardAudited => Audited(DiscardRow, "discard");
+
+        public string Purge => $"""
+            WITH d AS (DELETE FROM {schema}.jobs_dead WHERE id IN (SELECT id FROM {schema}.jobs_dead WHERE dead_at < $1 ORDER BY dead_at LIMIT $2) RETURNING id),
+            a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
+                  SELECT $3, $4, 'purge', 'jobs', jsonb_build_object('rows', count(*), 'before', $1) FROM d HAVING count(*) > 0)
+            SELECT count(*) FROM d
+            """;
 
         public string DeadPage => $"""
             SELECT id, tenant, name, occurrence, attempts, last_error, dead_at, redrive FROM {schema}.jobs_dead

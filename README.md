@@ -16,6 +16,7 @@ time; see the [migration plan](docs/migration/plan.md).
 | Package | Description | Status |
 |---|---|---|
 | `Tarol.StronglyTypedId` | `Id<TEntity>` over UUIDv7, JSON/binding/formatting built in, generator included | migrated |
+| `Tarol.Operations` | operations: one cached snapshot of the database numbers (oldest due reaction, dead letters, overdue jobs, projection lag, bus backlog) polled every 15 s and published as gauges on the meter `Tarol.Operations`; health checks in three groups (`live`, `ready`, `tarol`) with `MapTarolHealth`; the admin entry for dead reactions, jobs and messages (keyset pages, re-drive, discard, every act audited) and projection versions with `MapTarolAdmin` behind a required policy; optional retention as `tarol.purge-dead` |
 | `Tarol.Options` | `Option<T>` (`T` \| `None`) as a non-boxing C# 15 union, the same for value and reference types; AOT-safe JSON (the value or `null`), analyzer included; no dependencies | migrated |
 | `Tarol.Results` | `Result<T>` / `Result` as non-boxing C# 15 unions of a value and a `Violation` (`Invalid` field errors or one `Error`), conversions to and from `Option<T>`; AOT-safe JSON, analyzers included | migrated |
 | `Tarol.Kernel` | `OperationContext`: who acts (`Actor`), tenant, correlation and causation as `Id<T>`, AOT-safe JSON; analyzer that keeps the system clock out of your code (inject `TimeProvider`) | migrated |

@@ -27,6 +27,9 @@
     <Project Path="src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj" />
     <Project Path="src/Kernel/Tarol.Kernel/Tarol.Kernel.csproj" />
   </Folder>
+  <Folder Name="/src/Operations/">
+    <Project Path="src/Operations/Tarol.Operations/Tarol.Operations.csproj" />
+  </Folder>
   <Folder Name="/src/Options/">
     <Project Path="src/Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj" />
     <Project Path="src/Options/Tarol.Options/Tarol.Options.csproj" />
@@ -94,6 +97,11 @@
     <Project Path="tests/Kernel/Tarol.Kernel.AotSmoke/Tarol.Kernel.AotSmoke.csproj" />
     <Project Path="tests/Kernel/Tarol.Kernel.Generators.Tests/Tarol.Kernel.Generators.Tests.csproj" />
     <Project Path="tests/Kernel/Tarol.Kernel.Tests/Tarol.Kernel.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Operations/">
+    <Project Path="tests/Operations/Tarol.Operations.AotSmoke/Tarol.Operations.AotSmoke.csproj" />
+    <Project Path="tests/Operations/Tarol.Operations.IntegrationTests/Tarol.Operations.IntegrationTests.csproj" />
+    <Project Path="tests/Operations/Tarol.Operations.Tests/Tarol.Operations.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Options/">
     <Project Path="tests/Options/Tarol.Options.AotSmoke/Tarol.Options.AotSmoke.csproj" />

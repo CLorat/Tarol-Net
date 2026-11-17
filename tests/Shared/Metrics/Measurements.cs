@@ -28,6 +28,9 @@ public sealed class Measurements : IMeterFactory
     /// <summary>One measurement.</summary>
     public sealed record Measured(string Meter, string Instrument, string? Unit, double Value, IReadOnlyDictionary<string, object?> Tags);
 
+    /// <summary>Reads the observable instruments now (their callbacks run on this thread).</summary>
+    public void Collect() => _listener.RecordObservableInstruments();
+
     /// <summary>Everything measured so far.</summary>
     public IReadOnlyList<Measured> All => [.. _measured];
 

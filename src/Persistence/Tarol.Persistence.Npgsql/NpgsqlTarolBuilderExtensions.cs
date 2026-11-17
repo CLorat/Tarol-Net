@@ -63,6 +63,12 @@ public static class NpgsqlTarolBuilderExtensions
         }, static store => store.Outbox, static store => store.Jobs);
         foreach (var signal in NpgsqlStoreSignals.All)
             builder.Services.AddSingleton(signal);
+        builder.Services.AddSingleton<IDeadLetterRetention>(static provider => provider.GetRequiredService<NpgsqlAggregateStore>().Outbox);
+        builder.Services.AddSingleton<IDeadLetterRetention>(static provider => provider.GetRequiredService<NpgsqlAggregateStore>().Jobs);
+        if (ensureSchema)
+            builder.Services.AddSingleton(new ReadinessCheck("schema", static provider => provider.GetRequiredService<NpgsqlAggregateStore>() is { Ensured: null } store
+                ? $"the schema '{store.Schema}' is not ensured yet"
+                : null));
         if (ensureSchema)
             builder.Services.AddHostedService(static provider => new EnsureSchemaService(provider.GetRequiredService<NpgsqlAggregateStore>()));
         return builder;

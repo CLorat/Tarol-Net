@@ -60,9 +60,10 @@ public static class NpgsqlQueriesTarolBuilderExtensions
         dataSource ??= static provider => provider.GetRequiredService<NpgsqlDataSource>();
         var push = options.PushCheckpoints;
         builder.Services.TryAddSingleton(provider => new NpgsqlReadModels(dataSource(provider), json,
-            options.Schema ?? provider.GetService<NpgsqlAggregateStore>()?.Schema ?? NpgsqlReadModelSchema.DefaultSchema, push));
+            options.Schema ?? provider.GetService<NpgsqlAggregateStore>()?.Schema ?? NpgsqlReadModelSchema.DefaultSchema, push, provider.GetService<TimeProvider>()));
         builder.Services.TryAddSingleton<IReadModels>(static provider => provider.GetRequiredService<NpgsqlReadModels>());
         builder.Services.TryAddSingleton<ISqlProjectionStore>(static provider => provider.GetRequiredService<NpgsqlReadModels>());
+        builder.Services.TryAddSingleton<IReadModelAdmin>(static provider => provider.GetRequiredService<NpgsqlReadModels>());
         builder.Services.TryAddSingleton(provider =>
         {
             var store = provider.GetService<NpgsqlAggregateStore>();
@@ -83,6 +84,8 @@ public static class NpgsqlQueriesTarolBuilderExtensions
                 provider.GetRequiredService<NpgsqlReadModels>().Schema, provider.GetServices<ProjectionHost>(),
                 provider.GetService<TimeProvider>(), provider.GetService<ILogger<NpgsqlProjectionPositions>>()));
             builder.Services.TryAddSingleton<IProjectionPositions>(static provider => provider.GetRequiredService<NpgsqlProjectionPositions>());
+            builder.Services.AddSingleton(new ReadinessCheck("checkpoint-listen", static provider =>
+                provider.GetRequiredService<NpgsqlProjectionPositions>().IsListening ? null : "the checkpoint LISTEN connection is down"));
         }
         return builder.AddProjectionPositions();
     }

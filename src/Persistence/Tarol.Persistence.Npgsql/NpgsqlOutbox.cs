@@ -22,7 +22,7 @@ namespace Tarol.Persistence.Npgsql;
 /// listens on one connection per outbox; it costs writers throughput (docs/migration/sagas.md §4.3), so it is opt-in.
 /// Dispose the outbox to close that connection.
 /// </remarks>
-public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IAsyncDisposable
+public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetention, IAsyncDisposable
 {
     private readonly NpgsqlDataSource _db;
     private readonly EventCodec _codec;
@@ -151,6 +151,24 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IAsyncDisposable
                 ? reader.GetFieldValue<DateTimeOffset>(0)
                 : Option.None;
     }
+
+
+    /// <inheritdoc />
+    /// <remarks>Deletes the oldest first, on the <c>dead_at</c> index of schema version 2, with one audit row per call.</remarks>
+    public async Task<int> Purge(DateTimeOffset olderThan, int max, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        await using var command = _db.CreateCommand(_sql.Purge);
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = olderThan.UtcDateTime });
+        command.Parameters.Add(new NpgsqlParameter { Value = max });
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
+        command.Parameters.Add(new NpgsqlParameter { Value = actor });
+        return (int)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as long? ?? 0);
+    }
+
+    /// <inheritdoc />
+    string IDeadLetterRetention.Kind => DeadLetterKinds.Reactions;
 
     /// <summary>The kind of these dead letters: <see cref="DeadLetterKinds.Reactions"/>.</summary>
     string IDeadLetterSource.Kind => DeadLetterKinds.Reactions;
@@ -397,6 +415,13 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IAsyncDisposable
             """;
 
         private const string DeadColumns = "d.id, d.reaction, d.tenant, d.type, d.stream_id, d.event_id, d.attempts, d.last_error, d.dead_at";
+
+        public string Purge => $"""
+            WITH d AS (DELETE FROM {schema}.outbox_dead WHERE id IN (SELECT id FROM {schema}.outbox_dead WHERE dead_at < $1 ORDER BY dead_at LIMIT $2) RETURNING id),
+            a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
+                  SELECT $3, $4, 'purge', 'reactions', jsonb_build_object('rows', count(*), 'before', $1) FROM d HAVING count(*) > 0)
+            SELECT count(*) FROM d
+            """;
 
         public string DeadPage => $"""
             SELECT {DeadColumns} FROM {schema}.outbox_dead d

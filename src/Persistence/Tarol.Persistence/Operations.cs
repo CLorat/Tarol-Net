@@ -158,3 +158,57 @@ public interface IDeadLetterSource
     /// <returns><see langword="false"/> when there is no such dead letter.</returns>
     Task<bool> Discard(long id, string actor, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A condition of readiness (step 15, O-2): a package registers one as a singleton, and <c>Tarol.Operations</c>' <c>ready</c>
+/// check fails while it reports a problem (e.g. the schema is not ensured yet, the checkpoint <c>LISTEN</c> is down).
+/// </summary>
+/// <param name="Name">What is checked, e.g. <c>schema:tarol</c>.</param>
+/// <param name="Problem">Services in, <see langword="null"/> when ready, else what is wrong. Cheap and synchronous: no query.</param>
+public sealed record ReadinessCheck(string Name, Func<IServiceProvider, string?> Problem);
+
+/// <summary>One version of a projection as the admin entry lists it (step 15, O-5).</summary>
+/// <param name="Name">The projection.</param>
+/// <param name="Version">Its version.</param>
+/// <param name="State"><c>building</c> or <c>current</c>.</param>
+/// <param name="Rows">Rows of its table, estimated (<c>reltuples</c>; −1 → 0 before the first <c>ANALYZE</c>).</param>
+/// <param name="Bytes">The table's size with its indexes.</param>
+/// <param name="Superseded">Whether a newer version of the same name exists (a candidate for <c>DropVersion</c>).</param>
+public sealed record ProjectionVersion(string Name, int Version, string State, long Rows, long Bytes, bool Superseded);
+
+/// <summary>The read models' versions for the admin entry (step 15): listed, and old ones dropped explicitly (QR-3, O-5).</summary>
+public interface IReadModelAdmin
+{
+    /// <summary>Every stored projection version, by name then version.</summary>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The versions.</returns>
+    Task<IReadOnlyList<ProjectionVersion>> Versions(CancellationToken cancellationToken);
+
+    /// <summary>Drops an old version's table and checkpoint, audited with <paramref name="actor"/>.</summary>
+    /// <param name="name">The projection.</param>
+    /// <param name="version">The old version.</param>
+    /// <param name="actor">Who asked.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>A task.</returns>
+    /// <exception cref="InvalidOperationException">The version is the newest of its name, or this process uses it.</exception>
+    /// <exception cref="TimeoutException">Another session still reads the table.</exception>
+    Task DropVersion(string name, int version, string actor, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// A dead-letter source whose rows can be purged by age (step 15, O-5: the optional <c>DeadRetention</c> of
+/// <c>Tarol.Operations</c>, run as the system job <c>tarol.purge-dead</c>). Dead letters are kept unless it is configured.
+/// </summary>
+public interface IDeadLetterRetention
+{
+    /// <summary>The kind it purges (<see cref="IDeadLetterSource.Kind"/>).</summary>
+    string Kind { get; }
+
+    /// <summary>Deletes up to <paramref name="max"/> dead letters given up before <paramref name="olderThan"/>, audited as one row.</summary>
+    /// <param name="olderThan">The cut-off.</param>
+    /// <param name="max">The most rows of this call.</param>
+    /// <param name="actor">Who purges (the system job's name).</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>How many were deleted.</returns>
+    Task<int> Purge(DateTimeOffset olderThan, int max, string actor, CancellationToken cancellationToken);
+}
