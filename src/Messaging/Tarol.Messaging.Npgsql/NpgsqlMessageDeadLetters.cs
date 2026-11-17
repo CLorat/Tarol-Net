@@ -130,8 +130,11 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
         await using var command = _db.CreateCommand(_page);
         command.Parameters.Add(new() { Value = query.After });
         command.Parameters.Add(new() { Value = query.Limit });
-        command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.Text,
-            Value = query.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value.ToString("D", CultureInfo.InvariantCulture) : DBNull.Value });
+        command.Parameters.Add(new()
+        {
+            NpgsqlDbType = NpgsqlDbType.Text,
+            Value = query.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value.ToString("D", CultureInfo.InvariantCulture) : DBNull.Value
+        });
         command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)query.Name ?? DBNull.Value });
         return await Read(command, cancellationToken).ConfigureAwait(false);
     }

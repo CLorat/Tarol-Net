@@ -37,7 +37,12 @@ description: >-
    event id): a lease can expire and the row run twice. Dead letters: `DeadLetters(max, ct)`, `Redrive(id, ct)`.
 10. **Job rows**: `store.Jobs` (`IJobRows`) is used by the `Tarol.Jobs` host (skill `tarol-jobs`); read `Rows`, `DeadJobs`,
    `Overdue` and call `Redrive(id)` from admin code; never update `tarol.jobs` by hand (pause a job with configuration).
-11. **Query** the state with SQL on `tarol.streams` (`state->>'lot'`), always with `tenant = …` and `type = '<StreamType>'`.
+11. **Operations** (step 15): the data source `UseNpgsqlStore(connectionString)` builds traces Npgsql only inside an
+   activity (`TraceRootCommands = true` opts out; `builder.TraceOnlyInActivities()` on a data source you build). The store
+   registers the snapshot signals (`tarol.reactions.oldest_due`, `.backlog`, `.dead`, `tarol.jobs.overdue`, `.dead`) and
+   its dead-letter sources; their `Redrive`/`Discard(id, actor)` write `operations_audit` in the same statement.
+   `UseNpgsqlStore(Func)` registers the data source as `NpgsqlDataSource` unless one is registered.
+12. **Query** the state with SQL on `tarol.streams` (`state->>'lot'`), always with `tenant = …` and `type = '<StreamType>'`.
 
 ## Example
 

@@ -82,6 +82,9 @@ Logs `LoggerMessage` 14001–14010 (retry, dead job, lease lost, schedule change
 `ActivitySource "Tarol.Jobs"`: one activity per occurrence, `job <name>`, tags `tarol.job`, `tarol.occurrence`, `tarol.tenant`,
 `tarol.attempt`, `tarol.verdict`; the job's commits store its `traceparent`, so reactions link to it.
 
+Metrics (step 15): meter `"Tarol.Jobs"`: `tarol.jobs.occurrences` (`{occurrence}`, outcome ran | retried | dead |
+skipped), `tarol.jobs.duration`, `tarol.jobs.lateness` (start − occurrence) in seconds.
+
 ## AOT
 
 No reflection: generated entries are a `switch`, job classes are resolved from DI, the parser is plain code. Zones resolve

@@ -52,6 +52,15 @@ Raise `Version` on the row record and deploy: the host builds `rm_<name>_v<n+1>`
 version's table keeps serving the old code; the new version reports `Building` until it reaches the head. Drop the old one
 with `DropVersion` once no running code reads it. Never `ALTER` or `TRUNCATE` a read table.
 
+## Operations (step 15)
+
+* **One runner per projection version** (`SingleRunner`, on by default): `NpgsqlProjectionGate` holds a session
+  `pg_try_advisory_lock` per version on a connection of its own; the other hosts wait and take over within a second when
+  the runner's session ends. Without it 4 runners wasted 75 % of their batches. The checkpoint guard stays.
+* **`DropVersion`** tries with `lock_timeout` (`DropLockTimeout` 200 ms, `DropAttempts` 5) and throws `TimeoutException`
+  while a session reads the old table, so readers never queue behind it.
+* **Lag**: the snapshot signal `tarol.projections.lag` (seconds, per projection), for `Tarol.Operations`.
+
 ## Links
 
 * Concept: `docs/architecture/queries.md`; decisions and measurements: `docs/migration/queries.md`.

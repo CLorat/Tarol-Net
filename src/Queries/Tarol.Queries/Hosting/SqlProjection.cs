@@ -1,5 +1,5 @@
-using System.Diagnostics.Metrics;
 using System.Data.Common;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Tarol.Persistence;
 

@@ -118,6 +118,15 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 | `[Scheduled("0 0 2 * * *")]` (seconds), `L`, `W`, `#`, `?` | TCHG010 |
 | `DateTime.Now` or `o.At.Day` for "today" in a zone | `o.Local` (`At` is UTC) |
 
+## Operations (step 15)
+
+Every run is one `Internal` span `change <Name>` of the source `"Tarol.Changes"` (`ChangePipeline.ActivitySourceName`),
+a child of the request, reaction or job that runs it, and one count of `tarol.changes.runs` (`{change}`) plus
+`tarol.changes.duration` (`s`) on the meter `"Tarol.Changes"`, tagged `tarol.change` (the change's type name) and
+`tarol.outcome`: `committed`, `conflict`, `invalid` (also 422), `denied`, `not_found`, `error`. Logs: 7001 an error
+result (Warning), 7002 a conflict (Debug), 7003 an exception (Error). For your own numbers use your own meter, never
+`tarol.*` names, and never the tenant as a tag.
+
 ## AOT
 
 No reflection: `Run<T>` is generic over the aggregate, `GeneratedChanges.Dispatch`, `GeneratedReactions` and `GeneratedJobs` are generated

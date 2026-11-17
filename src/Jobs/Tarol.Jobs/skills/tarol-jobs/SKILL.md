@@ -105,5 +105,8 @@ Pass a `ReactionSet` to drain the reactions the jobs cause (`test.Reactions`). J
 
 No reflection: the generated `GeneratedJobs` is a `switch`, job classes are resolved from DI (`TJob` keeps its public
 constructors), the parser is plain code (no cron package). Logs 14001–14010, `ActivitySource "Tarol.Jobs"` (`job <name>`,
-tags `tarol.job`, `tarol.occurrence`, `tarol.tenant`, `tarol.attempt`, `tarol.verdict`). Zones resolve from the OS
+tags `tarol.job`, `tarol.occurrence`, `tarol.tenant`, `tarol.attempt`, `tarol.verdict`). Meter `"Tarol.Jobs"` (step 15,
+`JobHost.MeterName`): `tarol.jobs.occurrences` (`{occurrence}`, `tarol.outcome` = ran | retried | dead | skipped),
+`tarol.jobs.duration`, `tarol.jobs.lateness` (start − occurrence, seconds). Dead jobs page with
+`IJobRows.DeadJobs(new DeadLetterQuery { After, Limit, Tenant, Name })`; `Discard(id)` drops one. Zones resolve from the OS
 (`/usr/share/zoneinfo`); an image without tzdata fails at startup for any zone but UTC.

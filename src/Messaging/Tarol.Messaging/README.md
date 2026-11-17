@@ -110,4 +110,10 @@ TMSG001 (the factory's shape), TMSG002 (two factories for one contract version),
 contract version; a warning for two prefixes in one assembly), TMSG006 (a payload or contract record is not in the app's
 JSON context), TMSG007 (consumer names collide).
 
+## Operations (step 15)
+
+Meter `"Tarol.Messaging"`: `tarol.messages.consumed` and `tarol.messages.duration` by consumer and outcome,
+`tarol.messages.published` by contract. Dead letters page with `List(DeadLetterQuery)` and are discarded with
+`Discard(id)`; the consumers' dead letters are an `IDeadLetterSource` of kind `messages`.
+
 Design: docs/architecture/messaging.md. Licence: proprietary, see LICENSE.

@@ -1,5 +1,5 @@
-using System.Diagnostics.Metrics;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;

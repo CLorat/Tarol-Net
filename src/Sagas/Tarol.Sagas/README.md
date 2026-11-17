@@ -80,6 +80,9 @@ var dead = await test.DeadLetters();
 * Hosting: `ReactionHost` is a `BackgroundService`; no dependency on Aspire or ASP.NET Core. The hosting, DI and logging
   abstractions are part of .NET 11's base framework.
 
+Metrics (step 15): meter `"Tarol.Sagas"`: `tarol.reactions.runs` (`{row}`, outcome completed | retried | buried),
+`tarol.reactions.duration`, `tarol.reactions.lateness` (start − due) in seconds, from the host's `IMeterFactory`.
+
 ## AOT
 
 No reflection: the reaction set is generated, the worker calls the pipeline through it. The smoke app publishes with 0 IL

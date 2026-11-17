@@ -1,5 +1,5 @@
-using System.Text.Json.Serialization;
 using System.Diagnostics.Metrics;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Tarol.Persistence;

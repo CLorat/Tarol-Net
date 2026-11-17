@@ -140,6 +140,14 @@ test["billing"].Store.Recorded.Count(r => r.Event.Event is Invoice.Issued).Shoul
 | `Publish(…)` without `AddReactionWorker()` in any process | rows pile up in the outbox, nothing leaves |
 | sending an e-mail or calling an API in `Execute` or a reaction | not effect-once: use an `IEffect<T>` with its key |
 
+## Operations (step 15)
+
+Meter `"Tarol.Messaging"` (`MessageConsumers.MeterName`): `tarol.messages.consumed` (`tarol.consumer`, outcome completed |
+dropped | retried | buried), `tarol.messages.duration`, `tarol.messages.published` (`tarol.contract`, outcome published |
+skipped | failed). Dead letters page with `IMessageDeadLetters.List(new DeadLetterQuery { After, Limit, Tenant, Name })`
+(`Name` = the subscription, `Tenant` = the envelope's `ce-tenant`) and `Discard(id)`; `MessageConsumers.Redrive(id, actor)`
+audits the take in `messages_dead`.
+
 ## AOT
 
 Everything is source-generated: the switch, the publication table and map, the payload and contract records through

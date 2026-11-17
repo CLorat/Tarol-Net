@@ -68,7 +68,8 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IAsyncDisposable
                 var recorded = RecordedEvents.Read(reader, 7, _codec);
                 rows.Add(new OutboxRow(reader.GetInt64(0), reader.GetGuid(1), reader.GetString(2), recorded.Event.Context.Tenant,
                     reader.GetInt32(3), reader.IsDBNull(4) ? Option.None : reader.GetString(4), recorded,
-                    reader.IsDBNull(5) ? Option.None : reader.GetString(5)) { DueAt = reader.GetFieldValue<DateTimeOffset>(6) });
+                    reader.IsDBNull(5) ? Option.None : reader.GetString(5))
+                { DueAt = reader.GetFieldValue<DateTimeOffset>(6) });
             }
             return rows;
         }

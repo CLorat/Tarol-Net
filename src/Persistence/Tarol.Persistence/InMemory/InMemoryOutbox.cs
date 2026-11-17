@@ -103,7 +103,8 @@ internal sealed class InMemoryOutbox(TimeProvider time, IOutboxReactions reactio
                 row.LeaseUntil = now + lease;
                 row.Attempts++;
                 claimed.Add(new OutboxRow(row.Id, row.Claim.Value, row.Reaction, row.Event.Event.Context.Tenant, row.Attempts, row.LastError,
-                    row.Event, row.Traceparent) { DueAt = row.DueAt });
+                    row.Event, row.Traceparent)
+                { DueAt = row.DueAt });
             }
             return Task.FromResult<IReadOnlyList<OutboxRow>>([.. claimed.OrderBy(r => r.Id)]);
         }

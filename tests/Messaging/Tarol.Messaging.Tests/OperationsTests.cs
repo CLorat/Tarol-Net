@@ -19,7 +19,13 @@ public sealed class OperationsTests
     {
         var message = new Message
         {
-            Id = Guid.NewGuid(), Type = topic, Version = 1, Source = "billing", Time = DateTimeOffset.UnixEpoch, Tenant = tenant, Data = "{}"u8.ToArray(),
+            Id = Guid.NewGuid(),
+            Type = topic,
+            Version = 1,
+            Source = "billing",
+            Time = DateTimeOffset.UnixEpoch,
+            Tenant = tenant,
+            Data = "{}"u8.ToArray(),
             Correlation = Id<ICorrelation>.New(),
         };
         return new Incoming(message, 3, "billing", message.Data, topic);
