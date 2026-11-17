@@ -702,3 +702,15 @@ first starts, 0 failures); the three bus/`messages_dead` schema tests 10 times: 
 ### 15.6 Suppressions
 
 None.
+
+### 15.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `9291f8f` (the code of this PR), in a separate detached worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1650 of 1650** (1591 at the start, + 59: `SchemaUpgradeTests` 7,
+  `SchemaUpgradeLockTests` 1, the three contract suites on an upgraded schema, 2 bus/`messages_dead` tests);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **22 apps, 0 IL warnings**, all checks passed (the upgrade
+  script and `EnsureSchema(VerifyOnly)` of `Tarol.Persistence.Npgsql.AotSmoke` natively);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the repeated runs of §15.4: 10 of 10 each.
