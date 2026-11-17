@@ -75,6 +75,16 @@ else
                                           && (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), default)) is [{ Attempts: 1 } again]
                                           && await store.Outbox.Complete(again, default));
         Check("purge keys", await store.PurgeKeys(TimeProvider.System.GetUtcNow().AddDays(1), 100, default) == 1);
+        var due = DateTimeOffset.FromUnixTimeSeconds(TimeProvider.System.GetUtcNow().ToUnixTimeSeconds() - 1);
+        Check("job rows sync", (await store.Jobs.Sync([new JobSchedule("Nightly", Option.None, "0 2 * * * UTC", true, due)], default)) is [{ Kind: JobSyncKind.Added }]);
+        Check("job row claimed once (SKIP LOCKED)", (await store.Jobs.Claim(TimeSpan.FromMinutes(1), default)).TryGetValue(out JobRow? job)
+                                                    && job.NextAt == due && (await store.Jobs.Claim(TimeSpan.FromMinutes(1), default)).TryGetValue(out None _));
+        Check("job row bury and re-drive", await store.Jobs.Bury(job!, due.AddDays(1), "smoke", default)
+                                          && (await store.Jobs.DeadJobs(10, default)) is [{ Occurrence: var dead } deadJob] && dead == due
+                                          && await store.Jobs.Redrive(deadJob.Id, default)
+                                          && (await store.Jobs.Claim(TimeSpan.FromMinutes(1), default)).TryGetValue(out JobRow? redrive)
+                                          && redrive.Occurrence == due && await store.Jobs.Advance(redrive, redrive.NextAt, default)
+                                          && (await store.Jobs.DeadJobs(10, default)).Count == 0);
     }
     finally
     {
