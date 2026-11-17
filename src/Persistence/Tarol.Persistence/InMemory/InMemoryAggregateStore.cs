@@ -59,10 +59,14 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         _lookupDefinitions = options.Lookups ?? new StoreLookups();
         _outbox = options.Reactions is { } reactions ? new InMemoryOutbox(time, reactions) : null;
         _outboxPort = _outbox ?? new InMemoryOutbox(time, OutboxReactions.From(static _ => ReadOnlySpan<string>.Empty));
+        Jobs = new InMemoryJobRows(time);
     }
 
     /// <summary>The outbox: rows of <see cref="InMemoryStoreOptions.Reactions"/>, written in each commit (empty without reactions).</summary>
     public IOutbox Outbox => _outboxPort;
+
+    /// <summary>The store's job rows (step 14, J-4): one row per (tenant, job), claimed and leased on the store's clock.</summary>
+    public IJobRows Jobs { get; }
 
     /// <summary>Every recorded event of every stream, in commit order.</summary>
     public IReadOnlyList<RecordedEvent> Recorded
