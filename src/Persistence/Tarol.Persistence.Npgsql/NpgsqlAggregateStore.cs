@@ -75,7 +75,11 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         _notifyFeed = options.NotifyFeed;
         FeedChannel = options.Schema + "_feed";
         Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema, options.Reactions, options.Notify);
+        Jobs = new NpgsqlJobRows(dataSource, time, options.Schema);
     }
+
+    /// <summary>The job rows (<c>jobs</c>, <c>jobs_dead</c>; step 14): one row per (tenant, job), claimed by the job host.</summary>
+    public NpgsqlJobRows Jobs { get; }
 
     /// <summary>Claims, completes, retries and buries the outbox rows the commits wrote (<see cref="NpgsqlStoreOptions.Reactions"/>).</summary>
     public NpgsqlOutbox Outbox { get; }
