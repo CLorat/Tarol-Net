@@ -721,3 +721,114 @@ answered 429):
   (the Primitives and Persistence apps with the new checks);
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the updated skills are in the packages);
 * `DataProtectionCodecTests.One_Subject_Key_Serves_Four_Threads` alone in Release: 25 of 25.
+
+## 16. Implementation 16B: key tables, `subjects` columns, a sealed store (schema version 3)
+
+PR 16B builds §6.3 on top of 16A.
+
+### 16.1 Public API
+
+`Tarol.Persistence.Npgsql`:
+* `NpgsqlSchema.Version = 3`, `NpgsqlSchema.SealingVersion = 3`. The version 3 steps are `tenant_keys`, `subject_keys`,
+  `events.subjects` and `streams.subjects` (`uuid[] NULL`), and the GIN index `events_subjects`, built `CONCURRENTLY`
+  with the upgrader's invalid-index cleanup and `lock_timeout` (O-4).
+* `NpgsqlKeyStore : IKeyStore, IAsyncDisposable` and `NpgsqlKeyStoreOptions` (`Schema`, `MaxCachedKeys` = 100,000,
+  `IdleTime` = 1 h). It also has `StartListening`, `Channel` (`<schema>_erased`), `ClearCache`, `CachedKeys` and
+  `KeyQueries`. Logs 8006–8008 (Debug).
+* `NpgsqlStoreOptions.Keys`. With it the store:
+  * seals on `Append` and opens on `Load`, `ReadAll`, the outbox claim, `RebuildStates` and `ReadStream`;
+  * stores blind indexes for personal lookups;
+  * raises `compatible_from` to 3 on `EnsureSchema`.
+* `NpgsqlAggregateStore` gains:
+  * `ReadStream(StreamRef)`, `StreamsOf(tenant, subject)`;
+  * `EventsOf(tenant, subject)` and `StateOf(stream, subject)`, opened with that subject's key only;
+  * `DeletePersonalLookups(tenant, streams)`, `DeleteStreams(type, olderThan, batch)`;
+  * `SealHistory<T>(batch)`.
+* `NpgsqlTarolBuilderExtensions.UseNpgsqlKeyStore`. `UseNpgsqlStore` takes the container's `IKeyStore` when the options
+  set none.
+
+`Tarol.Persistence` (16A's package, needed here):
+* `EventCodec.SealStored<T>`: a history rewrite, in which an erased subject's field becomes `null`;
+* `EventCodec.PersonalEventTypes<T>`;
+* `StoreLookups.PersonalOf(streamType)`.
+
+### 16.2 Deliberate differences from §6.3 and §11
+
+1. **New subject keys are created just before the commit, not in its batch.** `IKeyStore.Keys(create: true)` inserts them
+   with `ON CONFLICT DO NOTHING` and reads them back. A key needs the tenant key to be wrapped and the ring needs it to
+   seal, so it must exist before the payload is sealed. In the batch, a concurrent creation of the same subject would
+   seal under a key that lost the race. A failed commit leaves an unused key (harmless, §2.1). A cached subject costs
+   nothing; a new one costs one round trip more.
+2. **The subjects of a sealed payload are read from its envelopes** (`EventCodec.SealedSubjects`, about 0.2 µs per event,
+   §4.2) rather than from the `subjects` column. The column is what the subject queries and the GIN index use.
+3. **Only a store with keys writes the `subjects` columns.** A store without keys runs the SQL of version 2. It keeps
+   working on a schema that is not upgraded yet (the existing test "a populated version 1 database is upgraded while
+   writers commit" commits before `EnsureSchema`), and it stores rows exactly as before.
+4. **The version 3 steps are compatible from 1, not 2** (§14 item 1 said "keep `compatible_from` 2"). The steps are
+   additive, and code of version 1 and 2 never touches the new tables or columns, so it runs on a version 3 schema that
+   does not seal. A sealing store raises it to 3. **Asked of the owner (§16.3).**
+5. **`ReadStream` returns `PositionedEvent`s** (with the `RecordedEvent`'s context and position) instead of
+   `StreamEvent`s, so a projection re-fold (16C) can call its `When(event, recorded)` methods.
+6. **`DeleteStreams` uses `streams.updated_at`** (the last commit's time) for "older than", and locks the expired stream
+   rows `FOR UPDATE SKIP LOCKED`: a racing commit waits, then finds no stream row and reports a version conflict.
+
+### 16.3 Owner's answers (16B)
+
+To be recorded at once when given.
+
+### 16.4 Changes against steps 7–15 and 16A
+
+* Schema version 3. Every integration test that pinned version 2 now reads `NpgsqlSchema.Version`.
+* The outbox claim decodes the claimed page with keys: reactions see the events opened, as a load does.
+* `RecordedEvents` reads raw rows and decodes a page with one key call per tenant.
+* The shared contract model `Badge.Name` is `[PersonalData] string?`. `Member` is therefore a sealed aggregate wherever a
+  store has keys, and an unmarked one elsewhere.
+* A bug that measurement found: the key cache's bound evicted by ordering the live `ConcurrentDictionary` while other
+  threads added keys, which throws. It now orders a snapshot. A regression test with a bound of 50 and four writers
+  passes; the race is timing-dependent, and the test has not been shown to fail on the old code.
+
+### 16.5 Tests
+
+`Tarol.Persistence.Npgsql.IntegrationTests` (+19 data-protection tests, plus the contract runs below):
+* the probe's scenarios on the real store:
+  * no plaintext in `payload` or `state`, plain fields queryable, `subjects` recorded;
+  * another process opens every field, and an order opens with the customer's key;
+  * a cached key costs no key query;
+  * a relabelled envelope throws;
+  * opening runs before upcasting;
+  * the `NOTIFY` evicts the key in another process, bounded by the notification;
+  * after erasure the customer loads with personal fields `null`, the order keeps its total, other subjects are intact,
+    and the tombstone holds no key;
+  * new personal data is refused on the subject's own stream and on an order, while a non-personal commit is accepted;
+  * the subject's streams and events are found and opened with its key only;
+  * the blind index of a personal lookup: `Find`, uniqueness, deletion, other tenants;
+  * a tenant erasure;
+* one key query for a feed page of 50 subjects;
+* `DeleteStreams` removes expired streams with their events and lookups, and skips a stream with a pending reaction;
+* an unmarked aggregate is stored byte-identically by a sealing and a plain store (`payload` and `subjects` NULL);
+* the rolling-deploy rule: version 2 code runs on a plain version 3 schema and refuses one a sealing store raised;
+* a version 2 database upgraded to 3 while four "version 2 writers" insert: no error, the GIN index valid;
+* `SealHistory` seals events and states written by a plain store, a rerun finds nothing, and erasure then reaches them;
+* four writers seal concurrently;
+* the key cache stays bounded under four writers.
+
+Contract runs with sealed aggregates: `SealedStoreContractTests` and `SealedOutboxContractTests` (PostgreSQL) and
+`InMemorySealedStoreContractTests`. The unsealed runs are unchanged.
+
+`Tarol.Persistence.Npgsql.AotSmoke`: a sealing store raises `compatible_from`, stores no plaintext, opens, erases, and
+reads the erased field as `null`, natively (0 IL warnings).
+
+### 16.6 Skill checklist (`tarol-persistence-npgsql`, updated)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| seal personal data in PostgreSQL | `NpgsqlKeyStore` + `NpgsqlStoreOptions.Keys` (or `UseNpgsqlKeyStore()` with an `IKeyEncryptionKey`) | a key store on another schema; encrypting in the app |
+| marked a member of an existing aggregate | `SealHistory<T>(500, ct)` once | expecting old events to be sealed by themselves |
+| erase by hand in SQL | none: `IDataSubjects.EraseSubject` | `UPDATE subject_keys SET wrapped = NULL` (no `NOTIFY`, no forgetting, no audit) |
+| a rolling deploy into sealing | deploy, then let a sealing pod run `EnsureSchema` (old pods then refuse) | turning keys on while pods from before 16B still serve |
+
+### 16.7 Suppressions
+
+None.
+
+### 16.8 Verification
