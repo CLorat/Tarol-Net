@@ -73,4 +73,29 @@ internal static class Sources
             }
         }
         """;
+
+    public const string Jobs = GeneratorTestHost.Usings + """
+        namespace Shop;
+
+        // a creation every night in a zone
+        public sealed partial record OpenNightlyOrder : ICreation<Order>
+        {
+            [Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")]
+            public static OpenNightlyOrder From(JobOccurrence o) => new();
+
+            public Result<Order> Execute(ChangeContext context) => Order.Open();
+        }
+
+        // a change per tenant with a pinned name, every missed occurrence, names in the fields
+        public static partial class Closing
+        {
+            public sealed partial record CloseHouseOrder(Id<Order> Order) : IChange<Order>
+            {
+                [Scheduled("*/15 9-17 * * MON-FRI", Name = "Orders.CloseHouse", Missed = Missed.All, PerTenant = true)]
+                internal static CloseHouseOrder From(JobOccurrence o) => new(Id<Order>.Empty);
+
+                public Result Execute(Order order, ChangeContext context) => order.Close();
+            }
+        }
+        """;
 }

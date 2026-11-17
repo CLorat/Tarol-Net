@@ -156,6 +156,27 @@ public class DiagnosticTests
     }
 
     [Fact]
+    public void TVAL006_Exempt_In_A_Scheduled_Factory_Of_A_Job()
+    {
+        // step 14A: [Scheduled] ships in Tarol.Changes; the factory maps an occurrence, the pipeline validates the change.
+        var found = Of("TVAL006", """
+            namespace Tarol.Changes { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class ScheduledAttribute(string c) : System.Attribute; public sealed record JobOccurrence(int Day); }
+            namespace Elsewhere { [System.AttributeUsage(System.AttributeTargets.Method)] public sealed class ScheduledAttribute(string c) : System.Attribute; }
+            public readonly partial record struct Q([Range(1, 2)] int Value);
+            public sealed partial record Validated(Q Amount) : IValidatable
+            {
+                [Tarol.Changes.Scheduled("0 2 * * *")]
+                public static Validated From(Tarol.Changes.JobOccurrence o) => new(new Q(o.Day));    // exempt
+                [Elsewhere.Scheduled("0 2 * * *")]
+                public static Validated Foreign(Tarol.Changes.JobOccurrence o) => new(new Q(o.Day)); // reported: not Tarol's attribute
+            }
+            """);
+
+        found.Length.ShouldBe(1);
+        found[0].Location.GetLineSpan().StartLinePosition.Line.ShouldBe(9);
+    }
+
+    [Fact]
     public void TVAL006_Exempt_In_A_Consumer_Factory_Of_Messaging()
     {
         // step 11: [Consumes] ships in Tarol.Messaging; the factory maps another system's contract, the pipeline validates it.

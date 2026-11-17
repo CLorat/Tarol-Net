@@ -77,3 +77,16 @@ internal sealed record ReactionSite(string Name, string Change, string Event, Lo
 
 /// <summary>The transform's result for one factory.</summary>
 internal sealed record DiscoveredReaction(ReactionModel? Model, ReactionSite? Site, EquatableArray<DiagnosticInfo> Diagnostics);
+
+/// <summary>One [Scheduled] factory: what the job set is emitted from (no locations).</summary>
+internal sealed record JobModel(string Name, string Change, string Factory, string Cron, string TimeZone, int Missed, bool PerTenant)
+    : System.IComparable<JobModel>
+{
+    public int CompareTo(JobModel? other) => other is null ? 1 : string.CompareOrdinal(Name, other.Name);
+}
+
+/// <summary>Where a job is declared, for TCHG011 only.</summary>
+internal sealed record JobSite(string Name, string Change, LocationInfo? Location);
+
+/// <summary>The transform's result for one [Scheduled] factory.</summary>
+internal sealed record DiscoveredJob(JobModel? Model, JobSite? Site, EquatableArray<DiagnosticInfo> Diagnostics);

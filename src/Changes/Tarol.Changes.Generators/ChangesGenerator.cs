@@ -7,7 +7,7 @@ namespace Tarol.Changes.Generators;
 ///     Generates, for every change (a type implementing <c>IChange&lt;T&gt;</c>, <c>ICreation&lt;T&gt;</c> or <c>ILoads&lt;T&gt;</c>),
 ///     <c>IChange&lt;T&gt;.Target</c> from its only <c>Id&lt;T&gt;</c> member and the loads of its <c>[Read]</c> members; and per
 ///     assembly a typed <c>GeneratedChanges.Dispatch(object)</c> and, for <c>[OnEvent&lt;T&gt;]</c> factories, a public
-///     <c>GeneratedReactions.Set</c>. Diagnostics TCHG001–TCHG008.
+///     <c>GeneratedReactions.Set</c>, and for <c>[Scheduled]</c> factories a public <c>GeneratedJobs.Set</c>. Diagnostics TCHG001–TCHG011.
 ///     <para>
 ///         The transform yields a symbol-free, location-free <see cref="ChangeModel"/> (names and types, never bodies), so
 ///         editing an <c>Execute</c> body or an unrelated file regenerates nothing (incrementality tests).
@@ -63,6 +63,29 @@ public sealed class ChangesGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(sites, static (spc, all) =>
         {
             foreach (var diagnostic in ReactionDiscovery.Duplicates(all))
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
+        });
+
+        // scheduled jobs: [Scheduled] factories → one public GeneratedJobs per assembly (step 14A, jobs.md §3)
+        var jobs = context.SyntaxProvider
+            .ForAttributeWithMetadataName(JobDiscovery.AttributeName, static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, ct) => JobDiscovery.Transform(ctx, ct))
+            .SelectMany(static (found, _) => found);
+        context.RegisterSourceOutput(jobs.Where(static j => !j.Diagnostics.IsEmpty), static (spc, j) =>
+        {
+            foreach (var diagnostic in j.Diagnostics)
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
+        });
+        var jobModels = jobs.Where(static j => j.Model is not null).Select(static (j, _) => j.Model!).WithTrackingName("JobModels").Collect();
+        context.RegisterSourceOutput(jobModels.Combine(assembly), static (spc, pair) =>
+        {
+            if (!pair.Left.IsEmpty)
+                spc.AddSource("GeneratedJobs.g.cs", JobEmitter.Emit(pair.Left, pair.Right));
+        });
+        var jobSites = jobs.Where(static j => j.Site is not null).Select(static (j, _) => j.Site!).Collect();
+        context.RegisterSourceOutput(jobSites, static (spc, all) =>
+        {
+            foreach (var diagnostic in JobDiscovery.Duplicates(all))
                 spc.ReportDiagnostic(diagnostic.ToDiagnostic());
         });
     }

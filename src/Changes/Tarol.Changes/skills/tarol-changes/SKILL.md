@@ -6,7 +6,7 @@ description: >-
   (idempotency key, expected version, principal), ChangeOutcome, IChangeAuthorization, AddTarol, Delivery.Classify, the
   generated GeneratedChanges.Dispatch, the
   ChangeTest helper, reactions to own events ([OnEvent<T>] factories, the generated GeneratedReactions.Set, ReactionSet),
-  and fixing TCHG001-TCHG008. Do not decompile or web-search, do not hand-write a load/commit handler or an event
+  scheduled changes ([Scheduled] factories, JobOccurrence, GeneratedJobs.Set, JobSet), and fixing TCHG001-TCHG011. Do not decompile or web-search, do not hand-write a load/commit handler or an event
   handler class, do not call Raise from a change, do not retry inside Execute.
 ---
 # Tarol.Changes
@@ -41,6 +41,11 @@ description: >-
    `[OnEvent<T>(Name = "OldName")]` before renaming (TCHG007 for duplicates). A timeout: `DueAt = nameof(Ns.Event.Member)`
    (a `DateTimeOffset` of the event, TCHG008). Answer late, repeated or stale events with `Result.Success()`, never a
    Conflict: workers retry every Conflict and then dead-letter it.
+10. **A recurring change is a scheduled factory**: `[Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")] public static X
+   From(JobOccurrence o) => new(…);` (static, returns the change, one `JobOccurrence`; TCHG009; 5-field Unix cron, TCHG010).
+   `GeneratedJobs.Set` goes to `AddJobs` (`Tarol.Jobs`, skill `tarol-jobs`). It runs as `Actor.System("Jobs." + name)` in a
+   new conversation, keyed (tenant, `job:<name>`, occurrence). `o.At` is UTC whole seconds; use `o.Local` for the zone's day.
+   `Name =` pins the stored name (TCHG011 for duplicates), `Missed =` and `PerTenant =` as in `tarol-jobs`.
 
 ## Example
 
@@ -109,8 +114,11 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 | two changes with one reaction name, two factories of one change for one event | TCHG007 |
 | `DueAt = nameof(Settlement.DeadlineSet.DueAt)` in a change with a member `Settlement` | CS1061 (binds to the member): qualify the type |
 | `Error.Conflict` for an event that arrives late or twice | retried, then a dead letter; return `Result.Success()` |
+| `[Scheduled]` factory with no or another parameter than `JobOccurrence` | TCHG009 |
+| `[Scheduled("0 0 2 * * *")]` (seconds), `L`, `W`, `#`, `?` | TCHG010 |
+| `DateTime.Now` or `o.At.Day` for "today" in a zone | `o.Local` (`At` is UTC) |
 
 ## AOT
 
-No reflection: `Run<T>` is generic over the aggregate, `GeneratedChanges.Dispatch` and `GeneratedReactions` are generated
+No reflection: `Run<T>` is generic over the aggregate, `GeneratedChanges.Dispatch`, `GeneratedReactions` and `GeneratedJobs` are generated
 `switch`es over static arrays, `[Read]` loads are generated. List your aggregates' state member types in your `JsonSerializerContext` for the stored state.
