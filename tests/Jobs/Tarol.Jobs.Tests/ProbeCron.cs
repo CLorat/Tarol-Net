@@ -20,14 +20,16 @@ internal sealed class ProbeCron
     public ProbeCron(string expression)
     {
         var f = expression.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (f.Length != 5) throw new FormatException("5 fields expected: " + expression);
+        if (f.Length != 5)
+            throw new FormatException("5 fields expected: " + expression);
         Fill(f[0], _minute, 0, 59);
         Fill(f[1], _hour, 0, 23);
         _domStar = Fill(f[2], _dom, 1, 31);
         Fill(f[3], _month, 1, 12);
         var dow = new bool[8];
         _dowStar = Fill(f[4], dow, 0, 7);
-        for (var i = 0; i < 7; i++) _dow[i] = dow[i];
+        for (var i = 0; i < 7; i++)
+            _dow[i] = dow[i];
         _dow[0] |= dow[7];
         _hours = Enumerable.Range(0, 24).Where(h => _hour[h]).ToArray();
         _minutes = Enumerable.Range(0, 60).Where(m => _minute[m]).ToArray();
@@ -40,20 +42,27 @@ internal sealed class ProbeCron
         foreach (var part in field.Split(','))
         {
             var (range, step) = part.Split('/') is [var r, var s] ? (r, int.Parse(s, CultureInfo.InvariantCulture)) : (part, 1);
-            if (step < 1) throw new FormatException("step < 1: " + field);
+            if (step < 1)
+                throw new FormatException("step < 1: " + field);
             int lo, hi;
-            if (range == "*") (lo, hi) = (min, max);
-            else if (range.Split('-') is [var a, var b]) (lo, hi) = (int.Parse(a, CultureInfo.InvariantCulture), int.Parse(b, CultureInfo.InvariantCulture));
-            else { lo = int.Parse(range, CultureInfo.InvariantCulture); hi = part.Contains('/') ? max : lo; }
-            if (lo < min || hi > max || lo > hi) throw new FormatException("out of range: " + field);
-            for (var v = lo; v <= hi; v += step) set[v] = true;
+            if (range == "*")
+                (lo, hi) = (min, max);
+            else if (range.Split('-') is [var a, var b])
+                (lo, hi) = (int.Parse(a, CultureInfo.InvariantCulture), int.Parse(b, CultureInfo.InvariantCulture));
+            else
+            { lo = int.Parse(range, CultureInfo.InvariantCulture); hi = part.Contains('/') ? max : lo; }
+            if (lo < min || hi > max || lo > hi)
+                throw new FormatException("out of range: " + field);
+            for (var v = lo; v <= hi; v += step)
+                set[v] = true;
         }
         return star;
     }
 
     private bool DayMatches(DateTime d)
     {
-        if (!_month[d.Month]) return false;
+        if (!_month[d.Month])
+            return false;
         bool dom = _dom[d.Day], dow = _dow[(int)d.DayOfWeek];
         return _domStar && _dowStar ? true : _domStar ? dow : _dowStar ? dom : dom || dow;
     }
@@ -63,12 +72,14 @@ internal sealed class ProbeCron
         var localAfter = TimeZoneInfo.ConvertTime(after, zone).DateTime;
         for (var day = localAfter.Date.AddDays(-1); day < localAfter.Date.AddYears(5); day = day.AddDays(1))
         {
-            if (!DayMatches(day)) continue;
+            if (!DayMatches(day))
+                continue;
             foreach (var h in _hours)
                 foreach (var m in _minutes)
                 {
                     var local = day.AddHours(h).AddMinutes(m);
-                    if (Instant(local, zone) is { } at && at > after) return at;
+                    if (Instant(local, zone) is { } at && at > after)
+                        return at;
                 }
         }
         return null;
@@ -81,7 +92,8 @@ internal sealed class ProbeCron
         if (zone.IsInvalidTime(local))
         {
             var probe = local;                                  // walk to the first valid minute: the end of the gap
-            while (zone.IsInvalidTime(probe)) probe = probe.AddMinutes(1);
+            while (zone.IsInvalidTime(probe))
+                probe = probe.AddMinutes(1);
             return new DateTimeOffset(probe, zone.GetUtcOffset(probe));
         }
         if (zone.IsAmbiguousTime(local))
