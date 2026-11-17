@@ -1,6 +1,8 @@
 using System.Text.Json.Serialization;
+using Npgsql;
 using Tarol.Changes;
 using Tarol.Jobs;
+using Tarol.Kernel;
 using Tarol.Primitives;
 using Tarol.Queries;
 using Tarol.Results;
@@ -35,21 +37,38 @@ public sealed partial record WriteDayReport(DateTimeOffset At, long Settled) : I
 }
 
 /// <summary>
-/// Every night at 02:15 Vienna time (the AppHost overrides it to every minute with <c>Tarol:Jobs:SettlementReport:Cron</c>):
-/// counts the settled auctions in the auction list (a projection may be read to <i>find</i> things) and records a report,
-/// keyed by the occurrence, so a re-run after a crash replays it.
+/// Every night at 02:15 Vienna time, per tenant (the AppHost overrides it to every minute with
+/// <c>Tarol:Jobs:SettlementReport:Cron</c>): counts the tenant's settled auctions in the auction list (a projection may be
+/// read to <i>find</i> things) and records a report in the tenant, keyed by the occurrence, so a re-run replays it.
 /// </summary>
 public sealed class SettlementReport(IReadModels reads) : IJob
 {
     public async ValueTask<Result> Run(JobRun run, CancellationToken cancellationToken)
     {
-        var page = await reads.Store<AuctionRow>().Search(new ListQuery(Guid.Empty) { Filters = [new ColumnFilter("settled", true)], Count = true, Limit = 1 },
+        var page = await reads.Store<AuctionRow>().Search(new ListQuery(run.Occurrence.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value : Guid.Empty) { Filters = [new ColumnFilter("settled", true)], Count = true, Limit = 1 },
             cancellationToken);
         if (!page.TryGetValue(out Page<AuctionRow>? settled))
             return page.TryGetValue(out Violation? refused) ? refused : Result.Success();
         return (await run.Create(new WriteDayReport(run.Occurrence.At, settled.Total ?? 0), "report", cancellationToken)).TryGetValue(out Violation? v)
             ? v
             : Result.Success();
+    }
+}
+
+/// <summary>
+/// The tenants of the per-tenant report: those that have auctions. A sample's directory; an application asks its own tenant
+/// registry (Tarol has none, J-6).
+/// </summary>
+public sealed class AuctionTenants(NpgsqlDataSource db) : ITenantDirectory
+{
+    public async ValueTask<IReadOnlyList<Id<ITenant>>> Tenants(CancellationToken cancellationToken)
+    {
+        await using var command = db.CreateCommand("SELECT DISTINCT tenant FROM tarol.streams WHERE type = 'auction' AND tenant <> '00000000-0000-0000-0000-000000000000'");
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var tenants = new List<Id<ITenant>>();
+        while (await reader.ReadAsync(cancellationToken))
+            tenants.Add((Id<ITenant>)reader.GetGuid(0));
+        return tenants;
     }
 }
 

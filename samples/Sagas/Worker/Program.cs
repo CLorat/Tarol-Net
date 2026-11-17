@@ -35,7 +35,9 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
         .Trust("billing", t => t.AnyTenant())                      // the company's own billing serves every tenant
         .UseBroker(builder.Configuration)
         .UseNpgsqlDeadLetters())
-    .AddJobs(j => j.Add<SettlementReport>("15 2 * * *", o => o.TimeZone = "Europe/Vienna"));   // step 14: once per occurrence across workers
+    .AddJobs(j => j.Add<SettlementReport>("15 2 * * *", o => { o.TimeZone = "Europe/Vienna"; o.PerTenant = true; }),   // step 14: once per occurrence and tenant
+        o => o.TenantSyncEvery = TimeSpan.FromSeconds(20));       // the demo's tenants appear while it runs; hourly by default
+builder.Services.AddSingleton<ITenantDirectory, AuctionTenants>();
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("worker"))
         // not "Npgsql": every idle claim (every 100 ms per worker) would be a span and bury the reactions in the dashboard
