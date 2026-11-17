@@ -600,3 +600,105 @@ Docs and probes only; the package code is `main` at `c20d2ca` (step 14 done).
 * A contract step (a drop or rename) has no case yet; the first one sets `compatible_from` and needs a major version (step 17's
   release notes).
 * `UseNpgsqlReadModels` and a data source the app provides (§5 item 13): register or document it in 15B.
+
+## 15. Implementation 15A: versioned schema upgrades
+
+`persistence.npgsql, messaging.npgsql: versioned schema upgrades`, on `main` (after #51). Labels as in the conventions. 15-0 (#52,
+the SignalR reconnect tests) stands alone; its second commit (an upcast test that rewrote events of the shared `tarol` schema and
+broke the store contract's feed test, 1 of 1591 in 15-0's first run) is also on this branch, so this PR is green on its own.
+
+### 15.1 Public API
+
+`Tarol.Persistence.Npgsql`:
+* `UpgradeStep(Version, CompatibleFrom, Sql, Concurrently = false, Index = null)`;
+* `SchemaMode { Upgrade, VerifyOnly }`, `SchemaState(Version, CompatibleFrom, StepsRun)`;
+* `NpgsqlSchemaDefinition(owner, schema, versionTable, baseline, steps)` with `Version`, `Steps`, `UpgradeScript(from)`;
+* `NpgsqlSchemaUpgrader(dataSource, definition, logger?)` with `LockTimeout` (2 s), `Attempts` (5), `Ensure(mode, ct)`;
+* `NpgsqlSchema.Version = 2`, `Steps(schema)`, `Definition(schema)`, `UpgradeScript(schema, from)`, `AuditScript(schema)`;
+  `Script(schema)` is the version 1 baseline (it stores version 1);
+* `NpgsqlStoreOptions.SchemaMode` (`Upgrade`), `SchemaLockTimeout` (2 s);
+* `NpgsqlAggregateStore(…, ILogger? logger = null)`; `EnsureSchema(SchemaMode, ct)` returns `SchemaState`; `EnsureSchema(ct)`
+  uses the option. `UseNpgsqlStore` passes `ILogger<NpgsqlAggregateStore>`;
+* logs 8001 step applied, 8002 step retried (lock timeout or deadlock), 8003 invalid index dropped, 8004 newer compatible
+  schema, 8005 refused (the ids were free: §1 lists 1001–1002, 9001–9011, 11001–11415, 12001–12103, 14001–14010).
+
+`Tarol.Messaging.Npgsql`:
+* `NpgsqlBusSchema.Steps(schema)` (none), `Definition`, `UpgradeScript(schema, from)`; `DeadLettersVersion = 2`,
+  `DeadLettersSteps`, `DeadLettersDefinition`, `DeadLettersUpgradeScript`;
+* `NpgsqlBus.EnsureSchema(SchemaMode, ct)`; `NpgsqlBusOptions.SchemaMode`, `SchemaLockTimeout`;
+* `NpgsqlMessageDeadLetters(…, ILogger? logger = null)`, `EnsureSchema(SchemaMode, ct)`; `UseNpgsqlDeadLetters` passes its logger.
+
+Version 2 of the store: `operations_audit (id, at, actor, action, target, detail jsonb)`, `outbox_dead_at` and `jobs_dead_at`
+(`CONCURRENTLY`). `messages_dead` version 2: `operations_audit` in its schema and `messages_dead_at` (`CONCURRENTLY`); its version is
+in `messages_dead_version`, so it can share the store's schema and still have its own version.
+
+### 15.2 Deliberate differences from §6 and §11
+
+| Sketch | Built | Why |
+|---|---|---|
+| `NpgsqlSchema.Steps` as a property | `Steps(schema)`, plus `NpgsqlSchemaDefinition` and a public `NpgsqlSchemaUpgrader` | the SQL names the schema; one upgrader serves the store, the bus and `messages_dead`, and tests build an "old code" definition from it |
+| the bus gets version 2 steps | the bus stays at version 1 and only gains `compatible_from` (in the preparation, not a step) | it needs no new object; code of steps 11–14 keeps running on it |
+| the version 1 script only on an empty schema | also on a version 1 schema without `compatible_from` (from before step 15), once | version 1 grew without a bump (the `fingerprint` column in step 10, `jobs`/`jobs_dead` in 14B); re-running it once on such a schema adds them, as `EnsureSchema` did before; never again once versioned |
+| one advisory lock per schema "per script" | one key per **PostgreSQL schema** (`tarol.schema:<schema>`) | the store and `messages_dead` share `tarol` and both create `operations_audit`: they must not race |
+| several steps per version | the version is stored in the last step of its version; earlier steps are idempotent and re-run after a crash | version 2 has three steps (one transactional, two `CONCURRENTLY`) |
+| retry on lock timeout (`55P03`) | also on `40P01` (deadlock) | a step's lock can lose a deadlock against a commit; the retry is the same |
+| an invalid index dropped in a `DO` block | `DROP INDEX CONCURRENTLY IF EXISTS` after a probe; `UpgradeScript` keeps the `DO` block | the upgrader runs outside a transaction anyway and should not take an `ACCESS EXCLUSIVE` lock on the table; a script must be self-contained |
+| `Tarol.Messaging.Npgsql` → `Tarol.Messaging` | + `Tarol.Persistence.Npgsql` | the upgrader; a sibling on Npgsql, not an upward reference (O-7) |
+| `EnsureSchema` without a timeout | steps run with `CommandTimeout = 0` | a `CONCURRENTLY` build on a large table can take minutes; `lock_timeout` bounds the waiting, cancellation the rest |
+
+### 15.3 Changes against steps 7–14
+
+| Where | Change | Kind |
+|---|---|---|
+| `NpgsqlAggregateStore.EnsureSchema` | takes a polled session advisory lock; runs the version 1 script only on an unversioned schema; runs steps; **accepts a newer schema while `compatible_from` ≤ its version** (it refused any newer one) | behaviour (operations.md §10) |
+| `NpgsqlSchema.Version` | 1 → 2 (steps of §15.1) | schema: additive, `CONCURRENTLY`; code of step 14 refuses a version 2 schema (it knows 1): deploy 15A everywhere, or let old pods restart after |
+| `NpgsqlSchema.Script` | the version 1 baseline: stores version 1, not `Version` | behaviour for migration tools: the current schema is `UpgradeScript(schema, 0)` |
+| `NpgsqlBus.EnsureSchema` | the upgrader (session lock polled, was a transaction lock); accepts a newer compatible schema | behaviour |
+| `NpgsqlMessageDeadLetters.EnsureSchema` | versioned (`messages_dead_version`, version 2) | schema: additive |
+| constructors of `NpgsqlAggregateStore`, `NpgsqlMessageDeadLetters` | an optional last `ILogger?` parameter | source compatible (binary: a new signature) |
+| `Tarol.Messaging.Npgsql` | depends on `Tarol.Persistence.Npgsql` | package graph |
+
+### 15.4 Tests
+
+`Tarol.Persistence.Npgsql.IntegrationTests` (Testcontainers PostgreSQL 17):
+* `SchemaUpgradeTests` (7):
+  * 6 data sources (6 "processes") start at once on an empty schema, 5 rounds: 0 failures, the steps ran once, both indexes valid;
+  * a populated version 1 database (the shipped baseline, 200 streams, 500 + 500 dead rows) upgraded by two upgraders at once while
+    4 writers commit: no writer fails, the steps ran once, the rows survived, the writers kept committing after it;
+  * old code (a definition that knows version 1) on version 2 starts (`Upgrade` and `VerifyOnly`); a schema of version 4 with
+    `compatible_from` 1 runs no step; with `compatible_from` 3 both refuse, with both numbers in the message;
+  * an interrupted `CONCURRENTLY` build (a unique index over duplicates, `23505`, leaves `outbox_dead_at` INVALID) is dropped and
+    built again (log 8003), not unique;
+  * `VerifyOnly` on a missing schema, a version 1 schema of step 14 and a versioned version 1 schema fails fast, names both
+    versions and creates nothing; after an upgrade it passes;
+  * `UpgradeScript(schema, 0)` and `UpgradeScript(schema, 1)` run statement by statement (autocommit, as psql) give a schema
+    `VerifyOnly` accepts; `UpgradeScript(schema, 2)` is empty;
+  * the definition refuses steps out of order, below version 2, a `CompatibleFrom` above its version, a concurrent step without
+    its index; the upgrader refuses a zero lock timeout.
+* `SchemaUpgradeLockTests` (1, in a collection that runs alone: it holds a transaction): a step behind a held `SHARE` lock on
+  `outbox_dead` times out after 200 ms (log 8002, bounded by the event), retries and completes once the lock is released.
+* The contract suites on a schema that the version 1 script created and `EnsureSchema` upgraded: `UpgradedStoreContractTests`,
+  `UpgradedOutboxContractTests`, `UpgradedJobRowsContractTests`.
+* Changed: `EnsureSchema_is_idempotent_accepts_a_newer_compatible_schema_and_refuses_an_incompatible_one`; the pre-step-10
+  fingerprint test now starts from the version 1 baseline (an unversioned schema).
+
+`Tarol.Messaging.Npgsql.IntegrationTests`: 8 buses at once, a newer compatible bus schema accepted, an incompatible one refused;
+a bus schema of step 14 gains `compatible_from` and `VerifyOnly` passes; `messages_dead` of step 14 with a row upgraded together
+with the store in the same schema (two of each at once): one lock serializes them, the row survives, the index is valid.
+
+`Tarol.Persistence.Npgsql.AotSmoke`: `UpgradeScript` and `EnsureSchema(VerifyOnly)` natively.
+
+**Repeated in Release, alone [verified]**: `SchemaUpgradeTests` + `SchemaUpgradeLockTests` 10 times: 10 × 8 of 8 (300 concurrent
+first starts, 0 failures); the three bus/`messages_dead` schema tests 10 times: 10 × 3 of 3.
+
+### 15.5 Skill checklist (`tarol-persistence-npgsql`, `tarol-messaging-npgsql`, updated)
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| deploy a new version while the old one runs | nothing: `EnsureSchema` at startup; `compatible_from` | running `NpgsqlSchema.Script` by hand on a live schema |
+| use a migration tool | `UpgradeScript(schema, from)` + `SchemaMode.VerifyOnly` | `Script()` as the whole schema; the script in one transaction (`25001`); tool and `Upgrade` both upgrading |
+| old pods refuse after a deploy | read 8005: "compatible from N; … knows M" | lowering `compatible_from` by hand |
+
+### 15.6 Suppressions
+
+None.
