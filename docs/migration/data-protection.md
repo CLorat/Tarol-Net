@@ -522,7 +522,32 @@ lowest branch it belongs to.
 
 ## 13. Verification of this PR (SDK 11.0.100) **[verified]**
 
-VERIFICATION_PLACEHOLDER
+Docs and probes only; the package code is `main` at `eabacb5` (step 15 done).
+* **At the start on `main`** (2026-11-17, worktree at `eabacb5`):
+  * CI run 192 of `main` (`build`, `aot-smoke`, `integration`): green;
+  * `dotnet build Tarol.slnx`: 0 warnings;
+  * `dotnet format --verify-no-changes`: clean;
+  * `dotnet test --solution Tarol.slnx` with Docker: **1702 of 1702** (as 15C/15D recorded in operations.md §17.7, §18.6);
+  * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **23 apps**, 0 IL warnings, all checks passed;
+  * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
+* **On this branch** (2026-11-17, at `f038158`; only docs and probes changed), in a detached worktree:
+  * `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+  * `dotnet format --verify-no-changes`: clean;
+  * `dotnet test --solution Tarol.slnx` with Docker:
+    * first run 1701 of 1702: `Tarol.Validations.Tests.AllocationTests.Validating_A_Valid_Input_Allocates_Nothing` measured
+      3,136 bytes. This branch changes no code. The class passed 25 of 25 runs alone; most likely a tier-up landing inside the
+      measured loop under the parallel suite's load. It is a pre-existing flake, recorded in §14 item 6, not fixed here (one
+      feature per PR);
+    * second run: **1702 of 1702**;
+  * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: 23 apps, 0 IL warnings, all checks passed;
+  * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
+* **The probe**: `all.sh` sections 0–9 ([`output.txt`](probes/data-protection/output.txt)), JIT and Native AOT (0 IL warnings,
+  17 of 17 checks on both). Fixes made before the recorded run:
+  * the first commit bench failed with `AuthenticationTagMismatchException`: 4 writers shared one `AesGcm` (§5 item 1); the probe
+    now locks per key and has a check that shows the race;
+  * the load bench's cold-cache rows cleared the cache the "cached key" rows used (44 % key queries); they got their own key cache,
+    and section 5 was rerun;
+  * the plain state row ran an empty key statement and now runs one statement.
 
 ## 14. Open items
 
@@ -540,3 +565,5 @@ VERIFICATION_PLACEHOLDER
    of a state with 100 entities.
 5. **`SqlProjection` tables** (the app's own SQL) are outside the participants: the guide says the app registers its own
    `ErasureParticipant`.
+6. **`AllocationTests.Validating_A_Valid_Input_Allocates_Nothing` can fail under the parallel suite** (§13: 3,136 bytes once,
+   0 of 25 alone). A fix (a longer warm-up, or measuring the minimum of several loops) goes in its own PR.
