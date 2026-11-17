@@ -914,3 +914,15 @@ The evaluation of `tarol-operations` is §12 (tasks, expected API, mistakes to a
 ### 17.6 Suppressions
 
 None.
+
+### 17.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `71467b7` (the code of this PR), in a separate detached worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1702 of 1702** (15B's 1684, + 15 `Tarol.Operations.Tests`, + 3
+  `Tarol.Operations.IntegrationTests`);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **23 apps, 0 IL warnings**, all checks passed
+  (`Tarol.Operations.AotSmoke` natively with Kestrel and the database);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the `Tarol.Operations` package with its skill; the consumer: 5 signals
+  polled, 6 checks Healthy).
