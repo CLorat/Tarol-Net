@@ -25,7 +25,8 @@ public sealed class SettlementReport(IReadModels reads) : IJob      // samples/S
 {
     public async ValueTask<Result> Run(JobRun run, CancellationToken ct)
     {
-        var page = await reads.Store<AuctionRow>().Search(new ListQuery(Guid.Empty) { Filters = [new ColumnFilter("settled", true)], Count = true, Limit = 1 }, ct);
+        var tenant = run.Occurrence.Tenant.TryGetValue(out Id<ITenant> t) ? t.Value : Guid.Empty;   // PerTenant = true
+        var page = await reads.Store<AuctionRow>().Search(new ListQuery(tenant) { Filters = [new ColumnFilter("settled", true)], Count = true, Limit = 1 }, ct);
         if (!page.TryGetValue(out Page<AuctionRow>? settled))
             return page.TryGetValue(out Violation? refused) ? refused : Result.Success();
         return (await run.Create(new WriteDayReport(run.Occurrence.At, settled.Total ?? 0), "report", ct)).TryGetValue(out Violation? v) ? v : Result.Success();
