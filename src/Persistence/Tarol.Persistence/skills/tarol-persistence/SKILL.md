@@ -5,7 +5,8 @@ description: >-
   implementing IAggregateStore for a database. Covers IAggregateReader (Load, Find), IAggregateStore (Append with
   expected version and IdempotencyKey, Seen), StoredOutcome, StoreErrors, DefineLookup and StoreLookups, RecordedEvent
   recording, stored-state loads, the EventCodec (aliases, IEventUpcaster), StreamType and the IEventFeed (ReadAll,
-  GlobalPosition). Do not decompile or web-search, do not write your own in-memory event store, do not retry inside
+  GlobalPosition), and sealed personal data (IKeyStore, InMemoryKeyStore, KeyRing, EventCodec.Seal/Decode with keys,
+  DataProtectionErrors.SubjectErased). Do not decompile or web-search, do not encrypt fields by hand, do not write your own in-memory event store, do not retry inside
   Append or call Committed before Append succeeded.
 ---
 # Tarol.Persistence
@@ -111,6 +112,36 @@ await foreach (var e in store.ReadAll(GlobalPosition.Start, 100, ct))
 | an event missing from the context given to `EventCodec` | `InvalidOperationException` from `Add<T>()` listing the events |
 | a renamed event without `[EventType]` pin or upcaster | `InvalidOperationException` on load: "no upcaster moves it" |
 | `AppJson.Default.Options` with value objects in events | TVAL009; use `ValueObjectJson.Options(AppJson.Default)` |
+
+## Personal data (step 16)
+
+* Mark members `[PersonalData]` (tarol-primitives). A store with a key store seals them on `Append` and opens them on
+  every read. Aggregates without marks are stored byte for byte as before.
+* Keys come in two levels: a data key per (tenant, subject), wrapped by the tenant key, wrapped by the master key
+  (`IKeyEncryptionKey`, by default `ConfiguredKeyEncryptionKey`). `IKeyStore.EraseSubject` writes a tombstone and
+  `EraseTenant` blanks the tenant key. After either, the fields read as `null`, the aggregate still loads, and new
+  personal data for the subject is refused with `DataProtectionErrors.SubjectErasedCode` (409). A returning person is a
+  new subject.
+* In tests: `new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = codec, Keys = InMemoryKeyStore.Create(time) })`.
+* Codec, for store authors: `Encode` (plain) → `SubjectsOf<T>` → `IKeyStore.Keys(tenant, subjects, create: true)` →
+  `Seal<T>`. To read: `SealedSubjects` → `Keys(…, create: false)` → `Decode(…, keys)`. For the state:
+  `StateSubjectsOf<T>`, `SealState<T>`, `OpenState`. Upcasters see opened values.
+* Erasing a subject belongs to `IDataSubjects` (`Tarol.DataProtection`): it also makes projections, caches and lookups
+  forget, and audits the erasure. `IKeyStore.EraseSubject` alone only removes the key.
+
+```csharp
+var keys = InMemoryKeyStore.Create(time);
+var store = new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = codec, Keys = keys });
+await store.Append(customer, 0, context, Option.None, ct);
+await keys.EraseSubject(tenantId, customer.Id.Value, ct);
+var loaded = (await store.Load(customer.Id, context, ct)).GetValueOrThrow();   // loaded.Email is null, Country intact
+```
+
+| Mistake | Result |
+|---|---|
+| `Decode` with a `KeyRing` that lacks one of the payload's subjects | `InvalidOperationException`: fetch the keys of `SealedSubjects` first |
+| an envelope copied to another subject or tenant | `CryptographicException` (the tag binds tenant and subject) |
+| `Keys = …` on `InMemoryStoreOptions` without a `Codec` | `ArgumentException` |
 
 ## Operations contracts (step 15)
 

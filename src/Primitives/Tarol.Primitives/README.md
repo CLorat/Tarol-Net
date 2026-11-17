@@ -92,6 +92,14 @@ var loaded = AggregateState.Read(gallery.Id, state, options);   // Option<Galler
   state cannot hold, state names used twice, state attributes without effect, `[Transient]` members filled in `On`.
   Suppressor `TPRMSPR01`: CS8524 on a complete `switch` over a `[Lifecycle]` enum.
 
+## Personal data and retention (step 16)
+
+`[PersonalData]` marks a member of an event, of an aggregate's or entity's stored state, or of a projection row. Its
+value leaves the process sealed with its subject's key and reads as `null` once the subject is erased; the subject is
+the stream id, or `Subject = nameof(Placed.Customer)`. `[Retention(Days = n)]` on a root deletes its streams n days
+after their last event. The generator emits the marks on `T.EventTypes` (no reflection); TPRM030–TPRM033 check them.
+See `docs/architecture/data-protection.md` in the repository.
+
 ## Links
 
 * Skill for coding agents: `skills/tarol-primitives/SKILL.md` (in the package).
