@@ -6,7 +6,8 @@ description: >-
   against a real database. Covers NpgsqlAggregateStore, NpgsqlStoreOptions (SchemaMode, SchemaLockTimeout), NpgsqlSchema
   (Script, Steps, Definition, UpgradeScript), EnsureSchema and schema upgrades (SchemaMode, SchemaState, NpgsqlSchemaUpgrader), ReadAll,
   RebuildStates, PurgeKeys, the outbox (Reactions, IOutboxReactions, Outbox.Claim/Complete/Retry/Bury/DeadLetters/Redrive,
-  Notify, OutboxRow), the job rows (Jobs, jobs, jobs_dead) and the tables. Do not add an ORM, do not write your own SQL for appends or loads, do not
+  Notify, OutboxRow), the job rows (Jobs, jobs, jobs_dead), sealed personal data (NpgsqlKeyStore, NpgsqlStoreOptions.Keys,
+  UseNpgsqlKeyStore, SealHistory, StreamsOf/EventsOf, DeleteStreams, personal lookups) and the tables. Do not add an ORM, do not write your own SQL for appends or loads, do not
   page the events table by position, do not run the version 1 script by hand on a live schema, do not decompile or web-search.
 ---
 # Tarol.Persistence.Npgsql
@@ -72,6 +73,27 @@ await foreach (var e in store.ReadAll(checkpoint, 500, ct))
 _ = await store.PurgeKeys(TimeProvider.System.GetUtcNow() - TimeSpan.FromDays(7), 1000, ct);
 ```
 
+## Personal data (step 16)
+
+* `NpgsqlKeyStore` keeps the keys in `tenant_keys` and `subject_keys` (schema version 3) and caches them per process. With
+  `NpgsqlStoreOptions.Keys` (or `UseNpgsqlKeyStore()` plus an `IKeyEncryptionKey` in DI), the store seals
+  `[PersonalData]` on `Append` and opens it in `Load`, `ReadAll`, the outbox and `ReadStream`. It records the subjects in
+  `events.subjects` / `streams.subjects`, and a personal lookup keeps a blind index.
+* A sealing store raises `compatible_from` to `NpgsqlSchema.SealingVersion` (3) on `EnsureSchema`, so pods from before
+  sealing refuse the schema instead of reading envelopes as values. A store without keys writes exactly what it wrote
+  before and still runs on older schemas.
+* Events written before a member was marked stay plaintext until `store.SealHistory<T>(500, ct)`: an explicit, batched
+  rewrite that is safe to rerun.
+* For `Tarol.DataProtection`: `StreamsOf` / `EventsOf(tenant, subject)` (opened with that subject's key only),
+  `StateOf`, `DeletePersonalLookups`, and `DeleteStreams(type, olderThan, 500)`, which skips streams with pending reactions.
+* Erase through `IDataSubjects`. `keys.EraseSubject` alone does not make projections or caches forget.
+
+```csharp
+await using var keys = new NpgsqlKeyStore(db, master, TimeProvider.System, new NpgsqlKeyStoreOptions { Schema = "tarol" });
+var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Keys = keys, Lookups = lookups });
+await store.EnsureSchema(ct);                       // version 3, compatible_from raised to 3
+```
+
 ## Common mistakes
 
 | Mistake | Result |
@@ -93,6 +115,9 @@ _ = await store.PurgeKeys(TimeProvider.System.GetUtcNow() - TimeSpan.FromDays(7)
 | `UpgradeScript` in one Npgsql command or transaction | `25001`: `CREATE INDEX CONCURRENTLY` cannot run in a transaction block |
 | old pods crash with "compatible from version N; … knows version M" | a contract step of a newer major version; deploy the newer package everywhere |
 | a migration tool and `SchemaMode.Upgrade` both upgrading | two owners of one schema; pick one (`VerifyOnly` with the tool) |
+| `UPDATE tarol.subject_keys SET wrapped = NULL` to erase | no `NOTIFY`: other processes keep the key cached; projections, caches and lookups keep the data; no audit |
+| marking a member and expecting old events to be sealed | they stay plaintext: run `SealHistory<T>` once |
+| a key store on another schema than the store's | its keys are not where `EnsureSchema` created the tables; use the store's schema |
 
 ## AOT
 

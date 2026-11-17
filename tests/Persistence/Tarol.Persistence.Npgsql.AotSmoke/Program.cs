@@ -87,6 +87,21 @@ else
                                           && (await store.Jobs.Claim(TimeSpan.FromMinutes(1), default)).TryGetValue(out JobRow? redrive)
                                           && redrive.Occurrence == due && await store.Jobs.Advance(redrive, redrive.NextAt, default)
                                           && (await store.Jobs.DeadJobs(10, default)).Count == 0);
+
+        // step 16B: a sealing store with the key tables, natively
+        await using var keys = new NpgsqlKeyStore(db, new ConfiguredKeyEncryptionKey("smoke", System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
+            TimeProvider.System, new NpgsqlKeyStoreOptions { Schema = schema });
+        var sealing = new NpgsqlAggregateStore(db, new EventCodec(new JsonSerializerOptions(PatientJson.Default.Options)).Add<Patient>(), TimeProvider.System,
+            new NpgsqlStoreOptions { Schema = schema, Keys = keys });
+        Check("a sealing store raises compatible_from", (await sealing.EnsureSchema(SchemaMode.Upgrade, default)).CompatibleFrom == NpgsqlSchema.SealingVersion);
+        var patient = Patient.Admit("Ada", "B2");
+        Check("append sealed", (await sealing.Append(patient, 0, context, Option.None, default)).IsSuccess);
+        await using (var raw = db.CreateCommand($"SELECT payload::text FROM {schema}.events WHERE stream_id = '{patient.Id.Value}'"))
+            Check("no plaintext stored", await raw.ExecuteScalarAsync() is string payload && !payload.Contains("Ada", StringComparison.Ordinal) && payload.Contains("tdp1.", StringComparison.Ordinal));
+        Check("load opens", (await sealing.Load(patient.Id, context, default)).GetValueOrThrow().Name == "Ada");
+        Check("erase", await keys.EraseSubject(context.Tenant.GetValueOrThrow().Value, patient.Id.Value, default));
+        var erased = (await sealing.Load(patient.Id, context, default)).GetValueOrThrow();
+        Check("erased reads null, the rest stays", erased.Name is null && erased.Ward == "B2");
     }
     finally
     {

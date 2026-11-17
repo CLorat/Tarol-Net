@@ -137,6 +137,7 @@ Sample by parent (`ParentBasedSampler`) so a reaction's commands follow its deci
 |---|---|---|
 | 7001–7003 | `Tarol.Changes` | an error result (Warning), a conflict (Debug), an exception (Error) |
 | 8001–8005 | `Tarol.Persistence.Npgsql` | schema step applied, retried after a lock timeout, invalid index dropped, newer compatible schema, refused |
+| 8006–8008 | `Tarol.Persistence.Npgsql` (`NpgsqlKeyStore`) | data keys created, a key erased, cached keys evicted (Debug; the tenant id, never a subject or a value) |
 | 12010, 12011 | `Tarol.Queries` | this host is a projection's runner; it lost the gate |
 | 15001–15005 | `Tarol.Operations` | re-drive, re-drive by filter, discard, drop (with the actor); a failed poll |
 

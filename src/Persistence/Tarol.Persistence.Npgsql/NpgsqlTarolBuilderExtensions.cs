@@ -59,6 +59,7 @@ public static class NpgsqlTarolBuilderExtensions
             {
                 Reactions = configured.Reactions ?? builder.OutboxTable,
                 StateOptions = configured.StateOptions ?? builder.Json,
+                Keys = configured.Keys ?? provider.GetService<IKeyStore>(),   // step 16: UseNpgsqlKeyStore or AddDataProtection
             }, provider.GetService<ILoggerFactory>()?.CreateLogger<NpgsqlAggregateStore>());
         }, static store => store.Outbox, static store => store.Jobs);
         foreach (var signal in NpgsqlStoreSignals.All)
@@ -71,6 +72,23 @@ public static class NpgsqlTarolBuilderExtensions
                 : null));
         if (ensureSchema)
             builder.Services.AddHostedService(static provider => new EnsureSchemaService(provider.GetRequiredService<NpgsqlAggregateStore>()));
+        return builder;
+    }
+
+    /// <summary>
+    /// Registers an <see cref="NpgsqlKeyStore"/> on the store's data source as the <see cref="IKeyStore"/> (step 16, DP-1): the
+    /// store then seals <c>[PersonalData]</c>. It needs an <see cref="IKeyEncryptionKey"/> in the container (the master key;
+    /// <c>Tarol.DataProtection</c>'s <c>AddDataProtection</c> registers one from configuration).
+    /// </summary>
+    /// <param name="builder">The Tarol builder (after <c>UseNpgsqlStore</c>).</param>
+    /// <param name="options">Schema (the store's) and cache bounds; <see langword="null"/> = defaults.</param>
+    /// <returns>The builder.</returns>
+    public static TarolBuilder UseNpgsqlKeyStore(this TarolBuilder builder, NpgsqlKeyStoreOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Services.TryAddSingleton(provider => new NpgsqlKeyStore(provider.GetRequiredService<NpgsqlDataSource>(), provider.GetRequiredService<IKeyEncryptionKey>(),
+            provider.GetRequiredService<TimeProvider>(), options, provider.GetService<ILoggerFactory>()?.CreateLogger<NpgsqlKeyStore>()));
+        builder.Services.TryAddSingleton<IKeyStore>(static provider => provider.GetRequiredService<NpgsqlKeyStore>());
         return builder;
     }
 
