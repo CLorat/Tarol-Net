@@ -113,6 +113,9 @@ the oldest occurrence not yet run, claimed by the job host of `Tarol.Jobs` (docs
 | `DeadJobs(max, ct)`, `Redrive(id, ct)` | read them; run one again at the row's next claim |
 | `Rows(ct)`, `Overdue(ct)` | the stored rows; the oldest due cursor |
 
+`MaintenanceTask(name, every, run)` registered as a singleton is recurring maintenance of a package (the bus retention of
+`Tarol.Messaging.Npgsql`): a job host runs it as a system job once per cluster and registers `IMaintenanceHost`.
+
 Every call after a claim returns `false` once the claim is lost. Times are whole seconds (an occurrence must survive
 `timestamptz`); other times throw.
 

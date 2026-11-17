@@ -50,6 +50,10 @@ echo "alice's own auctions (claim-bound): $(curl -s "$api/my/auctions?count=true
 etag=$(curl -s -o /dev/null -D - "$api/auctions" -H "Authorization: Bearer $bob" | grep -i '^etag:' | tr -d '\r' | cut -d' ' -f2-)
 echo "list ETag $etag, again with If-None-Match: $(curl -s -o /dev/null -w '%{http_code}' "$api/auctions" -H "Authorization: Bearer $bob" -H "If-None-Match: $etag")"
 echo "projection checkpoint: $(q "SELECT name || ' v' || version || ' ' || state FROM tarol.projections"), rows $(q "SELECT count(*) FROM tarol.rm_auction_list_v1")"
+# step 14: the settlement report runs every minute here (Tarol:Jobs:SettlementReport:Cron); wait for its first occurrence
+for i in $(seq 1 75); do n=$(q "SELECT count(*) FROM tarol.events WHERE type = 'day_report'"); [ "${n:-0}" -ge 1 ] && break; sleep 1; done
+echo "job rows: $(q "SELECT string_agg(name || ' [' || schedule || '] next ' || to_char(next_at AT TIME ZONE 'UTC', 'HH24:MI:SS') || ' attempts ' || attempts, '; ' ORDER BY name) FROM tarol.jobs"); dead jobs: $(q "SELECT count(*) FROM tarol.jobs_dead")"
+echo "settlement reports: $(q "SELECT count(*) || ' by ' || string_agg(DISTINCT actor_kind || ' ' || actor_id, ', ') FROM tarol.events WHERE type = 'day_report'"), settled in the last: $(q "SELECT payload->>'settled' FROM tarol.events WHERE type = 'day_report' ORDER BY recorded_at DESC LIMIT 1"), keys: $(q "SELECT count(*) FROM tarol.idempotency_keys WHERE scope = 'job:SettlementReport'")"
 echo "dead letters: outbox $(q "SELECT count(*) FROM tarol.outbox_dead")/$(q "SELECT count(*) FROM tarol.outbox_dead" billingdb), messages $(q "SELECT count(*) FROM tarol.messages_dead")/$(q "SELECT count(*) FROM tarol.messages_dead" billingdb)"
 sleep 6
 curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; print("dashboard resources with traces:", sorted(r["name"] for r in json.load(sys.stdin) if r["hasTraces"]))'
