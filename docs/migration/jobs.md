@@ -763,3 +763,19 @@ which read as the way to write a job; it now points to `[Scheduled]` and `JobRun
 
 None. The probe's parser in the tests (`ProbeCron.cs`) is copied with its logic unchanged; `dotnet format` reflowed its
 one-line `if` bodies, nothing else was needed under the test analyzers.
+
+### 17.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `3376a07` (the code of this PR), in a separate worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean (after `3376a07` reflowed the copied probe parser);
+* `dotnet test --solution Tarol.slnx` with Docker: **1591 of 1591** (14B's 1531, + 59 `Tarol.Jobs.Tests`, + 1 bus retention test);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **22 apps** (`Tarol.Jobs.AotSmoke` new), **0 IL warnings**, all
+  checks passed;
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK at `702adc0` (the consumer's unused `using` removed; the packages are
+  those of `3376a07`). `Tarol.Jobs.PackageTests` runs the generated set and `JobTest` from the packages and lists the skills
+  `tarol-jobs` and `tarol-changes`;
+* `Tarol.Jobs.Tests` 15 of 15 runs in Release, alone;
+* `samples/Sagas` through the Aspire AppHost: as in §17.4 (91 s).
+
+Step 14 overall: tests 1442 → 1591, AOT smoke apps 21 → 22.
