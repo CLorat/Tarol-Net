@@ -271,3 +271,5 @@ S-14 reaction name = type name, pin to rename; S-15 sagas start load-or-create.
   plan step 15 (Operations).
 * Priority between reactions (a slow reaction's backlog delays others in the same claim order): not needed by a scenario.
 * Partitioning work across processes by tenant: `SKIP LOCKED` suffices for the measured scale.
+* Recurring work is not a reaction: step 14 ([jobs.md](jobs.md), J-4) keeps schedules in a `jobs` table of their own rather than
+  on the outbox, and the hourly key purge of `ReactionHost` becomes the system job `tarol.purge-keys` (J-9).

@@ -161,6 +161,8 @@ such factories (C-13).
 | webhook | `Actor.Service("webhook:" + sender)` | mapped from the payload or route | new | `None` | (sender, delivery id) |
 | consumer | `Actor.System("Consumers.<name>", onBehalfOf: envelope actor)` (M-6) | envelope header, allow-listed per source (M-13) | envelope header | the message id | (`consumer:<name>`, message id) (M-12) |
 
+Step 14 ([jobs.md](jobs.md), J-1, J-4): a job's key is (tenant, `job:<name>`, occurrence), stored with its commit; it is no longer optional.
+
 Reaction and webhook rows **[verified]** (`App/`, `Web/`); the consumer row **[verified]** in step 11 ([messaging.md](messaging.md) §3); the others **[unverified]**. The context is a **parameter**
 of `Run` (C-11): built at the edge, never ambient (identity-context.md §4).
 
