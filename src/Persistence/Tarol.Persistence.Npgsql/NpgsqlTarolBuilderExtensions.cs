@@ -43,7 +43,7 @@ public static class NpgsqlTarolBuilderExtensions
                 Reactions = configured.Reactions ?? builder.OutboxTable,
                 StateOptions = configured.StateOptions ?? builder.Json,
             });
-        }, static store => store.Outbox);
+        }, static store => store.Outbox, static store => store.Jobs);
         if (ensureSchema)
             builder.Services.AddHostedService(static provider => new EnsureSchemaService(provider.GetRequiredService<NpgsqlAggregateStore>()));
         return builder;

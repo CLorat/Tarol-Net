@@ -5,7 +5,7 @@ description: >-
   event feed for a projection, rebuilding stored states after a model change, purging idempotency keys, or testing
   against a real database. Covers NpgsqlAggregateStore, NpgsqlStoreOptions, NpgsqlSchema, EnsureSchema, ReadAll,
   RebuildStates, PurgeKeys, the outbox (Reactions, IOutboxReactions, Outbox.Claim/Complete/Retry/Bury/DeadLetters/Redrive,
-  Notify, OutboxRow) and the tables. Do not add an ORM, do not write your own SQL for appends or loads, do not
+  Notify, OutboxRow), the job rows (Jobs, jobs, jobs_dead) and the tables. Do not add an ORM, do not write your own SQL for appends or loads, do not
   page the events table by position, do not decompile or web-search.
 ---
 # Tarol.Persistence.Npgsql
@@ -31,7 +31,9 @@ description: >-
    → `Complete(row, ct)`, `Retry(row, at, reason, ct)` or `Bury(row, reason, ct)`. Claims are exclusive and per (stream,
    reaction) in version order; scheduled reactions by due time. Make the reaction idempotent with the key (reaction,
    event id): a lease can expire and the row run twice. Dead letters: `DeadLetters(max, ct)`, `Redrive(id, ct)`.
-10. **Query** the state with SQL on `tarol.streams` (`state->>'lot'`), always with `tenant = …` and `type = '<StreamType>'`.
+10. **Job rows**: `store.Jobs` (`IJobRows`) is used by the `Tarol.Jobs` host (skill `tarol-jobs`); read `Rows`, `DeadJobs`,
+   `Overdue` and call `Redrive(id)` from admin code; never update `tarol.jobs` by hand (pause a job with configuration).
+11. **Query** the state with SQL on `tarol.streams` (`state->>'lot'`), always with `tenant = …` and `type = '<StreamType>'`.
 
 ## Example
 
@@ -75,6 +77,7 @@ _ = await store.PurgeKeys(TimeProvider.System.GetUtcNow() - TimeSpan.FromDays(7)
 | `e => e is Bid.Placed ? ["Notify"] : []` as the `ReactionTable` | CS9203: return spans over `static readonly string[]` |
 | one reaction listed twice for an event | `InvalidOperationException` (unique (reaction, event_id)); nothing is committed |
 | completing a row after its lease expired | `Complete` returns `false`: another worker owns it now |
+| `UPDATE tarol.jobs SET next_at = …` to skip or pause a job | a held claim's `Advance` overwrites it; use `Tarol:Jobs:<name>:Enabled` |
 | deleting rows of `tarol.events` | the stream no longer replays; events are append-only |
 
 ## AOT

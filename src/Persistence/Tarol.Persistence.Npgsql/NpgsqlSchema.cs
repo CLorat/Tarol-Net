@@ -115,6 +115,33 @@ public static partial class NpgsqlSchema
                 last_error   text        NULL,
                 dead_at      timestamptz NOT NULL);
 
+            -- one row per (tenant, job): the cursor of the oldest occurrence not yet run, claimed one at a time with a lease
+            -- (step 14, J-4); tenant-less jobs use the empty uuid
+            CREATE TABLE IF NOT EXISTS {s}.jobs (
+                tenant       uuid        NOT NULL,
+                name         text        NOT NULL,
+                schedule     text        NOT NULL,         -- cron and zone; a different text at startup recomputes the cursor
+                enabled      boolean     NOT NULL DEFAULT true,
+                next_at      timestamptz NOT NULL,         -- the cursor: whole seconds
+                claim_id     uuid        NULL,             -- the current claim; every later call must present it
+                lease_until  timestamptz NULL,             -- until when a claim, or a retry's backoff, holds the row
+                attempts     integer     NOT NULL DEFAULT 0,
+                last_error   text        NULL,
+                PRIMARY KEY (tenant, name));
+            CREATE INDEX IF NOT EXISTS jobs_due ON {s}.jobs (next_at) WHERE enabled;
+
+            -- occurrences given up after the delivery policy's attempts (J-7); the cursor moved on, a human re-drives them
+            CREATE TABLE IF NOT EXISTS {s}.jobs_dead (
+                id           bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                tenant       uuid        NOT NULL,
+                name         text        NOT NULL,
+                occurrence   timestamptz NOT NULL,
+                attempts     integer     NOT NULL,
+                last_error   text        NULL,
+                dead_at      timestamptz NOT NULL,
+                redrive      boolean     NOT NULL DEFAULT false);   -- a re-drive is pending: the row's next claim runs it
+            CREATE INDEX IF NOT EXISTS jobs_dead_redrive ON {s}.jobs_dead (tenant, name, id) WHERE redrive;
+
             CREATE TABLE IF NOT EXISTS {s}.schema_version (version integer NOT NULL);
             INSERT INTO {s}.schema_version SELECT {Version} WHERE NOT EXISTS (SELECT 1 FROM {s}.schema_version);
             """;

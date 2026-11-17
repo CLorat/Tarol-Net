@@ -569,3 +569,85 @@ At `9357564` (the code of this PR; the notes followed), in a separate worktree, 
 
 After this run, `d23457d` changed `Move` (the next occurrence's attempts start at 1, found while writing 14C's runner) and added
 a contract test: `Tarol.Persistence.Tests` 116 of 116. The full verification of 14B (§16.7) includes it.
+
+## 16. Implementation 14B: the job rows on PostgreSQL
+
+`persistence.npgsql: job rows`, stacked on 14A. Labels as in the conventions.
+
+### 16.1 Public API
+
+* `NpgsqlJobRows : IJobRows` (internal constructor), exposed as `NpgsqlAggregateStore.Jobs`; `UseNpgsqlStore` registers it as
+  `IJobRows` (through 14A's `UseStore(factory, outbox, jobs)`).
+* Two tables in the version 1 script (`CREATE TABLE IF NOT EXISTS`, additive; P-4), `NpgsqlSchema.Version` stays 1:
+  * `jobs (tenant, name, schedule, enabled, next_at, claim_id, lease_until, attempts, last_error)`, `PRIMARY KEY (tenant, name)`,
+    partial index `jobs_due (next_at) WHERE enabled`;
+  * `jobs_dead (id identity, tenant, name, occurrence, attempts, last_error, dead_at, redrive)`, partial index
+    `jobs_dead_redrive (tenant, name, id) WHERE redrive`.
+
+### 16.2 Deliberate differences from §6 and §11
+
+| Sketch | Built | Why |
+|---|---|---|
+| `jobs_dead (id, tenant, name, occurrence, attempts, error, dead_at)` | + `redrive boolean` | 14A's re-drive is a pending flag, claimed under the row's own claim |
+| `Bury` = `DELETE … RETURNING` into `jobs_dead` + advance | one statement: `UPDATE jobs … WHERE claim_id` + `INSERT INTO jobs_dead … WHERE EXISTS` (or, for a re-drive, `UPDATE jobs_dead`) in data-modifying CTEs | the job row stays (it is the cursor); only the occurrence goes to the dead jobs |
+| `Redrive` "in one statement" | `UPDATE jobs_dead SET redrive = true WHERE id = $1 AND NOT redrive` | the run happens at the row's next claim |
+| claim of a due row | one statement: a pending re-drive of a free, enabled row first (`FOR UPDATE OF j SKIP LOCKED` on the join), else the oldest due cursor (`FOR UPDATE SKIP LOCKED`, `jobs_due`) | one round trip; the re-drive index is empty almost always |
+| `Sync` in one transaction | + `pg_advisory_xact_lock(hashtext('<schema>.jobs'))` | two starting hosts would otherwise race on the same inserts and disables; claims are not blocked |
+| `Move` keeps the claim | also `attempts = 1, last_error = NULL` | found while writing 14C's runner: the occurrence after a success inherited the failures of the one that ran; fixed in 14A's port (`d23457d`) and here |
+
+Every claim-guarded statement returns `count(*)` of the rows it owned, so `false` means the claim was lost. All times are
+written in UTC (Npgsql refuses a `DateTimeOffset` with an offset for `timestamptz`); `Overdue` reads `min(next_at)` with a typed
+reader (`ExecuteScalar` returns a `DateTime`).
+
+### 16.3 Changes against steps 7–13
+
+| Where | Change | Kind |
+|---|---|---|
+| `NpgsqlSchema.Script` | `jobs`, `jobs_dead` and their indexes | additive schema (an existing database gets them at the next `EnsureSchema`) |
+| `NpgsqlAggregateStore` | `Jobs` property | additive API |
+| `UseNpgsqlStore` | registers `IJobRows` | additive registration |
+
+### 16.4 Tests (`Tarol.Persistence.Npgsql.IntegrationTests`, Testcontainers PostgreSQL 17)
+
+* `NpgsqlJobRowsContractTests`: 14A's contract (18) on a schema per test.
+* `NpgsqlJobRowsTests` (5):
+  * the script creates both tables and indexes, idempotently;
+  * 20 racing claimers on 5 due rows get 5 distinct rows;
+  * the µs round trip (§5 item 1): a whole-second cursor reads back with the same ticks and key text, `next_at` equals the
+    literal; the probe's `…22.1793033` is refused;
+  * a crash between the commit and the move: the next claim (after the lease) gets the same occurrence, the key is seen, a
+    second append with it is refused, 1 stream; the old claim's `Advance` is refused;
+  * 4 concurrent syncs of 50 rows add each row once.
+* `NpgsqlJobRowsChaosTests` (1): two worker processes (`Tarol.Persistence.Npgsql.ChaosWorker`, a console app started with
+  `dotnet`), 3 jobs every second, a random worker killed with -9 every 0.5–1.5 s and each worker crashing (`FailFast`) right after
+  every 7th commit, before its cursor moves. Bounded by occurrences: it stops when every cursor passed 25 occurrences (3-minute
+  guard). Then for every job every occurrence before the cursor committed exactly once, at most one after it (a kill between
+  commit and move), and streams = keys.
+* `Tarol.Persistence.Npgsql.AotSmoke` (with `TAROL_PG`): sync, a claim and a second claim that gets nothing, bury, re-drive and
+  advance, natively.
+
+**Chaos in Release, 10 runs, alone** (not next to the suite) **[verified]**: 10 of 10 passed, each 75 occurrences checked, 0 gaps,
+0 second commits; 14–19 kills and 5–8 crashes after a commit per run; 25–27 s per run. The contract and store tests passed in
+Release too (23 of 23).
+
+### 16.5 Skill checklist
+
+`tarol-persistence-npgsql`: rule 10 (job rows: read `Rows`/`DeadJobs`/`Overdue`, `Redrive(id)`, never update `tarol.jobs` by hand)
+and one mistake (an `UPDATE tarol.jobs` to pause a job). The job tasks of §12 are evaluated with `tarol-jobs` (14C).
+
+### 16.6 Suppressions
+
+None.
+
+### 16.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `c47fff2` (the code of this PR and §16.1–§16.6), in a separate worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1531 of 1531** (14A's 1506, + 1 contract test in memory, + 24 on PostgreSQL);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **21 apps, 0 IL warnings**, all checks passed (the job rows of
+  `Tarol.Persistence.Npgsql.AotSmoke` natively);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the chaos test 10 times in Release, alone: 10 of 10 (§16.4).
+
+This run also covers 14A's `d23457d` (a move starts the next occurrence's attempts), pushed to 14A after its own run (§15.7).

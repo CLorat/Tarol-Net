@@ -39,6 +39,8 @@ await store.EnsureSchema(ct);                                                   
 | `idempotency_keys` | (tenant, scope, key) | the first outcome of a keyed commit |
 | `outbox` | id; unique (reaction, event_id) | one row per (event, reaction) from `NpgsqlStoreOptions.Reactions`, written in the commit; `due_at`, `head` (partial index), lease, claim id, attempts, last error |
 | `outbox_dead` | id (the row's) | rows given up by the worker, with the last error; re-driven by a human |
+| `jobs` | (tenant, name) | one row per (tenant, job): the stored schedule text, `enabled`, the cursor `next_at`, claim id, lease, attempts, last error (step 14) |
+| `jobs_dead` | id | occurrences given up by the job host, with the last error and a pending `redrive` flag |
 
 `type` is the aggregate's generated `StreamType`; the tenant is `00000000-0000-0000-0000-000000000000` without one.
 Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for your queries.
@@ -67,6 +69,11 @@ Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for yo
   share lock on the stream row; `Retry(row, at, reason)` delays it; all return `false` after a lost lease.
   `DeadLetters`/`Redrive(id)` are for the human. `Notify = true` wakes `WaitForRows` at each commit (≈ 7 ms), at a cost to
   writers (≈ 30 % commits/s with 16 writers); the default is polling. The worker is `Tarol.Sagas`.
+* **Job rows** (`IJobRows`, `store.Jobs`): the rows of the job host (`Tarol.Jobs`). `Claim(lease)` takes **one** enabled,
+  due row (or a row with a pending re-drive, first) with `FOR UPDATE SKIP LOCKED` (~1 ms at any table size, partial index
+  `jobs_due`); `Move`, `Advance`, `Extend`, `Retry` and `Bury` are one statement each, guarded by the claim id, and return
+  `false` after a lost lease. `Sync` runs in one transaction under an advisory lock. Times are whole seconds; the cursor
+  reads back unchanged from `timestamptz`.
 * **Schema**: `NpgsqlSchema.Script(schema)` is idempotent and versioned (`schema_version`); `EnsureSchema` runs it and
   refuses a database with a newer version.
 * **The feed's wake-up**: `NotifyFeed = true` sends `NOTIFY <schema>_feed` (`FeedChannel`) with every commit, so projection

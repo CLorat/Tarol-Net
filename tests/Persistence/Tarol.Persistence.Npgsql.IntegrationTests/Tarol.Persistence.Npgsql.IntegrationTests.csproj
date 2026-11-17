@@ -15,5 +15,8 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <Compile Include="../Shared/**/*.cs" LinkBase="Contract" />
+    <!-- The chaos test starts the worker as separate processes (built next to this project, not referenced). -->
+    <ProjectReference Include="../Tarol.Persistence.Npgsql.ChaosWorker/Tarol.Persistence.Npgsql.ChaosWorker.csproj"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
