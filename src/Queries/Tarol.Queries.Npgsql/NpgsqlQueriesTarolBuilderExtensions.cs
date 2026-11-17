@@ -84,8 +84,11 @@ public static class NpgsqlQueriesTarolBuilderExtensions
                 provider.GetRequiredService<NpgsqlReadModels>().Schema, provider.GetServices<ProjectionHost>(),
                 provider.GetService<TimeProvider>(), provider.GetService<ILogger<NpgsqlProjectionPositions>>()));
             builder.Services.TryAddSingleton<IProjectionPositions>(static provider => provider.GetRequiredService<NpgsqlProjectionPositions>());
+            // the LISTEN starts with the first read: before it nothing is down; after it, a lost connection is (reconnecting)
             builder.Services.AddSingleton(new ReadinessCheck("checkpoint-listen", static provider =>
-                provider.GetRequiredService<NpgsqlProjectionPositions>().IsListening ? null : "the checkpoint LISTEN connection is down"));
+                provider.GetRequiredService<NpgsqlProjectionPositions>() is { IsStarted: true, IsListening: false }
+                    ? "the checkpoint LISTEN connection is down (reconnecting)"
+                    : null));
         }
         return builder.AddProjectionPositions();
     }
