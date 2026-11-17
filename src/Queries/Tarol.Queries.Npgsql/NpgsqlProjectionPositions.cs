@@ -69,6 +69,9 @@ public sealed partial class NpgsqlProjectionPositions : IProjectionPositions, IA
     /// <summary>Whether the <c>LISTEN</c> connection is up (for a health check; <see langword="false"/> before the first call).</summary>
     public bool IsListening => _listening;
 
+    /// <summary>Whether the <c>LISTEN</c> connection was started (by the first checkpoint read or wait); it starts lazily.</summary>
+    internal bool IsStarted => _listener is not null;
+
     /// <inheritdoc />
     public async ValueTask<ProjectionCheckpoint> Checkpoint<TRow>(CancellationToken cancellationToken)
         where TRow : class, IProjection<TRow>
