@@ -16,6 +16,13 @@ public sealed class InMemoryStoreWithCodecContractTests : StoreContract
         => new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = CreateCodec(), Lookups = lookups });
 }
 
+/// <summary>The store contract with a key store: <see cref="Member"/>'s badge names are sealed (step 16).</summary>
+public sealed class InMemorySealedStoreContractTests : StoreContract
+{
+    protected override IAggregateStore CreateStore(TimeProvider time, StoreLookups lookups)
+        => new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = CreateCodec(), Lookups = lookups, Keys = InMemoryKeyStore.Create(time) });
+}
+
 /// <summary>The outbox contract on the in-memory store.</summary>
 public sealed class InMemoryOutboxContractTests : OutboxContract
 {

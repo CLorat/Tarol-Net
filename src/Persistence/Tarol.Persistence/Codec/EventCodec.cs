@@ -204,6 +204,36 @@ public sealed class EventCodec
         return true;
     }
 
+    /// <summary>
+    /// Seals the personal fields of a payload stored before they were marked (a history rewrite, e.g.
+    /// <c>NpgsqlAggregateStore.SealHistory</c>): like <see cref="Seal{T}"/>, but a field of an erased subject is written as
+    /// <c>null</c>, because the erasure could not reach the plaintext.
+    /// </summary>
+    /// <typeparam name="T">The aggregate type (registered).</typeparam>
+    /// <param name="type">The event's stored type.</param>
+    /// <param name="payload">The stored, plain payload (already sealed fields stay as they are).</param>
+    /// <param name="stream">The stream id.</param>
+    /// <param name="keys">The keys of its subjects.</param>
+    /// <param name="sealedPayload">Receives the sealed payload.</param>
+    /// <returns><see langword="false"/> when the event has no personal data.</returns>
+    public bool SealStored<T>(EventType type, ReadOnlySpan<byte> payload, Guid stream, KeyRing keys, IBufferWriter<byte> sealedPayload)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(sealedPayload);
+        if (!_tables.Personal.TryGetValue((StreamTypeOf<T>(), Key(type)), out var shape))
+            return false;
+        PersonalJson.Seal(shape, payload, stream, keys, sealedPayload, nullErased: true);
+        return true;
+    }
+
+    /// <summary>The aliases and versions of <typeparamref name="T"/>'s events that hold personal data.</summary>
+    /// <typeparam name="T">The aggregate type (registered).</typeparam>
+    /// <returns>The stored types.</returns>
+    public static IReadOnlyList<EventType> PersonalEventTypes<T>()
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => [.. T.EventTypes.Events.Where(static e => e.Personal is not null).Select(static e => e.Type)];
+
     /// <summary>Writes an event's payload with its personal fields sealed.</summary>
     /// <typeparam name="T">The aggregate the event belongs to (registered).</typeparam>
     /// <param name="domainEvent">The event.</param>

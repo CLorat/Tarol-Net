@@ -35,8 +35,11 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
     private TaskCompletionSource _written = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task? _listener;
 
-    internal NpgsqlOutbox(NpgsqlDataSource dataSource, EventCodec codec, TimeProvider time, string schema, IOutboxReactions? reactions, bool notify)
+    private readonly IKeyStore? _keys;
+
+    internal NpgsqlOutbox(NpgsqlDataSource dataSource, EventCodec codec, TimeProvider time, string schema, IOutboxReactions? reactions, bool notify, IKeyStore? keys = null)
     {
+        _keys = keys;
         _db = dataSource;
         _codec = codec;
         _time = time;
@@ -59,20 +62,30 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
         command.Parameters.Add(new NpgsqlParameter { Value = now });
         command.Parameters.Add(new NpgsqlParameter { Value = max });
         command.Parameters.Add(new NpgsqlParameter { Value = now + lease });
+        var claimed = new List<(long Id, Guid ClaimId, string Reaction, int Attempts, string? LastError, string? TraceParent, DateTimeOffset DueAt, RecordedEvents.Raw Event)>();
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))
         {
-            var rows = new List<OutboxRow>();
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                var recorded = RecordedEvents.Read(reader, 7, _codec);
-                rows.Add(new OutboxRow(reader.GetInt64(0), reader.GetGuid(1), reader.GetString(2), recorded.Event.Context.Tenant,
-                    reader.GetInt32(3), reader.IsDBNull(4) ? Option.None : reader.GetString(4), recorded,
-                    reader.IsDBNull(5) ? Option.None : reader.GetString(5))
-                { DueAt = reader.GetFieldValue<DateTimeOffset>(6) });
+                claimed.Add((reader.GetInt64(0), reader.GetGuid(1), reader.GetString(2), reader.GetInt32(3), reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5), reader.GetFieldValue<DateTimeOffset>(6), RecordedEvents.ReadRaw(reader, 7)));
             }
-            return rows;
         }
+
+        // the reactions see the events opened, as a load does (step 16)
+        var events = await RecordedEvents.Decode([.. claimed.Select(static c => c.Event)], _codec, _keys, cancellationToken).ConfigureAwait(false);
+        var rows = new List<OutboxRow>(claimed.Count);
+        for (var i = 0; i < claimed.Count; i++)
+        {
+            var c = claimed[i];
+            var recorded = events[i];
+            rows.Add(new OutboxRow(c.Id, c.ClaimId, c.Reaction, recorded.Event.Context.Tenant, c.Attempts,
+                c.LastError is null ? Option.None : c.LastError, recorded, c.TraceParent is null ? Option.None : c.TraceParent)
+            { DueAt = c.DueAt });
+        }
+
+        return rows;
     }
 
     /// <inheritdoc />

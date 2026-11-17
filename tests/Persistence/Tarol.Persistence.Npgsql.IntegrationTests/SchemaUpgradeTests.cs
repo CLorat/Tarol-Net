@@ -128,15 +128,16 @@ public sealed class SchemaUpgradeTests(Postgres postgres)
         var store = await postgres.IsolatedStore(TimeProvider.System);
         var old = Upgrader(store.Schema, definition: KnowsVersion1(store.Schema));
 
-        (await old.Ensure(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(2, 1, 0));                    // a rolling deploy: old pods start
-        (await old.Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(2, 1, 0));
+        (await old.Ensure(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 0));                    // a rolling deploy: old pods start
+        (await old.Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 0));
 
-        await postgres.Execute($"UPDATE {store.Schema}.schema_version SET version = 4, compatible_from = 1");
-        (await store.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(4, 1, 0));            // no step runs
+        var newer = NpgsqlSchema.Version + 1;
+        await postgres.Execute($"UPDATE {store.Schema}.schema_version SET version = {newer}, compatible_from = 1");
+        (await store.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(newer, 1, 0));        // no step runs
 
-        await postgres.Execute($"UPDATE {store.Schema}.schema_version SET version = 4, compatible_from = 3");
+        await postgres.Execute($"UPDATE {store.Schema}.schema_version SET version = {newer}, compatible_from = {newer}");
         var refused = await Should.ThrowAsync<InvalidOperationException>(() => store.EnsureSchema(SchemaMode.Upgrade, Ct));
-        refused.Message.ShouldContain("has version 4, compatible from version 3; this Tarol.Persistence.Npgsql knows version 2");
+        refused.Message.ShouldContain($"has version {newer}, compatible from version {newer}; this Tarol.Persistence.Npgsql knows version {NpgsqlSchema.Version}");
         (await Should.ThrowAsync<InvalidOperationException>(() => old.Ensure(SchemaMode.Upgrade, Ct))).Message.ShouldContain("knows version 1");
     }
 
@@ -155,7 +156,7 @@ public sealed class SchemaUpgradeTests(Postgres postgres)
         (await Valid(schema, "outbox_dead_at")).ShouldBe(false);
         var log = new EventLog();
 
-        (await Upgrader(schema, log).Ensure(SchemaMode.Upgrade, Ct)).Version.ShouldBe(2);
+        (await Upgrader(schema, log).Ensure(SchemaMode.Upgrade, Ct)).Version.ShouldBe(NpgsqlSchema.Version);
 
         (await Valid(schema, "outbox_dead_at")).ShouldBe(true);
         (await postgres.Scalar($"SELECT indisunique FROM pg_index WHERE indexrelid = '{schema}.outbox_dead_at'::regclass")).ShouldBe(false);
@@ -168,19 +169,19 @@ public sealed class SchemaUpgradeTests(Postgres postgres)
     {
         var schema = postgres.NewSchema();
         var missing = await Should.ThrowAsync<InvalidOperationException>(() => Upgrader(schema).Ensure(SchemaMode.VerifyOnly, Ct));
-        missing.Message.ShouldContain("this code needs version 2");
+        missing.Message.ShouldContain($"this code needs version {NpgsqlSchema.Version}");
         (await postgres.Scalar($"SELECT to_regnamespace('{schema}') IS NULL")).ShouldBe(true);               // nothing created
 
         await postgres.Execute(NpgsqlSchema.Script(schema));                                                // version 1 of step 14
-        (await Should.ThrowAsync<InvalidOperationException>(() => Upgrader(schema).Ensure(SchemaMode.VerifyOnly, Ct))).Message.ShouldContain("needs version 2");
+        (await Should.ThrowAsync<InvalidOperationException>(() => Upgrader(schema).Ensure(SchemaMode.VerifyOnly, Ct))).Message.ShouldContain($"needs version {NpgsqlSchema.Version}");
 
         await postgres.Execute(NpgsqlSchema.Definition(schema).Prepare);                                     // versioned, still version 1
         var older = await Should.ThrowAsync<InvalidOperationException>(() => postgres.Upgraded(schema).EnsureSchema(SchemaMode.VerifyOnly, Ct));
-        older.Message.ShouldContain("has version 1; this code needs version 2");
+        older.Message.ShouldContain($"has version 1; this code needs version {NpgsqlSchema.Version}");
         (await Stored(schema)).ShouldBe((1, 1));
 
-        (await Upgrader(schema).Ensure(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(2, 1, 3));
-        (await Upgrader(schema).Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(2, 1, 0));
+        (await Upgrader(schema).Ensure(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, NpgsqlSchema.Steps(schema).Count));
+        (await Upgrader(schema).Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 0));
     }
 
     [Fact]
@@ -189,16 +190,16 @@ public sealed class SchemaUpgradeTests(Postgres postgres)
         var fresh = postgres.NewSchema();
         foreach (var statement in Statements(NpgsqlSchema.UpgradeScript(fresh, 0)))
             await postgres.Execute(statement);                                                               // as psql would: autocommit
-        (await Upgrader(fresh).Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(2, 1, 0));
+        (await Upgrader(fresh).Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 0));
         (await Valid(fresh, "jobs_dead_at")).ShouldBe(true);
 
         var old = postgres.NewSchema();
         await postgres.Execute(NpgsqlSchema.Script(old));
         foreach (var statement in Statements(NpgsqlSchema.UpgradeScript(old, 1)))
             await postgres.Execute(statement);
-        (await Upgrader(old).Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(2, 1, 0));
+        (await Upgrader(old).Ensure(SchemaMode.VerifyOnly, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 0));
 
-        NpgsqlSchema.UpgradeScript(old, 2).ShouldBeEmpty();
+        NpgsqlSchema.UpgradeScript(old, NpgsqlSchema.Version).ShouldBeEmpty();
         NpgsqlSchema.UpgradeScript(old, 1).ShouldNotContain("CREATE TABLE IF NOT EXISTS " + old + ".streams");
         NpgsqlSchema.UpgradeScript(old, 1).ShouldContain($"CREATE INDEX CONCURRENTLY IF NOT EXISTS outbox_dead_at ON {old}.outbox_dead (dead_at)");
     }
@@ -271,8 +272,8 @@ public sealed class SchemaUpgradeLockTests(Postgres postgres)
         upgrade.IsCompleted.ShouldBeFalse();
         await held.CommitAsync(Ct);                                                                          // the reader ends
 
-        (await upgrade).ShouldBe(new SchemaState(2, 1, 3));
-        (await postgres.Scalar($"SELECT version FROM {schema}.schema_version")).ShouldBe(2);
+        (await upgrade).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, NpgsqlSchema.Steps(schema).Count));
+        (await postgres.Scalar($"SELECT version FROM {schema}.schema_version")).ShouldBe(NpgsqlSchema.Version);
     }
 }
 
