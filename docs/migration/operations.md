@@ -926,3 +926,9 @@ At `71467b7` (the code of this PR), in a separate detached worktree, with Docker
   (`Tarol.Operations.AotSmoke` natively with Kestrel and the database);
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the `Tarol.Operations` package with its skill; the consumer: 5 signals
   polled, 6 checks Healthy).
+
+**Found in 15D's AppHost run and fixed here (`6015d35`)**: the `checkpoint-listen` readiness reported "down" in every process
+before its first checkpoint read (`NpgsqlProjectionPositions` starts its `LISTEN` lazily), so the sample's API and worker
+stayed at `/health/ready` 503. It now fails only after the `LISTEN` started and lost its connection; the LISTEN-loss test of
+`PushedCheckpointTests` checks it (before the start, while listening, after `pg_terminate_backend`). Verified by that suite and
+by the full run of 15D (§18.6), which contains this commit.
