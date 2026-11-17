@@ -17,11 +17,16 @@ description: >-
    The generator puts it in `GeneratedJobs.Set`. `o.At` is UTC whole seconds; `o.Local` gives the zone's day and time.
 2. **Many changes per occurrence (a fan-out, a report) = an `IJob` class** with DI:
    `ValueTask<Result> Run(JobRun run, CancellationToken ct)`. Find targets (a projection may be read), then
-   `await run.Change(new SettleAuction(id), ct)` per target (keyed occurrence/target) or `run.Create(creation, part, ct)`.
-   Each change decides on its own aggregate; never load several aggregates in one change.
+   `await run.Change(new SettleAuction(id), ct)` per target (keyed occurrence/target) or `run.Create(creation, "part", ct)`
+   (`part`: a string naming the creation within the occurrence). Both return `ValueTask<Result<ChangeOutcome>>`; return the
+   first violation to retry the occurrence: what committed replays (`Replayed`), the rest runs. A `[Scheduled]` creation
+   is keyed by the occurrence too. Find targets with `IReadModels` (`Store<TRow>().Search(new ListQuery(tenant) {…})`,
+   skill `tarol-queries`); each change decides on its own aggregate.
 3. **Register in the worker**: `.AddJobs(j => j.Add(GeneratedJobs.Set).Add<SettleEndedAuctions>("15 2 * * *", o => o.TimeZone = "Europe/Vienna"),
    o => o.Workers = 2)` after `UseNpgsqlStore(…)` (or `UseInMemoryStore()`). One `AddJobs` call; several assemblies:
-   `JobSet.Combine(a, b)`. Any number of processes may run it: every occurrence commits once.
+   `JobSet.Combine(a, b)`. An interval: `.Add<TJob>(Schedule.Every(TimeSpan.FromMinutes(5)))` (not in `[Scheduled]`).
+   `JobHostOptions`: `Workers` 2, `PollInterval` 1 s, `Lease` 1 min, `TenantSyncEvery` 1 h. `JobOptions.Grace` is a
+   `TimeSpan`, `Policy` a `DeliveryPolicy` (`Tarol.Sagas`). Any number of processes may run it: every occurrence commits once.
 4. **Cron** is 5-field Unix (Vixie): `min hour day-of-month month day-of-week`, lists, ranges, steps, `JAN`/`MON`, weekday
    7 = Sunday; day-of-month and day-of-week both restricted = **either**. No seconds, no `L W # ?`. Intervals:
    `Schedule.Every(TimeSpan.FromMinutes(15))` (aligned to the epoch). DST: a skipped time runs at the end of the gap, a
@@ -33,10 +38,13 @@ description: >-
    once. **Nothing to do = `Result.Success()`**. Re-drive: `rows.DeadJobs(max, ct)`, `rows.Redrive(id, ct)` (`IJobRows`).
 7. **Side effects** (mail, HTTP) never in the body: it runs again after a crash. Raise an event; its publication or
    effect does the call (`tarol-messaging`).
-8. **Per tenant**: `PerTenant = true` (attribute or `JobOptions`) and register `ITenantDirectory`; one row and one key
-   per tenant, synced at startup and hourly. Without a directory the host fails at startup.
+8. **Per tenant**: `PerTenant = true` (attribute or `JobOptions`) and register your
+   `ITenantDirectory` (`ValueTask<IReadOnlyList<Id<ITenant>>> Tenants(CancellationToken)`); the host reads it at startup and
+   every `TenantSyncEvery` and keeps one row per tenant. The tenant is `o.Tenant` / `run.Occurrence.Tenant` and the change's
+   context tenant. Without a directory the host fails at startup.
 9. **Configuration** overrides by name: `Tarol:Jobs:<name>:Cron`, `:TimeZone`, `:Enabled` (`false` pauses; re-enabled it
-   starts at its next occurrence). Invalid values, unknown zones and unknown names fail at startup. A changed schedule
+   starts at its next occurrence). Read **at startup** (restart the workers to apply); names are case-sensitive. Invalid
+   values, unknown zones and unknown names fail at startup. A changed schedule
    moves the cursor to its first occurrence after now; the old one never runs.
 10. **Names** are stored in rows and keys: the change's type name, or `Name =` / `o.Name`. Pin it before renaming.
 
@@ -67,9 +75,11 @@ var runs = await test.Advance(TimeSpan.FromHours(2));      // CloseDay at 01:00Z
 var missed = await test.Down(TimeSpan.FromDays(1)).Advance(TimeSpan.Zero);   // down a day: Ticks 24 (All), CloseDay 1 (Latest)
 ```
 
-`JobTest` uses an in-memory store and job rows on a standing clock; `Advance` stops at every due time (cursors and retry
-backoffs), `Down` moves the clock with the workers stopped, `Runs` lists every attempt (`JobAttempt`: job, tenant,
-occurrence, attempt, verdict, reason), `DeadJobs()`, `Redrive(id)`, `WithTenants(…)`, `WithConfiguration(…)` + `Sync()`.
+`JobTest` uses an in-memory store and job rows on a standing clock. `Advance` stops at every due time up to the target
+(cursors, retry backoffs) and returns all its runs as `IReadOnlyList<JobAttempt>` (`Job`, `Tenant`, `Occurrence` a UTC
+`DateTimeOffset`, `Attempt`, `Verdict` (`Done`/`Retry`/`Bury`), `Reason`, `Redrive`); `Runs` holds all of them. `Down` moves
+the clock with the workers stopped; `Store.Recorded`, `Load<T>(id, tenant)`, `DeadJobs()`, `Redrive(id)`, `WithTenants(…)`,
+`WithConfiguration(…)` + `Sync()`.
 Pass a `ReactionSet` to drain the reactions the jobs cause (`test.Reactions`). Job classes are added as instances.
 
 ## Common mistakes

@@ -651,3 +651,115 @@ At `c47fff2` (the code of this PR and §16.1–§16.6), in a separate worktree, 
 * the chaos test 10 times in Release, alone: 10 of 10 (§16.4).
 
 This run also covers 14A's `d23457d` (a move starts the next occurrence's attempts), pushed to 14A after its own run (§15.7).
+
+## 17. Implementation 14C: the job host
+
+`jobs: the job worker, cron, JobTest; samples and docs`, stacked on 14B. Labels as in the conventions.
+
+### 17.1 Public API
+
+`Tarol.Jobs` (new; `src/Jobs/Tarol.Jobs`, references `Tarol.Sagas`):
+* schedules: `abstract class Schedule` (`Text`, `After(after, zone)`, `static Every(TimeSpan)`), `sealed class Cron : Schedule`
+  (`Parse`, `TryParse(expression, out cron, out error)`);
+* `IJob` (`ValueTask<Result> Run(JobRun, CancellationToken)`), `JobRun` (`Occurrence`, `Attempt`, `Context`, `Change<T>(change)`
+  keyed `occurrence/target`, `Create<T>(creation, part)` keyed `occurrence/part`);
+* `JobOptions` (`Name`, `TimeZone`, `Missed`, `MaxCatchUp` 100, `Grace` 1 min, `PerTenant`, `Enabled`, `Policy`),
+  `JobHostOptions` (`Workers` 2, `PollInterval` 1 s, `Lease` 1 min, at least 3 s; `TenantSyncEvery` 1 h);
+* `JobsBuilder` (`Add(JobSet)`, `Add<TJob>(cron | schedule, configure)`, `Configure(name, configure)`),
+  `JobServiceCollectionExtensions.AddJobs(this TarolBuilder, jobs, configure)`;
+* `JobHost : BackgroundService` (`ActivitySourceName = "Tarol.Jobs"`, `Jobs`), `ITenantDirectory`, `JobAttempt`;
+* `JobTest` (`At`, `Add(job, cron | schedule)`, `Given`, `Load`, `WithConfiguration`, `WithTenants`, `Sync`, `Advance`, `AdvanceTo`,
+  `Down`, `Runs`, `Reactions`, `DeadJobs`, `Redrive`, `JobRows`, `Store`, `Rows`, `Pipeline`, `Clock`, `Now`);
+* logs 14001 retry, 14002 dead job, 14003 lease lost, 14004 schedule changed, 14005 missed occurrences skipped, 14006 rows
+  synced, 14007 loop failed, 14008 undeclared row, 14009 sync failed, 14010 a system job's count;
+* skill `tarol-jobs`, README.
+
+`Tarol.Persistence`: `MaintenanceTask(Name, Every, Run)`, `IMaintenanceHost`. `Tarol.Messaging.Npgsql`: `NpgsqlBusOptions.Retention`
+(7 days), `PurgeBatch` (1000), `NpgsqlMessagingBuilderExtensions.PurgeMessagesJob`.
+
+### 17.2 Deliberate differences from §6 and §11
+
+| Sketch | Built | Why |
+|---|---|---|
+| `JobTest` over the container | job classes are added as **instances** (`test.Add(new MyJob(fakes), cron)`); `j.Add<TJob>` in a test throws with that hint | .NET 11's base framework has the DI abstractions, not the container; a runtime package takes no `Microsoft.Extensions.DependencyInjection` reference (J-8, no new dependency) |
+| `JobTest.Drain()` | reactions are drained after every run when a `ReactionSet` is given (`Reactions`) | one call less, and `Advance` stays the only verb |
+| (not sketched) | `JobTest.Down(Δ)` (workers down), `Given`, `Load`, `Sync`, `WithTenants`, `WithConfiguration` | the missed-run policies, tenants and the override need them |
+| system jobs scheduled by Tarol.Jobs | `MaintenanceTask` + `IMaintenanceHost` in `Tarol.Persistence`: `Tarol.Messaging.Npgsql` registers its retention, `Tarol.Sagas` checks for the host | `Tarol.Jobs` references `Tarol.Sagas`, and neither `Tarol.Sagas` nor `Tarol.Messaging.Npgsql` may reference `Tarol.Jobs` |
+| `tarol.purge-keys` "hourly" | `Schedule.Every(1 h)` (on the hour, UTC), `Latest`, only when the store implements `IIdempotencyKeyPurge` (the Npgsql store) | the in-memory store purges nothing |
+| configuration override | also refuses a `Tarol:Jobs:<name>` section of no declared job, and a non-boolean `Enabled` | a typo would silently do nothing |
+| a row of a removed job | `Sync` disables it; a row of another process's version (rolling deploy) is released for a lease (14008), never buried | only a process that declares the job may decide about it |
+| `Pick` | at claim time: a run longer than the interval leaves its passed occurrences to the next claim's policy | the cursor must be known before the first `Move` |
+| Cron: "a bitmask walk (14C)" | bitmasks per field (shared `CronSyntax.cs`), walking days → hours → minutes; months skip whole months | `Next` is called once per occurrence |
+| `Every(TimeSpan)` anchor | the Unix epoch in UTC (whole seconds, at least 1 s) | a stable anchor across restarts and processes |
+| (not sketched) | a cron that can never match (`0 0 30 2 *`) is refused at parse time | it would loop for 10 years at 02:00 |
+| a differential against a recorded list | against the probe's own parser (`MiniCron`, copied into the tests as the oracle): 14 expressions × UTC, Vienna, New York × 2 years, **273,665 occurrences, all equal** | an independent implementation of the same rules; the design's 273,703 counted max(Cronos, ours) per pair and contained Cronos' 38 extra runs in the repeated hour |
+
+### 17.3 Changes against steps 7–13
+
+| Where | Change | Kind |
+|---|---|---|
+| `Tarol.Sagas` `AddTarolReactions` | with an `IMaintenanceHost` (a job host) `ReactionOptions.PurgeKeys` is not set from the store: `tarol.purge-keys` purges once per cluster (J-9) | **behaviour**, announced in §10 |
+| `Tarol.Messaging.Npgsql` `UseNpgsqlBus` | registers the `MaintenanceTask` `tarol.purge-messages`: with a job host, delivered messages older than `Retention` are deleted hourly | **behaviour** (nothing purged before), additive options |
+| `Tarol.Persistence` | `MaintenanceTask`, `IMaintenanceHost` | additive API |
+| `Tarol.Changes.Generators/CronSyntax.cs` | `#if NETSTANDARD2_0` for one `Substring`, `IndexOfAny` for `#?`: the file compiles into `Tarol.Jobs` too (net11 analyzers) | none |
+| `docs/architecture/sagas.md` | §4 keys, §10, the open question on recurring work | docs |
+
+### 17.4 Tests
+
+* `Tarol.Jobs.Tests` (59):
+  * `CronTests` (24): the DST table of §2.2 (spring gap, fall back once, hourly in the repeated hour, steps through the gap, from
+    the second pass), Vixie OR and AND, `*/n` as a star, names and weekday 7, strictly after and whole seconds, leap days and an
+    impossible day, 8 invalid expressions with the TCHG010 messages, intervals (also before the epoch), `Latest`, the
+    differential against the probe;
+  * `JobTestTests` (23): the design's example with the drained reaction, a conversation per occurrence, Latest/All/the cap of
+    100/Skip with its grace, retry → dead job → re-drive, `Invalid` at once, an exception retried, nothing to do, a fan-out that
+    replays what committed, the override of cron and zone, a schedule change at startup, disable/re-enable without catch-up, 4
+    invalid configurations, declaration checks, `Configure`, per-tenant rows following the directory, a failing tenant that
+    blocks no other, `Create` keyed by its part;
+  * `HostTests` (8, `FakeTimeProvider`): a run three leases long keeps its row (steps of 5 s, below lease/3) and Latest skips
+    what passed; a run whose claim was dropped by a schedule change is cancelled and writes nothing; an undeclared row is
+    left alone; `tarol.purge-keys` with the reaction options' retention and batch and a registered `MaintenanceTask`; `AddJobs`
+    end to end with a container (generated entry, a DI job class, the key purge taken over from `ReactionHost`); without a job
+    host `ReactionHost` keeps its purge; `AddJobs` twice and a per-tenant job without a directory; host options;
+  * `SkillExampleTests` (1): the skill's example verbatim.
+  Release, alone: **15 of 15** runs green.
+* `Tarol.Messaging.Npgsql.IntegrationTests`: the retention task deletes nothing within `Retention`, then everything, in batches.
+* `Tarol.Jobs.AotSmoke` (new, 22 apps): the DST rules, a generated entry and a class through `JobTest`, and with `TAROL_PG` the
+  host on PostgreSQL running an `Every(1 s)` job with one commit per occurrence, natively.
+* `Tarol.Jobs.PackageTests` (new): the generated set and `JobTest` from the packed package; the skill is listed.
+* `samples/Sagas` through the Aspire AppHost (5 auctions, JIT, NATS): the per-tenant settlement report ran once as
+  `System Jobs.SettlementReport` and counted 5 settled auctions; rows `SettlementReport (a tenant)` and `tarol.purge-keys`, no dead
+  jobs, one `job SettlementReport` span.
+
+### 17.5 Skill evaluation (`tarol-jobs`, `tarol-changes`; §12) **[verified]**
+
+A fresh agent read only the two `SKILL.md` files (no repository, no web) and answered the eight tasks of §12.
+
+| Task | Used | Mistakes of §12 |
+|---|---|---|
+| close the books at 02:00 Vienna | `[Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")]`, `o.Local` for yesterday, `AddJobs(j => j.Add(GeneratedJobs.Set))` | none |
+| settle every ended auction | an `IJob` with `run.Change(new SettleAuction(id))` per target, registered with `Add<T>(cron)` | none |
+| a report by e-mail | a scheduled creation that raises an event; the mail from its publication | none (no mail in the body) |
+| a report per tenant | `PerTenant = true` + `ITenantDirectory` | none |
+| once after downtime / every missed day | default `Latest` / `Missed = Missed.All` | none |
+| pause in production | `Tarol__Jobs__CloseDay__Enabled=false`, noting a typo fails | none |
+| test it | `JobTest.At(…).Advance(…)`, the occurrence 01:00Z (02:00 CET) | none (no sleeping, no wall clock) |
+| nothing to do | `return Result.Success()`, not a Conflict | none |
+
+8 of 8 used the expected API; none made a listed mistake. A run without the skills was not repeated (13C showed the
+baseline: no Tarol names at all). The gaps the agent named, closed in `tarol-jobs`:
+* the signature of `ITenantDirectory`, and that the tenant is `o.Tenant` / `run.Occurrence.Tenant`;
+* the return types of `run.Change`/`Create` and of `Advance`, the members of `JobAttempt`, `Store.Recorded` and `Load` on `JobTest`;
+* what `part` is, that a failed target retries the occurrence and the committed ones replay, that a `[Scheduled]` creation is
+  keyed;
+* how to read a projection from a job (`IReadModels`, skill `tarol-queries`);
+* `Schedule.Every` goes through `Add<TJob>(schedule)`, the `JobHostOptions` and the types of `Grace` and `Policy`;
+* configuration is read at startup (restart the workers), names are case-sensitive.
+
+And in `tarol-changes`: the example of an internal run by hand was labelled "a job" with `Actor.System("Jobs.AuctionSettlement")`,
+which read as the way to write a job; it now points to `[Scheduled]` and `JobRun.Change`. `tarol-jobs` is 8.5 KB.
+
+### 17.6 Suppressions
+
+None. The probe's parser in the tests (`ProbeCron.cs`) is copied with its logic unchanged; it compiles under the test
+analyzers as is.
