@@ -248,6 +248,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * `Tarol.Persistence` (step 14A): the job rows port `IJobRows` (`Sync`, one-row `Claim` with a lease, `Move`, `Advance`,
   `Extend`, `Retry`, `Bury`, `DeadJobs`, `Redrive`, `Rows`, `Overdue`; records `JobSchedule`, `JobSyncChange`, `JobRow`,
   `JobState`, `DeadJob`), in-memory rows as `InMemoryAggregateStore.Jobs`, `TarolBuilder.UseStore(factory, outbox, jobs)`.
+* `Tarol.Persistence.Npgsql` (step 14B): the job rows on PostgreSQL. `jobs` (one row per (tenant, job): schedule text,
+  `enabled`, the cursor `next_at`, claim id, lease, attempts, last error) and `jobs_dead` (with a pending `redrive`) in the
+  version 1 script; `NpgsqlAggregateStore.Jobs` (`NpgsqlJobRows`): one-row claims with `FOR UPDATE SKIP LOCKED` (a pending
+  re-drive first), claim-guarded single statements, `Sync` in one transaction under an advisory lock; `UseNpgsqlStore`
+  registers `IJobRows`.
 
 ### Fixed
 
