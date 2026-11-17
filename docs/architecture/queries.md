@@ -207,4 +207,4 @@ no row rules on lists; QR-7 two new packages and the endpoints in `Tarol.Changes
   so not needed yet; it would need an index `(type, tx_id, position)` written by every commit).
 * Range filters (`endsAt >= …`) and full-text search: later, if a scenario asks; equality and sorts cover ArtFlow.
 * Pushing read-model changes to the UI (messaging.md §10): the host could publish after its batch; step 13 or later.
-* Lag metrics per projection and the drop of old versions: step 15.
+* Lag metrics per projection and the drop of old versions: step 15. Designed in step 15: [operations.md](operations.md) (O-1: `tarol.projections.lag`; O-5: `DropVersion` explicit with `lock_timeout`; O-8: one runner per version).

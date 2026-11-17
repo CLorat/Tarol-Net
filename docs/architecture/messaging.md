@@ -226,7 +226,7 @@ M-14 `Tarol.Messaging.Npgsql`; M-15 the sample in `samples/Sagas`.
 ## Open questions
 
 * Retention of `bus.messages` (rows without deliveries) and of `messages_dead`: step 15 (operations), with metrics on
-  subscription lag and dead letters.
+  subscription lag and dead letters. Designed in step 15: [operations.md](operations.md) (O-5: `messages_dead` kept, optional `tarol.purge-dead`; O-1: `tarol.messages.*`; O-4: versioned bus steps).
 * Partitioned order per key at higher concurrency (NATS subject partitions, RabbitMQ consistent-hash or single active
   consumer): not needed by a scenario; Conflict retries cover order across streams.
 * Schema registries or published contract documents (AsyncAPI): later, if asked.
