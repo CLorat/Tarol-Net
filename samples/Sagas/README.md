@@ -78,6 +78,10 @@ Step 14 (2026-11-17, JIT, NATS): the job rows are `SettlementReport (a tenant) [
 `tarol.purge-keys [every 3600s]`, no dead jobs; one report by `System Jobs.SettlementReport` that counted 5 settled
 auctions, one key `job:SettlementReport`, one `job SettlementReport` span; the run took 91 s.
 
+Step 15 (2026-11-17, JIT, NATS): the API's `/health/ready` 200 after 20 s, the worker's 200; the worker's `/health/tarol`
+Healthy; the admin entry 200 for alice, 403 for bob, 401 anonymously; schema version 2; traces from api, billing and worker
+with `change …` spans of `Tarol.Changes`, metrics from api and worker; the run took 79 s.
+
 The three binaries publish with 0 IL warnings (api 24.8 MB, worker 20.0 MB, billing 19.8 MB, each with NATS.Net and
 RabbitMQ.Client).
 

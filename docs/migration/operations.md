@@ -932,3 +932,60 @@ before its first checkpoint read (`NpgsqlProjectionPositions` starts its `LISTEN
 stayed at `/health/ready` 503. It now fails only after the `LISTEN` started and lost its connection; the LISTEN-loss test of
 `PushedCheckpointTests` checks it (before the start, while listening, after `pg_terminate_backend`). Verified by that suite and
 by the full run of 15D (§18.6), which contains this commit.
+
+## 18. Implementation 15D: the guide and the sample
+
+`docs: the operations guide; samples/Sagas with health, metrics and the admin entry`, stacked on 15C. Labels as in the conventions.
+
+### 18.1 What it adds
+
+* **The guide** [`docs/operations/README.md`](../operations/README.md): the meters and the snapshot gauges, the health groups and
+  Kubernetes probes, the admin entry and retention, schema upgrades and rolling deploys (`VerifyOnly`, `UpgradeScript`),
+  OpenTelemetry (`AddSource("Tarol.*", "Npgsql")`, `AddMeter("Tarol.*", "Npgsql")`, parent-based sampling, the root filter on
+  a data source the app builds), and the log ids.
+* **`samples/Sagas`**:
+  * API and worker register `AddOperations()` and map `MapTarolHealth()`; the worker becomes a `WebApplication` (slim) with an
+    HTTP listener on 5081 for its probes;
+  * the API maps `MapTarolAdmin("/tarol/admin", policy: "tarol-admin")`, the policy requiring the new Zitadel project role
+    `tarol-admin` that `ZitadelSetup` grants alice;
+  * both export traces with `Tarol.*` and `Npgsql` (the worker no longer lists its sources one by one, so `Tarol.Sagas` and
+    `Tarol.Changes` are in; §5 item 12) and metrics with `Tarol.*` and `Npgsql` to OTLP;
+  * the AppHost health-checks `/health/ready` of the API and the worker; `apphost.sh` waits on `/health/ready` (it waited on a
+    `/health` that always said "ok"), prints the worker's `/health/tarol`, calls the admin entry as alice, bob and anonymously,
+    prints the schema versions and the audit rows, and waits for the first metric export of both.
+* Plan row 15 "done" with the per-PR status; the concept note's status; CHANGELOG.
+
+### 18.2 Deliberate differences from §6.5 and §11
+
+| Sketch | Built | Why |
+|---|---|---|
+| the admin entry "behind a Zitadel role" | a project role `tarol-admin` granted to alice, an ASP.NET Core policy `RequireRole("tarol-admin")` | the policy is the app's (O-3); Zitadel only supplies the role claim |
+| the worker with `MapTarolHealth` | the worker on `WebApplication.CreateSlimBuilder` with port 5081 | `IHealthCheck` endpoints need an HTTP listener (operations.md §3) |
+| billing | unchanged | the third system shows that operations are optional per process |
+
+### 18.3 Changes against steps 7–14
+
+| Where | Change | Kind |
+|---|---|---|
+| `samples/Sagas` | operations wired, the role `tarol-admin`, the worker's port 5081, OTLP metrics, `Tarol.*`/`Npgsql` traces | sample |
+| `samples/Sagas/apphost.sh` | waits on `/health/ready`; health, admin, schema and metric checks | sample |
+
+### 18.4 Skill checklist
+
+None new: `tarol-operations` (15C, §12) covers what the guide shows; the sample is its worked example.
+
+### 18.5 Suppressions
+
+None. The AppHost's `ASPIRE010` warning comes from Aspire's own targets and is unchanged since step 11 (the sample is not part
+of `Tarol.slnx`).
+
+### 18.6 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+* **The AppHost run** (`samples/Sagas/apphost.sh <build dir> 5`, JIT, NATS, 79 s): the API's `/health/ready` 200 after 20 s, the
+  worker's `/health/live` and `/health/ready` 200; every step of steps 11–14 as before (5 auctions, 5 payouts, 5 sagas completed,
+  billing 5 + 5, the list read-after 0 stale, 304s, the job report); the worker's `/health/tarol` Healthy (0 dead letters, 0 s
+  backlogs); the admin entry: alice 200, bob 403, anonymous 401, projections `auction-list v1 current`; schema version 2
+  (compatible from 1), `messages_dead` 2, 0 audit rows; traces from api, billing and worker, **metrics from api and worker**;
+  spans now include `change …` (the `Tarol.Changes` source), `reaction …` and `postgresql` children of the requests and reactions.
+  The first run showed `/health/ready` 503 throughout: the readiness fix of 15C (§17.7). One run did not start because the
+  session's disk allowance was spent by the verification worktrees; they were removed and the run repeated.

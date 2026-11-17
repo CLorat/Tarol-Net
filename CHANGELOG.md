@@ -287,8 +287,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   15001–15005; skill `tarol-operations`. `Tarol.Persistence` gains `ReadinessCheck`, `IReadModelAdmin` and
   `IDeadLetterRetention`, which the Npgsql packages implement.
 
+* Step 15D (docs/migration/operations.md §18): the guide `docs/operations/README.md`; `samples/Sagas` with `AddOperations`,
+  `MapTarolHealth` in the API and the worker, `MapTarolAdmin` behind the Zitadel role `tarol-admin`, traces with `Tarol.*` and
+  `Npgsql`, metrics to OTLP, and the AppHost waiting on `/health/ready`. **Step 15 (operations) done.**
+
 ### Fixed
 
+* Step 15: `PushTests` waited a fixed 300 ms for the SignalR client's replay and an upcast test rewrote events of the shared
+  schema (15-0); the `checkpoint-listen` readiness reported a LISTEN that had not started yet as down (15C).
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
   token) and ran again after its lease; the verdict is now recorded regardless. Three timing-dependent tests made
   deterministic (docs/migration/sagas.md §18.3).

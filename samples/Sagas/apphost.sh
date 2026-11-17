@@ -64,6 +64,8 @@ echo "admin: alice GET dead/reactions $(curl -s -o /dev/null -w '%{http_code}' "
 echo "schema versions: store $(q "SELECT version || ' (compatible from ' || compatible_from || ')' FROM tarol.schema_version"), messages_dead $(q "SELECT version FROM tarol.messages_dead_version"), audit rows $(q "SELECT count(*) FROM tarol.operations_audit")"
 echo "dead letters: outbox $(q "SELECT count(*) FROM tarol.outbox_dead")/$(q "SELECT count(*) FROM tarol.outbox_dead" billingdb), messages $(q "SELECT count(*) FROM tarol.messages_dead")/$(q "SELECT count(*) FROM tarol.messages_dead" billingdb)"
 sleep 6
+# metrics are exported once a minute (the OTLP exporter's default): wait for the first export of the api and the worker
+for i in $(seq 1 75); do curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; rs=json.load(sys.stdin); sys.exit(0 if {"api","worker"} <= {r["name"] for r in rs if r.get("hasMetrics")} else 1)' && break; sleep 1; done
 curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; rs=json.load(sys.stdin); print("dashboard resources with traces:", sorted(r["name"] for r in rs if r["hasTraces"]), "with metrics:", sorted(r["name"] for r in rs if r.get("hasMetrics")))'
 curl -s "http://localhost:18888/api/telemetry/traces?limit=5000" > "$traces"
 python3 - "$traces" <<'PY'
