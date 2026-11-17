@@ -761,5 +761,5 @@ which read as the way to write a job; it now points to `[Scheduled]` and `JobRun
 
 ### 17.6 Suppressions
 
-None. The probe's parser in the tests (`ProbeCron.cs`) is copied with its logic unchanged; it compiles under the test
-analyzers as is.
+None. The probe's parser in the tests (`ProbeCron.cs`) is copied with its logic unchanged; `dotnet format` reflowed its
+one-line `if` bodies, nothing else was needed under the test analyzers.
