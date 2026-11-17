@@ -114,7 +114,14 @@ public static class OutboxReactions
 /// <param name="Event">The event with its commit facts.</param>
 /// <param name="Traceparent">The W3C trace context of the activity that committed the event, for an <c>ActivityLink</c>.</param>
 public sealed record OutboxRow(long Id, Guid ClaimId, string Reaction, Option<Id<ITenant>> Tenant, int Attempts, Option<string> LastError,
-    PositionedEvent Event, Option<string> Traceparent);
+    PositionedEvent Event, Option<string> Traceparent)
+{
+    /// <summary>
+    /// When the row was due before this claim (step 15): the commit, a scheduled reaction's time or a retry's; the worker
+    /// records start − due as <c>tarol.reactions.lateness</c>. <see langword="null"/> from a store that does not say.
+    /// </summary>
+    public DateTimeOffset? DueAt { get; init; }
+}
 
 /// <summary>A row that kept failing and left the order of its stream: for a human to read and re-drive.</summary>
 /// <param name="Id">The dead letter (re-drive it by this id).</param>
@@ -127,7 +134,12 @@ public sealed record OutboxRow(long Id, Guid ClaimId, string Reaction, Option<Id
 /// <param name="LastError">Why the last attempt failed.</param>
 /// <param name="DeadAt">When it was buried.</param>
 public sealed record DeadLetter(long Id, string Reaction, Option<Id<ITenant>> Tenant, string StreamType, Guid StreamId, Guid EventId, int Attempts,
-    Option<string> LastError, DateTimeOffset DeadAt);
+    Option<string> LastError, DateTimeOffset DeadAt)
+{
+    /// <summary>This dead letter as the admin entry lists it (kind <see cref="DeadLetterKinds.Reactions"/>).</summary>
+    /// <returns>The item; its subject is <c>&lt;stream type&gt;/&lt;stream&gt;/&lt;event&gt;</c>.</returns>
+    public DeadLetterItem ToItem() => new(Id, DeadLetterKinds.Reactions, Reaction, Tenant, $"{StreamType}/{StreamId}/{EventId}", Attempts, LastError, DeadAt);
+}
 
 /// <summary>
 /// The outbox of a store (P-1, P-10, S-5, S-8, S-9): rows written in the commit of their event, claimed by workers with a
@@ -183,7 +195,29 @@ public interface IOutbox
     /// <returns><see langword="false"/> when there is no such dead letter.</returns>
     Task<bool> Redrive(long id, CancellationToken cancellationToken);
 
-    /// <summary>How many rows wait (claimed or not, dead letters excluded); for health checks.</summary>
+    /// <summary>One page of dead letters (step 15, O-3): ids after <see cref="DeadLetterQuery.After"/>, filtered by tenant and reaction.</summary>
+    /// <param name="query">Paging and filters (<see cref="DeadLetterQuery.Name"/> is the reaction).</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>Up to <see cref="DeadLetterQuery.Limit"/> dead letters, by id.</returns>
+    Task<IReadOnlyList<DeadLetter>> DeadLetters(DeadLetterQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Deletes a dead letter for good (step 15); its event stays in the stream.</summary>
+    /// <param name="id">The dead letter's <see cref="DeadLetter.Id"/>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns><see langword="false"/> when there is no such dead letter.</returns>
+    Task<bool> Discard(long id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// When the oldest due head became due (step 15): the age of the backlog, the signal an alert needs; an index lookup.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The due time of the oldest due head, claimed or not; <see cref="Option.None"/> when nothing is due.</returns>
+    Task<Option<DateTimeOffset>> OldestDue(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// How many rows wait (claimed or not, dead letters excluded). A count of every row: it costs a scan of the table (32 ms at
+    /// 1,000,000 rows); alert on <see cref="OldestDue"/> instead.
+    /// </summary>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>The count.</returns>
     Task<long> Pending(CancellationToken cancellationToken);

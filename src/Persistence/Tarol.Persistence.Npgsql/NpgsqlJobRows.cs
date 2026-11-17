@@ -17,7 +17,7 @@ namespace Tarol.Persistence.Npgsql;
 /// A claim costs about 1 ms at any table size (the partial index <c>jobs_due</c>). Times are whole seconds, written in UTC:
 /// <c>timestamptz</c> keeps microseconds, so a whole second reads back unchanged (jobs.md §5 item 1).
 /// </remarks>
-public sealed class NpgsqlJobRows : IJobRows
+public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource
 {
     private readonly NpgsqlDataSource _db;
     private readonly TimeProvider _time;
@@ -198,6 +198,23 @@ public sealed class NpgsqlJobRows : IJobRows
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(max);
         await using var command = _db.CreateCommand(_sql.DeadJobs);
         command.Parameters.Add(new NpgsqlParameter { Value = max });
+        return await ReadDead(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DeadJob>> DeadJobs(DeadLetterQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await using var command = _db.CreateCommand(_sql.DeadPage);
+        command.Parameters.Add(new NpgsqlParameter { Value = query.After });
+        command.Parameters.Add(new NpgsqlParameter { Value = query.Limit });
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Uuid, Value = query.Tenant.TryGetValue(out Id<ITenant> t) ? t.Value : DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)query.Name ?? DBNull.Value });
+        return await ReadDead(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<DeadJob>> ReadDead(NpgsqlCommand command, CancellationToken cancellationToken)
+    {
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))
         {
@@ -210,11 +227,45 @@ public sealed class NpgsqlJobRows : IJobRows
     }
 
     /// <inheritdoc />
-    public async Task<bool> Redrive(long id, CancellationToken cancellationToken)
+    public Task<bool> Redrive(long id, CancellationToken cancellationToken) => Act(_sql.Redrive, id, null, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<bool> Discard(long id, CancellationToken cancellationToken) => Act(_sql.Discard, id, null, cancellationToken);
+
+    /// <summary>The kind of these dead letters: <see cref="DeadLetterKinds.Jobs"/>.</summary>
+    string IDeadLetterSource.Kind => DeadLetterKinds.Jobs;
+
+    /// <inheritdoc />
+    async Task<DeadLetterPage> IDeadLetterSource.List(DeadLetterQuery query, CancellationToken cancellationToken)
     {
-        await using var command = _db.CreateCommand(_sql.Redrive);
+        var rows = await DeadJobs(query, cancellationToken).ConfigureAwait(false);
+        return new DeadLetterPage([.. rows.Select(static d => d.ToItem())], rows.Count == query.Limit ? rows[^1].Id : null);
+    }
+
+    /// <inheritdoc />
+    Task<bool> IDeadLetterSource.Redrive(long id, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        return Act(_sql.RedriveAudited, id, actor, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    Task<bool> IDeadLetterSource.Discard(long id, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        return Act(_sql.DiscardAudited, id, actor, cancellationToken);
+    }
+
+    private async Task<bool> Act(string sql, long id, string? actor, CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(sql);
         command.Parameters.Add(new NpgsqlParameter { Value = id });
-        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+        if (actor is not null)
+        {
+            command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
+            command.Parameters.Add(new NpgsqlParameter { Value = actor });
+        }
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is 1L;
     }
 
     /// <inheritdoc />
@@ -350,7 +401,31 @@ public sealed class NpgsqlJobRows : IJobRows
             SELECT id, tenant, name, occurrence, attempts, last_error, dead_at, redrive FROM {schema}.jobs_dead ORDER BY id LIMIT $1
             """;
 
-        public string Redrive => $"UPDATE {schema}.jobs_dead SET redrive = true WHERE id = $1 AND NOT redrive";
+        private string Audited(string changed, string action) => $"""
+            WITH d AS ({changed} RETURNING id, tenant, name, occurrence),
+            a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
+                  SELECT $2, $3, '{action}', 'jobs:' || d.id, jsonb_build_object('job', d.name, 'tenant', d.tenant, 'occurrence', d.occurrence) FROM d)
+            SELECT count(*) FROM d
+            """;
+
+        private string RedriveRow => $"UPDATE {schema}.jobs_dead SET redrive = true WHERE id = $1 AND NOT redrive";
+
+        private string DiscardRow => $"DELETE FROM {schema}.jobs_dead WHERE id = $1";
+
+        public string Redrive => $"WITH d AS ({RedriveRow} RETURNING id) SELECT count(*) FROM d";
+
+        public string Discard => $"WITH d AS ({DiscardRow} RETURNING id) SELECT count(*) FROM d";
+
+        // the audit row in the same statement (O-3)
+        public string RedriveAudited => Audited(RedriveRow, "redrive");
+
+        public string DiscardAudited => Audited(DiscardRow, "discard");
+
+        public string DeadPage => $"""
+            SELECT id, tenant, name, occurrence, attempts, last_error, dead_at, redrive FROM {schema}.jobs_dead
+            WHERE id > $1 AND ($3::uuid IS NULL OR tenant = $3) AND ($4::text IS NULL OR name = $4)
+            ORDER BY id LIMIT $2
+            """;
 
         public string Rows => $"""
             SELECT tenant, name, schedule, enabled, next_at, lease_until, attempts, last_error FROM {schema}.jobs ORDER BY name, tenant

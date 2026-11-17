@@ -95,6 +95,9 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     /// <summary>The PostgreSQL schema of the tables.</summary>
     public string Schema => _sql.Schema;
 
+    /// <summary>The data source (for the snapshot signals of step 15).</summary>
+    internal NpgsqlDataSource DataSource => _db;
+
     /// <summary>
     /// The channel of the feed's <c>NOTIFY</c> (<c>&lt;schema&gt;_feed</c>), sent with every commit when
     /// <see cref="NpgsqlStoreOptions.NotifyFeed"/> is on: projection hosts <c>LISTEN</c> on it to wake at once.

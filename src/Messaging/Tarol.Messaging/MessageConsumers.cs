@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -35,9 +36,15 @@ public sealed partial class MessageConsumers
     /// <summary>The name of the <see cref="ActivitySource"/> of consumed messages: add it to your tracing.</summary>
     public const string ActivitySourceName = "Tarol.Messaging";
 
+    /// <summary>The name of the messaging meter (step 15): <c>tarol.messages.consumed</c>, <c>.published</c>, <c>.duration</c>.</summary>
+    public const string MeterName = "Tarol.Messaging";
+
     private static readonly ActivitySource Source = new(ActivitySourceName);
+    internal static readonly Meter SharedMeter = new(MeterName);
 
     private readonly ConsumerSet _set;
+    private readonly Counter<long> _consumed;
+    private readonly Histogram<double> _duration;
     private readonly ChangePipeline _pipeline;
     private readonly IMessageDeadLetters _dead;
     private readonly MessagingOptions _options;
@@ -51,8 +58,9 @@ public sealed partial class MessageConsumers
     /// <param name="options">Application name, trust, policy.</param>
     /// <param name="json">The application's JSON options (its source-generated context) for the contract records.</param>
     /// <param name="logger">Logs retries, dead letters and dropped messages; <see langword="null"/> = none.</param>
+    /// <param name="meters">Creates the meter <see cref="MeterName"/>; <see langword="null"/> = a shared meter.</param>
     public MessageConsumers(ConsumerSet set, ChangePipeline pipeline, IMessageDeadLetters dead, MessagingOptions options, JsonSerializerOptions json,
-        ILogger? logger = null)
+        ILogger? logger = null, IMeterFactory? meters = null)
     {
         ArgumentNullException.ThrowIfNull(set);
         ArgumentNullException.ThrowIfNull(pipeline);
@@ -66,6 +74,9 @@ public sealed partial class MessageConsumers
         _options = options;
         _json = json;
         _log = logger ?? NullLogger.Instance;
+        var meter = meters?.Create(MeterName) ?? SharedMeter;
+        _consumed = meter.CreateCounter<long>("tarol.messages.consumed", "{message}", "Deliveries handled, by consumer and outcome (completed, dropped, retried, buried).");
+        _duration = meter.CreateHistogram<double>("tarol.messages.duration", "s", "Duration of handling a delivery, its change included.");
         Subscriptions = [.. set.Consumers.Select(c => new Subscription(SubscriptionOf(c.Name), c.Topics) { Concurrency = options.Concurrency, Lease = options.Lease })];
     }
 
@@ -94,9 +105,17 @@ public sealed partial class MessageConsumers
     /// <param name="id">The dead letter's id.</param>
     /// <param name="cancellationToken">Cancels the run.</param>
     /// <returns>What happened, or <see langword="null"/> when there is no such dead letter.</returns>
-    public async Task<ConsumerAttempt?> Redrive(long id, CancellationToken cancellationToken = default)
+    public Task<ConsumerAttempt?> Redrive(long id, CancellationToken cancellationToken = default) => Redrive(id, null, cancellationToken);
+
+    /// <summary>As <see cref="Redrive(long, CancellationToken)"/>, on behalf of <paramref name="actor"/> (the store audits the take; step 15).</summary>
+    /// <param name="id">The dead letter's id.</param>
+    /// <param name="actor">Who re-drives it; <see langword="null"/> = unaudited.</param>
+    /// <param name="cancellationToken">Cancels the run.</param>
+    /// <returns>What happened, or <see langword="null"/> when there is no such dead letter.</returns>
+    public async Task<ConsumerAttempt?> Redrive(long id, string? actor, CancellationToken cancellationToken = default)
     {
-        if (await _dead.Take(id, cancellationToken).ConfigureAwait(false) is not { } letter)
+        var taken = actor is null ? _dead.Take(id, cancellationToken) : _dead.Take(id, actor, cancellationToken);
+        if (await taken.ConfigureAwait(false) is not { } letter)
             return null;
         var consumer = letter.Subscription.StartsWith(_options.Application + ".", StringComparison.Ordinal)
             ? letter.Subscription[(_options.Application.Length + 1)..]
@@ -133,6 +152,23 @@ public sealed partial class MessageConsumers
     }
 
     private async ValueTask<(Handled Handled, ConsumerAttempt Attempt)> HandleCore(string consumer, Incoming incoming, CancellationToken cancellationToken)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var handled = await HandleInner(consumer, incoming, cancellationToken).ConfigureAwait(false);
+        var attempt = handled.Attempt;
+        var outcome = attempt.Verdict switch
+        {
+            Verdict.Done => attempt.Reason.IsSome ? "dropped" : "completed",
+            Verdict.Retry => "retried",
+            _ => "buried",
+        };
+        var tags = new TagList { { "tarol.consumer", consumer }, { "tarol.outcome", outcome } };
+        _consumed.Add(1, tags);
+        _duration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds, tags);
+        return handled;
+    }
+
+    private async ValueTask<(Handled Handled, ConsumerAttempt Attempt)> HandleInner(string consumer, Incoming incoming, CancellationToken cancellationToken)
     {
         var subscription = SubscriptionOf(consumer);
         if (incoming.Message is not { } message)

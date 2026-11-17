@@ -74,7 +74,13 @@ public sealed record JobState(Option<Id<ITenant>> Tenant, string Name, string Sc
 /// <param name="DeadAt">When it was buried.</param>
 /// <param name="Redriven">Whether a re-drive is pending (it runs at the row's next claim).</param>
 public sealed record DeadJob(long Id, Option<Id<ITenant>> Tenant, string Name, DateTimeOffset Occurrence, int Attempts, Option<string> LastError,
-    DateTimeOffset DeadAt, bool Redriven);
+    DateTimeOffset DeadAt, bool Redriven)
+{
+    /// <summary>This dead job as the admin entry lists it (kind <see cref="DeadLetterKinds.Jobs"/>).</summary>
+    /// <returns>The item; its subject is the occurrence (ISO 8601, UTC).</returns>
+    public DeadLetterItem ToItem()
+        => new(Id, DeadLetterKinds.Jobs, Name, Tenant, Occurrence.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture), Attempts, LastError, DeadAt);
+}
 
 /// <summary>
 /// The job rows of a store (docs/architecture/jobs.md §5, J-4): one row per (tenant, job) holding the cursor of the oldest
@@ -161,6 +167,18 @@ public interface IJobRows
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>The dead jobs, oldest first.</returns>
     Task<IReadOnlyList<DeadJob>> DeadJobs(int max, CancellationToken cancellationToken);
+
+    /// <summary>One page of dead jobs (step 15, O-3): ids after <see cref="DeadLetterQuery.After"/>, filtered by tenant and job name.</summary>
+    /// <param name="query">Paging and filters (<see cref="DeadLetterQuery.Name"/> is the job).</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>Up to <see cref="DeadLetterQuery.Limit"/> dead jobs, by id.</returns>
+    Task<IReadOnlyList<DeadJob>> DeadJobs(DeadLetterQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Deletes a dead job for good (step 15): its occurrence is not run again.</summary>
+    /// <param name="id">The dead job's <see cref="DeadJob.Id"/>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns><see langword="false"/> when there is no such dead job.</returns>
+    Task<bool> Discard(long id, CancellationToken cancellationToken);
 
     /// <summary>
     /// Re-drives a dead job: its row runs the dead occurrence once more at its next claim, with its key (a part that did

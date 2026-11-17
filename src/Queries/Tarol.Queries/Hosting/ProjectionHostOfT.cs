@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Tarol.Kernel;
 using Tarol.Persistence;
@@ -23,9 +24,11 @@ public sealed class ProjectionHost<TRow> : ProjectionHost
     /// <param name="time">The clock of waits; default <see cref="TimeProvider.System"/>.</param>
     /// <param name="logger">Logs failed and refused batches; <see langword="null"/> = none.</param>
     /// <param name="signal">Wakes the host after a commit; <see langword="null"/> = poll.</param>
+    /// <param name="gate">Lets one runner of the version work (step 15); <see langword="null"/> = every host runs.</param>
+    /// <param name="meters">Creates the meter <see cref="ProjectionHost.MeterName"/>; <see langword="null"/> = a shared meter.</param>
     public ProjectionHost(IEventFeed feed, IReadModelStore<TRow> store, ProjectionOptions? options = null, TimeProvider? time = null,
-        ILogger<ProjectionHost<TRow>>? logger = null, IFeedSignal? signal = null)
-        : base(TRow.Name, TRow.Version, feed, options, time, logger, signal)
+        ILogger<ProjectionHost<TRow>>? logger = null, IFeedSignal? signal = null, IProjectionGate? gate = null, IMeterFactory? meters = null)
+        : base(TRow.Name, TRow.Version, feed, options, time, logger, signal, gate, meters)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;

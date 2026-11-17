@@ -1,8 +1,12 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
+using Tarol.Kernel;
+using Tarol.Persistence;
 using Tarol.Persistence.Npgsql;
+using Tarol.StronglyTypedId;
 
 namespace Tarol.Messaging.Npgsql;
 
@@ -18,6 +22,10 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
     private readonly string _insert;
     private readonly string _list;
     private readonly string _take;
+    private readonly string _page;
+    private readonly string _discard;
+    private readonly string _takeAudited;
+    private readonly string _discardAudited;
 
     /// <summary>Creates the store.</summary>
     /// <param name="dataSource">The consumer's database.</param>
@@ -38,6 +46,28 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
         _insert = $"INSERT INTO {schema}.messages_dead (subscription, topic, message_id, attempts, reason, headers, data, dead_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
         _list = $"SELECT {Columns} FROM {schema}.messages_dead ORDER BY id LIMIT $1";
         _take = $"DELETE FROM {schema}.messages_dead WHERE id = $1 RETURNING {Columns}";
+        _page = $"""
+            SELECT {Columns} FROM {schema}.messages_dead
+            WHERE id > $1 AND ($3::text IS NULL OR headers->>'{MessageHeaders.Tenant}' = $3) AND ($4::text IS NULL OR subscription = $4)
+            ORDER BY id LIMIT $2
+            """;
+        _discard = $"WITH d AS (DELETE FROM {schema}.messages_dead WHERE id = $1 RETURNING id) SELECT count(*) FROM d";
+        // the audit row in the same statement (O-3): DELETE … RETURNING feeds it
+        var audit = $"""
+            a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
+                  SELECT $2, $3, $4, 'messages:' || d.id,
+                         jsonb_build_object('subscription', d.subscription, 'topic', d.topic, 'message', d.message_id, 'tenant', d.headers->>'{MessageHeaders.Tenant}') FROM d)
+            """;
+        _takeAudited = $"""
+            WITH d AS (DELETE FROM {schema}.messages_dead WHERE id = $1 RETURNING id, subscription, topic, message_id, attempts, reason, headers, data, dead_at),
+            {audit}
+            SELECT id, subscription, topic, message_id, attempts, reason, headers::text, data, dead_at FROM d
+            """;
+        _discardAudited = $"""
+            WITH d AS (DELETE FROM {schema}.messages_dead WHERE id = $1 RETURNING id, subscription, topic, message_id, headers),
+            {audit}
+            SELECT count(*) FROM d
+            """;
     }
 
     /// <summary>The schema of the table.</summary>
@@ -91,6 +121,64 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
         await using var command = _db.CreateCommand(_list);
         command.Parameters.Add(new() { Value = max });
         return await Read(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DeadMessage>> List(DeadLetterQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await using var command = _db.CreateCommand(_page);
+        command.Parameters.Add(new() { Value = query.After });
+        command.Parameters.Add(new() { Value = query.Limit });
+        command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.Text,
+            Value = query.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value.ToString("D", CultureInfo.InvariantCulture) : DBNull.Value });
+        command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)query.Name ?? DBNull.Value });
+        return await Read(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>How many dead letters the table holds (the snapshot signal <c>tarol.messages.dead</c>).</summary>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The count.</returns>
+    public async Task<long> Count(CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand($"SELECT count(*) FROM {Schema}.messages_dead");
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is long n ? n : 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> Discard(long id, CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(_discard);
+        command.Parameters.Add(new() { Value = id });
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is 1L;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Writes the <c>operations_audit</c> row (action <c>redrive</c>) in the same statement.</remarks>
+    public async Task<DeadMessage?> Take(long id, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        await using var command = Audited(_takeAudited, id, actor, "redrive");
+        return await Read(command, cancellationToken).ConfigureAwait(false) is [var one] ? one : null;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Writes the <c>operations_audit</c> row (action <c>discard</c>) in the same statement.</remarks>
+    public async Task<bool> Discard(long id, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        await using var command = Audited(_discardAudited, id, actor, "discard");
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is 1L;
+    }
+
+    private NpgsqlCommand Audited(string sql, long id, string actor, string action)
+    {
+        var command = _db.CreateCommand(sql);
+        command.Parameters.Add(new() { Value = id });
+        command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
+        command.Parameters.Add(new() { Value = actor });
+        command.Parameters.Add(new() { Value = action });
+        return command;
     }
 
     /// <inheritdoc />

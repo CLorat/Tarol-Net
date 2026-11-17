@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -42,6 +43,9 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
     /// <summary>The schema of the read tables and the projections table.</summary>
     public string Schema { get; }
 
+    /// <summary>The data source (for the lag signal of step 15).</summary>
+    internal NpgsqlDataSource DataSource => _db;
+
     /// <summary>Whether every batch sends the checkpoint <c>NOTIFY</c> (<see cref="NpgsqlReadModelOptions.PushCheckpoints"/>).</summary>
     public bool PushesCheckpoints => _channel is not null;
 
@@ -63,25 +67,64 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
 
     /// <summary>
     /// Drops the read table and the checkpoint of an old projection version (the explicit operation of QR-3, once no
-    /// running code reads it). Refuses a version this process uses.
+    /// running code reads it). Refuses a version this process uses. Each attempt has <see cref="DropLockTimeout"/>, so a reader
+    /// of the old table delays the drop, never the readers behind it (step 15: without it a reader arriving meanwhile waited
+    /// 2.6 s and then failed with <c>42P01</c>).
     /// </summary>
     /// <param name="name">The projection's name.</param>
     /// <param name="version">The old version.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>A task.</returns>
     /// <exception cref="InvalidOperationException">This process reads or hosts that version.</exception>
+    /// <exception cref="TimeoutException">Another session still reads the table after <see cref="DropAttempts"/> attempts.</exception>
     public async Task DropVersion(string name, int version, CancellationToken cancellationToken)
     {
         ValidateName(name);
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
         if (_inUse.ContainsKey((name, version)))
             throw new InvalidOperationException($"The projection '{name}' v{version} is in use in this process; drop only versions no running code reads.");
-        await using var command = _db.CreateCommand($"""
-            DROP TABLE IF EXISTS {Schema}.rm_{name.Replace('-', '_')}_v{version};
-            DELETE FROM {Schema}.projections WHERE name = '{name}' AND version = {version};
-            """);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        // step 15 (O-5): with lock_timeout, a drop behind a reader gives up instead of making every new reader wait behind it
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+                await using (connection.ConfigureAwait(false))
+                {
+                    var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+                    await using (transaction.ConfigureAwait(false))
+                    {
+                        await using (var timeout = new NpgsqlCommand(
+                            string.Create(CultureInfo.InvariantCulture, $"SET LOCAL lock_timeout = '{(long)DropLockTimeout.TotalMilliseconds}ms'"), connection, transaction))
+                            await timeout.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        await using (var drop = new NpgsqlCommand($"DROP TABLE IF EXISTS {Schema}.rm_{name.Replace('-', '_')}_v{version}", connection, transaction))
+                            await drop.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        await using (var forget = new NpgsqlCommand($"DELETE FROM {Schema}.projections WHERE name = $1 AND version = $2", connection, transaction))
+                        {
+                            forget.Parameters.Add(new NpgsqlParameter { Value = name });
+                            forget.Parameters.Add(new NpgsqlParameter { Value = version });
+                            await forget.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                        return;
+                    }
+                }
+            }
+            catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.LockNotAvailable)
+            {
+                if (attempt >= DropAttempts)
+                    throw new TimeoutException($"The table of '{name}' v{version} is still read after {DropAttempts} attempts of {DropLockTimeout.TotalMilliseconds} ms; "
+                        + "drop it when no process reads it.", e);
+                await Task.Delay(TimeSpan.FromMilliseconds(200 * attempt), cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
+
+    /// <summary>The <c>lock_timeout</c> of <see cref="DropVersion"/> (default 200 ms; step 15).</summary>
+    public TimeSpan DropLockTimeout { get; init; } = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>How often <see cref="DropVersion"/> tries before it gives up with a <see cref="TimeoutException"/> (default 5).</summary>
+    public int DropAttempts { get; init; } = 5;
 
     /// <inheritdoc />
     public async ValueTask Prepare(ISqlProjection projection, CancellationToken cancellationToken)

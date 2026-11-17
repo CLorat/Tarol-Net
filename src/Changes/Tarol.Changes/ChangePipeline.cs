@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Tarol.Kernel;
 using Tarol.Persistence;
 using Tarol.Primitives;
@@ -22,26 +26,111 @@ namespace Tarol.Changes;
 /// runs before the expected version is compared, so a caller who may not change the aggregate never learns its version
 /// (R-2). A principal without an <see cref="IChangeAuthorization"/> fails closed with <c>Error.Forbidden("Auth.NotConfigured")</c>.
 /// </para>
+/// <para>
+/// Operations (step 15, O-1, O-6): every run is one span <c>change &lt;Name&gt;</c> of the <see cref="ActivitySourceName"/>
+/// source (a child of the HTTP request, reaction or job), one count of <c>tarol.changes.runs</c> and one
+/// <c>tarol.changes.duration</c> (seconds) on the meter <see cref="MeterName"/>, tagged <c>tarol.change</c> (the change's type
+/// name) and <c>tarol.outcome</c>: <c>committed</c>, <c>conflict</c>, <c>invalid</c>, <c>denied</c>, <c>not_found</c> or
+/// <c>error</c>. Logs: 7001 an error result, 7002 a conflict (Debug), 7003 an exception.
+/// </para>
 /// </remarks>
-public sealed class ChangePipeline
+public sealed partial class ChangePipeline
 {
+    /// <summary>The name of the pipeline's <see cref="ActivitySource"/>.</summary>
+    public const string ActivitySourceName = "Tarol.Changes";
+
+    /// <summary>The name of the pipeline's meter.</summary>
+    public const string MeterName = "Tarol.Changes";
+
+    private static readonly ActivitySource Source = new(ActivitySourceName);
+    private static readonly Meter SharedMeter = new(MeterName);
     private readonly IAggregateStore _store;
     private readonly TimeProvider _time;
     private readonly IChangeAuthorization? _permission;
+    private readonly ILogger _log;
+    private readonly Counter<long> _runs;
+    private readonly Histogram<double> _duration;
 
     /// <summary>Creates the pipeline.</summary>
     /// <param name="store">The aggregate store.</param>
     /// <param name="time">The clock that supplies <see cref="ChangeContext.Now"/>.</param>
     /// <param name="permission">The resource permission, asked for every run that carries a principal; <see langword="null"/>
     /// refuses those runs (fail closed) and leaves internal runs unchecked.</param>
-    public ChangePipeline(IAggregateStore store, TimeProvider time, IChangeAuthorization? permission = null)
+    /// <param name="logger">Logs failed runs (7001–7003); <see langword="null"/> = none.</param>
+    /// <param name="meters">Creates the meter (the host's <see cref="IMeterFactory"/>); <see langword="null"/> = a shared meter.</param>
+    public ChangePipeline(IAggregateStore store, TimeProvider time, IChangeAuthorization? permission = null, ILogger<ChangePipeline>? logger = null,
+        IMeterFactory? meters = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(time);
         _store = store;
         _time = time;
         _permission = permission;
+        _log = logger ?? (ILogger)NullLogger.Instance;
+        var meter = meters?.Create(MeterName) ?? SharedMeter;
+        _runs = meter.CreateCounter<long>("tarol.changes.runs", "{change}", "Pipeline runs by change and outcome.");
+        _duration = meter.CreateHistogram<double>("tarol.changes.duration", "s", "Duration of a pipeline run, commit included.");
     }
+
+    /// <summary>The outcome tag of a run's result (<c>tarol.outcome</c>).</summary>
+    /// <param name="result">The result.</param>
+    /// <returns><c>committed</c>, <c>conflict</c>, <c>invalid</c>, <c>denied</c>, <c>not_found</c> or <c>error</c>.</returns>
+    internal static string OutcomeOf(Result<ChangeOutcome> result) => !result.TryGetValue(out Violation? violation) ? "committed" : violation switch
+    {
+        Invalid => "invalid",
+        Error { Type: ErrorType.UnprocessableEntity } => "invalid",
+        Error { Type: ErrorType.Conflict } => "conflict",
+        Error { Type: ErrorType.Forbidden or ErrorType.Unauthorized } => "denied",
+        Error { Type: ErrorType.NotFound or ErrorType.Gone } => "not_found",
+        _ => "error",
+    };
+
+    private async ValueTask<Result<ChangeOutcome>> Observed(string name, Func<ValueTask<Result<ChangeOutcome>>> run, CancellationToken cancellationToken)
+    {
+        using var activity = Source.HasListeners() ? Source.StartActivity("change " + name, ActivityKind.Internal) : null;
+        activity?.SetTag("tarol.change", name);
+        var started = Stopwatch.GetTimestamp();
+        var outcome = "error";
+        try
+        {
+            var result = await run().ConfigureAwait(false);
+            outcome = OutcomeOf(result);
+            if (result.TryGetValue(out Violation? violation) && violation is Error error)
+            {
+                if (outcome == "conflict")
+                    Conflict(_log, name, error.Code);
+                else if (outcome == "error")
+                    Failed(_log, name, error.Type, error.Code, error.Detail);
+            }
+            if (outcome != "committed")
+                activity?.SetStatus(outcome == "error" ? ActivityStatusCode.Error : ActivityStatusCode.Unset);
+            return result;
+        }
+        catch (Exception e)
+        {
+            outcome = "error";
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            if (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                Threw(_log, name, e);
+            throw;
+        }
+        finally
+        {
+            var tags = new TagList { { "tarol.change", name }, { "tarol.outcome", outcome } };
+            activity?.SetTag("tarol.outcome", outcome);
+            _runs.Add(1, tags);
+            _duration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds, tags);
+        }
+    }
+
+    [LoggerMessage(EventId = 7001, Level = LogLevel.Warning, Message = "Change {Change} failed: {Type} {Code} {Detail}")]
+    private static partial void Failed(ILogger logger, string change, ErrorType type, string code, string? detail);
+
+    [LoggerMessage(EventId = 7002, Level = LogLevel.Debug, Message = "Change {Change} lost a race: {Code}")]
+    private static partial void Conflict(ILogger logger, string change, string code);
+
+    [LoggerMessage(EventId = 7003, Level = LogLevel.Error, Message = "Change {Change} threw")]
+    private static partial void Threw(ILogger logger, string change, Exception exception);
 
     /// <summary>Runs a change of an existing aggregate.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
@@ -50,12 +139,18 @@ public sealed class ChangePipeline
     /// <param name="options">Idempotency key, expected version, principal.</param>
     /// <param name="cancellationToken">Cancels the run.</param>
     /// <returns>The outcome, or the first failure.</returns>
-    public async ValueTask<Result<ChangeOutcome>> Run<T>(IChange<T> change, OperationContext context, ChangeOptions options = default,
+    public ValueTask<Result<ChangeOutcome>> Run<T>(IChange<T> change, OperationContext context, ChangeOptions options = default,
         CancellationToken cancellationToken = default)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(change);
         ArgumentNullException.ThrowIfNull(context);
+        return Observed(change.GetType().Name, () => RunChange(change, context, options, cancellationToken), cancellationToken);
+    }
+
+    private async ValueTask<Result<ChangeOutcome>> RunChange<T>(IChange<T> change, OperationContext context, ChangeOptions options, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
         if (change is IValidatable validatable && Invalidity(validatable) is { } invalid)
             return invalid;                                                                     // 400, before any read
         if (await Seen(options, cancellationToken) is { } replayed)
@@ -99,12 +194,19 @@ public sealed class ChangePipeline
     /// <param name="options">Idempotency key and principal (an expected version must be 0 or absent).</param>
     /// <param name="cancellationToken">Cancels the run.</param>
     /// <returns>The outcome (its <see cref="ChangeOutcome.StreamId"/> is the new id), or the first failure.</returns>
-    public async ValueTask<Result<ChangeOutcome>> Run<T>(ICreation<T> creation, OperationContext context, ChangeOptions options = default,
+    public ValueTask<Result<ChangeOutcome>> Run<T>(ICreation<T> creation, OperationContext context, ChangeOptions options = default,
         CancellationToken cancellationToken = default)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(creation);
         ArgumentNullException.ThrowIfNull(context);
+        return Observed(creation.GetType().Name, () => RunCreation(creation, context, options, cancellationToken), cancellationToken);
+    }
+
+    private async ValueTask<Result<ChangeOutcome>> RunCreation<T>(ICreation<T> creation, OperationContext context, ChangeOptions options,
+        CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
         if (creation is IValidatable validatable && Invalidity(validatable) is { } invalid)
             return invalid;
         if (await Seen(options, cancellationToken) is { } replayed)

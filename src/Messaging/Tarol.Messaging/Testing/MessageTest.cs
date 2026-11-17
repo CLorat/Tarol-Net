@@ -199,7 +199,7 @@ public sealed class MessageTest
     /// <returns>The dead letters, oldest first.</returns>
     public Task<IReadOnlyList<DeadMessage>> DeadMessages() => DeadLetters.List(1000, CancellationToken.None);
 
-    /// <summary>Re-drives a dead letter (<see cref="MessageConsumers.Redrive"/>).</summary>
+    /// <summary>Re-drives a dead letter (<see cref="MessageConsumers.Redrive(long, CancellationToken)"/>).</summary>
     /// <param name="id">The dead letter's id.</param>
     /// <returns>What happened, or <see langword="null"/> when there is none.</returns>
     public Task<ConsumerAttempt?> Redrive(long id) => Consumers.Redrive(id, CancellationToken.None);

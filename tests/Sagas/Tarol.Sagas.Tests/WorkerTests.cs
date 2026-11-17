@@ -139,6 +139,9 @@ public sealed class WorkerTests
         public Task<bool> Retry(OutboxRow row, DateTimeOffset retryAt, string reason, CancellationToken cancellationToken) => inner.Retry(row, retryAt, reason, cancellationToken);
         public Task<bool> Bury(OutboxRow row, string reason, CancellationToken cancellationToken) => inner.Bury(row, reason, cancellationToken);
         public Task<IReadOnlyList<DeadLetter>> DeadLetters(int max, CancellationToken cancellationToken) => inner.DeadLetters(max, cancellationToken);
+        public Task<IReadOnlyList<DeadLetter>> DeadLetters(DeadLetterQuery query, CancellationToken cancellationToken) => inner.DeadLetters(query, cancellationToken);
+        public Task<bool> Discard(long id, CancellationToken cancellationToken) => inner.Discard(id, cancellationToken);
+        public Task<Option<DateTimeOffset>> OldestDue(CancellationToken cancellationToken) => inner.OldestDue(cancellationToken);
         public Task<bool> Redrive(long id, CancellationToken cancellationToken) => inner.Redrive(id, cancellationToken);
         public Task<long> Pending(CancellationToken cancellationToken) => inner.Pending(cancellationToken);
         public Task WaitForRows(TimeSpan timeout, CancellationToken cancellationToken) => inner.WaitForRows(timeout, cancellationToken);
@@ -190,6 +193,9 @@ public sealed class WorkerTests
         }
 
         public Task<IReadOnlyList<DeadLetter>> DeadLetters(int max, CancellationToken cancellationToken) => inner.DeadLetters(max, cancellationToken);
+        public Task<IReadOnlyList<DeadLetter>> DeadLetters(DeadLetterQuery query, CancellationToken cancellationToken) => inner.DeadLetters(query, cancellationToken);
+        public Task<bool> Discard(long id, CancellationToken cancellationToken) => inner.Discard(id, cancellationToken);
+        public Task<Option<DateTimeOffset>> OldestDue(CancellationToken cancellationToken) => inner.OldestDue(cancellationToken);
         public Task<bool> Redrive(long id, CancellationToken cancellationToken) => inner.Redrive(id, cancellationToken);
         public Task<long> Pending(CancellationToken cancellationToken) => inner.Pending(cancellationToken);
         public Task WaitForRows(TimeSpan timeout, CancellationToken cancellationToken) => inner.WaitForRows(timeout, cancellationToken);

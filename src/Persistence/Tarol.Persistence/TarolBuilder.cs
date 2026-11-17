@@ -87,7 +87,14 @@ public sealed class TarolBuilder
             StateOptions = Json,
             Reactions = OutboxTable,
             Lookups = lookups ?? new StoreLookups(),
-        }), static store => store.Outbox, static store => store.Jobs);
+        }), static store => store.Outbox, static store => store.Jobs).WithInMemorySignals();
+
+    private TarolBuilder WithInMemorySignals()
+    {
+        foreach (var signal in InMemorySignals.All)
+            Services.AddSingleton(signal);
+        return this;
+    }
 
     /// <summary>Registers a store: itself, <see cref="IAggregateStore"/>, <see cref="IAggregateReader"/>, its
     /// <see cref="IOutbox"/>, and <see cref="IEventFeed"/> / <see cref="IIdempotencyKeyPurge"/> when it implements them.</summary>
@@ -131,8 +138,17 @@ public sealed class TarolBuilder
         Services.AddSingleton<IAggregateStore>(static provider => provider.GetRequiredService<TStore>());
         Services.AddSingleton<IAggregateReader>(static provider => provider.GetRequiredService<TStore>());
         Services.AddSingleton(provider => outbox(provider.GetRequiredService<TStore>()));
+        // the admin entry's dead letters (step 15, O-3): the store's own source when it has one (it audits), else the port
+        Services.AddSingleton<IDeadLetterSource>(static provider => provider.GetRequiredService<IOutbox>() is IDeadLetterSource own
+            ? own
+            : new OutboxDeadLetterSource(provider.GetRequiredService<IOutbox>()));
         if (jobs is not null)
+        {
             Services.AddSingleton(provider => jobs(provider.GetRequiredService<TStore>()));
+            Services.AddSingleton<IDeadLetterSource>(static provider => provider.GetRequiredService<IJobRows>() is IDeadLetterSource own
+                ? own
+                : new JobDeadLetterSource(provider.GetRequiredService<IJobRows>()));
+        }
         if (typeof(IEventFeed).IsAssignableFrom(typeof(TStore)))
             Services.AddSingleton(static provider => (IEventFeed)provider.GetRequiredService<TStore>());
         if (typeof(IIdempotencyKeyPurge).IsAssignableFrom(typeof(TStore)))

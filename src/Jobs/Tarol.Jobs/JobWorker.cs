@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Tarol.Changes;
 using Tarol.Kernel;
@@ -15,9 +16,11 @@ namespace Tarol.Jobs;
 /// at the end. A failure retries the same occurrence with the delivery policy's backoff; after its attempts it is a dead job
 /// and the cursor moves on.
 /// </summary>
-internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, IServiceProvider services, TimeProvider time, JobHostOptions options, ILogger log)
+internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, IServiceProvider services, TimeProvider time, JobHostOptions options, ILogger log,
+    JobInstruments? instruments = null)
 {
     internal static readonly ActivitySource Source = new(JobHost.ActivitySourceName);
+    private readonly JobInstruments _instruments = instruments ?? JobInstruments.Shared;
 
     /// <summary>Claims and runs one row; <see cref="Option.None"/> when nothing was due.</summary>
     public async Task<Option<IReadOnlyList<JobAttempt>>> RunOnce(CancellationToken cancellationToken)
@@ -96,7 +99,10 @@ internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, ISe
         {
             (run, cursor, var skipped) = Pick(job, row.NextAt, time.GetUtcNow());
             if (skipped)
+            {
                 MissedSkipped(log, job.Name, row.NextAt, run.Count == 0 ? cursor : run[0], job.Options.Missed);
+                _instruments.Occurrences.Add(1, new TagList { { "tarol.job", job.Name }, { "tarol.outcome", "skipped" } });
+            }
         }
 
         using var lease = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -115,6 +121,8 @@ internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, ISe
                 var occurrence = run[i];
                 var attempt = i == 0 ? row.Attempts : 1;                                // Move started the next occurrence's attempts
                 var following = redrive ? row.NextAt : i + 1 < run.Count ? run[i + 1] : cursor;
+                _instruments.Lateness.Record(Math.Max(0, (time.GetUtcNow() - occurrence).TotalSeconds), new KeyValuePair<string, object?>("tarol.job", job.Name));
+                var started = Stopwatch.GetTimestamp();
                 var (verdict, reason) = await Execute(job, row, occurrence, attempt, lease.Token).ConfigureAwait(false);
                 if (verdict is null)
                 {
@@ -123,6 +131,13 @@ internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, ISe
                 }
                 if (verdict == Verdict.Retry && attempt >= job.Options.Policy.MaxAttempts)
                     verdict = Verdict.Bury;
+                var tags = new TagList
+                {
+                    { "tarol.job", job.Name },
+                    { "tarol.outcome", verdict switch { Verdict.Done => "ran", Verdict.Retry => "retried", _ => "dead" } },
+                };
+                _instruments.Occurrences.Add(1, tags);
+                _instruments.Duration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds, tags);
                 attempts.Add(new JobAttempt(job.Name, row.Tenant, occurrence, attempt, verdict.Value, reason is null ? Option.None : reason, redrive));
 
                 // the occurrence has run: record its verdict even while shutting down, so it is not run again
@@ -254,4 +269,27 @@ internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, ISe
 
     [LoggerMessage(EventId = 14010, Level = LogLevel.Information, Message = "System job {Job} handled {Count} items")]
     private static partial void Maintained(ILogger logger, string job, int count);
+}
+
+/// <summary>The job host's instruments on the meter <see cref="JobHost.MeterName"/> (step 15, O-1).</summary>
+internal sealed class JobInstruments
+{
+    private static readonly Meter SharedMeter = new(JobHost.MeterName);
+
+    public static JobInstruments Shared { get; } = new(SharedMeter);
+
+    private JobInstruments(Meter meter)
+    {
+        Occurrences = meter.CreateCounter<long>("tarol.jobs.occurrences", "{occurrence}", "Job occurrences by job and outcome (ran, retried, dead, skipped).");
+        Duration = meter.CreateHistogram<double>("tarol.jobs.duration", "s", "Duration of a job occurrence.");
+        Lateness = meter.CreateHistogram<double>("tarol.jobs.lateness", "s", "Start of an occurrence minus its scheduled time.");
+    }
+
+    public Counter<long> Occurrences { get; }
+
+    public Histogram<double> Duration { get; }
+
+    public Histogram<double> Lateness { get; }
+
+    public static JobInstruments For(IMeterFactory? meters) => meters is null ? Shared : new(meters.Create(JobHost.MeterName));
 }

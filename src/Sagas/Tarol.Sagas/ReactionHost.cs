@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -20,6 +21,7 @@ public sealed partial class ReactionHost : BackgroundService
     private readonly TimeProvider _time;
     private readonly ReactionOptions _options;
     private readonly ILogger _log;
+    private readonly IMeterFactory? _meters;
 
     /// <summary>Creates the host.</summary>
     /// <param name="outbox">The store's outbox.</param>
@@ -28,7 +30,9 @@ public sealed partial class ReactionHost : BackgroundService
     /// <param name="time">The clock.</param>
     /// <param name="options">Workers, policy and key purge.</param>
     /// <param name="logger">The logger of the workers and the purge.</param>
-    public ReactionHost(IOutbox outbox, IOutboxRowHandler rows, ChangePipeline pipeline, TimeProvider time, ReactionOptions options, ILogger<ReactionHost>? logger = null)
+    /// <param name="meters">Creates the workers' meter (<see cref="ReactionWorker.MeterName"/>); <see langword="null"/> = a shared meter.</param>
+    public ReactionHost(IOutbox outbox, IOutboxRowHandler rows, ChangePipeline pipeline, TimeProvider time, ReactionOptions options, ILogger<ReactionHost>? logger = null,
+        IMeterFactory? meters = null)
     {
         ArgumentNullException.ThrowIfNull(outbox);
         ArgumentNullException.ThrowIfNull(rows);
@@ -42,6 +46,7 @@ public sealed partial class ReactionHost : BackgroundService
         _time = time;
         _options = options;
         _log = (ILogger?)logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        _meters = meters;
     }
 
     /// <inheritdoc />
@@ -49,7 +54,7 @@ public sealed partial class ReactionHost : BackgroundService
     {
         var loops = new List<Task>(_options.Workers + 1);
         for (var i = 0; i < _options.Workers; i++)
-            loops.Add(new ReactionWorker(_outbox, _rows, _pipeline, _time, _options, _log).Run(stoppingToken));
+            loops.Add(new ReactionWorker(_outbox, _rows, _pipeline, _time, _options, _log, _meters).Run(stoppingToken));
         if (_options.PurgeKeys is not null)
             loops.Add(Purge(_options.PurgeKeys, stoppingToken));
         return Task.WhenAll(loops);
@@ -140,7 +145,8 @@ public static class ReactionServiceCollectionExtensions
                 provider.GetRequiredService<ChangePipeline>(),
                 provider.GetRequiredService<TimeProvider>(),
                 options,
-                provider.GetService<ILogger<ReactionHost>>());
+                provider.GetService<ILogger<ReactionHost>>(),
+                provider.GetService<IMeterFactory>());
         });
         return services;
     }

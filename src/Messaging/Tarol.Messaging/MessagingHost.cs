@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -197,7 +198,13 @@ public sealed class MessagingBuilder
     /// <summary>Keeps dead letters in memory: they are lost when the process ends (tests and samples).</summary>
     /// <returns>This.</returns>
     public MessagingBuilder UseInMemoryDeadLetters()
-        => UseDeadLetters(static provider => new InMemoryMessageDeadLetters(provider.GetRequiredService<TimeProvider>()));
+    {
+        Tarol.Services.AddSingleton(new OperationsSignal(OperationsSignals.Meter, OperationsSignals.MessagesDead, "{message}", "Dead consumer messages (in memory).",
+            static (provider, _) => Task.FromResult<IReadOnlyList<SignalValue>>(provider.GetRequiredService<IMessageDeadLetters>() is InMemoryMessageDeadLetters dead
+                ? [new SignalValue(dead.Count)]
+                : [])));
+        return UseDeadLetters(static provider => new InMemoryMessageDeadLetters(provider.GetRequiredService<TimeProvider>()));
+    }
 }
 
 /// <summary>Registers messaging on the <see cref="TarolBuilder"/>.</summary>
@@ -244,7 +251,8 @@ public static class MessagingTarolBuilderExtensions
             builder.WithOutboxRows(publications);
             services.AddSingleton(publications);
             services.AddSingleton<IOutboxRowHandler>(provider => new MessagePublisher(provider.GetRequiredService<PublicationSet>(),
-                provider.GetRequiredService<IMessageTransport>(), json, provider.GetService<ILogger<MessagePublisher>>()));
+                provider.GetRequiredService<IMessageTransport>(), json, provider.GetService<ILogger<MessagePublisher>>(),
+                provider.GetService<IMeterFactory>()));
         }
         if (messaging.Effects.Names.Count > 0)
         {
@@ -256,7 +264,10 @@ public static class MessagingTarolBuilderExtensions
         }
         services.AddSingleton(provider => new MessageConsumers(provider.GetRequiredService<ConsumerSet>(), provider.GetRequiredService<ChangePipeline>(),
             provider.GetRequiredService<IMessageDeadLetters>(), provider.GetRequiredService<MessagingOptions>(), json,
-            provider.GetService<ILogger<MessageConsumers>>()));
+            provider.GetService<ILogger<MessageConsumers>>(), provider.GetService<IMeterFactory>()));
+        if (messaging.DeadLetters is not null)
+            services.AddSingleton<IDeadLetterSource>(static provider => new MessageDeadLetterSource(provider.GetRequiredService<IMessageDeadLetters>(),
+                provider.GetRequiredService<MessageConsumers>()));
         if (consumers.Consumers.Count > 0)
             services.AddHostedService(static provider => new MessagingHost(provider.GetRequiredService<IMessageTransport>(),
                 provider.GetRequiredService<MessageConsumers>(), provider.GetRequiredService<TimeProvider>(), provider.GetService<ILogger<MessagingHost>>()));
