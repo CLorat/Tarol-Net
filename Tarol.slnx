@@ -86,6 +86,9 @@
     <Project Path="tests/Changes/Tarol.Changes.Generators.Tests/Tarol.Changes.Generators.Tests.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.Tests/Tarol.Changes.Tests.csproj" />
   </Folder>
+  <Folder Name="/tests/Jobs/">
+    <Project Path="tests/Jobs/Tarol.Jobs.Tests/Tarol.Jobs.Tests.csproj" />
+  </Folder>
   <Folder Name="/tests/Kernel/">
     <Project Path="tests/Kernel/Tarol.Kernel.AotSmoke/Tarol.Kernel.AotSmoke.csproj" />
     <Project Path="tests/Kernel/Tarol.Kernel.Generators.Tests/Tarol.Kernel.Generators.Tests.csproj" />

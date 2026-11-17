@@ -33,8 +33,21 @@ public sealed record NpgsqlBusOptions
     /// </summary>
     public IReadOnlyDictionary<string, string>? Roles { get; init; }
 
+    /// <summary>
+    /// How long published messages that every subscription received are kept (step 14, J-9): with a job host
+    /// (<c>AddJobs</c> of <c>Tarol.Jobs</c>) the system job <c>tarol.purge-messages</c> deletes older ones every hour, in
+    /// batches of <see cref="PurgeBatch"/>, once per cluster. Without a job host nothing purges (call
+    /// <see cref="NpgsqlBus.PurgeMessages"/> yourself). Default 7 days.
+    /// </summary>
+    public TimeSpan Retention { get; init; } = TimeSpan.FromDays(7);
+
+    /// <summary>The most messages one purge statement deletes (default 1000).</summary>
+    public int PurgeBatch { get; init; } = 1000;
+
     internal void Validate()
     {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(Retention, TimeSpan.Zero, nameof(Retention));
+        ArgumentOutOfRangeException.ThrowIfLessThan(PurgeBatch, 1, nameof(PurgeBatch));
         NpgsqlBusSchema.Validate(Schema);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(PollInterval, TimeSpan.Zero, nameof(PollInterval));
         ArgumentOutOfRangeException.ThrowIfLessThan(Batch, 1, nameof(Batch));

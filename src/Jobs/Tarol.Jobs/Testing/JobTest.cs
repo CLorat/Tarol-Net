@@ -3,7 +3,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tarol.Changes;
 using Tarol.Kernel;
+using Tarol.Options;
 using Tarol.Persistence;
+using Tarol.Primitives;
+using Tarol.Results;
 using Tarol.Sagas;
 using Tarol.StronglyTypedId;
 
@@ -107,6 +110,40 @@ public sealed class JobTest
         return this;
     }
 
+    /// <summary>Stores <paramref name="aggregate"/> as it is (its uncommitted events), as history the jobs find.</summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <param name="aggregate">A new or changed aggregate.</param>
+    /// <param name="tenant">Its tenant (per-tenant jobs run in theirs).</param>
+    /// <returns>The test.</returns>
+    /// <exception cref="InvalidOperationException">The aggregate breaks an invariant or the store refuses it.</exception>
+    public JobTest Given<T>(T aggregate, Option<Id<ITenant>> tenant = default)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        ArgumentNullException.ThrowIfNull(aggregate);
+        if (AggregateChanges.Prepare(aggregate).TryGetValue(out Violation? broken))
+            throw new InvalidOperationException($"The given {typeof(T).Name} breaks an invariant: {broken}.");
+        var expected = aggregate.Version - aggregate.UncommittedChanges.Length;
+        var context = OperationContext.Start(Actor.System("JobTest"), tenant, _clock);
+        var appended = Store.Append(aggregate, expected, context, Option.None, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+        if (appended.TryGetValue(out Violation? refused))
+            throw new InvalidOperationException($"The store refused the given {typeof(T).Name}: {refused}.");
+        AggregateChanges.Committed(aggregate);
+        return this;
+    }
+
+    /// <summary>Loads an aggregate the jobs changed.</summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <param name="id">Its id.</param>
+    /// <param name="tenant">Its tenant.</param>
+    /// <returns>The aggregate.</returns>
+    /// <exception cref="InvalidOperationException">There is none.</exception>
+    public T Load<T>(Id<T> id, Option<Id<ITenant>> tenant = default)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Store.Load(id, OperationContext.Start(Actor.System("JobTest"), tenant, _clock), CancellationToken.None).AsTask().GetAwaiter().GetResult()
+            .TryGetValue(out T? loaded)
+            ? loaded
+            : throw new InvalidOperationException($"No {typeof(T).Name} {id} in that tenant.");
+
     /// <summary>The configuration override (<c>Tarol:Jobs:&lt;name&gt;:Cron</c>, <c>:TimeZone</c>, <c>:Enabled</c>); takes effect at the next <see cref="Sync"/>.</summary>
     /// <param name="configuration">The configuration.</param>
     /// <returns>The test.</returns>
@@ -168,6 +205,19 @@ public sealed class JobTest
         _clock.Now = target;
         await RunDue().ConfigureAwait(false);
         return _runs[before..];
+    }
+
+    /// <summary>
+    /// The workers are down for <paramref name="delta"/>: the clock moves and nothing runs. The next <see cref="Advance"/>
+    /// (<c>Advance(TimeSpan.Zero)</c>) finds the missed occurrences and runs them by each job's <see cref="Changes.Missed"/> policy.
+    /// </summary>
+    /// <param name="delta">How long.</param>
+    /// <returns>The test.</returns>
+    public JobTest Down(TimeSpan delta)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(delta, TimeSpan.Zero);
+        _clock.Now += delta;
+        return this;
     }
 
     /// <summary>The dead jobs.</summary>
