@@ -95,6 +95,23 @@ public abstract class JobRowsContract
     }
 
     [Fact]
+    public async Task A_move_starts_the_attempts_of_the_next_occurrence_at_this_claim()
+    {
+        var rows = await WithNightly(Start);
+        _ = await rows.Retry(await Claimed(rows), Start, "first", Ct);
+        _ = await rows.Retry(await Claimed(rows), Start, "second", Ct);
+        var third = await Claimed(rows);
+        third.Attempts.ShouldBe(3);
+
+        (await rows.Move(third, Start.AddHours(1), Ct)).ShouldBeTrue();              // the occurrence ran at last
+        (await rows.Retry(third, Start, "the next one failed", Ct)).ShouldBeTrue();
+        Time.Advance(TimeSpan.FromHours(1));
+
+        var next = await Claimed(rows);
+        (next.Occurrence, next.Attempts, next.LastError).ShouldBe((Start.AddHours(1), 2, Option.Some("the next one failed")));
+    }
+
+    [Fact]
     public async Task A_worker_that_lost_its_lease_changes_nothing()
     {
         var rows = await WithNightly(Start);

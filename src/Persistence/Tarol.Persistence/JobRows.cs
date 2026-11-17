@@ -109,7 +109,10 @@ public interface IJobRows
     /// <returns>The claimed row, or <see cref="Option.None"/> when nothing is due.</returns>
     Task<Option<JobRow>> Claim(TimeSpan lease, CancellationToken cancellationToken);
 
-    /// <summary>Moves the cursor past an occurrence that ran and keeps the claim (a catch-up keeps its progress on a crash).</summary>
+    /// <summary>
+    /// Moves the cursor past an occurrence that ran and keeps the claim (a catch-up keeps its progress on a crash). The next
+    /// occurrence's attempts start at this claim (1) and the error is cleared: earlier failures belong to the occurrence that ran.
+    /// </summary>
     /// <param name="row">The claimed row.</param>
     /// <param name="cursor">The new cursor.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
