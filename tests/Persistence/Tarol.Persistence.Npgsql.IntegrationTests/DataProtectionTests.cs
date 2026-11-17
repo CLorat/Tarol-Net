@@ -485,6 +485,25 @@ public sealed class DataProtectionTests(Postgres postgres)
             (await Load(store, id, context)).Email.ShouldNotBeNull().ShouldEndWith("@example.org");
     }
 
+    [Fact]
+    public async Task The_Key_Cache_Stays_Bounded_While_Four_Writers_Fill_It()
+    {
+        // found by the SealHistory benchmark: the bound's eviction enumerated the cache while other threads added to it
+        var schema = postgres.NewSchema();
+        await using var keys = postgres.KeyStore(_time, schema, new NpgsqlKeyStoreOptions { MaxCachedKeys = 50 });
+        var store = new NpgsqlAggregateStore(postgres.DataSource, Codec(), _time, new NpgsqlStoreOptions { Schema = schema, Keys = keys });
+        await store.EnsureSchema(Ct);
+        var context = NewTenant();
+
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(w => Task.Run(async () =>
+        {
+            for (var i = 0; i < 100; i++)
+                await Commit(store, Patron.Register(Id<Patron>.New(_time), $"W{w} {i}", $"w{w}.{i}@example.org", "x", "y", "DE"), context);
+        }, Ct)));
+
+        keys.CachedKeys.ShouldBeLessThanOrEqualTo(50 + 4);
+    }
+
     private static class Reactions
     {
         public static readonly string[] Ship = ["Ship"];

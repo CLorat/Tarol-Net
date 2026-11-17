@@ -471,8 +471,8 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
         cache[key] = new Cached<SubjectKey>(value, now);
         if (cache.Count <= _options.MaxCachedKeys)
             return;
-        // over the bound: drop the least recently used tenth
-        var drop = cache.OrderBy(static e => e.Value.LastUsed).Take(Math.Max(1, _options.MaxCachedKeys / 10)).Select(static e => e.Key).ToArray();
+        // over the bound: drop the least recently used tenth (of a snapshot: other threads keep adding meanwhile)
+        var drop = cache.ToArray().OrderBy(static e => e.Value.LastUsed).Take(Math.Max(1, _options.MaxCachedKeys / 10)).Select(static e => e.Key).ToArray();
         foreach (var k in drop)
             cache.TryRemove(k, out _);
         if (_log is not null)
