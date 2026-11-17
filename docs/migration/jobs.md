@@ -460,7 +460,12 @@ Docs and probes only; the package code is `main` at `984e621` (step 13 done).
   * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: 21 apps, 0 IL warnings, all checks passed;
   * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
   * CI run 162 of `main` (`build`, `aot-smoke`, `integration`): green.
-* **On this branch**: see the PR's verification section (the same commands; only docs and probes changed).
+* **On this branch** (2026-11-17, at `5195f38`; only docs and probes changed):
+  * `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+  * `dotnet format --verify-no-changes`: clean;
+  * `dotnet test --solution Tarol.slnx` with Docker: **1442 of 1442**;
+  * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: 21 apps, 0 IL warnings, all checks passed;
+  * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
 * **The probe**: `all.sh` sections 0–10 ([`output.txt`](probes/jobs/output.txt)); sections 7 and 9 were run again after two bench
   fixes (a seed slower than its lead, and a count of one occurrence on a schedule that fires every second).
 
@@ -471,4 +476,4 @@ Docs and probes only; the package code is `main` at `984e621` (step 13 done).
 * A job's own progress inside an occurrence (resume a half-done fan-out): today each change is keyed, so a re-run skips what
   committed. A checkpoint per occurrence would help long fan-outs.
 * `PushTests.After_a_reconnect_the_subscriptions_are_replayed` (SignalR) can still time out under full-suite load (caching.md §14);
-  it passed in this session's full runs.
+  it passed in both full runs of this session (`main` and this branch).
