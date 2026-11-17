@@ -90,19 +90,19 @@ INFO A's stored JSON: {"name":"tdp1.LpPRN-hOQ0SLFX4az2VVugAAAAH4CfdaEY0KGnul74vo
 INFO 2,000 customers × 10 events (9 with personal fields: 2 + 8 × 1) in each table; the store's copy has its state in streams.state
 | load of one customer (10 events) | median | p99 | key queries per load |
 |---|---|---|---|
-| today's NpgsqlAggregateStore.Load (reads streams.state) | 0.41 ms | 0.98 ms | – |
-| probe: the plain state (1 row, no envelopes, no key statement) | 0.38 ms | 1.11 ms | – |
-| protected state: the row and its subjects' keys in one batch, cold cache | 0.80 ms | 1.98 ms | 0.00 |
-| protected state, keys in the same batch, cached key (no unwrap) | 0.69 ms | 1.74 ms | – |
-| protected state, cached key (a separate fetch only on a miss): hit | 0.54 ms | 1.21 ms | 0.44 |
-| protected state, separate fetch, cold cache (2 round trips + unwrap) | 1.07 ms | 2.01 ms | 1.00 |
-| probe: replay 10 plain events (no envelopes, no key statement) | 0.47 ms | 0.67 ms | – |
-| protected replay, keys in the same batch (1 round trip) | 1.01 ms | 2.05 ms | – |
-| protected replay, cached key (a separate fetch only on a miss): hit | 0.55 ms | 1.35 ms | 0.44 |
-| protected replay, separate fetch, cold cache (2 round trips + unwrap) | 1.17 ms | 2.27 ms | 1.00 |
-| protected replay, the subject erased (9 fields read as null; the tombstone cached) | 0.37 ms | 0.55 ms | – |
-| protected state, the subject erased (3 fields read as null; the tombstone cached) | 0.28 ms | 0.55 ms | – |
-INFO events table size: 6072 kB plain vs 8512 kB protected (incl. the subjects GIN index 784 kB)
+| today's NpgsqlAggregateStore.Load (reads streams.state) | 0.32 ms | 0.57 ms | – |
+| probe: the plain state (1 row, no envelopes, no key statement) | 0.31 ms | 0.54 ms | – |
+| protected state: the row and its subjects' keys in one batch, cold cache | 0.59 ms | 1.58 ms | 0.00 |
+| protected state, keys in the same batch, cached key (no unwrap) | 0.50 ms | 1.26 ms | – |
+| protected state, cached key (a separate fetch only on a miss): hit | 0.25 ms | 0.59 ms | 0.00 |
+| protected state, separate fetch, cold cache (2 round trips + unwrap) | 0.92 ms | 2.15 ms | 1.00 |
+| probe: replay 10 plain events (no envelopes, no key statement) | 0.39 ms | 0.79 ms | – |
+| protected replay, keys in the same batch (1 round trip) | 1.27 ms | 4.03 ms | – |
+| protected replay, cached key (a separate fetch only on a miss): hit | 0.40 ms | 1.74 ms | 0.00 |
+| protected replay, separate fetch, cold cache (2 round trips + unwrap) | 1.01 ms | 1.91 ms | 1.00 |
+| protected replay, the subject erased (9 fields read as null; the tombstone cached) | 0.54 ms | 1.01 ms | – |
+| protected state, the subject erased (3 fields read as null; the tombstone cached) | 0.42 ms | 0.95 ms | – |
+INFO events table size: 6096 kB plain vs 8544 kB protected (incl. the subjects GIN index 824 kB)
 
 ## 6. Commits with 4 writers: plain, protected without and with the subjects GIN index (2,000 commits per writer and kind)
 | commit (4 writers) | new customer (Register: 1 event, 2 sealed fields, a new key) p50 / p99 | existing customer (Move: 1 event, 1 sealed field, key cached) p50 / p99 |
