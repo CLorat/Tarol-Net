@@ -20,7 +20,8 @@ public sealed class ReactionOptions
 
     /// <summary>
     /// Deletes idempotency keys older than a time, in batches (P-11), e.g. <c>o.PurgeKeys = store.PurgeKeys;</c> for the
-    /// Npgsql store; <see langword="null"/> = no purge. The host calls it every <see cref="PurgeEvery"/>.
+    /// Npgsql store; <see langword="null"/> = no purge. The host calls it every <see cref="PurgeEvery"/>. Registered through
+    /// <c>AddReactionWorker</c>, it is the store's purge unless a job host (<c>Tarol.Jobs</c>) runs it as <c>tarol.purge-keys</c>.
     /// </summary>
     public Func<DateTimeOffset, int, CancellationToken, Task<int>>? PurgeKeys { get; set; }
 

@@ -52,7 +52,8 @@ var workerNative = Environment.GetEnvironmentVariable("ARTFLOW_WORKER_NATIVE");
 var worker = workerNative is null
     ? (IResourceBuilder<IResourceWithEnvironment>)builder.AddProject<Projects.Worker>("worker").WithArgs("0")
     : builder.AddExecutable("worker", workerNative, Path.GetDirectoryName(workerNative)!, "0").WithOtlpExporter();
-worker.WithReference(db).WithReference(broker);
+worker.WithReference(db).WithReference(broker)
+    .WithEnvironment("Tarol__Jobs__SettlementReport__Cron", "* * * * *");   // the nightly report every minute, so a run shows it (J-2)
 ((IResourceBuilder<IResourceWithWaitSupport>)worker).WaitFor(db).WaitFor(broker);
 
 var billingNative = Environment.GetEnvironmentVariable("ARTFLOW_BILLING_NATIVE");

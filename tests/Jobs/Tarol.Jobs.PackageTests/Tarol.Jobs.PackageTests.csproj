@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Jobs package (no ProjectReference). Proves that the package works with the generator of its
+    Tarol.Changes dependency ([Scheduled] → GeneratedJobs.Set) and that JobTest runs from the package. Not part of
+    Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Jobs" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+</Project>

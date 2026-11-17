@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Tarol.Changes;
+using Tarol.Jobs;
 using Tarol.Kernel;
 using Tarol.Messaging;
 using Tarol.Messaging.Npgsql;
@@ -22,7 +23,7 @@ using Tarol.Sagas;
 var builder = Host.CreateApplicationBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("tarol")
                        ?? throw new InvalidOperationException("No connection string 'tarol' (run it through the AppHost).");
-builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>())
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>().Add<DayReport>())
     .WithReactions(GeneratedReactions.Set)
     .UseNpgsqlStore(connectionString, new NpgsqlStoreOptions { NotifyFeed = true })   // EnsureSchema when the host starts; NOTIFY per commit
     .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })   // the read tables (LISTEN on the feed); NOTIFY per batch
@@ -33,11 +34,14 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
         .Consume(GeneratedConsumers.Set)                           // billing.invoice-paid → RecordPayment
         .Trust("billing", t => t.AnyTenant())                      // the company's own billing serves every tenant
         .UseBroker(builder.Configuration)
-        .UseNpgsqlDeadLetters());
+        .UseNpgsqlDeadLetters())
+    .AddJobs(j => j.Add<SettlementReport>("15 2 * * *", o => { o.TimeZone = "Europe/Vienna"; o.PerTenant = true; }),   // step 14: once per occurrence and tenant
+        o => o.TenantSyncEvery = TimeSpan.FromSeconds(20));       // the demo's tenants appear while it runs; hourly by default
+builder.Services.AddSingleton<ITenantDirectory, AuctionTenants>();
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("worker"))
         // not "Npgsql": every idle claim (every 100 ms per worker) would be a span and bury the reactions in the dashboard
-        .WithTracing(t => t.AddSource([.. Broker.Sources, Producer.SourceName, ProjectionHost.ActivitySourceName]).AddOtlpExporter());
+        .WithTracing(t => t.AddSource([.. Broker.Sources, Producer.SourceName, ProjectionHost.ActivitySourceName, JobHost.ActivitySourceName]).AddOtlpExporter());
 
 using var host = builder.Build();
 await host.StartAsync();

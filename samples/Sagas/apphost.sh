@@ -7,7 +7,7 @@ set -uo pipefail
 dir="$1"; count="${2:-5}"; log="$(mktemp)"; traces="$(mktemp)"; zt="${TMPDIR:-/tmp}/artflow-zitadel"
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true DOTNET_CLI_TELEMETRY_OPTOUT=1
 export ASPNETCORE_URLS=http://localhost:18888 ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL=http://localhost:18890
-( cd "$dir" && exec timeout 300 dotnet ArtFlow.AppHost.dll > "$log" 2>&1 ) &
+( cd "$dir" && exec timeout 420 dotnet ArtFlow.AppHost.dll > "$log" 2>&1 ) &
 apphost=$!
 api=http://localhost:5080
 for i in $(seq 1 240); do curl -sf "$api/health" >/dev/null && break; sleep 1; done
@@ -50,6 +50,10 @@ echo "alice's own auctions (claim-bound): $(curl -s "$api/my/auctions?count=true
 etag=$(curl -s -o /dev/null -D - "$api/auctions" -H "Authorization: Bearer $bob" | grep -i '^etag:' | tr -d '\r' | cut -d' ' -f2-)
 echo "list ETag $etag, again with If-None-Match: $(curl -s -o /dev/null -w '%{http_code}' "$api/auctions" -H "Authorization: Bearer $bob" -H "If-None-Match: $etag")"
 echo "projection checkpoint: $(q "SELECT name || ' v' || version || ' ' || state FROM tarol.projections"), rows $(q "SELECT count(*) FROM tarol.rm_auction_list_v1")"
+# step 14: the settlement report runs every minute here (Tarol:Jobs:SettlementReport:Cron); wait for one that saw the settlements
+for i in $(seq 1 100); do n=$(q "SELECT count(*) FROM tarol.events WHERE type = 'day_report' AND (payload->>'settled')::int >= $count"); [ "${n:-0}" -ge 1 ] && break; sleep 1; done
+echo "job rows: $(q "SELECT string_agg(name || CASE WHEN tenant = '00000000-0000-0000-0000-000000000000' THEN '' ELSE ' (a tenant)' END || ' [' || schedule || '] next ' || to_char(next_at AT TIME ZONE 'UTC', 'HH24:MI:SS') || ' attempts ' || attempts, '; ' ORDER BY name) FROM tarol.jobs"); dead jobs: $(q "SELECT count(*) FROM tarol.jobs_dead")"
+echo "settlement reports: $(q "SELECT count(*) || ' by ' || string_agg(DISTINCT actor_kind || ' ' || actor_id, ', ') FROM tarol.events WHERE type = 'day_report'"), settled in the last: $(q "SELECT payload->>'settled' FROM tarol.events WHERE type = 'day_report' ORDER BY recorded_at DESC LIMIT 1"), keys: $(q "SELECT count(*) FROM tarol.idempotency_keys WHERE scope = 'job:SettlementReport'")"
 echo "dead letters: outbox $(q "SELECT count(*) FROM tarol.outbox_dead")/$(q "SELECT count(*) FROM tarol.outbox_dead" billingdb), messages $(q "SELECT count(*) FROM tarol.messages_dead")/$(q "SELECT count(*) FROM tarol.messages_dead" billingdb)"
 sleep 6
 curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; print("dashboard resources with traces:", sorted(r["name"] for r in json.load(sys.stdin) if r["hasTraces"]))'

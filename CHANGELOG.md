@@ -253,6 +253,17 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   version 1 script; `NpgsqlAggregateStore.Jobs` (`NpgsqlJobRows`): one-row claims with `FOR UPDATE SKIP LOCKED` (a pending
   re-drive first), claim-guarded single statements, `Sync` in one transaction under an advisory lock; `UseNpgsqlStore`
   registers `IJobRows`.
+* `Tarol.Jobs` (step 14C, new): scheduled jobs. `IJob` classes (`JobRun.Change`/`Create` keyed by occurrence and target or
+  part), `AddJobs(j => j.Add(GeneratedJobs.Set).Add<TJob>(cron), o => …)` (`JobsBuilder`, `JobOptions`: zone, `Missed`,
+  `MaxCatchUp`, `Grace`, `PerTenant`, `Enabled`, `Policy`; `JobHostOptions`: workers, poll, lease, tenant sync), `JobHost`
+  (syncs the rows at startup, one-row claims, the cursor moved per occurrence, a heartbeat every lease/3, retries with
+  `DeliveryPolicy`, dead jobs, re-drives), our own 5-field cron `Cron` (Vixie OR, names, DST: end of the gap, once in the
+  repeated hour) and `Schedule.Every`, `ITenantDirectory`, the override `Tarol:Jobs:<name>:Cron`/`:TimeZone`/`:Enabled`
+  validated at startup, the system jobs `tarol.purge-keys` and every registered `MaintenanceTask`, `JobTest` (standing clock,
+  `Advance`, `Down`, `Runs`, dead jobs, tenants, configuration, drained reactions), logs 14001–14010,
+  `ActivitySource "Tarol.Jobs"`; agent skill `tarol-jobs`. `Tarol.Persistence`: `MaintenanceTask`, `IMaintenanceHost`.
+  `Tarol.Messaging.Npgsql`: `NpgsqlBusOptions.Retention` (7 days) and `PurgeBatch`, the system job `tarol.purge-messages`.
+  `samples/Sagas`: the nightly settlement report in the worker; the guide `docs/jobs/README.md`.
 
 ### Fixed
 
@@ -262,6 +273,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* Step 14C (announced in docs/migration/jobs.md §10, J-9): with a job host (`AddJobs`), `AddReactionWorker` no longer sets
+  `ReactionOptions.PurgeKeys` from the store: the system job `tarol.purge-keys` purges once per hour across the cluster
+  instead of in every worker process. Without a job host nothing changes.
 * Step 14A (announced in docs/migration/jobs.md §10): TVAL006 is not reported inside a static `[Scheduled]` factory of an
   `IValidatable` change (C-13), as for `[OnEvent<T>]`, `[Webhook]` and `[Consumes]`.
 * Step 13C (announced in docs/migration/caching.md §10): list answers of `Tarol.Changes.AspNetCore` (200, 304 and the

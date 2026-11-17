@@ -77,7 +77,7 @@ then.Recorded[0].Context.Actor.ShouldBe(Actor.User("seller"));
 var twice = await test.When(new CloseAuction(auction.Id));
 twice.Result.TryGetValue(out Violation? conflict).ShouldBeTrue();      // Error.Conflict("AuctionStatus.NotAllowed", …)
 
-// a job
+// an internal run by hand (a scheduled job uses [Scheduled] or JobRun.Change of skill tarol-jobs, which key it)
 var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.AuctionSettlement"), tenant, time), cancellationToken: ct);
 
 // a reaction to an own event

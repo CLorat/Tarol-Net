@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The ArtFlow reaction worker: Tarol.Sagas' hosted worker on the Npgsql store, the auction-list projection (Tarol.Queries.Npgsql), publishing to and consuming from billing (NATS or RabbitMQ); traces to OTLP when a host sets it. -->
+  <!-- The ArtFlow reaction worker: Tarol.Sagas' hosted worker on the Npgsql store, the auction-list projection (Tarol.Queries.Npgsql), publishing to and consuming from billing (NATS or RabbitMQ), the nightly settlement report (Tarol.Jobs); traces to OTLP when a host sets it. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>ArtFlow.Worker</AssemblyName>
@@ -16,6 +16,7 @@
     <ProjectReference Include="$(TarolRoot)src/Messaging/Tarol.Messaging.Npgsql/Tarol.Messaging.Npgsql.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Messaging/Tarol.Messaging.Generators/Tarol.Messaging.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Jobs/Tarol.Jobs/Tarol.Jobs.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

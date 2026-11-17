@@ -129,8 +129,8 @@ public static class ReactionServiceCollectionExtensions
         services.AddHostedService(static provider =>
         {
             var options = provider.GetRequiredService<ReactionOptions>();
-            if (options.PurgeKeys is null && provider.GetService<IIdempotencyKeyPurge>() is { } purge)
-                options.PurgeKeys = purge.PurgeKeys;                                // the store's, when it has one
+            if (options.PurgeKeys is null && provider.GetService<IMaintenanceHost>() is null && provider.GetService<IIdempotencyKeyPurge>() is { } purge)
+                options.PurgeKeys = purge.PurgeKeys;                                // the store's, unless a job host runs it once per cluster (J-9)
             // other packages register row handlers (Tarol.Messaging: publications, effects); one worker runs them all
             var reactions = provider.GetRequiredService<ReactionSet>();
             var others = provider.GetServices<IOutboxRowHandler>().ToArray();

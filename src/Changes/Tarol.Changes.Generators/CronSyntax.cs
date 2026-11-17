@@ -12,6 +12,7 @@ internal sealed class CronFields
     private static readonly string[] MonthNames = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
     private static readonly string[] DayNames = { "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT" };
     private static readonly char[] Blanks = { ' ', '\t' };
+    private static readonly char[] Quartz = { '#', '?' };
 
     private CronFields(ulong minutes, ulong hours, ulong days, ulong months, ulong weekdays, bool dayStar, bool weekdayStar)
     {
@@ -90,14 +91,19 @@ internal sealed class CronFields
         {
             if (item.Length == 0)
                 return "an empty list item in '" + field + "'";
-            if (item.IndexOf('#') >= 0 || item.IndexOf('?') >= 0)
+            if (item.IndexOfAny(Quartz) >= 0)
                 return "'#' and '?' are not supported";
             var step = 1;
             var range = item;
             var slash = item.IndexOf('/');
             if (slash >= 0)
             {
-                if (!int.TryParse(item.Substring(slash + 1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out step)
+#if NETSTANDARD2_0
+                var stepText = item.Substring(slash + 1);
+#else
+                var stepText = item.AsSpan(slash + 1);
+#endif
+                if (!int.TryParse(stepText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out step)
                     || step < 1 || step > max - min + 1)
                     return "the step in '" + item + "' must be 1–" + (max - min + 1);
                 range = item.Substring(0, slash);
@@ -133,7 +139,7 @@ internal sealed class CronFields
     private static bool IsQuartzLetter(string text)
     {
         var upper = text.ToUpperInvariant();
-        return upper is "L" or "W" or "LW" || (char.IsDigit(upper[0]) && (upper.EndsWith("L", System.StringComparison.Ordinal) || upper.EndsWith("W", System.StringComparison.Ordinal)));
+        return upper is "L" or "W" or "LW" || (char.IsDigit(upper[0]) && upper[upper.Length - 1] is 'L' or 'W');
     }
 
     private static string? Value(string text, int min, int max, string[]? names, out int value)

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Scheduled jobs for Tarol: recurring changes ([Scheduled] change entries and IJob classes) run as the system once per occurrence across any number of worker processes, from one row per (tenant, job) with leased claims, a heartbeat and the occurrence as the idempotency key; a 5-field Unix cron parser with IANA zones and the DST rules of Vixie cron, missed-run policies, retries and dead jobs, a configuration override, Tarol's own maintenance as system jobs, and JobTest on a standing clock. No third-party dependency. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;scheduler;cron;jobs;recurring;background;worker;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hosting, DI, configuration and logging abstractions are part of .NET 11's base framework; no cron package (J-3). -->
+    <ProjectReference Include="../../Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <!-- The cron field rules, shared with the Changes generator's TCHG010 (a literal it accepts is one this parser accepts). -->
+    <Compile Include="../../Changes/Tarol.Changes.Generators/CronSyntax.cs" Link="CronSyntax.cs" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

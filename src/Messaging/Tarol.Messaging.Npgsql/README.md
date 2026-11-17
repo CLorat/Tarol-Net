@@ -42,7 +42,9 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Invoice>())
   so a late answer after a lost lease changes nothing.
 * **NOTIFY** (`Notify = true`, opt-in): a `NOTIFY` in the publish's statement batch wakes the consumers; else they poll
   every `PollInterval` (100 ms).
-* **Retention**: `NpgsqlBus.PurgeMessages(olderThan, batch, ct)` deletes delivered messages.
+* **Retention**: `NpgsqlBus.PurgeMessages(olderThan, batch, ct)` deletes delivered messages. With a job host (`AddJobs` of
+  `Tarol.Jobs`) `UseNpgsqlBus` schedules it as the system job `tarol.purge-messages` (hourly, once per cluster) with
+  `NpgsqlBusOptions.Retention` (7 days) and `PurgeBatch` (1000).
 
 ## Who may publish under a prefix
 

@@ -24,8 +24,9 @@ description: >-
    that disagrees with the prefix is buried by the consumer.
 6. **`Notify = true`** makes deliveries arrive in milliseconds instead of at the next poll; it serializes publishers'
    commits (opt-in). `PollInterval` stays the fallback.
-7. **Retention** is yours to schedule: `bus.PurgeMessages(olderThan, batch, ct)` deletes messages nobody still has to
-   receive.
+7. **Retention**: with a job host (`AddJobs`, skill `tarol-jobs`) the system job `tarol.purge-messages` deletes messages
+   nobody still has to receive, older than `NpgsqlBusOptions.Retention` (7 days), hourly, once per cluster. Without one,
+   call `bus.PurgeMessages(olderThan, batch, ct)` yourself.
 
 ## Example
 

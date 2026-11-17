@@ -211,7 +211,7 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
 
     /// <summary>
     /// Deletes messages published before <paramref name="olderThan"/> that no subscription still has to receive, in batches
-    /// (retention; step 15 schedules it). Same shape as the store's key purge.
+    /// (retention). With a job host it runs as the system job <c>tarol.purge-messages</c> (<see cref="NpgsqlBusOptions.Retention"/>). Same shape as the store's key purge.
     /// </summary>
     /// <param name="olderThan">The cut-off.</param>
     /// <param name="batch">The most messages per statement.</param>

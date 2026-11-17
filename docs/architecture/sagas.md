@@ -94,7 +94,8 @@ loop:  rows = outbox.Claim(batch 32, lease 1 min)                         ← he
   attempt is lost, at most delayed by one lease.
 * **Wake-up** (S-10): poll with a 100 ms default (claim until empty, then wait); LISTEN/NOTIFY is opt-in because a NOTIFY
   in the commit costs writers about 30 % of their commits/s **[verified]** (evaluation §4.3).
-* **Keys** (P-11): the host purges idempotency keys older than 7 days every hour, in batches.
+* **Keys** (P-11): the host purges idempotency keys older than 7 days every hour, in batches. With a job host (step 14,
+  `AddJobs`) it does not: the system job `tarol.purge-keys` purges once per hour across the cluster (J-9).
 * **Concurrency**: N loops per process (default 4), any number of processes; `SKIP LOCKED` keeps claims disjoint; per
   (stream, reaction) one row at a time, in version order.
 
@@ -239,7 +240,8 @@ top of the graph until steps 10–11.
 
 Owns: the worker loop, the delivery policy, dead letters and re-drive, hosting, the reaction test helper, the saga guide.
 Does not own: the pipeline (Changes), the reaction table and its generator (Changes), the SQL (Persistence.Npgsql), the
-saga's rules (the user's aggregate), outgoing messages (Messaging, step 11).
+saga's rules (the user's aggregate), outgoing messages (Messaging, step 11), recurring work (Jobs, step 14: a schedule is a
+cursor in a row of its own, not an outbox row; a one-shot deadline stays a scheduled reaction).
 
 ## New insights
 
@@ -271,5 +273,6 @@ S-14 reaction name = type name, pin to rename; S-15 sagas start load-or-create.
   plan step 15 (Operations).
 * Priority between reactions (a slow reaction's backlog delays others in the same claim order): not needed by a scenario.
 * Partitioning work across processes by tenant: `SKIP LOCKED` suffices for the measured scale.
-* Recurring work is not a reaction: step 14 ([jobs.md](jobs.md), J-4) keeps schedules in a `jobs` table of their own rather than
-  on the outbox, and the hourly key purge of `ReactionHost` becomes the system job `tarol.purge-keys` (J-9).
+* Recurring work is not a reaction (answered in step 14, [jobs.md](jobs.md), J-4, J-9): schedules live in a `jobs` table of their
+  own rather than on the outbox, and the hourly key purge of `ReactionHost` is the system job `tarol.purge-keys` when a job host
+  is registered.

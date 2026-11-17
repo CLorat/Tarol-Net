@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Tarol.Persistence;
 
 namespace Tarol.Messaging.Npgsql;
 
@@ -20,7 +21,9 @@ public static class NpgsqlMessagingBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(messaging);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        (options ?? new NpgsqlBusOptions()).Validate();
+        options ??= new NpgsqlBusOptions();
+        options.Validate();
+        AddRetention(messaging, options);
         return messaging.UseTransport(provider => new NpgsqlBus(new NpgsqlSlimDataSourceBuilder(connectionString).Build(), ownsDataSource: true,
             provider.GetRequiredService<TimeProvider>(), options, provider.GetService<ILogger<NpgsqlBus>>()));
     }
@@ -34,10 +37,31 @@ public static class NpgsqlMessagingBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(messaging);
         ArgumentNullException.ThrowIfNull(dataSource);
-        (options ?? new NpgsqlBusOptions()).Validate();
+        options ??= new NpgsqlBusOptions();
+        options.Validate();
+        AddRetention(messaging, options);
         return messaging.UseTransport(provider => new NpgsqlBus(dataSource(provider), provider.GetRequiredService<TimeProvider>(), options,
             provider.GetService<ILogger<NpgsqlBus>>()));
     }
+
+    /// <summary>The name of the bus retention's system job (J-9).</summary>
+    public const string PurgeMessagesJob = "tarol.purge-messages";
+
+    /// <summary>The bus retention as a maintenance task: a job host runs it as <see cref="PurgeMessagesJob"/> every hour.</summary>
+    private static void AddRetention(MessagingBuilder messaging, NpgsqlBusOptions options)
+        => messaging.Tarol.Services.AddSingleton(new MaintenanceTask(PurgeMessagesJob, TimeSpan.FromHours(1), async (provider, at, ct) =>
+        {
+            if (provider.GetRequiredService<IMessageTransport>() is not NpgsqlBus bus)
+                return 0;
+            var total = 0;
+            for (int deleted; (deleted = await bus.PurgeMessages(at - options.Retention, options.PurgeBatch, ct).ConfigureAwait(false)) > 0;)
+            {
+                total += deleted;
+                if (deleted < options.PurgeBatch)
+                    break;
+            }
+            return total;
+        }));
 
     /// <summary>
     /// Keeps dead letters in <c>&lt;schema&gt;.messages_dead</c> of the consumer's database: by default the
