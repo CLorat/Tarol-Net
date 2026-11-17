@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Step 16 probe: data protection on today's packages (TarolRoot = the repository). Field envelopes (AES-256-GCM per subject),
+       four codec candidates, a would-be protected store over SQL (keys per tenant and subject, subjects per event, erasure
+       tombstones, NOTIFY eviction), export, blind-index lookups, projection forgetting, retention by deletion.
+       Modes: selftest <protect|forget>, bench <crypto|codec|load|commit|export|forget|retention>. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <PublishAot>true</PublishAot><TrimmerSingleWarn>false</TrimmerSingleWarn><InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <AssemblyName>Probe.DataProtection</AssemblyName><RootNamespace>Probe.DataProtection</RootNamespace>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
