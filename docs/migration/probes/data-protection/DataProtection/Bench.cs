@@ -130,7 +130,9 @@ internal static class Bench
             }
         })));
         var storeIds = await Ids("dpl_store");
-        var erased = ids.Take(streams / 10).ToArray();
+        var cold = new Vault(Lab.Db, codec, "dpl_prot", new KeyCache(TimeSpan.FromMinutes(5)));   // the cold rows clear their own cache only
+        foreach (var id in ids) await prot.Load<Customer>(Lab.TenantA, id, Vault.KeyFetch.Separate);   // every key cached once
+        var erased = ids.Take(streams / 10).ToArray();   // 10 % of the customers
         Lab.Info($"{Lab.N(streams)} customers × 10 events (9 with personal fields: 2 + 8 × 1) in each table; the store's copy has its state in streams.state");
         Console.WriteLine("| load of one customer (10 events) | median | p99 | key queries per load |");
         Console.WriteLine("|---|---|---|---|");
@@ -161,14 +163,14 @@ internal static class Bench
         }
         Row("today's NpgsqlAggregateStore.Load (reads streams.state)", async id => await store.Load((Tarol.StronglyTypedId.Id<Customer>)id, Lab.Context(Lab.TenantA), default), storeIds);
         Row("probe: the plain state (1 row, no envelopes, no key statement)", id => plain.LoadState<Customer>(Lab.TenantA, id, keys: false), plainIds);
-        Row("protected state: the row and its subjects' keys in one batch, cold cache", id => prot.LoadState<Customer>(Lab.TenantA, id), ids, prot, cold: true);
+        Row("protected state: the row and its subjects' keys in one batch, cold cache", id => cold.LoadState<Customer>(Lab.TenantA, id), ids, cold, cold: true);
         Row("protected state, keys in the same batch, cached key (no unwrap)", id => prot.LoadState<Customer>(Lab.TenantA, id), ids);
         Row("protected state, cached key (a separate fetch only on a miss): hit", id => prot.LoadState<Customer>(Lab.TenantA, id, keys: false), ids, prot);
-        Row("protected state, separate fetch, cold cache (2 round trips + unwrap)", id => prot.LoadState<Customer>(Lab.TenantA, id, keys: false), ids, prot, cold: true);
+        Row("protected state, separate fetch, cold cache (2 round trips + unwrap)", id => cold.LoadState<Customer>(Lab.TenantA, id, keys: false), ids, cold, cold: true);
         Row("probe: replay 10 plain events (no envelopes, no key statement)", id => plain.Load<Customer>(Lab.TenantA, id, Vault.KeyFetch.Separate), plainIds);
         Row("protected replay, keys in the same batch (1 round trip)", id => prot.Load<Customer>(Lab.TenantA, id, Vault.KeyFetch.Batch), ids);
         Row("protected replay, cached key (a separate fetch only on a miss): hit", id => prot.Load<Customer>(Lab.TenantA, id, Vault.KeyFetch.Separate), ids, prot);
-        Row("protected replay, separate fetch, cold cache (2 round trips + unwrap)", id => prot.Load<Customer>(Lab.TenantA, id, Vault.KeyFetch.Separate), ids, prot, cold: true);
+        Row("protected replay, separate fetch, cold cache (2 round trips + unwrap)", id => cold.Load<Customer>(Lab.TenantA, id, Vault.KeyFetch.Separate), ids, cold, cold: true);
         await Measure();
         foreach (var s in erased) await prot.Erase(Lab.TenantA, s);
         Row("protected replay, the subject erased (9 fields read as null; the tombstone cached)", id => prot.Load<Customer>(Lab.TenantA, id, Vault.KeyFetch.Separate), erased);
