@@ -989,3 +989,22 @@ of `Tarol.slnx`).
   spans now include `change …` (the `Tarol.Changes` source), `reaction …` and `postgresql` children of the requests and reactions.
   The first run showed `/health/ready` 503 throughout: the readiness fix of 15C (§17.7). One run did not start because the
   session's disk allowance was spent by the verification worktrees; they were removed and the run repeated.
+* **The same run with the Native AOT API and worker** (`ARTFLOW_API_NATIVE`, `ARTFLOW_WORKER_NATIVE`): `/health/ready` 200 after
+  16 s, the worker's probes 200 on 5081, the admin entry 200/403/401, metrics from api and worker. Both publish with **0 IL
+  warnings**: api 26.7 MB (24.8 MB in step 14), worker 25.4 MB (20.0 MB: it now carries Kestrel for its probes).
+* **The repository** at `bf70c13` (the code of this PR, which contains 15-0's 60 s reconnect cap, below), in a separate detached
+  worktree, with Docker and the smoke containers:
+  * `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+  * `dotnet format Tarol.slnx --verify-no-changes`: clean;
+  * `dotnet test --solution Tarol.slnx` with Docker: **1702 of 1702** (no new tests: 15D changes docs and the sample);
+  * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **23 apps, 0 IL warnings**, all checks passed;
+  * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
+* **Two earlier full runs of this branch were not green, neither from step 15's code**: one lost 2 Zitadel tests to a Docker
+  port clash when Testcontainers started their container ("port is already allocated"); the next failed
+  `PushTests.A_connection_that_closed_for_good_is_started_again_by_the_client` at "Connected" after 30 s: the client retries
+  after 0, 1, 2, 5 s and then every 10 s ±20 %, and under the suite's load the restarted server missed the early attempts. 15-0
+  now waits up to 60 s (still bounded by the event; 10 runs of the SignalR tests in Release: 10 × 18 of 18), merged upward
+  through 15A–15D.
+
+**Step 15 done** (plan row 15).
+
