@@ -1,0 +1,138 @@
+## 0. Machine
+# SDK 11.0.100 (JIT runs: Release build), 2026-11-17, x86_64, 4 cores, 15 GB; postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1) in Docker on the same host (default settings, max_connections=300); Npgsql 10.0.3; OpenSSL 3.0.13
+
+## 1. JIT: functional checks (append seals, load opens, relabelled envelopes, upcasting, erasure and its NOTIFY, refusal after erasure, export, blind index, tenant key, projection re-fold, AesGcm under threads)
+PASS stored payloads hold envelopes for name, email, street; country and city stay plain JSON  ({"name": "tdp1.9uqhAbHKYnuZ62h5WI52bAAAAAE2iySThTmhhiPe29EJXDo0aO7hDuFCmIGFRXHT8142s78o3lqal4-m64xU", "email": "tdp1.9uqhAbHKYnuZ62h5WI52bAAAAAGio2iCjTEACZSokuc…)
+PASS every event row records the subjects it holds data of  ({01a1eaf6-cab1-7b62-99eb-6879588e766c} {01a1eaf6-cab1-7b62-99eb-6879588e766c})
+PASS a load opens every field (keys fetched with the events in one batch)  (Alice Example, alice@example.org, 1 Main Street)
+PASS another aggregate's field sealed for the customer opens with the customer's key  (Alice Example, 1 Main Street)
+PASS an envelope relabelled to another subject fails authentication (AES-GCM tag)
+PASS opening runs before upcasting: an upcaster renames a sealed field as plaintext  (Carla Old)
+PASS the erasure's NOTIFY evicts the key from the other process's cache  (16.0 ms after the erase was sent)
+PASS after erasure the aggregate still replays: personal fields read as null, the rest is intact  (3 fields lost; country DE, city Berlin)
+PASS the customer's data in an order is gone too; the order's own data stays  (total 99.5)
+PASS new personal data for an erased subject is refused (a tombstone, not a fresh key)  (subject 01a1eaf6-cab1-7b62-99eb-6879588e766c is erased)
+PASS other subjects are unaffected
+PASS the tombstone keeps when, not what: the key row has no key
+PASS export lists the subject's events in every stream type (its customer stream and the order), opened  (customer v1; order v1)
+PASS a blind index (HMAC-SHA256 under a tenant key) finds equal emails and differs between tenants  (4Rx0hx3LY5n3R4HDzGnxVb3A2LNaZtW5tVV7ZFtEmnI)
+PASS erasing the tenant key makes all of the tenant's subjects unreadable (one row)
+PASS re-folding the 1 affected stream(s) nulls the row's personal columns and its doc  (null | null | DE | {"id": "01a1eaf6-cab1-7b62-99eb-6879588e766c", "name": null, "tier": 0, "email": null, "country": "DE"})
+PASS one AesGcm instance used by 4 threads without a lock fails (so a cached key needs a lock or one instance per use)  (133850 of 200,000 round trips failed)
+ALL 17 CHECKS PASSED (protect, JIT)
+
+## 2. The primitives (JIT): AES-256-GCM envelopes, key unwrap, blind index
+| operation | per call |
+|---|---|
+| seal a 32-byte value (AES-256-GCM, random nonce, base64url envelope of 112 chars) | 1976 ns |
+| open it | 1108 ns |
+| seal a 256-byte value (AES-256-GCM, random nonce, base64url envelope of 411 chars) | 1843 ns |
+| open it | 1027 ns |
+| new AesGcm(key) (per unwrapped key; cache it) | 1272 ns |
+| unwrap a data key (master → key, AES-GCM of 32 bytes incl. AesGcm construction) | 1180 ns |
+| blind index of an email (HMAC-SHA256, normalized) | 1516 ns |
+| RandomNumberGenerator.GetBytes(32) (a new data key) | 799 ns |
+
+## 3. Codec candidates (JIT): one event with 2 personal fields of 3
+| candidate | encode (event → stored JSON) | decode (stored JSON → event) | decode, key erased | stored size |
+|---|---|---|---|---|
+| plain (today's codec, nothing sealed) | 508 ns | 471 ns | – | 67 B |
+| A: transform after the serializer (Utf8JsonReader/Writer, raw slices) | 4639 ns | 2877 ns | 710 ns | 221 B |
+| B: transform through JsonNode | 4950 ns | 4278 ns | 1698 ns | 221 B |
+| C: the whole payload in one envelope | 2075 ns | 1309 ns | the whole event is lost (country too) | 170 B |
+| D: converter in the serializer, key in a thread-static scope | 3688 ns | 3187 ns | 431 ns | 221 B |
+INFO finding the subjects of a sealed payload without a subjects column (scan for envelopes): 209 ns per event
+INFO A's stored JSON: {"name":"tdp1.IZvnObz0CUWtePYz6YAN0AAAAAEdaNOHWYGrPR-qZWdU3-YmPuK4L4SFX5kjSHr8ZmDfb8XXNgAaMyUytLne","email":"tdp1.IZvnObz0CUWtePYz6YAN0AAAAAHC6_PEpSVoSco_Y8kgowGBVUkDQBJaxXTZruQYUIvSiwYNto-RlJv--Qn3YQiHDA","country":"DE"}
+
+## 4. Native AOT: publish (warnings, size); the functional checks, the primitives and the codec natively
+| build | IL warnings | native binary |
+|---|---|---|
+| the probe (Tarol.Persistence.Npgsql, Tarol.Queries.Npgsql, System.Security.Cryptography) | 0 | 7933928 bytes |
+PASS stored payloads hold envelopes for name, email, street; country and city stay plain JSON  ({"name": "tdp1.9-qhAcHycnGTrYuadP7bKwAAAAGp5p4haxC_2HBo4AVk23TWowtmpnhEC0CHEpdmYyu32yZSnyeVSA3G5-Yd", "email": "tdp1.9-qhAcHycnGTrYuadP7bKwAAAAG71CXrGDirG_pTNSZ…)
+PASS every event row records the subjects it holds data of  ({01a1eaf7-f2c1-7172-93ad-8b9a74fedb2b} {01a1eaf7-f2c1-7172-93ad-8b9a74fedb2b})
+PASS a load opens every field (keys fetched with the events in one batch)  (Alice Example, alice@example.org, 1 Main Street)
+PASS another aggregate's field sealed for the customer opens with the customer's key  (Alice Example, 1 Main Street)
+PASS an envelope relabelled to another subject fails authentication (AES-GCM tag)
+PASS opening runs before upcasting: an upcaster renames a sealed field as plaintext  (Carla Old)
+PASS the erasure's NOTIFY evicts the key from the other process's cache  (7.01 ms after the erase was sent)
+PASS after erasure the aggregate still replays: personal fields read as null, the rest is intact  (3 fields lost; country DE, city Berlin)
+PASS the customer's data in an order is gone too; the order's own data stays  (total 99.5)
+PASS new personal data for an erased subject is refused (a tombstone, not a fresh key)  (subject 01a1eaf7-f2c1-7172-93ad-8b9a74fedb2b is erased)
+PASS other subjects are unaffected
+PASS the tombstone keeps when, not what: the key row has no key
+PASS export lists the subject's events in every stream type (its customer stream and the order), opened  (customer v1; order v1)
+PASS a blind index (HMAC-SHA256 under a tenant key) finds equal emails and differs between tenants  (ABZpTWDuikM_uLPC0z0E0ludtWVzqdkh4H9HzFh4rgw)
+PASS erasing the tenant key makes all of the tenant's subjects unreadable (one row)
+PASS re-folding the 1 affected stream(s) nulls the row's personal columns and its doc  (null | null | DE | {"id": "01a1eaf7-f2c1-7172-93ad-8b9a74fedb2b", "name": null, "tier": 0, "email": null, "country": "DE"})
+PASS one AesGcm instance used by 4 threads without a lock fails (so a cached key needs a lock or one instance per use)  (136874 of 200,000 round trips failed)
+ALL 17 CHECKS PASSED (protect, Native AOT)
+| operation | per call |
+|---|---|
+| seal a 32-byte value (AES-256-GCM, random nonce, base64url envelope of 112 chars) | 1818 ns |
+| open it | 988 ns |
+| seal a 256-byte value (AES-256-GCM, random nonce, base64url envelope of 411 chars) | 2215 ns |
+| open it | 1269 ns |
+| new AesGcm(key) (per unwrapped key; cache it) | 1372 ns |
+| unwrap a data key (master → key, AES-GCM of 32 bytes incl. AesGcm construction) | 978 ns |
+| blind index of an email (HMAC-SHA256, normalized) | 1572 ns |
+| RandomNumberGenerator.GetBytes(32) (a new data key) | 817 ns |
+| candidate | encode (event → stored JSON) | decode (stored JSON → event) | decode, key erased | stored size |
+|---|---|---|---|---|
+| plain (today's codec, nothing sealed) | 306 ns | 511 ns | – | 67 B |
+| A: transform after the serializer (Utf8JsonReader/Writer, raw slices) | 4692 ns | 3034 ns | 839 ns | 221 B |
+| B: transform through JsonNode | 5883 ns | 4796 ns | 1753 ns | 221 B |
+| C: the whole payload in one envelope | 2193 ns | 1595 ns | the whole event is lost (country too) | 170 B |
+| D: converter in the serializer, key in a thread-static scope | 3982 ns | 2577 ns | 572 ns | 221 B |
+INFO finding the subjects of a sealed payload without a subjects column (scan for envelopes): 167 ns per event
+INFO A's stored JSON: {"name":"tdp1.LpPRN-hOQ0SLFX4az2VVugAAAAH4CfdaEY0KGnul74voB5vJIX-mwYTJFVZ-8U5YOdeklKJaywXdAFsG0rMs","email":"tdp1.LpPRN-hOQ0SLFX4az2VVugAAAAG0loGeWQYDXe7arENGcRVsrrMIO6FrmIP-ZPANU52tB-9aD0apU8JWOXAbBq-zlQ","country":"DE"}
+
+## 5. Loads: today's store, plain, protected (state and replay; keys batched, cached, cold), erased (2,000 customers × 10 events)
+INFO 2,000 customers × 10 events (9 with personal fields: 2 + 8 × 1) in each table; the store's copy has its state in streams.state
+| load of one customer (10 events) | median | p99 | key queries per load |
+|---|---|---|---|
+| today's NpgsqlAggregateStore.Load (reads streams.state) | 0.32 ms | 0.57 ms | – |
+| probe: the plain state (1 row, no envelopes, no key statement) | 0.31 ms | 0.54 ms | – |
+| protected state: the row and its subjects' keys in one batch, cold cache | 0.59 ms | 1.58 ms | 0.00 |
+| protected state, keys in the same batch, cached key (no unwrap) | 0.50 ms | 1.26 ms | – |
+| protected state, cached key (a separate fetch only on a miss): hit | 0.25 ms | 0.59 ms | 0.00 |
+| protected state, separate fetch, cold cache (2 round trips + unwrap) | 0.92 ms | 2.15 ms | 1.00 |
+| probe: replay 10 plain events (no envelopes, no key statement) | 0.39 ms | 0.79 ms | – |
+| protected replay, keys in the same batch (1 round trip) | 1.27 ms | 4.03 ms | – |
+| protected replay, cached key (a separate fetch only on a miss): hit | 0.40 ms | 1.74 ms | 0.00 |
+| protected replay, separate fetch, cold cache (2 round trips + unwrap) | 1.01 ms | 1.91 ms | 1.00 |
+| protected replay, the subject erased (9 fields read as null; the tombstone cached) | 0.54 ms | 1.01 ms | – |
+| protected state, the subject erased (3 fields read as null; the tombstone cached) | 0.42 ms | 0.95 ms | – |
+INFO events table size: 6096 kB plain vs 8544 kB protected (incl. the subjects GIN index 824 kB)
+
+## 6. Commits with 4 writers: plain, protected without and with the subjects GIN index (2,000 commits per writer and kind)
+| commit (4 writers) | new customer (Register: 1 event, 2 sealed fields, a new key) p50 / p99 | existing customer (Move: 1 event, 1 sealed field, key cached) p50 / p99 |
+|---|---|---|
+| probe, plain (no subjects, no envelopes) | 2.21 / 5.50 ms | 2.04 / 4.18 ms |
+| protected, subjects column without index | 3.28 / 6.43 ms | 2.25 / 5.24 ms |
+| protected, subjects column + GIN index | 3.18 / 5.99 ms | 2.07 / 4.29 ms |
+INFO reference: today's NpgsqlAggregateStore.Append of a new customer (state, events, 4 writers): p50 2.38 ms, p99 4.83 ms
+
+## 7. Finding one subject's events among 1,000,000 (export and erasure)
+INFO 1,000,000 events, 100,000 subjects; the subject probed is in 10 events; table 316 MB
+| find one subject's events | median | index size | build |
+|---|---|---|---|
+| subjects @> ARRAY[s], no index (sequential scan) | 86.9 ms | – | – |
+| payload::text LIKE '%subject%' (no subjects column) | 248 ms | – | – |
+| subjects @> ARRAY[s], GIN index on subjects | 0.56 ms | 13 MB | 1574 ms |
+| a subject_streams table (subject → streams), then the streams' events | 0.80 ms | 148 MB (table + key) | – |
+
+## 8. Forgetting in a projection: rebuild vs re-fold vs delete (20,000 customers × 5 events)
+INFO 20,000 customers × 5 events in today's store; projection customer-list (personal columns name, email)
+| forget one subject in the projection | time |
+|---|---|
+| rebuild the projection from the feed (100,000 events, today's ProjectionHost, batch 1,000) | 1727 ms |
+| re-fold the subject's streams (find them by subjects, load with the key gone, replace the row) | 2.63 ms |
+| delete the subject's row (a projection that forgets by deleting) | 0.31 ms |
+
+## 9. Retention by deleting whole streams in batches while 4 writers commit (100,000 customers × 5 events)
+INFO 100,000 customers × 5 events (186 MB); half of them past retention (updated_at moved back 400 days)
+| run | one batch, median | one batch, max | other writers' commits p50 / p99 / max |
+|---|---|---|---|
+| no deletion (baseline, 4 writers) | – | – | 2.61 / 5.92 / 49.6 ms |
+| delete 50,125 streams in batches of 500 (101 batches, 1627 ms) | 14.1 ms | 58.3 ms | 2.79 / 8.43 / 23.9 ms |
+| delete 50,125 streams in batches of 5,000 (11 batches, 986 ms) | 92.6 ms | 123 ms | 2.71 / 7.57 / 14.4 ms |
