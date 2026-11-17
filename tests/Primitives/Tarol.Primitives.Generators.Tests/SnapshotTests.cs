@@ -9,6 +9,7 @@ public class SnapshotTests
     [InlineData("Orders", Domains.Orders)]
     [InlineData("Nested", Domains.Nested)]
     [InlineData("Lifecycle", Domains.Lifecycle)]
+    [InlineData("Personal", Domains.Personal)]
     public void Generated_Code_Matches_The_Snapshot(string name, string source)
         => Snapshot.Match(name, GeneratorTestHost.Run(GeneratorTestHost.Compile(source)));
 
@@ -17,6 +18,7 @@ public class SnapshotTests
     [InlineData(Domains.Orders)]
     [InlineData(Domains.Nested)]
     [InlineData(Domains.Lifecycle)]
+    [InlineData(Domains.Personal)]
     public void A_Valid_Domain_Compiles_With_No_Diagnostic(string source)
         => GeneratorTestHost.Diagnose(source).Select(static d => d.ToString()).ShouldBeEmpty();
 }

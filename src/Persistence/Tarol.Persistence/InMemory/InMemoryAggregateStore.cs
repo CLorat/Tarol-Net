@@ -397,6 +397,14 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         }
     }
 
+    /// <summary>A stream's stored state bytes as committed (sealed fields stay sealed; tests).</summary>
+    internal byte[]? StoredStateForTests<T>(Id<T> id, Option<Id<ITenant>> tenant)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        lock (_gate)
+            return _streams[new StreamKey(TenantOf(tenant), T.StreamType, id.Value)].State;
+    }
+
     /// <summary>Replaces a stream's stored state with malformed JSON (tests of the replay fallback).</summary>
     internal void CorruptStateForTests<T>(Id<T> id, Option<Id<ITenant>> tenant)
         where T : AggregateRoot<T>, IAggregateRoot<T>

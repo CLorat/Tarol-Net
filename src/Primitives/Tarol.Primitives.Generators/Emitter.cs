@@ -256,7 +256,7 @@ internal sealed partial class Emitter
         foreach (var member in owner.Members.OrderBy(static m => m.StateName, System.StringComparer.Ordinal))
         {
             if (_model.Entities.FirstOrDefault(e => e.FullName == member.Child) is { } child && PersonalStateShape(child, depth + 1) is { } shape)
-                children.Add($"new({Literal(member.StateName)}, {shape})");
+                children.Add($"new {P}PersonalChild({Literal(member.StateName)}, {shape})");
         }
 
         return members.Count == 0 && children.Count == 0 ? null : Shape(members, children.Count == 0 ? "" : ", " + string.Join(", ", children));
