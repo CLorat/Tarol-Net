@@ -187,6 +187,29 @@ public sealed class NpgsqlBusTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task The_bus_retention_is_a_maintenance_task_a_job_host_runs_hourly()
+    {
+        var schema = Postgres.NewSchema();
+        var services = new ServiceCollection();
+        services.AddTarol(ContractJson.Default, codec => codec.Add<Auction>().Add<Invoice>().Add<Ledger>().Add<NoteLog>())
+            .AddMessaging("billing", m => m.UseNpgsqlBus(postgres.ConnectionString, new NpgsqlBusOptions { Schema = schema, Retention = TimeSpan.FromDays(2), PurgeBatch = 1 }));
+        await using var provider = services.BuildServiceProvider();
+        var bus = (NpgsqlBus)provider.GetRequiredService<IMessageTransport>();
+        await bus.EnsureSchema(Ct);
+        await bus.Publish(Raw("t.retention"), Ct);
+        await bus.Publish(Raw("t.retention"), Ct);
+
+        var task = provider.GetServices<MaintenanceTask>().ShouldHaveSingleItem();
+
+        (task.Name, task.Every).ShouldBe((NpgsqlMessagingBuilderExtensions.PurgeMessagesJob, TimeSpan.FromHours(1)));
+        (await task.Run(provider, TimeProvider.System.GetUtcNow().AddDays(1), Ct)).ShouldBe(0);            // within the retention
+        (await task.Run(provider, TimeProvider.System.GetUtcNow().AddDays(3), Ct)).ShouldBe(2);            // in batches of one
+        (await postgres.Scalar($"SELECT count(*) FROM {schema}.messages")).ShouldBe(0L);
+        Should.Throw<ArgumentOutOfRangeException>(() => new ServiceCollection().AddTarol(ContractJson.Default, codec => codec.Add<Auction>())
+            .AddMessaging("billing", m => m.UseNpgsqlBus(postgres.ConnectionString, new NpgsqlBusOptions { Retention = TimeSpan.Zero })));
+    }
+
+    [Fact]
     public async Task Dead_letters_keep_headers_and_bytes_and_are_taken_once()
     {
         var schema = Postgres.NewSchema();

@@ -18,7 +18,7 @@ description: >-
    (several assemblies: `ReactionSet.Combine(a.Set, b.Set)`, one call). Pass the same set to the store:
    `new NpgsqlStoreOptions { Reactions = GeneratedReactions.Set }`. Purge keys: `o.PurgeKeys = store.PurgeKeys;`.
    With the one registration: `services.AddTarol(…).WithReactions(GeneratedReactions.Set).UseNpgsqlStore(cs).AddReactionWorker()`
-   (the store's key purge is used). `Verdict` and `Delivery.Classify` live in `Tarol.Changes`.
+   (the store's key purge is used; with `AddJobs` it is the system job `tarol.purge-keys`, once per cluster). `Verdict` and `Delivery.Classify` live in `Tarol.Changes`.
 3. **Failures** (C-9): any `Error.Conflict`, a `NotFound`, a missing `[Read]` (422), an unavailable dependency or an
    exception → retry after 1 s, 2 s, 4 s … 5 min; after 10 attempts → dead letter. `Invalid`, `Forbidden`,
    `Unauthorized`, `Gone` → dead letter at once. A retried row holds back the later rows of its stream for that

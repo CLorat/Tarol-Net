@@ -29,7 +29,8 @@ builder.Services.AddSingleton(new ChangePipeline(store, TimeProvider.System));
 builder.Services.AddTarolReactions(GeneratedReactions.Set, o => o.PurgeKeys = store.PurgeKeys);
 ```
 
-Or with the one registration (step 10), which wires the store's outbox, the pipeline and the key purge:
+Or with the one registration (step 10), which wires the store's outbox, the pipeline and the key purge (with a job host,
+`AddJobs` of `Tarol.Jobs`, the purge runs once per cluster as the system job `tarol.purge-keys` instead of in every worker):
 
 ```csharp
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>())
