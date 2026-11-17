@@ -14,7 +14,7 @@ namespace Tarol.Messaging.Npgsql;
 /// The consumer's dead letters in its own database (M-9, DL-1): table <c>&lt;schema&gt;.messages_dead</c>, usually next to the
 /// store's tables. Every transport buries into it the same way; <c>MessageConsumers.Redrive(id)</c> takes one out and runs it again.
 /// </summary>
-public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
+public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters, IDeadLetterRetention
 {
     private readonly NpgsqlDataSource _db;
     private readonly TimeProvider _time;
@@ -26,6 +26,7 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
     private readonly string _discard;
     private readonly string _takeAudited;
     private readonly string _discardAudited;
+    private readonly string _purge;
 
     /// <summary>Creates the store.</summary>
     /// <param name="dataSource">The consumer's database.</param>
@@ -50,6 +51,12 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
             SELECT {Columns} FROM {schema}.messages_dead
             WHERE id > $1 AND ($3::text IS NULL OR headers->>'{MessageHeaders.Tenant}' = $3) AND ($4::text IS NULL OR subscription = $4)
             ORDER BY id LIMIT $2
+            """;
+        _purge = $"""
+            WITH d AS (DELETE FROM {schema}.messages_dead WHERE id IN (SELECT id FROM {schema}.messages_dead WHERE dead_at < $1 ORDER BY dead_at LIMIT $2) RETURNING id),
+            a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
+                  SELECT $3, $4, 'purge', 'messages', jsonb_build_object('rows', count(*), 'before', $1) FROM d HAVING count(*) > 0)
+            SELECT count(*) FROM d
             """;
         _discard = $"WITH d AS (DELETE FROM {schema}.messages_dead WHERE id = $1 RETURNING id) SELECT count(*) FROM d";
         // the audit row in the same statement (O-3): DELETE … RETURNING feeds it
@@ -138,6 +145,23 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
         command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)query.Name ?? DBNull.Value });
         return await Read(command, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <inheritdoc />
+    /// <remarks>Deletes the oldest first, on the <c>dead_at</c> index of schema version 2, with one audit row per call.</remarks>
+    public async Task<int> Purge(DateTimeOffset olderThan, int max, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(max, 1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        await using var command = _db.CreateCommand(_purge);
+        command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = olderThan.UtcDateTime });
+        command.Parameters.Add(new() { Value = max });
+        command.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
+        command.Parameters.Add(new() { Value = actor });
+        return (int)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as long? ?? 0);
+    }
+
+    /// <inheritdoc />
+    string IDeadLetterRetention.Kind => DeadLetterKinds.Messages;
 
     /// <summary>How many dead letters the table holds (the snapshot signal <c>tarol.messages.dead</c>).</summary>
     /// <param name="cancellationToken">Cancels the call.</param>

@@ -124,8 +124,16 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>The schema's version afterwards.</returns>
     /// <exception cref="InvalidOperationException">As <see cref="EnsureSchema(CancellationToken)"/>.</exception>
-    public Task<SchemaState> EnsureSchema(SchemaMode mode, CancellationToken cancellationToken)
-        => new NpgsqlSchemaUpgrader(_db, NpgsqlSchema.Definition(Schema), _log) { LockTimeout = _schemaLockTimeout }.Ensure(mode, cancellationToken);
+    public async Task<SchemaState> EnsureSchema(SchemaMode mode, CancellationToken cancellationToken)
+    {
+        var state = await new NpgsqlSchemaUpgrader(_db, NpgsqlSchema.Definition(Schema), _log) { LockTimeout = _schemaLockTimeout }
+            .Ensure(mode, cancellationToken).ConfigureAwait(false);
+        Ensured = state;
+        return state;
+    }
+
+    /// <summary>The schema's state after the last successful <c>EnsureSchema</c> of this instance (the readiness of step 15).</summary>
+    public SchemaState? Ensured { get; private set; }
 
     // ------------------------------------------------------------------------------------------------------------ reads
 

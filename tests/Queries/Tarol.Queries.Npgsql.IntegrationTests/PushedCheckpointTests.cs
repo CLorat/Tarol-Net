@@ -51,11 +51,21 @@ public sealed class PushedCheckpointTests(Postgres postgres)
             PollInterval = TimeSpan.FromMilliseconds(100),
             Backoff = TimeSpan.FromHours(1),                                           // no reconnect in this test: only the poll
         };
+        // step 15: the readiness UseNpgsqlReadModels registers with PushCheckpoints
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        _ = new Tarol.Persistence.TarolBuilder(services, Postgres.Json, new Tarol.Persistence.EventCodec(Postgres.Json))
+            .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true }, _ => db);
+        var readiness = services.Where(d => d.ImplementationInstance is Tarol.Persistence.ReadinessCheck)
+            .Select(d => (Tarol.Persistence.ReadinessCheck)d.ImplementationInstance!).ShouldHaveSingleItem();
+        var provider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().AddSingleton(positions).BuildServiceProvider();
+        readiness.Problem(provider).ShouldBeNull();                                    // not started: nothing is down yet
         await positions.Checkpoint<AuctionRow>(Ct);
         await Until(() => positions.IsListening);
+        readiness.Problem(provider).ShouldBeNull();
 
         await Terminate(name);
         await Until(() => !positions.IsListening && log.Has(12101) && log.Has(12102));
+        readiness.Problem(provider).ShouldBe("the checkpoint LISTEN connection is down (reconnecting)");
 
         await setup.Seed(3, TenantA);
         var host = setup.Host<AuctionRow>();

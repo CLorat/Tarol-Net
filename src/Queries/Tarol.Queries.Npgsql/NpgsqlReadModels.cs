@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Npgsql;
 using Tarol.Persistence;
+using Tarol.Persistence.Npgsql;
 
 namespace Tarol.Queries.Npgsql;
 
@@ -12,13 +13,14 @@ namespace Tarol.Queries.Npgsql;
 /// per row type) and the store of SQL projections (<see cref="ISqlProjectionStore"/>), in one schema next to the event
 /// store's tables. Old projection versions stay until <see cref="DropVersion"/> drops them (QR-3: never automatically).
 /// </summary>
-public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
+public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore, IReadModelAdmin
 {
     private readonly NpgsqlDataSource _db;
     private readonly JsonSerializerOptions _json;
     private readonly ConcurrentDictionary<Type, object> _stores = new();
     private readonly ConcurrentDictionary<(string, int), byte> _inUse = new();
     private readonly string? _channel;
+    private readonly TimeProvider _time;
 
     /// <summary>Creates the read stores.</summary>
     /// <param name="dataSource">The data source (arrays enabled; the event store's, or another database).</param>
@@ -28,14 +30,16 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
     /// Whether every batch (row and SQL projections) sends the checkpoint <c>NOTIFY &lt;schema&gt;_checkpoint</c> in its
     /// transaction (<see cref="NpgsqlReadModelOptions.PushCheckpoints"/>; read by <see cref="NpgsqlProjectionPositions"/>).
     /// </param>
+    /// <param name="time">The clock of the audit rows of <see cref="IReadModelAdmin.DropVersion"/>; default <see cref="TimeProvider.System"/>.</param>
     public NpgsqlReadModels(NpgsqlDataSource dataSource, JsonSerializerOptions json, string schema = NpgsqlReadModelSchema.DefaultSchema,
-        bool pushCheckpoints = false)
+        bool pushCheckpoints = false, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(json);
         NpgsqlReadModelSchema.Validate(schema);
         _db = dataSource;
         _json = json;
+        _time = time ?? TimeProvider.System;
         Schema = schema;
         _channel = pushCheckpoints ? CheckpointSql.Channel(schema) : null;
     }
@@ -77,7 +81,9 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
     /// <returns>A task.</returns>
     /// <exception cref="InvalidOperationException">This process reads or hosts that version.</exception>
     /// <exception cref="TimeoutException">Another session still reads the table after <see cref="DropAttempts"/> attempts.</exception>
-    public async Task DropVersion(string name, int version, CancellationToken cancellationToken)
+    public Task DropVersion(string name, int version, CancellationToken cancellationToken) => Drop(name, version, null, cancellationToken);
+
+    private async Task Drop(string name, int version, string? actor, CancellationToken cancellationToken)
     {
         ValidateName(name);
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
@@ -105,6 +111,19 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
                             forget.Parameters.Add(new NpgsqlParameter { Value = version });
                             await forget.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                         }
+                        if (actor is not null)
+                            await using (var audit = new NpgsqlCommand($"""
+                                {NpgsqlSchema.AuditScript(Schema)};
+                                INSERT INTO {Schema}.operations_audit (at, actor, action, target, detail)
+                                VALUES ($4, $1, 'drop', 'projection:' || $2 || ':' || $3, jsonb_build_object('name', $2, 'version', $3))
+                                """, connection, transaction))
+                            {
+                                audit.Parameters.Add(new NpgsqlParameter { Value = actor });
+                                audit.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = name });
+                                audit.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = version });
+                                audit.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
+                                await audit.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                            }
                         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                         return;
                     }
@@ -118,6 +137,49 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore
                 await Task.Delay(TimeSpan.FromMilliseconds(200 * attempt), cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Refuses the newest version of a name; the drop and its audit row (<c>operations_audit</c>) are one transaction.</remarks>
+    async Task IReadModelAdmin.DropVersion(string name, int version, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        ValidateName(name);
+        await using (var newer = _db.CreateCommand($"SELECT EXISTS (SELECT 1 FROM {Schema}.projections WHERE name = $1 AND version > $2)"))
+        {
+            newer.Parameters.Add(new NpgsqlParameter { Value = name });
+            newer.Parameters.Add(new NpgsqlParameter { Value = version });
+            if (await newer.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not true)
+                throw new InvalidOperationException($"'{name}' v{version} is the newest version of its projection; only superseded versions are dropped.");
+        }
+        await Drop(name, version, actor, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ProjectionVersion>> Versions(CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand($"""
+            SELECT p.name, p.version, p.state,
+                   coalesce((SELECT greatest(c.reltuples, 0)::bigint FROM pg_class c WHERE c.oid = t.oid), 0),
+                   coalesce(pg_total_relation_size(t.oid), 0),
+                   EXISTS (SELECT 1 FROM {Schema}.projections n WHERE n.name = p.name AND n.version > p.version)
+            FROM {Schema}.projections p
+            CROSS JOIN LATERAL (SELECT to_regclass('{Schema}.rm_' || replace(p.name, '-', '_') || '_v' || p.version) AS oid) t
+            ORDER BY p.name, p.version
+            """);
+        var list = new List<ProjectionVersion>();
+        try
+        {
+            var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            await using (reader.ConfigureAwait(false))
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                    list.Add(new ProjectionVersion(reader.GetString(0), reader.GetInt32(1), reader.GetString(2), reader.GetInt64(3), reader.GetInt64(4), reader.GetBoolean(5)));
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            return [];                                                                     // no projection prepared yet
+        }
+        return list;
     }
 
     /// <summary>The <c>lock_timeout</c> of <see cref="DropVersion"/> (default 200 ms; step 15).</summary>
