@@ -126,6 +126,9 @@ await foreach (var e in store.ReadAll(GlobalPosition.Start, 100, ct))
 * Codec, for store authors: `Encode` (plain) → `SubjectsOf<T>` → `IKeyStore.Keys(tenant, subjects, create: true)` →
   `Seal<T>`. To read: `SealedSubjects` → `Keys(…, create: false)` → `Decode(…, keys)`. For the state:
   `StateSubjectsOf<T>`, `SealState<T>`, `OpenState`. Upcasters see opened values.
+* A unique lookup over a personal value: `lookups.DefinePersonal<Customer>("email", c => c.Email?.ToLowerInvariant())`.
+  The store keeps a blind index (`IKeyStore.BlindIndex`), never the value, and `Find` hashes the key you pass, so
+  normalize it the same way. A plain `Define` stores the value in plain text.
 * Erasing a subject belongs to `IDataSubjects` (`Tarol.DataProtection`): it also makes projections, caches and lookups
   forget, and audits the erasure. `IKeyStore.EraseSubject` alone only removes the key.
 

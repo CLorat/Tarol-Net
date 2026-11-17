@@ -155,6 +155,22 @@ public sealed class InMemoryKeyStore : IKeyStore
     }
 
     /// <inheritdoc />
+    public ValueTask<string?> BlindIndex(Guid tenant, string lookup, string value, bool create, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Span<byte> material = stackalloc byte[SubjectKey.KeySize];
+        string? index = null;
+        lock (_gate)
+        {
+            if (TenantKey(tenant, create, material))
+                index = KeyBinding.BlindIndex(material, lookup, value);
+        }
+
+        CryptographicOperations.ZeroMemory(material);
+        return ValueTask.FromResult(index);
+    }
+
+    /// <inheritdoc />
     public ValueTask<int> Rewrap(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -32,6 +32,19 @@ public interface IKeyStore
     /// <returns><see langword="false"/> when it was erased already.</returns>
     ValueTask<bool> EraseTenant(Guid tenant, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The blind index of a personal lookup key: HMAC-SHA256 of <paramref name="lookup"/> and <paramref name="value"/> under the
+    /// tenant's lookup key (derived from the tenant key), base64url. Equal values give equal indexes within a tenant and
+    /// different ones across tenants; the value cannot be read back.
+    /// </summary>
+    /// <param name="tenant">The tenant.</param>
+    /// <param name="lookup">The lookup's name.</param>
+    /// <param name="value">The (normalized) key.</param>
+    /// <param name="create">Whether a missing tenant key is created (a commit); without it a tenant without a key has no index (a find).</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The index; <see langword="null"/> when the tenant is erased (or has no key and <paramref name="create"/> is off).</returns>
+    ValueTask<string?> BlindIndex(Guid tenant, string lookup, string value, bool create, CancellationToken cancellationToken);
+
     /// <summary>Re-wraps every tenant key that is not wrapped under the master key's current <see cref="IKeyEncryptionKey.KeyId"/> (rotation).</summary>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>How many tenant keys were re-wrapped.</returns>

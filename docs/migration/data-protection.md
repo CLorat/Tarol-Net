@@ -567,3 +567,147 @@ Docs and probes only; the package code is `main` at `eabacb5` (step 15 done).
    `ErasureParticipant`.
 6. **`AllocationTests.Validating_A_Valid_Input_Allocates_Nothing` can fail under the parallel suite** (§13: 3,136 bytes once,
    0 of 25 alone). A fix (a longer warm-up, or measuring the minimum of several loops) goes in its own PR.
+
+## 15. Implementation 16A: `[PersonalData]`, sealed fields in the codec, the key-store port
+
+PR 16A builds §6.1 and §6.2. The flaky allocation test (§14 item 6) was fixed first in its own PR (#59).
+
+### 15.1 Public API
+
+`Tarol.Primitives`:
+* `PersonalDataAttribute` (property, field, parameter) with `string? Subject { get; init; }`.
+* `RetentionAttribute` (class) with `int Days { get; init; }`.
+* `PersonalShape(PersonalMember[] members, params PersonalChild[] children)`, `PersonalMember(Name, JsonName?, Subject?,
+  SubjectJsonName?)` and `PersonalChild(JsonName, Shape)`: what the generator emits.
+* `EventCatalogEntry.Personal` (init). `EventCatalog.State`, `EventCatalog.RetentionDays` (init) and
+  `EventCatalog.HasPersonalData`.
+* The generator emits these on `T.EventTypes` only for marked aggregates. An unmarked aggregate's generated code is
+  unchanged (the four existing snapshots did not move).
+* Diagnostics TPRM030–TPRM033 come from a new `PersonalDataAnalyzer` (`AnalyzerReleases.Unshipped.md`).
+
+`Tarol.Persistence`:
+* `Envelope`: `Prefix`, `HeadSize`, `MaxLength`, `IsEnvelope`, `TryReadSubject`, `Seal`, `TryOpen`.
+* `SubjectKey`: `Create`, `Erased`, `IsErased`, `Version`; its `AesGcm` is used under a lock. `SubjectErasedException`.
+* `KeyRing`: `Add`, `Contains`, `TryGet`, `Count`, `Subjects`.
+* `KeyWrap` and `KeyBinding`: the 60-byte AES-GCM key wrap and the associated data it binds to.
+* `IKeyEncryptionKey` (`KeyId`, `Wrap`, `Unwrap(keyId, …)`) and `ConfiguredKeyEncryptionKey`
+  (`FromBase64`, earlier keys for rotation).
+* `IKeyStore`: `Keys(tenant, subjects, create)`, `EraseSubject`, `EraseTenant`, `BlindIndex`, `Rewrap`, and the `Erased`
+  event (`KeyErasedEventArgs`).
+* `StoreLookups.DefinePersonal<T>`, `IsPersonal`, `HasPersonal`; `KeyBinding.BlindIndex` (HMAC-SHA256 under a lookup key
+  derived from the tenant key with HKDF, base64url); `InMemoryAggregateStore.DeletePersonalLookups`.
+* `InMemoryKeyStore`: `Create`, `ErasedAt`.
+* `EventCodec`, new members:
+  * `HasPersonalData<T>()` and `HasPersonalData(streamType)`;
+  * `SubjectsOf<T>(type, payload, stream, subjects)` and `SubjectsOf<T>(event, stream)`;
+  * `Seal<T>`, `Encode<T>(…, stream, keys)`, `Decode(…, keys)`;
+  * `StateSubjectsOf<T>`, `SealState<T>`;
+  * static `OpenState`, `SealedSubjects`, `IsSealed`.
+* `InMemoryStoreOptions.Keys`.
+* `DataProtectionErrors.SubjectErased` / `SubjectErasedCode` (`DataProtection.SubjectErased`, 409).
+* Contracts for 16C:
+  * `IDataSubjects` (`EraseSubject`, `EraseTenant`, `Export`) with `SubjectErasure` and `SubjectExport`;
+  * `ErasureParticipant` (`Name`, `Forget`, `ForgetTenant`, `Deleted`) and `StreamRef(Tenant, StreamType, Id)`;
+  * `RetentionPolicy` (`Add<T>`, `Set`, `TryGetDays`, `Days`).
+
+### 15.2 Deliberate differences from §6.1, §6.2 and §11
+
+1. **The subject is found in the serializer's output, not through a generated `Func`** (§6.1 sketched a subject accessor
+   over typed members). The generator emits the subject member's name, and the transform reads its value (a `Guid` or
+   `Id<T>`, both JSON strings) from the same JSON object. One transform then serves events, the state and entity
+   children (the state is not an event, and a `Func<DomainEvent, …>` cannot reach an entity in a set). It also needs no
+   generated delegates. Cost: a second scan of an object, and only when one of its members has an explicit `Subject`.
+2. **The transform replaces value slices instead of rewriting through `Utf8JsonWriter`**, unlike the probe. Every byte
+   outside a sealed value is the serializer's own, so the escaping and number formats stay as written. Opening is the
+   same replacement in reverse, for envelopes anywhere in the payload, because an upcast payload's old shape is unknown.
+3. **Sealing is three calls** for store authors (`Encode` → `SubjectsOf` → `Keys` → `Seal`), plus a one-call
+   `Encode(…, stream, keys)`. Keys must be fetched (or created in the commit) between the plain payload and the seal, so
+   one call cannot do both.
+4. **A ring that lacks a subject throws** rather than reading the field as `null`. A cache bug would otherwise read live
+   data as erased, and the next commit would store the `null`. A store fills tombstones for subjects without a row.
+   **A tag mismatch throws `CryptographicException`** (relabelled or tampered); only an erased key reads as `null`.
+5. **Names**:
+   * `IKeyStore.Erase` and `IDataSubjects.Erase` are `EraseSubject`: CA1716, because `Erase` is a Visual Basic keyword;
+   * the participants' stream reference is `StreamRef`: CA1711 forbids a type name ending in `Stream`.
+6. **`IDataSubjects.Export` takes the actor** (§6.4 audits exports, so the call must say who exported).
+   `IDataSubjects.EraseTenant` is added for offboarding through the orchestrator (§12 row "offboard a tenant").
+7. **Personal lookups move from 16B to 16A**, because the blind index needs the tenant key and therefore the port.
+   §6.3 put `DefinePersonal` with the Npgsql store. `IKeyStore.BlindIndex` and `StoreLookups.DefinePersonal` are in 16A,
+   with the in-memory store using them, so 16B only stores and finds the index. The lookup key is derived from the
+   tenant key, so a tenant erasure makes the lookups unfindable too.
+8. **Rotation**: §14 item 2 put `Rotate` on `IKeyEncryptionKey`. Here the master key unwraps under any configured id and
+   wraps under its current one, and `IKeyStore.Rewrap` re-wraps the tenant rows. The key does not know the rows, so the
+   store has to do the re-wrap. No event and no data key is touched (a test).
+9. **Marking a member does not change `StateSchema`**: a sealed value is still the same member, and the state opener
+   passes plaintext through. Marking an existing aggregate therefore does not force a replay of every stream.
+10. **`Subject = nameof(Member)` in a positional record does not compile** unless a type of that name happens to be in
+   scope: C# does not resolve a primary-constructor parameter in its own attribute. The design's example
+   `nameof(Customer)` worked only because `Customer` is also a type. Write `nameof(Placed.Customer)` (the skills say so).
+11. **Generated `PersonalChild` arguments are written with their type**: the target-typed form compiled under the preview
+    language version the generator tests use, but not in a consumer's project (found by the persistence tests).
+
+### 15.3 Changes against steps 7–15
+
+* The changes below are additive: existing overloads keep their behaviour, except the plain `EventCodec.Decode` for a
+  payload that holds envelopes, which now reads them as `null` instead of failing or showing them as strings.
+* `InMemoryAggregateStore.Load`/`Append` became `async`; their behaviour is unchanged for unmarked aggregates and for
+  stores without `Keys`.
+* With `Keys`, the store keeps the sealed bytes of marked aggregates and opens them on every `Load`, `History`, `ReadAll`
+  and `Recorded`, so erasure is visible.
+
+### 15.4 Tests
+
+* `Tarol.Primitives.Generators.Tests` (+31):
+  * the `Personal` snapshot: event shapes with stream-id, `Guid` and `Id<T>` subjects and a pinned JSON name; a state
+    shape with root members, an `EntitySet` and an `EntityRef` child, a `Subject` member; the retention;
+  * `PersonalDataDiagnosticTests`: valid marks (property, parameter, field, entity, `Subject = nameof(Id)`), TPRM030
+    (four shapes), TPRM031 (not a `Guid`, nullable, missing, itself), TPRM032 (a value object, another type, `[Transient]`,
+    static, computed, `[LoadByReplay]`) and TPRM033 (`Days = 0`, none, on an entity);
+  * incrementality: a new mark regenerates the aggregate, text moved above it does not.
+* `Tarol.Persistence.Tests` (+35):
+  * `DataProtectionCodecTests` (24): strings with quotes, backslashes, control characters, unicode, empty and `null`;
+    numbers, lists, records; the envelope's documented size; a `Subject` member; a relabelled envelope and another
+    tenant (`CryptographicException`); an erased subject reads `null` with the plain fields intact; a ring without the
+    subject throws; sealing for an erased subject throws; an upcaster renames a sealed field after it is opened;
+    unmarked events byte-identical; the plain bytes around a sealed value unchanged; the state with entity children
+    sealed, opened byte-identically and read as `null` after erasure; **4 threads on one `SubjectKey`, 20,000 round
+    trips: 0 failures, 25 of 25 runs in Release**; tenant erasure; master-key rotation;
+  * `InMemoryDataProtectionTests` (11): state and replay; erasure across the customer, an order holding its address, the
+    feed and `Recorded`, another subject untouched; refusal on the subject's own stream and on an order, a non-personal
+    commit still accepted; tenant erasure; unmarked aggregates stored as before (history and state bytes); personal lookups: `Find` by the blind
+    index (no plaintext, equal within a tenant, different across tenants and lookups), uniqueness, deletion frees the
+    index, a tenant erasure makes it unfindable, a key store is required.
+* AOT smoke: `Tarol.Primitives.AotSmoke` checks the generated metadata. `Tarol.Persistence.AotSmoke` checks sealing,
+  opening, erasure and refusal natively.
+
+**Entity collections in the state (§14 item 4)** **[verified]**. A root with 100 entities, one sealed member each, plus one
+on the root: JIT Release, the minimum of 5 loops, the second of two rounds (the first ran in tier 0).
+
+| | per state |
+|---|---|
+| write the state, plain | 13.5 µs |
+| find the subjects | 14.2 µs |
+| seal 101 fields | 193 µs (1.9 µs per field) |
+| open 101 fields | 108 µs (1.1 µs per field) |
+| open and read | 150 µs (plain read 36 µs) |
+| size | 9,594 → 17,567 bytes |
+
+The per-field cost is the probe's (§4.1). A state with many entities pays it per entity on every commit, so mark only
+what is personal.
+
+### 15.5 Skill checklist (`tarol-primitives`, `tarol-persistence`, updated)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| store a customer's email so it can be erased | `[property: PersonalData] string? Email` on the event and `[PersonalData]` on the state member | non-nullable (TPRM030); marking only the event |
+| an order holds the customer's address | `[PersonalData(Subject = nameof(Placed.Customer))]` | `nameof(Customer)` that only compiles by accident; the order's own id |
+| test that an erased customer still loads | `InMemoryStoreOptions { Codec, Keys = InMemoryKeyStore.Create(time) }`, `EraseSubject`, `Load` | encrypting by hand; deleting events |
+| implement sealing in a store | `Encode` → `SubjectsOf` → `IKeyStore.Keys(create: true)` → `Seal`; `SealedSubjects` → `Keys(create: false)` → `Decode(…, keys)` | a ring without every subject; sharing an `AesGcm` without a lock |
+| keep orders 10 years | `[Retention(Days = 3650)]` | on an entity, `Days = 0` (TPRM033) |
+| find a customer by email | `StoreLookups.DefinePersonal<Customer>("email", c => c.Email?.ToLowerInvariant())` + `Find` | `Define` (plaintext in `lookups`); normalizing differently in `Find` |
+
+### 15.6 Suppressions
+
+None. CA1716 and CA1711 were met by renaming (§15.2 item 5).
+
+### 15.7 Verification

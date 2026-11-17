@@ -21,7 +21,12 @@ public sealed class InMemoryDataProtectionTests
     {
         _keys = InMemoryKeyStore.Create(_time);
         var codec = new EventCodec(new JsonSerializerOptions(PersonalJson.Default.Options)).Add<Customer>().Add<Order>().Add<Account>();
-        _store = new InMemoryAggregateStore(_time, new InMemoryStoreOptions { Codec = codec, Keys = _keys });
+        _store = new InMemoryAggregateStore(_time, new InMemoryStoreOptions
+        {
+            Codec = codec,
+            Keys = _keys,
+            Lookups = new StoreLookups().DefinePersonal<Customer>("email", static c => c.Email?.ToLowerInvariant()),
+        });
         _alice = OperationContext.Start(Actor.User("alice"), Id<ITenant>.New(_time), _time);
     }
 
@@ -142,4 +147,58 @@ public sealed class InMemoryDataProtectionTests
     [Fact]
     public void A_Key_Store_Needs_A_Codec()
         => Should.Throw<ArgumentException>(() => new InMemoryAggregateStore(_time, new InMemoryStoreOptions { Keys = _keys }));
+
+    [Fact]
+    public async Task A_Personal_Lookup_Finds_By_Its_Blind_Index_And_Stores_No_Plaintext()
+    {
+        var ada = await Registered();
+
+        ((await _store.Find<Customer>("email", "ada@example.com", _alice, _ct)).TryGetValue(out Id<Customer> found) ? found : default).ShouldBe(ada.Id);
+        (await _store.Find<Customer>("email", "nobody@example.com", _alice, _ct)).IsNone.ShouldBeTrue();
+        var other = OperationContext.Start(Actor.User("carol"), Id<ITenant>.New(_time), _time);
+        (await _store.Find<Customer>("email", "ada@example.com", other, _ct)).IsNone.ShouldBeTrue();
+
+        var index = await _keys.BlindIndex(Tenant, "email", "ada@example.com", create: false, _ct);
+        index.ShouldNotBeNull().Length.ShouldBe(43);
+        index.ShouldNotContain("ada");
+        (await _keys.BlindIndex(Tenant, "email", "ada@example.com", create: false, _ct)).ShouldBe(index);
+        (await _keys.BlindIndex(Guid.CreateVersion7(), "email", "ada@example.com", create: true, _ct)).ShouldNotBe(index);
+        (await _keys.BlindIndex(Tenant, "phone", "ada@example.com", create: false, _ct)).ShouldNotBe(index);
+    }
+
+    [Fact]
+    public async Task A_Personal_Lookup_Stays_Unique()
+    {
+        await Registered();
+        var twin = Customer.Register("Ada", "ADA@example.com", new Address("3 Other St", "York"), "GB");
+        (await _store.Append(twin, 0, _alice, Option.None, _ct)).TryGetValue(out Violation? taken).ShouldBeTrue();
+        taken.ShouldBeOfType<Error>().Code.ShouldBe(StoreErrors.LookupTakenCode);
+    }
+
+    [Fact]
+    public async Task Erasure_Deletes_The_Personal_Lookups_Of_The_Subjects_Streams()
+    {
+        var ada = await Registered();
+
+        _store.DeletePersonalLookups(Tenant, [new StreamRef(Tenant, "customer", ada.Id.Value)]).ShouldBe(1);
+
+        (await _store.Find<Customer>("email", "ada@example.com", _alice, _ct)).IsNone.ShouldBeTrue();
+        var again = Customer.Register("Ada", "ada@example.com", new Address("1 Main St", "London"), "GB");
+        (await _store.Append(again, 0, _alice, Option.None, _ct)).IsSuccess.ShouldBeTrue(); // the index is free again
+    }
+
+    [Fact]
+    public async Task A_Tenant_Erasure_Makes_Personal_Lookups_Unfindable()
+    {
+        await Registered();
+        await _keys.EraseTenant(Tenant, _ct);
+        (await _store.Find<Customer>("email", "ada@example.com", _alice, _ct)).IsNone.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task A_Personal_Lookup_Needs_A_Key_Store()
+    {
+        var store = new InMemoryAggregateStore(_time, new InMemoryStoreOptions { Lookups = new StoreLookups().DefinePersonal<Account>("number", static a => a.Number) });
+        await Should.ThrowAsync<InvalidOperationException>(async () => _ = await store.Append(Account.Open("DE01"), 0, _alice, Option.None, _ct));
+    }
 }

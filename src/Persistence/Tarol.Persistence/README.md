@@ -125,7 +125,8 @@ Every call after a claim returns `false` once the claim is lost. Times are whole
 to tenant and subject), and opened before the upcasters. Unmarked aggregates are stored byte for byte as before. Keys
 come from the `IKeyStore` port: a data key per (tenant, subject), wrapped by the tenant key, wrapped by the master key
 (`IKeyEncryptionKey`, `ConfiguredKeyEncryptionKey`). `InMemoryKeyStore` and `InMemoryStoreOptions.Keys` let tests see
-erasure: the fields read as `null`, and new data for the subject fails with `DataProtection.SubjectErased`. The
+erasure: the fields read as `null`, and new data for the subject fails with `DataProtection.SubjectErased`.
+`StoreLookups.DefinePersonal` keeps a blind index (HMAC-SHA256 under the tenant's lookup key) instead of the value. The
 contracts `IDataSubjects`, `ErasureParticipant` and `RetentionPolicy` are implemented by `Tarol.DataProtection`.
 
 ## Operations contracts (step 15)

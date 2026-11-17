@@ -202,7 +202,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
     }
 
     /// <inheritdoc />
-    public ValueTask<Option<Id<T>>> Find<T>(string lookup, string key, OperationContext context, CancellationToken cancellationToken)
+    public async ValueTask<Option<Id<T>>> Find<T>(string lookup, string key, OperationContext context, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(lookup);
@@ -211,9 +211,14 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         cancellationToken.ThrowIfCancellationRequested();
         if (!_lookupDefinitions.IsDefined<T>(lookup))
             throw new InvalidOperationException($"No lookup '{lookup}' is defined for {typeof(T).Name}; call DefineLookup<{typeof(T).Name}>(\"{lookup}\", …).");
+        if (_lookupDefinitions.IsPersonal<T>(lookup))
+        {
+            if (await PersonalKeys().BlindIndex(TenantOf(context.Tenant), lookup, key, create: false, cancellationToken).ConfigureAwait(false) is not { } index)
+                return Option.None;
+            key = index;
+        }
         lock (_gate)
-            return ValueTask.FromResult<Option<Id<T>>>(
-                _lookups.TryGetValue((TenantOf(context.Tenant), T.StreamType, lookup, key), out var id) ? (Id<T>)id : Option.None);
+            return _lookups.TryGetValue((TenantOf(context.Tenant), T.StreamType, lookup, key), out var id) ? (Id<T>)id : Option.None;
     }
 
     /// <inheritdoc />
@@ -223,11 +228,52 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
     {
         ArgumentNullException.ThrowIfNull(aggregate);
         ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
+        var lookups = _lookupDefinitions.KeysOf(aggregate);
+        if (_lookupDefinitions.HasPersonal<T>() && aggregate.UncommittedChanges.Length > 0)
+        {
+            var hashed = new (string Lookup, string? Key)[lookups.Count];
+            for (var i = 0; i < hashed.Length; i++)
+            {
+                var (lookup, value) = lookups[i];
+                hashed[i] = (lookup, value is not null && _lookupDefinitions.IsPersonal<T>(lookup)
+                    ? await PersonalKeys().BlindIndex(TenantOf(context.Tenant), lookup, value, create: true, cancellationToken).ConfigureAwait(false)
+                    : value);
+            }
+            lookups = hashed;
+        }
         if (_keyStore is null || !_codec!.HasPersonalData<T>() || aggregate.UncommittedChanges.Length == 0)
-            return Commit(aggregate, expectedVersion, context, key, null, cancellationToken);
+            return Commit(aggregate, expectedVersion, context, key, null, lookups);
         var sealing = await Seal(aggregate, TenantOf(context.Tenant), cancellationToken).ConfigureAwait(false);
-        return sealing.TryGetValue(out Sealing? sealedData) ? Commit(aggregate, expectedVersion, context, key, sealedData, cancellationToken)
+        return sealing.TryGetValue(out Sealing? sealedData) ? Commit(aggregate, expectedVersion, context, key, sealedData, lookups)
             : sealing.TryGetValue(out Violation? violation) ? violation : throw new InvalidOperationException("unreachable");
+    }
+
+    private IKeyStore PersonalKeys()
+        => _keyStore ?? throw new InvalidOperationException("A personal lookup (StoreLookups.DefinePersonal) needs a key store: set InMemoryStoreOptions.Keys.");
+
+    /// <summary>Deletes the personal lookup rows of the given streams (an erasure; tests and Tarol.DataProtection's in-memory participant).</summary>
+    /// <param name="tenant">The tenant.</param>
+    /// <param name="streams">The streams.</param>
+    /// <returns>How many rows were deleted.</returns>
+    public int DeletePersonalLookups(Guid tenant, IReadOnlyCollection<StreamRef> streams)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        var deleted = 0;
+        lock (_gate)
+        {
+            foreach (var stream in streams)
+            {
+                if (stream.Tenant != tenant || !_streams.TryGetValue(new StreamKey(tenant, stream.StreamType, stream.Id), out var row))
+                    continue;
+                foreach (var (lookup, value) in row.Lookups.Where(l => _lookupDefinitions.IsPersonal(stream.StreamType, l.Key)).ToArray())
+                {
+                    deleted += _lookups.Remove((tenant, stream.StreamType, lookup, value)) ? 1 : 0;
+                    row.Lookups.Remove(lookup);
+                }
+            }
+        }
+        return deleted;
     }
 
     /// <summary>The sealed payloads and state of a commit, or <see cref="DataProtectionErrors.SubjectErased"/>.</summary>
@@ -273,13 +319,12 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
     }
 
     private Result<GlobalPosition> Commit<T>(T aggregate, long expectedVersion, OperationContext context, Option<IdempotencyKey> key, Sealing? sealing,
-        CancellationToken cancellationToken)
+        IReadOnlyList<(string Lookup, string? Key)> keys)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(aggregate);
         ArgumentNullException.ThrowIfNull(context);
         ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
-        cancellationToken.ThrowIfCancellationRequested();
         var changes = aggregate.UncommittedChanges.ToArray();
         if (changes.Length == 0)
             return GlobalPosition.Start;
@@ -295,7 +340,6 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
             : _stateOptions is not null && T.StateSchema != 0 ? AggregateState.Write(aggregate, _stateOptions) : null;
         var tenant = TenantOf(context.Tenant);
         var type = T.StreamType;
-        var keys = _lookupDefinitions.KeysOf(aggregate);
         _outbox?.Check(changes);
 
         lock (_gate)
