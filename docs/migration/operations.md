@@ -581,7 +581,12 @@ Docs and probes only; the package code is `main` at `c20d2ca` (step 14 done).
   * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **22 apps**, 0 IL warnings, all checks passed;
   * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
   * CI run 172 of `main` (`build`, `aot-smoke`, `integration`): green.
-* **On this branch**: §13.1, filled in before the PR is opened.
+* **On this branch** (2026-11-17, at `04ab4fd`; only docs and probes changed), in a detached worktree:
+  * `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+  * `dotnet format --verify-no-changes`: clean;
+  * `dotnet test --solution Tarol.slnx` with Docker: **1591 of 1591** (the SignalR reconnect test passed in both full runs);
+  * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: 22 apps, 0 IL warnings, all checks passed;
+  * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
 * **The probe**: `all.sh` sections 0–9 ([`output.txt`](probes/operations/output.txt)). The run was interrupted by a worker restart
   after section 5 and resumed (sections 6–9 ran after the restart). The schema probe was fixed twice before the recorded run: the
   upgrader first deadlocked with `CONCURRENTLY` (§5 item 2), and re-ran the version 1 script on a live store. The retention bench
