@@ -710,4 +710,14 @@ what is personal.
 
 None. CA1716 and CA1711 were met by renaming (§15.2 item 5).
 
-### 15.7 Verification
+### 15.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+In a detached worktree at `a8bd77e`, with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4 from `mirror.gcr.io`: Docker Hub
+answered 429):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1768 of 1768** (1702 on `main` + 31 generator + 35 persistence);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **23 apps, 0 IL warnings**, all checks passed
+  (the Primitives and Persistence apps with the new checks);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the updated skills are in the packages);
+* `DataProtectionCodecTests.One_Subject_Key_Serves_Four_Threads` alone in Release: 25 of 25.
