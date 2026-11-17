@@ -51,7 +51,8 @@ internal enum StateWrap
 
 /// <summary>
 /// One captured field of a root or entity: the CLR field (a backing field or a plain field), its JSON name, its type, how it
-/// is written, and its shape descriptor for the schema hash.
+/// is written, and its shape descriptor for the schema hash; <paramref name="Personal"/> when it is <c>[PersonalData]</c>,
+/// with the C# name of its <paramref name="Subject"/> member (<see langword="null"/> = the stream id).
 /// </summary>
 internal sealed record StateField(
     string Field,
@@ -65,7 +66,15 @@ internal sealed record StateField(
     string EnumUnderlying,
     EquatableArray<string> EnumMembers,
     string Shape,
-    LocationInfo? Location);
+    LocationInfo? Location,
+    bool Personal = false,
+    string? Subject = null);
+
+/// <summary>
+/// A <c>[PersonalData]</c> member of an event or a state object: its C# name, its pinned JSON name (or <see langword="null"/>
+/// for the naming policy), and the member holding its subject (C# and pinned JSON name; <see langword="null"/> = the stream id).
+/// </summary>
+internal sealed record PersonalModel(string Name, string? JsonName, string? Subject, string? SubjectJsonName);
 
 /// <summary>An <c>On(TEvent)</c> handler; <paramref name="Assigns"/> are the lifecycle members it assigns.</summary>
 internal sealed record HandlerModel(string Event, LocationInfo? Location, EquatableArray<string> Assigns = default);
@@ -106,7 +115,10 @@ internal sealed record TypeModel(
     string Alias,
     int AliasVersion,
     LocationInfo? Location,
-    EquatableArray<DiagnosticInfo> Diagnostics)
+    EquatableArray<DiagnosticInfo> Diagnostics,
+    // event: its [PersonalData] members; root: its [Retention(Days)] (0 = none)
+    EquatableArray<PersonalModel> Personal = default,
+    int RetentionDays = 0)
 {
     public TypeModel WithoutLocations() => this with
     {

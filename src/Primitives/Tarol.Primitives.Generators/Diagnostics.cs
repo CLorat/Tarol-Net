@@ -212,6 +212,34 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "The stream type names the aggregate's streams in the store; it cannot be empty.");
 
+    /// <summary>TPRM030: a <c>[PersonalData]</c> member that is not nullable (analyzer).</summary>
+    public static readonly DiagnosticDescriptor PersonalNotNullable = new(
+        "TPRM030", "Personal data must be nullable",
+        "[PersonalData] '{0}' of '{1}' has the non-nullable type '{2}'; an erased subject's value reads as null, so declare it nullable",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "A [PersonalData] member is sealed with its subject's key. Once the subject is erased, the key is gone and the member reads as null; a non-nullable member would break the event or state on every load after an erasure. Declare it as T? (or Option<T>).");
+
+    /// <summary>TPRM031: <c>Subject</c> names no <c>Guid</c>/<c>Id&lt;T&gt;</c> member of the same type (analyzer).</summary>
+    public static readonly DiagnosticDescriptor PersonalSubject = new(
+        "TPRM031", "Personal data subject is not a Guid or Id<T> member",
+        "[PersonalData(Subject = \"{0}\")] on '{1}' of '{2}': {3}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "Subject names the member whose value identifies whose data this is: a non-nullable Guid or Id<T> member of the same event, aggregate or entity (stored with it, for a state). Use nameof(...). Without Subject the stream id is the subject.");
+
+    /// <summary>TPRM032: <c>[PersonalData]</c> outside an event, an aggregate or entity, or a projection row (analyzer).</summary>
+    public static readonly DiagnosticDescriptor PersonalPlacement = new(
+        "TPRM032", "Personal data mark has no effect here",
+        "[PersonalData] on '{0}' of '{1}' has no effect: {2}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "Tarol seals [PersonalData] members of events, of the stored state of aggregates and entities, and of projection rows. A member of a value object or any other type is never sealed on its own: mark the member that holds the value object instead (its whole value is sealed). Static members, [Transient] members and members of a [LoadByReplay] aggregate's state are not stored.");
+
+    /// <summary>TPRM033: <c>[Retention]</c> on a type that is not an aggregate root, or with fewer than 1 day (analyzer).</summary>
+    public static readonly DiagnosticDescriptor RetentionPlacement = new(
+        "TPRM033", "Retention is invalid",
+        "[Retention] on '{0}' {1}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "[Retention(Days = n)] keeps an aggregate's streams n days (n >= 1) after their last event, then tarol.retention deletes them. It belongs on an aggregate root.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
         "TPRM001" => GeneratorFailure,
@@ -237,6 +265,10 @@ internal static class Diagnostics
         "TPRM024" => Uncapturable,
         "TPRM025" => StateNameCollision,
         "TPRM026" => StateAttributeIgnored,
+        "TPRM030" => PersonalNotNullable,
+        "TPRM031" => PersonalSubject,
+        "TPRM032" => PersonalPlacement,
+        "TPRM033" => RetentionPlacement,
         _ => GeneratorFailure,
     };
 }
