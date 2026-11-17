@@ -22,6 +22,7 @@ void Check(string name, bool ok)
 var codec = new EventCodec(new JsonSerializerOptions(SmokeJson.Default.Options)).Add<Wallet>();
 var lookups = new StoreLookups().Define<Wallet>("owner", w => w.Owner);
 Check("schema script", NpgsqlSchema.Script("smoke").Contains("CREATE TABLE IF NOT EXISTS smoke.events", StringComparison.Ordinal));
+Check("upgrade script (step 15)", NpgsqlSchema.UpgradeScript("smoke", 1).Contains("CREATE INDEX CONCURRENTLY IF NOT EXISTS outbox_dead_at", StringComparison.Ordinal));
 
 // The database checks need a PostgreSQL: TAROL_PG=<connection string> (the CI aot-smoke job provides one).
 var connectionString = Environment.GetEnvironmentVariable("TAROL_PG");
@@ -42,6 +43,7 @@ else
     try
     {
         await store.EnsureSchema(default);
+        Check("schema upgraded to the current version", await store.EnsureSchema(SchemaMode.VerifyOnly, default) == new SchemaState(NpgsqlSchema.Version, 1, 0));
         var context = OperationContext.Start(Actor.User("alice"), Id<ITenant>.New(), TimeProvider.System);
         var key = new IdempotencyKey(context.Tenant, "smoke", "k-1");
 

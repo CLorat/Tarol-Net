@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
 using Tarol.Kernel;
@@ -52,13 +53,17 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     private readonly bool _notify;
     private readonly bool _notifyFeed;
     private readonly Sql _sql;
+    private readonly ILogger? _log;
+    private readonly SchemaMode _schemaMode;
+    private readonly TimeSpan _schemaLockTimeout;
 
     /// <summary>Creates a store.</summary>
     /// <param name="dataSource">The data source (with arrays enabled).</param>
     /// <param name="codec">The event codec with every aggregate registered.</param>
     /// <param name="time">The clock of <see cref="RecordedEvent.RecordedAt"/> and of the event ids.</param>
     /// <param name="options">Schema name, state options and lookups.</param>
-    public NpgsqlAggregateStore(NpgsqlDataSource dataSource, EventCodec codec, TimeProvider time, NpgsqlStoreOptions? options = null)
+    /// <param name="logger">Logs the schema upgrades (event ids 8001–8005); <see langword="null"/> = none.</param>
+    public NpgsqlAggregateStore(NpgsqlDataSource dataSource, EventCodec codec, TimeProvider time, NpgsqlStoreOptions? options = null, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(codec);
@@ -73,6 +78,9 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         _reactions = options.Reactions;
         _notify = options.Notify;
         _notifyFeed = options.NotifyFeed;
+        _log = logger;
+        _schemaMode = options.SchemaMode;
+        _schemaLockTimeout = options.SchemaLockTimeout;
         FeedChannel = options.Schema + "_feed";
         Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema, options.Reactions, options.Notify);
         Jobs = new NpgsqlJobRows(dataSource, time, options.Schema);
@@ -96,18 +104,25 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     /// <summary>Whether every commit sends the feed's <c>NOTIFY</c> (<see cref="NpgsqlStoreOptions.NotifyFeed"/>).</summary>
     public bool NotifiesFeed => _notifyFeed;
 
-    /// <summary>Creates the tables and indexes that are missing (<see cref="NpgsqlSchema.Script"/>).</summary>
-    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <summary>
+    /// Creates or upgrades the schema (<see cref="NpgsqlSchema.Definition"/>) under an advisory lock, or only verifies it
+    /// (<see cref="NpgsqlStoreOptions.SchemaMode"/>; docs/architecture/operations.md §4).
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the call, also while it waits for another process's upgrade.</param>
     /// <returns>A task.</returns>
-    /// <exception cref="InvalidOperationException">The database holds a newer schema version than this package.</exception>
-    public async Task EnsureSchema(CancellationToken cancellationToken)
-    {
-        await using (var create = _db.CreateCommand(NpgsqlSchema.Script(Schema)))
-            await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        await using var version = _db.CreateCommand($"SELECT max(version) FROM {Schema}.schema_version");
-        if (await version.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is int stored && stored > NpgsqlSchema.Version)
-            throw new InvalidOperationException($"The schema '{Schema}' has version {stored}; this Tarol.Persistence.Npgsql knows version {NpgsqlSchema.Version}.");
-    }
+    /// <exception cref="InvalidOperationException">
+    /// The schema is compatible only from a newer version than this package's (<see cref="NpgsqlSchema.Version"/>); a newer
+    /// schema that is still compatible is accepted. In <see cref="SchemaMode.VerifyOnly"/>: the schema is missing or older.
+    /// </exception>
+    public Task EnsureSchema(CancellationToken cancellationToken) => EnsureSchema(_schemaMode, cancellationToken);
+
+    /// <summary>Creates or upgrades the schema, or only verifies it, as <paramref name="mode"/> says.</summary>
+    /// <param name="mode">Upgrade or verify.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The schema's version afterwards.</returns>
+    /// <exception cref="InvalidOperationException">As <see cref="EnsureSchema(CancellationToken)"/>.</exception>
+    public Task<SchemaState> EnsureSchema(SchemaMode mode, CancellationToken cancellationToken)
+        => new NpgsqlSchemaUpgrader(_db, NpgsqlSchema.Definition(Schema), _log) { LockTimeout = _schemaLockTimeout }.Ensure(mode, cancellationToken);
 
     // ------------------------------------------------------------------------------------------------------------ reads
 

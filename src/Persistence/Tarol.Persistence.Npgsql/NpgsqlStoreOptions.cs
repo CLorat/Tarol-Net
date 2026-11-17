@@ -44,6 +44,19 @@ public sealed record NpgsqlStoreOptions
     /// </summary>
     public bool NotifyFeed { get; init; }
 
+    /// <summary>
+    /// What <see cref="NpgsqlAggregateStore.EnsureSchema(CancellationToken)"/> does: <see cref="SchemaMode.Upgrade"/> (default) runs
+    /// the missing upgrade steps under an advisory lock; <see cref="SchemaMode.VerifyOnly"/> only checks the version, for
+    /// applications whose migration tool runs <see cref="NpgsqlSchema.UpgradeScript"/>.
+    /// </summary>
+    public SchemaMode SchemaMode { get; init; } = SchemaMode.Upgrade;
+
+    /// <summary>
+    /// The <c>lock_timeout</c> of each upgrade step (default 2 s); a step that waits longer for a table lock gives up, so the
+    /// commits do not queue behind it, and is retried up to 5 times.
+    /// </summary>
+    public TimeSpan SchemaLockTimeout { get; init; } = TimeSpan.FromSeconds(2);
+
     /// <summary>The unique lookups; share one instance with the in-memory store of your tests.</summary>
     public StoreLookups Lookups { get; init; } = new();
 }

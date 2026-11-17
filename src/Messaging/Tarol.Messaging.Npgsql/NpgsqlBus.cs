@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using NpgsqlTypes;
+using Tarol.Persistence.Npgsql;
 
 namespace Tarol.Messaging.Npgsql;
 
@@ -85,33 +86,31 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
     /// <summary>The bus schema.</summary>
     public string Schema => _options.Schema;
 
-    /// <summary>Creates the bus tables that are missing (<see cref="NpgsqlBusSchema.Script"/>), under an advisory lock.</summary>
+    /// <summary>
+    /// Creates or upgrades the bus schema (<see cref="NpgsqlBusSchema.Definition"/>) under a polled advisory lock, or only
+    /// verifies it (<see cref="NpgsqlBusOptions.SchemaMode"/>; operations.md §4).
+    /// </summary>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>A task.</returns>
-    /// <exception cref="InvalidOperationException">The database holds a newer bus schema version than this package.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The schema is compatible only from a newer version than this package's; in <see cref="SchemaMode.VerifyOnly"/>, it is missing.
+    /// </exception>
     public async Task EnsureSchema(CancellationToken cancellationToken)
     {
-        var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using (connection.ConfigureAwait(false))
-        {
-            var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-            await using (transaction.ConfigureAwait(false))
-            {
-                // two processes starting together must not race on CREATE … IF NOT EXISTS (duplicate catalog rows)
-                await using (var lockCommand = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext($1))", connection, transaction))
-                {
-                    lockCommand.Parameters.Add(new() { Value = "tarol.bus." + Schema });
-                    await lockCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                }
-                await using (var create = new NpgsqlCommand(NpgsqlBusSchema.Script(Schema), connection, transaction))
-                    await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                await using (var version = new NpgsqlCommand($"SELECT max(version) FROM {Schema}.schema_version", connection, transaction))
-                    if (await version.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is int stored && stored > NpgsqlBusSchema.Version)
-                        throw new InvalidOperationException($"The bus schema '{Schema}' has version {stored}; this Tarol.Messaging.Npgsql knows version {NpgsqlBusSchema.Version}.");
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            }
-        }
+        _ = await EnsureSchema(_options.SchemaMode, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Creates or upgrades the bus schema, or only verifies it, as <paramref name="mode"/> says.</summary>
+    /// <param name="mode">Upgrade or verify.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The schema's version afterwards.</returns>
+    /// <exception cref="InvalidOperationException">As <see cref="EnsureSchema(CancellationToken)"/>.</exception>
+    public async Task<SchemaState> EnsureSchema(SchemaMode mode, CancellationToken cancellationToken)
+    {
+        var state = await new NpgsqlSchemaUpgrader(_db, NpgsqlBusSchema.Definition(Schema), _log) { LockTimeout = _options.SchemaLockTimeout }
+            .Ensure(mode, cancellationToken).ConfigureAwait(false);
         _schemaEnsured = true;
+        return state;
     }
 
     /// <inheritdoc />

@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
+using Tarol.Persistence.Npgsql;
 
 namespace Tarol.Messaging.Npgsql;
 
@@ -12,6 +14,7 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
 {
     private readonly NpgsqlDataSource _db;
     private readonly TimeProvider _time;
+    private readonly ILogger? _log;
     private readonly string _insert;
     private readonly string _list;
     private readonly string _take;
@@ -20,14 +23,16 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
     /// <param name="dataSource">The consumer's database.</param>
     /// <param name="time">The clock of <see cref="DeadMessage.DeadAt"/>.</param>
     /// <param name="schema">The schema of the table (default <c>tarol</c>, the store's).</param>
+    /// <param name="logger">Logs the schema upgrades (event ids 8001–8005); <see langword="null"/> = none.</param>
     /// <exception cref="ArgumentException"><paramref name="schema"/> is not a plain identifier.</exception>
-    public NpgsqlMessageDeadLetters(NpgsqlDataSource dataSource, TimeProvider time, string schema = "tarol")
+    public NpgsqlMessageDeadLetters(NpgsqlDataSource dataSource, TimeProvider time, string schema = "tarol", ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(dataSource);
         ArgumentNullException.ThrowIfNull(time);
         NpgsqlBusSchema.Validate(schema);
         _db = dataSource;
         _time = time;
+        _log = logger;
         Schema = schema;
         const string Columns = "id, subscription, topic, message_id, attempts, reason, headers::text, data, dead_at";
         _insert = $"INSERT INTO {schema}.messages_dead (subscription, topic, message_id, attempts, reason, headers, data, dead_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)";
@@ -38,28 +43,27 @@ public sealed class NpgsqlMessageDeadLetters : IMessageDeadLetters
     /// <summary>The schema of the table.</summary>
     public string Schema { get; }
 
-    /// <summary>Creates the table if it is missing (<see cref="NpgsqlBusSchema.DeadLettersScript"/>).</summary>
+    /// <summary>
+    /// Creates or upgrades the table (<see cref="NpgsqlBusSchema.DeadLettersDefinition"/>, version table
+    /// <c>messages_dead_version</c>) under a polled advisory lock (operations.md §4).
+    /// </summary>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>A task.</returns>
+    /// <exception cref="InvalidOperationException">The table's schema is compatible only from a newer version than this package's.</exception>
     public async Task EnsureSchema(CancellationToken cancellationToken)
     {
-        var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using (connection.ConfigureAwait(false))
-        {
-            var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-            await using (transaction.ConfigureAwait(false))
-            {
-                await using (var lockCommand = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext($1))", connection, transaction))
-                {
-                    lockCommand.Parameters.Add(new() { Value = "tarol.messages_dead." + Schema });
-                    await lockCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                }
-                await using (var create = new NpgsqlCommand(NpgsqlBusSchema.DeadLettersScript(Schema), connection, transaction))
-                    await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            }
-        }
+        _ = await EnsureSchema(SchemaMode.Upgrade, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>Creates or upgrades the table, or only verifies it, as <paramref name="mode"/> says.</summary>
+    /// <param name="mode">Upgrade or verify.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The version afterwards.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The schema is compatible only from a newer version; in <see cref="SchemaMode.VerifyOnly"/>, it is missing or older.
+    /// </exception>
+    public Task<SchemaState> EnsureSchema(SchemaMode mode, CancellationToken cancellationToken)
+        => new NpgsqlSchemaUpgrader(_db, NpgsqlBusSchema.DeadLettersDefinition(Schema), _log).Ensure(mode, cancellationToken);
 
     /// <inheritdoc />
     public async Task Add(string subscription, Incoming incoming, string reason, CancellationToken cancellationToken)

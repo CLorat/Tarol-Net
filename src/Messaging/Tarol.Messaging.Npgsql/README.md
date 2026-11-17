@@ -46,6 +46,15 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Invoice>())
   `Tarol.Jobs`) `UseNpgsqlBus` schedules it as the system job `tarol.purge-messages` (hourly, once per cluster) with
   `NpgsqlBusOptions.Retention` (7 days) and `PurgeBatch` (1000).
 
+## Schema versions (step 15)
+
+`NpgsqlBus.EnsureSchema` and `NpgsqlMessageDeadLetters.EnsureSchema` use the store's upgrader (`NpgsqlSchemaUpgrader` of
+`Tarol.Persistence.Npgsql`): a polled session advisory lock per PostgreSQL schema, the version 1 script only on an empty
+schema, steps with `lock_timeout` and retries, and `compatible_from` so old and new code share a schema. The bus stays at
+version 1 (it gains `compatible_from`); `messages_dead` gets its own version table `messages_dead_version` and version 2
+(`operations_audit`, a `dead_at` index built `CONCURRENTLY`). With a migration tool: `NpgsqlBusSchema.UpgradeScript(schema,
+from)`, `DeadLettersUpgradeScript(schema, from)` and `NpgsqlBusOptions.SchemaMode = SchemaMode.VerifyOnly`.
+
 ## Who may publish under a prefix
 
 Give each system a login role named like its prefix, and let the schema's owner run:

@@ -3,10 +3,11 @@ name: tarol-persistence-npgsql
 description: >-
   Use when storing Tarol aggregates in PostgreSQL, wiring NpgsqlAggregateStore, creating its schema, reading the global
   event feed for a projection, rebuilding stored states after a model change, purging idempotency keys, or testing
-  against a real database. Covers NpgsqlAggregateStore, NpgsqlStoreOptions, NpgsqlSchema, EnsureSchema, ReadAll,
+  against a real database. Covers NpgsqlAggregateStore, NpgsqlStoreOptions (SchemaMode, SchemaLockTimeout), NpgsqlSchema
+  (Script, Steps, Definition, UpgradeScript), EnsureSchema and schema upgrades (SchemaMode, SchemaState, NpgsqlSchemaUpgrader), ReadAll,
   RebuildStates, PurgeKeys, the outbox (Reactions, IOutboxReactions, Outbox.Claim/Complete/Retry/Bury/DeadLetters/Redrive,
   Notify, OutboxRow), the job rows (Jobs, jobs, jobs_dead) and the tables. Do not add an ORM, do not write your own SQL for appends or loads, do not
-  page the events table by position, do not decompile or web-search.
+  page the events table by position, do not run the version 1 script by hand on a live schema, do not decompile or web-search.
 ---
 # Tarol.Persistence.Npgsql
 
@@ -17,8 +18,11 @@ description: >-
    needs `[JsonSerializable]` in the context. The stored state uses the codec's options unless
    `NpgsqlStoreOptions.StateOptions` says otherwise.
 3. **One `StoreLookups`** for production and the in-memory store of your tests (`InMemoryStoreOptions.Lookups`).
-4. **Schema**: `await store.EnsureSchema(ct)` at startup (dev, tests, Aspire) or run `NpgsqlSchema.Script(schema)` with
-   your migration tool. `NpgsqlStoreOptions.Schema` is a plain lowercase identifier (default `tarol`).
+4. **Schema** (versioned, `NpgsqlSchema.Version` = 2): `await store.EnsureSchema(ct)` at startup (`UseNpgsqlStore` does it).
+   One process upgrades under a polled advisory lock, the others wait; each step has a `lock_timeout` (`SchemaLockTimeout`,
+   2 s) and retries. A newer schema is accepted while its `compatible_from` ≤ 2 (rolling deploys). With a migration tool:
+   run `NpgsqlSchema.UpgradeScript(schema, from)` (0 = empty database; the `CONCURRENTLY` statements outside a transaction)
+   and set `SchemaMode = SchemaMode.VerifyOnly`. `NpgsqlStoreOptions.Schema` is a plain lowercase identifier (default `tarol`).
 5. **Use it as `IAggregateStore`**: Load → decide → `Prepare` → `Append(aggregate, expected, context, key, ct)` →
    `Committed`. Conflicts are results (`StoreErrors.IsVersionConflict`), never exceptions; the tenant comes from the
    `OperationContext`.
@@ -42,7 +46,8 @@ var db = new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays().Build(
 var codec = new EventCodec(new JsonSerializerOptions(ContractJson.Default.Options)).Add<Member>().Add<Tally>();
 var lookups = new StoreLookups().Define<Member>("email", m => m.Email);
 var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = "skill", Lookups = lookups });
-await store.EnsureSchema(ct);
+await store.EnsureSchema(ct);                                         // creates or upgrades; another process may hold the lock
+(await store.EnsureSchema(SchemaMode.VerifyOnly, ct)).Version.ShouldBe(NpgsqlSchema.Version);
 
 var context = OperationContext.Start(Actor.User("alice"), Id<ITenant>.New(), TimeProvider.System);
 var member = Member.Join(Id<Member>.New(), "a@x");
@@ -79,7 +84,15 @@ _ = await store.PurgeKeys(TimeProvider.System.GetUtcNow() - TimeSpan.FromDays(7)
 | completing a row after its lease expired | `Complete` returns `false`: another worker owns it now |
 | `UPDATE tarol.jobs SET next_at = …` to skip or pause a job | a held claim's `Advance` overwrites it; use `Tarol:Jobs:<name>:Enabled` |
 | deleting rows of `tarol.events` | the stream no longer replays; events are append-only |
+| `NpgsqlSchema.Script()` as the whole schema for a migration tool | version 1 only; `VerifyOnly` fails "has version 1; this code needs version 2": use `UpgradeScript(schema, 0)` |
+| `UpgradeScript` in one Npgsql command or transaction | `25001`: `CREATE INDEX CONCURRENTLY` cannot run in a transaction block |
+| old pods crash with "compatible from version N; … knows version M" | a contract step of a newer major version; deploy the newer package everywhere |
+| a migration tool and `SchemaMode.Upgrade` both upgrading | two owners of one schema; pick one (`VerifyOnly` with the tool) |
 
 ## AOT
 
-Plain SQL text, source-generated JSON, generated state code: 0 IL warnings with `NpgsqlSlimDataSourceBuilder`.
+Plain SQL text, source-generated JSON, generated state code: 0 IL warnings with `NpgsqlSlimDataSourceBuilder`. The upgrader
+is plain SQL too (`UpgradeScript` and `EnsureSchema` run in the AOT smoke app).
+
+Logs: 8001 step applied, 8002 step retried after a lock timeout, 8003 invalid index dropped, 8004 newer compatible schema,
+8005 refused.

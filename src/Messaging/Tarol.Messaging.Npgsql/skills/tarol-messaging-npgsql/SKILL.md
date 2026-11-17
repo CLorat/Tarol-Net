@@ -2,8 +2,9 @@
 name: tarol-messaging-npgsql
 description: >-
   Use when Tarol systems exchange messages through PostgreSQL (no broker), or keep consumer dead letters in the
-  database: UseNpgsqlBus, NpgsqlBusOptions (Schema, EnsureSchema, Notify, PollInterval, Batch, Roles), NpgsqlBus
-  (EnsureSchema, PurgeMessages, Pending), NpgsqlBusSchema (Script, RowLevelSecurityScript, GrantScript, DeadLettersScript),
+  database: UseNpgsqlBus, NpgsqlBusOptions (Schema, EnsureSchema, SchemaMode, Notify, PollInterval, Batch, Roles), NpgsqlBus
+  (EnsureSchema, PurgeMessages, Pending), NpgsqlBusSchema (Script, UpgradeScript, RowLevelSecurityScript, GrantScript,
+  DeadLettersScript, DeadLettersUpgradeScript),
   UseNpgsqlDeadLetters and NpgsqlMessageDeadLetters. Do not write your own queue table, polling loop or LISTEN code; do
   not decompile or web-search.
 ---
@@ -24,7 +25,10 @@ description: >-
    that disagrees with the prefix is buried by the consumer.
 6. **`Notify = true`** makes deliveries arrive in milliseconds instead of at the next poll; it serializes publishers'
    commits (opt-in). `PollInterval` stays the fallback.
-7. **Retention**: with a job host (`AddJobs`, skill `tarol-jobs`) the system job `tarol.purge-messages` deletes messages
+7. **Schema versions**: `EnsureSchema` upgrades under a polled advisory lock and accepts a newer compatible schema; the
+   tables of `messages_dead` are versioned in `messages_dead_version`. With a migration tool run
+   `NpgsqlBusSchema.UpgradeScript(schema, 0)` / `DeadLettersUpgradeScript(schema, 0)` and set `SchemaMode = SchemaMode.VerifyOnly`.
+8. **Retention**: with a job host (`AddJobs`, skill `tarol-jobs`) the system job `tarol.purge-messages` deletes messages
    nobody still has to receive, older than `NpgsqlBusOptions.Retention` (7 days), hourly, once per cluster. Without one,
    call `bus.PurgeMessages(olderThan, batch, ct)` yourself.
 

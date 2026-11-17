@@ -23,7 +23,8 @@ public sealed class SkillExampleTests(Postgres postgres)
         var codec = new EventCodec(new JsonSerializerOptions(ContractJson.Default.Options)).Add<Member>().Add<Tally>();
         var lookups = new StoreLookups().Define<Member>("email", m => m.Email);
         var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = "skill", Lookups = lookups });
-        await store.EnsureSchema(ct);
+        await store.EnsureSchema(ct);                                         // creates or upgrades; another process may hold the lock
+        (await store.EnsureSchema(SchemaMode.VerifyOnly, ct)).Version.ShouldBe(NpgsqlSchema.Version);
 
         var context = OperationContext.Start(Actor.User("alice"), Id<ITenant>.New(), TimeProvider.System);
         var member = Member.Join(Id<Member>.New(), "a@x");

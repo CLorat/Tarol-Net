@@ -71,7 +71,7 @@ public static class NpgsqlMessagingBuilderExtensions
     /// <param name="messaging">The messaging builder.</param>
     /// <param name="schema">The schema of the table (default <c>tarol</c>, the store's default).</param>
     /// <param name="dataSource">Resolves the data source; <see langword="null"/> = the registered <see cref="NpgsqlDataSource"/>.</param>
-    /// <param name="ensureSchema">Create the table when the host starts.</param>
+    /// <param name="ensureSchema">Create or upgrade the table when the host starts (version table <c>messages_dead_version</c>).</param>
     /// <returns>The builder.</returns>
     public static MessagingBuilder UseNpgsqlDeadLetters(this MessagingBuilder messaging, string schema = "tarol", Func<IServiceProvider, NpgsqlDataSource>? dataSource = null,
         bool ensureSchema = true)
@@ -79,7 +79,8 @@ public static class NpgsqlMessagingBuilderExtensions
         ArgumentNullException.ThrowIfNull(messaging);
         NpgsqlBusSchema.Validate(schema);
         messaging.UseDeadLetters(provider => new NpgsqlMessageDeadLetters(
-            dataSource?.Invoke(provider) ?? provider.GetRequiredService<NpgsqlDataSource>(), provider.GetRequiredService<TimeProvider>(), schema));
+            dataSource?.Invoke(provider) ?? provider.GetRequiredService<NpgsqlDataSource>(), provider.GetRequiredService<TimeProvider>(), schema,
+            provider.GetService<ILogger<NpgsqlMessageDeadLetters>>()));
         if (ensureSchema)
             messaging.Tarol.Services.AddHostedService(static provider => new EnsureDeadLetters((NpgsqlMessageDeadLetters)provider.GetRequiredService<IMessageDeadLetters>()));
         return messaging;
