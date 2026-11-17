@@ -54,7 +54,11 @@ ARTFLOW_BROKER=rabbitmq samples/Sagas/apphost.sh "$(dirname "$(find samples/Saga
    projection's checkpoint, and the result from both databases (ArtFlow's and billing's) and every resource's spans from the dashboard's
    telemetry API;
 4. it waits (at most 100 s) for a settlement report that saw the settled auctions and prints the job rows and the reports;
-5. finally it removes the containers.
+5. step 15: it waits on `/health/ready` of the API (the AppHost's health check too) and the worker (port 5081), prints the
+   worker's `/health/tarol` report, calls the admin entry as alice (role `tarol-admin`: 200), bob (403) and anonymously
+   (401), lists the projection versions, the schema versions and the audit rows, and which resources sent metrics
+   (`AddMeter("Tarol.*", "Npgsql")`) and traces (`AddSource("Tarol.*", "Npgsql")`);
+6. finally it removes the containers.
 
 Interactively: `dotnet run --project samples/Sagas/AppHost`, then open the dashboard link it prints.
 

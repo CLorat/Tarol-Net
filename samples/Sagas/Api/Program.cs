@@ -1,11 +1,13 @@
 using ArtFlow;
 using ArtFlow.Api;
 using Microsoft.AspNetCore.Authorization;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Tarol.Caching;
 using Tarol.Changes;
 using Tarol.Changes.AspNetCore;
+using Tarol.Operations;
 using Tarol.Persistence.Npgsql;
 using Tarol.Queries.Npgsql;
 using Tarol.Security;
@@ -31,6 +33,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
         roles.Role("bidder").May<PlaceBid>().May<Read<Auction>>();
     })
     .AddEndpoints()
+    .AddOperations()                                           // step 15: the snapshot, its gauges, the health groups, the admin entry
     .AddZitadel(zitadel =>
     {
         zitadel.Authority = builder.Configuration["Zitadel:Authority"] ?? "http://localhost:8080";
@@ -39,16 +42,19 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
     });
 builder.Services.AddSingleton<IAuthorizationHandler, SettleOwnAuction>();
 builder.Services.Configure<WebhookOptions>(o => o.Senders["payments"] = new WebhookSender { Secrets = { builder.Configuration["Webhooks:Payments"] ?? "whsec_sample" } });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder().AddPolicy("tarol-admin", p => p.RequireRole("tarol-admin"));   // operators (a Zitadel project role)
 builder.Services.AddOpenApi(o => o.AddTarolEndpoints());
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("api"))
-        .WithTracing(t => t.AddSource("Microsoft.AspNetCore").AddOtlpExporter());
+        // step 15: Tarol's sources and meters by wildcard; Npgsql traces only inside a request (the store's data source filters roots)
+        .WithTracing(t => t.AddSource("Microsoft.AspNetCore", "Tarol.*", "Npgsql").AddOtlpExporter())
+        .WithMetrics(m => m.AddMeter("Tarol.*", "Npgsql", "Microsoft.AspNetCore.Hosting").AddOtlpExporter());
 
 var app = builder.Build();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
-app.MapGet("/health", () => "ok");
+app.MapTarolHealth();                                          // /health/live, /health/ready (the AppHost waits on it), /health/tarol
+app.MapTarolAdmin("/tarol/admin", policy: "tarol-admin");
 app.MapChanges();
 app.Run();
