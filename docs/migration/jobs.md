@@ -638,7 +638,7 @@ None.
 
 ### 16.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
 
-At `6d34e8b` (the code of this PR; only these notes followed), in a separate worktree, with Docker and the smoke containers:
+At `c47fff2` (the code of this PR and §16.1–§16.6), in a separate worktree, with Docker and the smoke containers:
 * `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
 * `dotnet format Tarol.slnx --verify-no-changes`: clean;
 * `dotnet test --solution Tarol.slnx` with Docker: **1531 of 1531** (14A's 1506, + 1 contract test in memory, + 24 on PostgreSQL);
