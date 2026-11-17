@@ -245,7 +245,8 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
 
     /// <summary>
     /// The deliveries that wait for each subscription of <paramref name="application"/> (<c>&lt;application&gt;.*</c>, due or not):
-    /// the snapshot signal <c>tarol.messages.backlog</c> (step 15). A count per subscription, on the <c>deliveries_due</c> index.
+    /// the snapshot signal <c>tarol.messages.backlog</c> (step 15). A count per subscription: it scans the waiting deliveries
+    /// (acknowledged ones are deleted), once per poll, never per scrape.
     /// </summary>
     /// <param name="application">The application's name (the prefix of its subscriptions).</param>
     /// <param name="cancellationToken">Cancels the call.</param>
@@ -253,11 +254,10 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
     public async Task<IReadOnlyList<(string Subscription, long Count)>> Backlog(string application, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(application);
-        // a range instead of LIKE: '/' follows '.', so [app., app/) is every name with the prefix, and the btree serves it
+        // starts_with, not a range: under a linguistic collation '.' and '/' do not sort by their code points
         await using var command = _db.CreateCommand(
-            $"SELECT subscription, count(*) FROM {Schema}.deliveries WHERE subscription >= $1 AND subscription < $2 GROUP BY subscription ORDER BY subscription");
+            $"SELECT subscription, count(*) FROM {Schema}.deliveries WHERE starts_with(subscription, $1) GROUP BY subscription ORDER BY subscription");
         command.Parameters.Add(new() { Value = application + "." });
-        command.Parameters.Add(new() { Value = application + "/" });
         var list = new List<(string, long)>();
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))

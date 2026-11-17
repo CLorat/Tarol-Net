@@ -204,6 +204,40 @@ public sealed class HostTests
     }
 
     [Fact]
+    public async Task An_occurrence_is_counted_with_its_outcome_duration_and_lateness_on_the_hosts_meter()
+    {
+        using var meters = new Tarol.Testing.Metrics.Measurements();
+        var time = new FakeTimeProvider(Start);
+        var services = new ServiceCollection();
+        services.AddSingleton<TimeProvider>(time);
+        services.AddSingleton<System.Diagnostics.Metrics.IMeterFactory>(meters);
+        services.AddSingleton<CountingJob.Counter>();
+        services.AddTarol(TestJson.Default, codec => codec.Add<DayBook>().Add<Counter>().Add<Notice>())
+            .UseInMemoryStore()
+            .AddJobs(j => j.Add<CountingJob>("0 * * * *"), o => o.PollInterval = TimeSpan.FromSeconds(1));
+        await using var provider = services.BuildServiceProvider();
+        var host = provider.GetServices<IHostedService>().OfType<JobHost>().Single();
+        await host.StartAsync(Ct);
+        var rows = provider.GetRequiredService<IJobRows>();
+        for (var i = 0; i < 200 && (await rows.Rows(Ct)).Count < 1; i++)
+            await Task.Delay(10, Ct);
+        await Pass(time, TimeSpan.FromMinutes(2));                                        // past 01:00
+        var counter = provider.GetRequiredService<CountingJob.Counter>();
+        for (var i = 0; i < 200 && counter.Runs.Count == 0; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(1));
+            await Task.Delay(10, Ct);
+        }
+        await host.StopAsync(Ct);
+
+        var occurrence = meters.Of("tarol.jobs.occurrences").ShouldHaveSingleItem();
+        (occurrence.Unit, occurrence.Tags["tarol.job"], occurrence.Tags["tarol.outcome"]).ShouldBe(("{occurrence}", (object?)"CountingJob", (object?)"ran"));
+        meters.Of("tarol.jobs.duration").ShouldHaveSingleItem().Unit.ShouldBe("s");
+        meters.Of("tarol.jobs.lateness").ShouldHaveSingleItem().Value.ShouldBeGreaterThanOrEqualTo(0);
+        meters.All.ShouldAllBe(m => m.Meter == JobHost.MeterName && m.Tags.Keys.All(k => k == "tarol.job" || k == "tarol.outcome"));
+    }
+
+    [Fact]
     public void Without_a_job_host_the_reaction_host_purges_keys_itself()
     {
         var services = new ServiceCollection();

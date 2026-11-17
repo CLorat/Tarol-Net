@@ -222,6 +222,20 @@ public sealed class AuthorizationTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task The_denial_counter_has_its_unit_and_comes_from_the_hosts_meter_factory()
+    {
+        using var meters = new Tarol.Testing.Metrics.Measurements();
+        var authorization = new ChangeAuthorization(_provider.GetRequiredService<IAuthorizationService>(), meters: meters);
+        var auction = await Seeded("alice");
+
+        _ = await authorization.Check(new CloseAuction(auction.Id), auction, new ChangeContext(As("bob"), TimeProvider.System.GetUtcNow()), User("bob", "seller"), Ct);
+
+        var denied = meters.Of("tarol.authorization.denied").ShouldHaveSingleItem();                     // step 15: {request}, IMeterFactory
+        (denied.Meter, denied.Unit, denied.Value).ShouldBe((ChangeAuthorization.MeterName, "{request}", 1));
+        denied.Tags["change"].ShouldBe("CloseAuction");
+    }
+
+    [Fact]
     public async Task Every_denial_is_logged_as_a_warning_without_personal_data()
     {
         var log = new Recording();

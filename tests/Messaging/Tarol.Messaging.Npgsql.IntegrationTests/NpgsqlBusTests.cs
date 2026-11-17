@@ -278,6 +278,54 @@ public sealed class NpgsqlBusTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task Dead_messages_page_filter_and_are_taken_or_discarded_with_an_audit_row()
+    {
+        var schema = Postgres.NewSchema();
+        var dead = new NpgsqlMessageDeadLetters(postgres.DataSource, TimeProvider.System, schema);
+        await dead.EnsureSchema(Ct);
+        var tenant = Guid.NewGuid();
+        for (var i = 0; i < 5; i++)
+        {
+            var message = Raw("billing.invoice-paid", "{}") with { Tenant = i < 3 ? (Tarol.StronglyTypedId.Id<ITenant>)tenant : Tarol.Options.Option.None };
+            await dead.Add(i % 2 == 0 ? "artflow.A" : "artflow.B", new Incoming(message, 3, "billing", message.Data, message.Type), "Error NotFound", Ct);
+        }
+
+        var first = await dead.List(new DeadLetterQuery { Limit = 2 }, Ct);
+        var next = await dead.List(new DeadLetterQuery { Limit = 2, After = first[^1].Id }, Ct);
+        var last = await dead.List(new DeadLetterQuery { Limit = 2, After = next[^1].Id }, Ct);
+        (first.Count, next.Count, last.Count).ShouldBe((2, 2, 1));
+        (await dead.List(new DeadLetterQuery { Tenant = (Tarol.StronglyTypedId.Id<ITenant>)tenant }, Ct)).Count.ShouldBe(3);
+        (await dead.List(new DeadLetterQuery { Name = "artflow.A" }, Ct)).Count.ShouldBe(3);
+        (await dead.Count(Ct)).ShouldBe(5);
+
+        (await dead.Take(first[0].Id, "ops-alice", Ct))!.Id.ShouldBe(first[0].Id);
+        (await dead.Discard(first[1].Id, "ops-bob", Ct)).ShouldBeTrue();
+        (await dead.Discard(first[1].Id, "ops-bob", Ct)).ShouldBeFalse();
+        (await dead.Discard(next[0].Id, Ct)).ShouldBeTrue();                                           // unaudited (the port)
+
+        await using var audit = postgres.DataSource.CreateCommand($"SELECT actor || ':' || action || ':' || target FROM {schema}.operations_audit ORDER BY id");
+        var rows = new List<string>();
+        await using (var reader = await audit.ExecuteReaderAsync(Ct))
+            while (await reader.ReadAsync(Ct))
+                rows.Add(reader.GetString(0));
+        rows.ShouldBe([$"ops-alice:redrive:messages:{first[0].Id}", $"ops-bob:discard:messages:{first[1].Id}"]);
+        (await dead.Count(Ct)).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task The_backlog_counts_the_deliveries_of_the_applications_subscriptions()
+    {
+        var schema = Postgres.NewSchema();
+        var bus = Bus(schema);
+        await bus.Prepare([], [new Subscription("artflow.One", ["t.one"]), new Subscription("artflow.Two", ["t.one", "t.two"]), new Subscription("artflowx.Other", ["t.one"])], Ct);
+        await bus.Publish(Raw("t.one"), Ct);
+        await bus.Publish(Raw("t.one"), Ct);
+        await bus.Publish(Raw("t.two"), Ct);
+
+        (await bus.Backlog("artflow", Ct)).ShouldBe([("artflow.One", 2L), ("artflow.Two", 3L)]);           // not artflowx.*
+    }
+
+    [Fact]
     public async Task A_hosted_system_publishes_through_its_outbox_and_consumes_on_the_bus()
     {
         var storeSchema = "s" + Guid.NewGuid().ToString("N")[..12];

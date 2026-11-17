@@ -22,4 +22,8 @@
     <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- step 15: an IMeterFactory per test and its measurements -->
+    <Compile Include="../../Shared/Metrics/*.cs" LinkBase="Shared" />
+  </ItemGroup>
 </Project>
