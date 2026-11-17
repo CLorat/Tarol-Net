@@ -566,3 +566,6 @@ At `9357564` (the code of this PR; the notes followed), in a separate worktree, 
   of `Tarol.Changes.AotSmoke` and `Tarol.Persistence.AotSmoke` natively);
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Changes.PackageTests` runs the job from the package);
 * `main`'s CI before the start (run 164 at `bfd8d88`, after #47): `build`, `aot-smoke`, `integration` green.
+
+After this run, `d23457d` changed `Move` (the next occurrence's attempts start at 1, found while writing 14C's runner) and added
+a contract test: `Tarol.Persistence.Tests` 116 of 116. The full verification of 14B (§16.7) includes it.
