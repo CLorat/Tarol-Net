@@ -829,3 +829,14 @@ host that lost it won it back in 5 of 10 runs, correct behaviour, wrong test); t
 ### 16.6 Suppressions
 
 None.
+
+### 16.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `be422cf` (the code of this PR), in a separate detached worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1684 of 1684** (15A's 1650, + 34: the contract additions on three stores, the
+  operations tests of the store, bus, read models and packages, the gate and drop tests);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **22 apps, 0 IL warnings**, all checks passed;
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the repeated runs of §16.4: 10 of 10 each.
