@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Operations for Tarol systems: one cached snapshot of the database numbers (oldest due reaction, dead letters, overdue jobs, projection lag, bus backlog) polled every 15 s and published as observable gauges on the meter Tarol.Operations; health checks in three groups (live, ready, tarol) mapped by MapTarolHealth; the admin entry for dead reactions, jobs and messages (keyset pages, re-drive, discard, every act audited) and projection versions, mapped by MapTarolAdmin behind a required policy; the optional dead-letter retention as the system job tarol.purge-dead. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;operations;health-checks;metrics;opentelemetry;dead-letters;admin;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IHealthCheck, MapHealthChecks and minimal APIs come with the ASP.NET Core shared framework, not a NuGet package (O-2). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- Only the contracts (OperationsSignal, IDeadLetterSource, …): every other package registers into DI, nothing references upward (O-7). -->
+    <ProjectReference Include="../../Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

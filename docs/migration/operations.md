@@ -840,3 +840,95 @@ At `be422cf` (the code of this PR), in a separate detached worktree, with Docker
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **22 apps, 0 IL warnings**, all checks passed;
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
 * the repeated runs of §16.4: 10 of 10 each.
+
+## 17. Implementation 15C: `Tarol.Operations`
+
+`operations: Tarol.Operations — snapshot, health checks, admin entry`, stacked on 15B. Labels as in the conventions.
+
+### 17.1 Public API
+
+`Tarol.Operations` (new package; `FrameworkReference Microsoft.AspNetCore.App`, `ProjectReference Tarol.Persistence` only):
+* `AddOperations(this TarolBuilder, Action<OperationsOptions>?)`; `OperationsOptions` (`PollEvery` 15 s, `StaleAfter` 3,
+  `Thresholds`, `DeadRetention` null, `PurgeBatch` 1000); `OperationsThresholds` (reactions 30 s / 5 min, jobs 1 / 10 min, lag
+  30 s / 5 min, `DeadDegraded` 0); `OperationsTarolBuilderExtensions.PurgeDeadJob` (`tarol.purge-dead`);
+* `OperationsHost` (`Snapshot`, `Signals`, `PollOnce`), `OperationsSnapshot` (`Values`, `LastSuccess`, `LastPoll`, `Failures`,
+  `LastError`, `Has`, `Max`, `Sum`);
+* `TarolHealthTags` (`live`, `ready`, `tarol`), `TarolHealthEndpoints.MapTarolHealth(prefix = "/health")`; the checks
+  `tarol-live`, `tarol-ready`, `tarol-reactions`, `tarol-dead-letters`, `tarol-jobs`, `tarol-projections`;
+* `IDeadLetterAdmin` (`Kinds`, `List`, `Redrive` by id and by filter, `Discard`, `Projections`, `DropVersion`, `MaxRedrive` 1000),
+  `DeadLetterAdmin`; `TarolAdminEndpoints.MapTarolAdmin(prefix, policy)`; `OperationsJson`, `DeadLetterView`, `DeadLetterPageView`,
+  `RedriveView`, `AdminError`;
+* logs 15001 re-drive, 15002 re-drive by filter, 15003 discard, 15004 drop, 15005 a failed poll (the ids were free).
+
+`Tarol.Persistence` (contracts the package reaches the others through): `ReadinessCheck`, `IReadModelAdmin`, `ProjectionVersion`,
+`IDeadLetterRetention`. Implemented and registered by `Tarol.Persistence.Npgsql` (`NpgsqlOutbox`, `NpgsqlJobRows` retention; the
+readiness `schema`; `NpgsqlAggregateStore.Ensured`), `Tarol.Messaging.Npgsql` (`NpgsqlMessageDeadLetters` retention) and
+`Tarol.Queries.Npgsql` (`NpgsqlReadModels : IReadModelAdmin`, the drop audited in its transaction; the readiness
+`checkpoint-listen` with `PushCheckpoints`; an optional `TimeProvider` on `NpgsqlReadModels`).
+
+### 17.2 Deliberate differences from §6.4 and §11
+
+| Sketch | Built | Why |
+|---|---|---|
+| `ready`: schema compatible, `IsListening` | a `ReadinessCheck` contract the packages register | `Tarol.Operations` must not reference `Tarol.Queries.Npgsql` or `Tarol.Persistence.Npgsql` (O-7); an incompatible schema already stops the host at `EnsureSchema` |
+| `IDeadLetterAdmin.Projections()` / `DropVersion` | through `IReadModelAdmin` in `Tarol.Persistence` | the same reason; without read models the list is empty and a drop is refused |
+| `tarol.purge-dead` over the dead tables | through `IDeadLetterRetention` (one audited `DELETE … LIMIT` per call, oldest first, on the `dead_at` indexes) | the package has no SQL of its own |
+| a drop 409 for "current" | 409 for the newest version of the name, a version in use in this process, or a lock timeout | "current" is the newest version; the API process may not host the projection |
+| the endpoints through minimal-API binding | plain `RequestDelegate`s that parse route and query values themselves | no Request Delegate Generator in a library, 0 IL warnings, every bad value a 400 |
+| an unknown kind | `KeyNotFoundException` from the admin, 404 from the endpoints | one rule for list and acts |
+| the actor `ClaimsPrincipal.Identity.Name` | else the `sub` claim, else `unknown` | tokens without a name claim (Zitadel's access tokens) |
+| the transports' health (§14, open) | not in 15C | NATS and RabbitMQ expose no cheap broker-side backlog through the transports yet; later |
+
+### 17.3 Changes against steps 7–14
+
+| Where | Change | Kind |
+|---|---|---|
+| `Tarol.Operations` | new package | additive |
+| `Tarol.Persistence` | `ReadinessCheck`, `IReadModelAdmin`, `ProjectionVersion`, `IDeadLetterRetention` | additive |
+| `UseNpgsqlStore`, `UseNpgsqlDeadLetters`, `UseNpgsqlReadModels` | register the retention sources, the readiness checks and `IReadModelAdmin` | additive registrations |
+| `NpgsqlAggregateStore` | `Ensured` (the last `EnsureSchema` state) | additive |
+| `NpgsqlReadModels` | implements `IReadModelAdmin`; optional `TimeProvider` | additive |
+
+### 17.4 Tests
+
+* `Tarol.Operations.Tests` (15): the thresholds on the snapshot and their configuration, "not measured" for a signal nobody
+  registered, a failed poll keeping the values and `ready` Unhealthy after 3 (`FakeTimeProvider`), a package's readiness
+  problem, the gauges (a scrape reads no signal; tags), the host's poll on its clock, the JSON report; over `TestServer`: no
+  policy → `InvalidOperationException`, 401 and 403, pages following `next` with tenant and name filters, 400 for `limit=201`,
+  404 for an unknown kind, re-drive and discard by id (204/404, the actor), the filtered re-drive capped at 1,000 and at `max`,
+  projection versions and the 409s, `/health/live` 200, `/health/ready` 503 before the first poll and 200 after; the skill example.
+* `Tarol.Operations.IntegrationTests` (3, PostgreSQL 17): the snapshot over a populated store (oldest due 360 s, 2 dead, a job
+  360 s overdue) and the checks (ready Healthy, reactions Unhealthy, jobs Degraded, dead letters Degraded); the admin entry pages,
+  re-drives (by id and by filter) and discards with one audit row each; `tarol.purge-dead` within and after the retention, and
+  none without one.
+* `Tarol.Operations.AotSmoke` (the 23rd app): Kestrel with `MapTarolHealth` and `MapTarolAdmin`, the snapshot, the groups and
+  the policy; with `TAROL_PG` the store's signals, a page of dead jobs, an audited re-drive and `ready` over the database.
+  Natively: 0 IL warnings, 18.3 MB **[verified]**.
+* `Tarol.Operations.PackageTests`: `AddOperations` over the in-memory store from the packed package, a poll, six checks Healthy.
+
+### 17.5 Skill checklist
+
+The evaluation of `tarol-operations` is §12 (tasks, expected API, mistakes to avoid); every API name of the skill compiles in
+`SkillExampleTests`.
+
+### 17.6 Suppressions
+
+None.
+
+### 17.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `71467b7` (the code of this PR), in a separate detached worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1702 of 1702** (15B's 1684, + 15 `Tarol.Operations.Tests`, + 3
+  `Tarol.Operations.IntegrationTests`);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **23 apps, 0 IL warnings**, all checks passed
+  (`Tarol.Operations.AotSmoke` natively with Kestrel and the database);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the `Tarol.Operations` package with its skill; the consumer: 5 signals
+  polled, 6 checks Healthy).
+
+**Found in 15D's AppHost run and fixed here (`6015d35`)**: the `checkpoint-listen` readiness reported "down" in every process
+before its first checkpoint read (`NpgsqlProjectionPositions` starts its `LISTEN` lazily), so the sample's API and worker
+stayed at `/health/ready` 503. It now fails only after the `LISTEN` started and lost its connection; the LISTEN-loss test of
+`PushedCheckpointTests` checks it (before the start, while listening, after `pg_terminate_backend`). Verified by that suite and
+by the full run of 15D (§18.6), which contains this commit.

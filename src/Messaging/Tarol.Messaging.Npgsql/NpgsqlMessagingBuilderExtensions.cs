@@ -106,6 +106,8 @@ public static class NpgsqlMessagingBuilderExtensions
                 provider.GetRequiredService<IMessageDeadLetters>() is NpgsqlMessageDeadLetters dead
                     ? [new SignalValue(await dead.Count(ct).ConfigureAwait(false))]
                     : []));
+        messaging.Tarol.Services.AddSingleton<IDeadLetterRetention>(static provider =>
+            (NpgsqlMessageDeadLetters)provider.GetRequiredService<IMessageDeadLetters>());
         if (ensureSchema)
             messaging.Tarol.Services.AddHostedService(static provider => new EnsureDeadLetters((NpgsqlMessageDeadLetters)provider.GetRequiredService<IMessageDeadLetters>()));
         return messaging;

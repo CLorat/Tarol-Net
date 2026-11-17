@@ -280,6 +280,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `IMeterFactory`; `ActivitySource "Tarol.Changes"` (one span per pipeline run) and logs 7001–7003; the snapshot signals of the
   stores, the bus and the read models; `IProjectionGate` and `NpgsqlProjectionGate`; `NpgsqlTracing.TraceOnlyInActivities`.
 
+* Step 15C (docs/migration/operations.md §17, O-1, O-2, O-3, O-5): `Tarol.Operations`, a new package on the ASP.NET Core
+  shared framework: `AddOperations` (the snapshot poll and its gauges on the meter `Tarol.Operations`), health checks in the
+  groups `live`, `ready` and `tarol` with `MapTarolHealth`, `IDeadLetterAdmin` and `MapTarolAdmin(prefix, policy)` (paged
+  lists, re-drive, discard, projection versions, every act audited), the optional `DeadRetention` as `tarol.purge-dead`; logs
+  15001–15005; skill `tarol-operations`. `Tarol.Persistence` gains `ReadinessCheck`, `IReadModelAdmin` and
+  `IDeadLetterRetention`, which the Npgsql packages implement.
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
