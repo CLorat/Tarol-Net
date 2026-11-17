@@ -14,7 +14,8 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/jobs/`](../migration/probes/jobs/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions J-1 … J-9, [migration/jobs.md](../migration/jobs.md) §9); to be built in PRs 14A–14C (§11).
+**Status: designed** (owner decisions J-1 … J-9, [migration/jobs.md](../migration/jobs.md) §9); built in PRs 14A–14C (§11): **14A built**
+(scheduled entries, the job rows port; §15).
 
 ## 1. What a user of Tarol needs
 

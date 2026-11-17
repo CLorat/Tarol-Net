@@ -240,6 +240,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * `Tarol.Changes.AspNetCore` (step 13C): `CacheHeaders` (`private, no-cache`, `Authorization`, `Apply`). `samples/Sagas`
   caches the auction list (`AddCaching()` in the API, `PushCheckpoints` in both processes); the guide
   `docs/queries/caching.md` (what is cached, how a request goes, why there is no output caching).
+* `Tarol.Changes` (step 14A): scheduled change entries. `[Scheduled(cron, TimeZone, Name, Missed, PerTenant)]` on a static
+  `From(JobOccurrence)` factory of a change; the generated `GeneratedJobs.Set` (`JobSet`: `Definitions`, `Run`, `Combine`,
+  `Context`, `Key`, `Options`) runs an occurrence as `Actor.System("Jobs.<name>")` with the key (tenant, `job:<name>`,
+  occurrence UTC); `JobOccurrence` (whole seconds, `Local`), `JobDefinition`, `Missed` (`Latest`, `All`, `Skip`);
+  diagnostics TCHG009 (factory shape), TCHG010 (invalid cron literal), TCHG011 (duplicate job name).
+* `Tarol.Persistence` (step 14A): the job rows port `IJobRows` (`Sync`, one-row `Claim` with a lease, `Move`, `Advance`,
+  `Extend`, `Retry`, `Bury`, `DeadJobs`, `Redrive`, `Rows`, `Overdue`; records `JobSchedule`, `JobSyncChange`, `JobRow`,
+  `JobState`, `DeadJob`), in-memory rows as `InMemoryAggregateStore.Jobs`, `TarolBuilder.UseStore(factory, outbox, jobs)`.
 
 ### Fixed
 
@@ -249,6 +257,8 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* Step 14A (announced in docs/migration/jobs.md §10): TVAL006 is not reported inside a static `[Scheduled]` factory of an
+  `IValidatable` change (C-13), as for `[OnEvent<T>]`, `[Webhook]` and `[Consumes]`.
 * Step 13C (announced in docs/migration/caching.md §10): list answers of `Tarol.Changes.AspNetCore` (200, 304 and the
   problems) and view answers (200, 304) carry `Cache-Control: private, no-cache` and `Vary: Authorization`: shared caches
   no longer store them, browsers revalidate by `ETag`.
