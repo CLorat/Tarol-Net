@@ -1,0 +1,193 @@
+## 0. Machine
+# SDK 11.0.100 (JIT runs: Release build), 2026-11-17, x86_64, 4 cores, 15 GB; postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1) in Docker on the same host (default settings, max_connections=300); Npgsql 10.0.3; Microsoft.Extensions.Diagnostics.HealthChecks 11.0.0
+
+## 1. JIT: functional checks (schema = EnsureSchema, upgrade steps, rolling deploys, CONCURRENTLY; dead = paging, re-drive, discard, audit; health = snapshot and checks; spans = Npgsql tracing of an idle worker)
+INFO today's EnsureSchema, 6 at once on an empty schema, 20 rounds: 96 of 120 calls failed (23505 pg_namespace_nspname_index × 96)
+PASS without a lock, concurrent EnsureSchema on an empty database fails some starts (catalog race)  (96 of 120)
+PASS blocking pg_advisory_lock + CREATE INDEX CONCURRENTLY: the waiters are transactions the build waits for → deadlock (40P01)  (100 of 120 (40P01 × 100))
+PASS polling pg_try_advisory_lock every 100 ms: 0 failures, the 3 upgrade steps ran once (last round)  (0 failures, 3 step runs)
+PASS today: old code (version 1) refuses to start on a schema of version 2: a rolling deploy's old pods crash-loop  (The schema 'race' has version 2; this Tarol.Persistence.Npgsql knows version 1.)
+PASS with compatible_from: code that knows 1 starts on version 4 (compatible from 1) and runs no step  (from 4, ran 0)
+PASS after a contract step (compatible_from 3) code that knows 2 refuses, with the versions in the message  (schema race is version 4, compatible from 3; this code knows 2)
+INFO today's EnsureSchema called 95 times in 10 s (a process start every 100 ms) while 4 writers commit: EnsureSchema errors none; writer errors none; 13691 commits p50 2.87 ms, p99 6.67 ms, max 26.8 ms
+PASS today's EnsureSchema re-run on a live store (version 1, nothing to change): no failure; its table locks show in the commit max  (0 EnsureSchema + 0 commit failures)
+PASS populated store (10,000 events, 500 dead letters), two upgraders at once, a writer committing: steps ran once, both end at version 4, indexes valid  (ran 3+0, waited 0.48 ms / 102 ms, 50 commits meanwhile)
+PASS CREATE INDEX CONCURRENTLY inside a transaction fails (25001): such steps run outside one  (25001)
+PASS an interrupted CONCURRENTLY build leaves an INVALID index (IF NOT EXISTS would keep it)  (57014, 1 invalid)
+PASS the upgrader drops the invalid index and builds it again  (to 4, valid 1)
+ALL 11 CHECKS PASSED (schema, JIT)
+PASS IOutbox.DeadLetters(100) returns the first 100 of 250  (100, ids 1…100)
+PASS …and has no cursor: rows 101–250 are reachable only by re-driving or raising max (finding: keyset paging needed)  (DeadLetters(int max))
+PASS IJobRows.DeadJobs(max) and IMessageDeadLetters.List(max) have the same shape (first page only)
+PASS keyset paging (id > after, tenant and reaction filters) reaches all 250  (100 + 100 + 50)
+INFO tenant filter: 50 of 250 dead letters belong to tenant B (1 in 5 seeded)
+PASS IOutbox.Redrive(id) moves the row back (due now); the audit row is a second statement today  (redriven True)
+PASS discard (no API today) + audit in one statement: DELETE … RETURNING feeds the audit INSERT  (1 audit row)
+PASS …the row is gone and the audit names who, what and when
+PASS IMessageDeadLetters.List(100) of 120: first page only, as the outbox  (100)
+PASS messages_dead, outbox_dead and jobs_dead have no index on dead_at: retention scans the table (§4 measures it)
+ALL 9 CHECKS PASSED (dead letters, JIT)
+PASS snapshot after a catch-up: database up, projection lag < 1 s, no dead letters  (rows≈0, oldest due 0.32 s, lag 0.00 s)
+PASS a stuck reaction (10 min), 3 dead letters, a job 2 min overdue, projection 45 s behind: the snapshot sees all four  (oldest 601 s, dead 3, overdue 122 s, lag 46.3 s)
+| check | status | description |
+|---|---|---|
+| reactions (ready) | Unhealthy | oldest due reaction 601 s |
+| dead-letters (ready) | Degraded | 3 dead reactions, 0 dead jobs |
+| jobs (ready) | Degraded | a job is 122 s overdue |
+| projections (ready) | Degraded | projection lag 46 s |
+| process (live) | Healthy |  |
+PASS HealthCheckService (Microsoft.Extensions.Diagnostics.HealthChecks): readiness Unhealthy (the stuck reaction), liveness Healthy: a restart would not fix a backlog
+INFO a readiness report over the cached snapshot: 22.4 µs per probe (4 checks, no database round trip)
+ALL 3 CHECKS PASSED (health, JIT)
+| Npgsql tracing | idle worker, 10 s (spans by source, root or child) | 20 creations + 20 changes with their reactions, 3 s |
+|---|---|---|
+| Npgsql traced (default) | Npgsql root 515 | Npgsql child 113, Npgsql root 247, Tarol.Queries root 11, Tarol.Sagas root 20 |
+PASS an idle worker (reactions, jobs, one projection) makes root Npgsql spans every second  (515 in 10 s = 51.5/s, 4,449,600 a day)
+| Npgsql command filter: Activity.Current is not null |  | Npgsql child 116, Tarol.Queries root 12, Tarol.Sagas root 20 |
+PASS with the filter: 0 idle Npgsql spans, the commands of reactions and changes stay as children  (busy children 116)
+ALL 2 CHECKS PASSED (spans, JIT)
+
+## 2. Instruments on the hot path (JIT)
+| operation | no listener | a MeterListener callback on |
+|---|---|---|
+| Counter<long>.Add(1, 2 tags) | 1.65 ns | 13.1 ns |
+| Histogram<double>.Record(v, 2 tags) | 3.04 ns | 7.60 ns |
+| [LoggerMessage] Debug, logger disabled | 7.60 ns | – |
+INFO one commit (Item.Create, 1 event + 0 outbox rows) on the Npgsql store: p50 2.05 ms, p99 4.81 ms
+INFO a counter + a histogram with a listener per commit: 10.1 ppm of the p50 commit
+
+## 3. Native AOT: publish with and without health checks and the web endpoints (warnings, size); the checks natively
+| build | IL warnings | native binary |
+|---|---|---|
+| no health checks (-p:WithHealth=false) | 0 | 10751592 bytes |
+| + Microsoft.Extensions.Diagnostics.HealthChecks 11.0.0 (worker, no web) | 0 | 10928344 bytes |
+| + ASP.NET Core shared framework, Kestrel, MapHealthChecks (-p:WithWeb=true) | 0 | 17359320 bytes |
+x.log:Operations/Operations.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. This package is automatically available and does not need to be referenced explicitly. Remove the PackageReference item.
+INFO today's EnsureSchema, 6 at once on an empty schema, 20 rounds: 100 of 120 calls failed (23505 pg_namespace_nspname_index × 100)
+PASS without a lock, concurrent EnsureSchema on an empty database fails some starts (catalog race)  (100 of 120)
+PASS blocking pg_advisory_lock + CREATE INDEX CONCURRENTLY: the waiters are transactions the build waits for → deadlock (40P01)  (100 of 120 (40P01 × 100))
+PASS polling pg_try_advisory_lock every 100 ms: 0 failures, the 3 upgrade steps ran once (last round)  (0 failures, 3 step runs)
+PASS today: old code (version 1) refuses to start on a schema of version 2: a rolling deploy's old pods crash-loop  (The schema 'race' has version 2; this Tarol.Persistence.Npgsql knows version 1.)
+PASS with compatible_from: code that knows 1 starts on version 4 (compatible from 1) and runs no step  (from 4, ran 0)
+PASS after a contract step (compatible_from 3) code that knows 2 refuses, with the versions in the message  (schema race is version 4, compatible from 3; this code knows 2)
+INFO today's EnsureSchema called 95 times in 10 s (a process start every 100 ms) while 4 writers commit: EnsureSchema errors none; writer errors none; 13382 commits p50 2.95 ms, p99 6.66 ms, max 22.2 ms
+PASS today's EnsureSchema re-run on a live store (version 1, nothing to change): no failure; its table locks show in the commit max  (0 EnsureSchema + 0 commit failures)
+PASS populated store (10,000 events, 500 dead letters), two upgraders at once, a writer committing: steps ran once, both end at version 4, indexes valid  (ran 0+3, waited 101 ms / 0.46 ms, 53 commits meanwhile)
+PASS CREATE INDEX CONCURRENTLY inside a transaction fails (25001): such steps run outside one  (25001)
+PASS an interrupted CONCURRENTLY build leaves an INVALID index (IF NOT EXISTS would keep it)  (57014, 1 invalid)
+PASS the upgrader drops the invalid index and builds it again  (to 4, valid 1)
+ALL 11 CHECKS PASSED (schema, Native AOT)
+PASS IOutbox.DeadLetters(100) returns the first 100 of 250  (100, ids 1…100)
+PASS …and has no cursor: rows 101–250 are reachable only by re-driving or raising max (finding: keyset paging needed)  (DeadLetters(int max))
+PASS IJobRows.DeadJobs(max) and IMessageDeadLetters.List(max) have the same shape (first page only)
+PASS keyset paging (id > after, tenant and reaction filters) reaches all 250  (100 + 100 + 50)
+INFO tenant filter: 51 of 250 dead letters belong to tenant B (1 in 5 seeded)
+PASS IOutbox.Redrive(id) moves the row back (due now); the audit row is a second statement today  (redriven True)
+PASS discard (no API today) + audit in one statement: DELETE … RETURNING feeds the audit INSERT  (1 audit row)
+PASS …the row is gone and the audit names who, what and when
+PASS IMessageDeadLetters.List(100) of 120: first page only, as the outbox  (100)
+PASS messages_dead, outbox_dead and jobs_dead have no index on dead_at: retention scans the table (§4 measures it)
+ALL 9 CHECKS PASSED (dead letters, Native AOT)
+PASS snapshot after a catch-up: database up, projection lag < 1 s, no dead letters  (rows≈0, oldest due 0.15 s, lag 0.00 s)
+PASS a stuck reaction (10 min), 3 dead letters, a job 2 min overdue, projection 45 s behind: the snapshot sees all four  (oldest 601 s, dead 3, overdue 122 s, lag 46.2 s)
+| check | status | description |
+|---|---|---|
+| reactions (ready) | Unhealthy | oldest due reaction 601 s |
+| dead-letters (ready) | Degraded | 3 dead reactions, 0 dead jobs |
+| jobs (ready) | Degraded | a job is 122 s overdue |
+| projections (ready) | Degraded | projection lag 46 s |
+| process (live) | Healthy |  |
+PASS HealthCheckService (Microsoft.Extensions.Diagnostics.HealthChecks): readiness Unhealthy (the stuck reaction), liveness Healthy: a restart would not fix a backlog
+INFO a readiness report over the cached snapshot: 8.84 µs per probe (4 checks, no database round trip)
+ALL 3 CHECKS PASSED (health, Native AOT)
+PASS snapshot after a catch-up: database up, projection lag < 1 s, no dead letters  (rows≈0, oldest due 0.14 s, lag 0.00 s)
+PASS a stuck reaction (10 min), 3 dead letters, a job 2 min overdue, projection 45 s behind: the snapshot sees all four  (oldest 601 s, dead 3, overdue 122 s, lag 46.2 s)
+| check | status | description |
+|---|---|---|
+| reactions (ready) | Unhealthy | oldest due reaction 601 s |
+| dead-letters (ready) | Degraded | 3 dead reactions, 0 dead jobs |
+| jobs (ready) | Degraded | a job is 122 s overdue |
+| projections (ready) | Degraded | projection lag 46 s |
+| process (live) | Healthy |  |
+PASS HealthCheckService (Microsoft.Extensions.Diagnostics.HealthChecks): readiness Unhealthy (the stuck reaction), liveness Healthy: a restart would not fix a backlog
+INFO a readiness report over the cached snapshot: 9.36 µs per probe (4 checks, no database round trip)
+PASS Kestrel endpoints: /health/live 200, /health/ready 503  (200 / 503 Unhealthy)
+ALL 4 CHECKS PASSED (health, Native AOT)
+| Npgsql tracing | idle worker, 10 s (spans by source, root or child) | 20 creations + 20 changes with their reactions, 3 s |
+|---|---|---|
+| Npgsql traced (default) | Npgsql root 514 | Npgsql child 92, Npgsql root 232, Tarol.Queries root 4, Tarol.Sagas root 20 |
+PASS an idle worker (reactions, jobs, one projection) makes root Npgsql spans every second  (514 in 10 s = 51.4/s, 4,440,960 a day)
+| Npgsql command filter: Activity.Current is not null |  | Npgsql child 104, Tarol.Queries root 8, Tarol.Sagas root 20 |
+PASS with the filter: 0 idle Npgsql spans, the commands of reactions and changes stay as children  (busy children 104)
+ALL 2 CHECKS PASSED (spans, Native AOT)
+
+## 4. Observable gauges: a query per scrape vs one cached snapshot (1,000,000 events, 10,000 job rows, outbox 0 … 1,000,000 rows)
+| outbox rows | `count(*)` (today's `Pending`) | `count(*) WHERE head` | oldest due head (`min(due_at)`, index) | estimate (`pg_class.reltuples`) | `count(*)` outbox_dead (rows/100) | snapshot (7 numbers, one round trip) |
+|---|---|---|---|---|---|---|
+| 0 | 0.45 ms | 0.37 ms | 0.50 ms | 0.45 ms | 0.25 ms | 1.43 ms |
+| 10,000 | 0.90 ms | 0.61 ms | 0.54 ms | 0.34 ms | 0.32 ms | 1.15 ms |
+| 100,000 | 6.93 ms | 2.84 ms | 0.41 ms | 0.30 ms | 0.37 ms | 1.20 ms |
+| 1,000,000 | 32.4 ms | 76.1 ms | 0.36 ms | 0.22 ms | 0.94 ms | 1.68 ms |
+INFO snapshot at 1,000,000 outbox rows, 1,000,000 events, 10,000 job rows: rows≈1,000,000, oldest due 607 s, dead 10,000, overdue 318 s, lag 1500 s, head 1,000,000
+INFO lag as an event count (500,000 behind: count(*) after the checkpoint): 60.0 ms; lag in seconds (two index lookups, in the snapshot): included above
+INFO IJobRows.Overdue at 10,000 job rows (today's API, index jobs_due): 0.46 ms
+INFO a scrape of the 6 cached gauges: 987 ns (6 measurements per scrape)
+INFO a scrape whose gauge runs today's Pending (count(*)) at 1,000,000 rows: 31.8 ms, blocking the exporter's thread (sync over async)
+
+## 5. Schema changes on a populated store (1,000,000 events) while 4 writers commit
+INFO populated: 1,000,000 events (363 MB with indexes), 100,000 dead letters; 4 writers commit Item.Create + Touch (2 events, 1 outbox row) in a loop
+| step | DDL time | commits during it | commit p50 | commit p99 | commit max |
+|---|---|---|---|---|---|
+| (baseline, no DDL, 1 s) | 1003 ms | 1397 | 3.57 ms | 7.48 ms | 9.45 ms |
+| `ADD COLUMN x text NULL` on events | 11.5 ms | 395 | 3.00 ms | 6.00 ms | 7.90 ms |
+| `ADD COLUMN y integer NOT NULL DEFAULT 0` on events | 4.91 ms | 359 | 3.12 ms | 6.29 ms | 6.90 ms |
+| `ADD COLUMN z uuid NOT NULL DEFAULT gen_random_uuid()` (volatile: rewrites the table) | 5595 ms | 501 | 2.91 ms | 52.8 ms | 5347 ms |
+| `CREATE INDEX` on events (recorded_at) | 370 ms | 354 | 3.18 ms | 370 ms | 372 ms |
+| `CREATE INDEX CONCURRENTLY` on events (recorded_at) | 439 ms | 824 | 3.26 ms | 8.58 ms | 10.8 ms |
+| `CREATE INDEX CONCURRENTLY` on outbox_dead (dead_at), 100,000 rows | 63.4 ms | 452 | 3.08 ms | 5.97 ms | 8.05 ms |
+| `ADD COLUMN w text NULL` behind a 3 s reader, no lock_timeout | 2910 ms | 363 | 3.20 ms | 2897 ms | 2898 ms |
+| the same with `lock_timeout = 200ms`, retried ×10 after 300 ms | 3028 ms | 2634 | 3.03 ms | 24.8 ms | 206 ms |
+
+## 6. Retention of the dead tables
+| table | rows | index on dead_at | purge older than 30 days (batches of 1,000) | batches | per batch | the next run, nothing to purge (100,000 young rows, after VACUUM ANALYZE) |
+|---|---|---|---|---|---|---|
+| `ret.outbox_dead` | 200,000 | no | 708 ms | 101 | 7.01 ms | 33.3 ms |
+| `ret.jobs_dead` | 200,000 | no | 730 ms | 101 | 7.23 ms | 37.1 ms |
+| `ret_msg.messages_dead` | 200,000 | no | 3405 ms | 101 | 33.7 ms | 21.3 ms |
+| `ret.outbox_dead` | 200,000 | yes | 781 ms | 101 | 7.74 ms | 0.78 ms |
+| `ret.jobs_dead` | 200,000 | yes | 819 ms | 101 | 8.11 ms | 0.68 ms |
+| `ret_msg.messages_dead` | 200,000 | yes | 3808 ms | 101 | 37.7 ms | 0.59 ms |
+
+## 7. DropVersion while old code still reads the table
+| drop of the old version while another session reads it for 3 s | the drop | a reader that arrives meanwhile |
+|---|---|---|
+INFO projection item-list v1: 5,000 rows in drop_rm.rm_item_list_v1
+| today's `DropVersion` (no lock_timeout) | 2809 ms, dropped | a new reader of the old table waited 2612 ms, then 42P01 |
+| `DROP TABLE` with `lock_timeout = 200ms` | 203 ms, 55P03 | a new reader of the old table waited 1.93 ms, then read |
+
+## 8. Several runners of one projection (200,000 events, batch 1,000)
+INFO feed: 200,000 events (20,000 items × 10, one commit each)
+| runners | gate | catch-up time | batches run (read from the feed) | of them refused by the checkpoint guard (wasted) |
+|---|---|---|---|---|
+| 1 | none (today: the checkpoint guard) | 2.17 s | 200 | 0 |
+| 2 | none (today: the checkpoint guard) | 1.87 s | 396 | 196 |
+| 4 | none (today: the checkpoint guard) | 2.55 s | 791 | 591 |
+| 2 | pg_try_advisory_lock per projection version | 1.61 s | 200 | 0 |
+| 4 | pg_try_advisory_lock per projection version | 1.62 s | 200 | 0 |
+
+## 9. Native AOT: instruments and projection runners
+| operation | no listener | a MeterListener callback on |
+|---|---|---|
+| Counter<long>.Add(1, 2 tags) | 7.67 ns | 13.7 ns |
+| Histogram<double>.Record(v, 2 tags) | 5.15 ns | 6.39 ns |
+| [LoggerMessage] Debug, logger disabled | 3.87 ns | – |
+INFO one commit (Item.Create, 1 event + 0 outbox rows) on the Npgsql store: p50 1.78 ms, p99 3.22 ms
+INFO a counter + a histogram with a listener per commit: 11.3 ppm of the p50 commit
+INFO feed: 200,000 events (20,000 items × 10, one commit each)
+| runners | gate | catch-up time | batches run (read from the feed) | of them refused by the checkpoint guard (wasted) |
+|---|---|---|---|---|
+| 1 | none (today: the checkpoint guard) | 1.86 s | 200 | 0 |
+| 2 | none (today: the checkpoint guard) | 2.10 s | 399 | 199 |
+| 4 | none (today: the checkpoint guard) | 2.67 s | 780 | 580 |
+| 2 | pg_try_advisory_lock per projection version | 1.82 s | 200 | 0 |
+| 4 | pg_try_advisory_lock per projection version | 1.71 s | 200 | 0 |

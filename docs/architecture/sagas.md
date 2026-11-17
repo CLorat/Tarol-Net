@@ -270,7 +270,7 @@ S-14 reaction name = type name, pin to rename; S-15 sagas start load-or-create.
 
 * Logging: source-generated `LoggerMessage` for Retry/Bury/lease loss (old S10 found none); the event ids in PR 9C.
 * Metrics (`System.Diagnostics.Metrics`: rows/s, attempts, dead letters, lag) and a health check on `Pending`/dead letters:
-  plan step 15 (Operations).
+  plan step 15 (Operations). Designed in step 15: [operations.md](operations.md) (O-1: `tarol.reactions.*` and the oldest-due gauge; O-2, O-3: checks and the admin entry).
 * Priority between reactions (a slow reaction's backlog delays others in the same claim order): not needed by a scenario.
 * Partitioning work across processes by tenant: `SKIP LOCKED` suffices for the measured scale.
 * Recurring work is not a reaction (answered in step 14, [jobs.md](jobs.md), J-4, J-9): schedules live in a `jobs` table of their

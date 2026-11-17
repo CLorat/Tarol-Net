@@ -163,7 +163,7 @@ builder.Services.AddTarol(AppJson.Default, codec => …)
   `tarol.attempt`, `tarol.verdict`). The job's commits store its `traceparent`, so reactions link to it.
 * **System jobs** (J-9): `tarol.purge-keys` replaces the per-process hourly purge of `ReactionHost`; `tarol.purge-messages` runs the
   bus retention. Each runs once per hour across the cluster.
-* Metrics and health (most overdue cursor, dead jobs): step 15.
+* Metrics and health (most overdue cursor, dead jobs): step 15. Designed in step 15: [operations.md](operations.md) (O-1, O-2: `tarol.jobs.*`, the overdue gauge, `/health/tarol`; O-3: paging and discard of dead jobs).
 
 ## 8. Testing
 

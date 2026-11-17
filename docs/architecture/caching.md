@@ -133,3 +133,4 @@ GET /auctions?status=Open  ──► ListAccess (CheckList: Read<T>, QR-6)
 ## Open questions
 
 * Per-tenant invalidation, a shared L2, cached views: [migration/caching.md](../migration/caching.md) §14.
+* The checkpoint `LISTEN` health check (`NpgsqlProjectionPositions.IsListening`): designed in step 15, [operations.md](operations.md) §3 (O-2: part of `ready`).

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Step 15 probe: operations on today's packages (TarolRoot = the repository). Metrics cost (instruments on the hot path,
+       observable gauges that query the database per scrape vs a cached snapshot), health checks (Microsoft.Extensions.Diagnostics.HealthChecks
+       in a worker; -p:WithWeb=true adds the ASP.NET Core shared framework and Kestrel endpoints), schema upgrades beyond version 1
+       on a populated database, dead-letter paging and re-drive, retention, DropVersion, Npgsql spans, projection runners.
+       -p:WithHealth=false builds without any health-check assembly (the AOT size baseline).
+       Modes: selftest <schema|dead|health|spans>, bench <metrics|gauges|upgrade|retention|drop|runners>. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <PublishAot>true</PublishAot><TrimmerSingleWarn>false</TrimmerSingleWarn><InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <AssemblyName>Probe.Operations</AssemblyName><RootNamespace>Probe.Operations</RootNamespace>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <WithHealth Condition="'$(WithHealth)' == ''">true</WithHealth>
+    <WithWeb Condition="'$(WithWeb)' == ''">false</WithWeb>
+    <DefineConstants Condition="'$(WithHealth)' == 'true'">$(DefineConstants);HEALTH</DefineConstants>
+    <DefineConstants Condition="'$(WithWeb)' == 'true'">$(DefineConstants);WEB</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="11.0.0" Condition="'$(WithHealth)' == 'true' And '$(WithWeb)' != 'true'" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" Condition="'$(WithWeb)' == 'true'" />
+    <ProjectReference Include="$(TarolRoot)src/Jobs/Tarol.Jobs/Tarol.Jobs.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Messaging/Tarol.Messaging.Npgsql/Tarol.Messaging.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

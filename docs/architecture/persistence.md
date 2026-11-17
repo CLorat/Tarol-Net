@@ -65,7 +65,8 @@ CREATE TABLE tarol.outbox (id identity PRIMARY KEY, tenant, reaction, type, stre
 ```
 
 The full script (with indexes) is [`Core/Schema.cs`](../migration/probes/persistence/Core/Schema.cs). The package ships
-it as one versioned, idempotent script and `EnsureSchema()` runs it (P-4); the schema name is an option.
+it as one versioned, idempotent script and `EnsureSchema()` runs it (P-4); the schema name is an option. Versions after 1 are
+upgrade steps under an advisory lock with `compatible_from` for rolling deploys (step 15, [operations.md](operations.md) §4, O-4).
 
 * **The tenant comes first in every key** (security.md §5.3): streams, events, lookups, keys and outbox rows are found
   only within a tenant; the same id and the same lookup key exist independently in two tenants **[verified]**.
