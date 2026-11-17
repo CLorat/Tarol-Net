@@ -36,9 +36,9 @@ async Task<JsonElement> Call(HttpMethod method, string path, string body = "{}")
 
 var project = (await Call(HttpMethod.Post, "/management/v1/projects", """{"name":"artflow","projectRoleAssertion":true}""")).GetProperty("id").GetString()!;
 _ = await Call(HttpMethod.Post, $"/management/v1/projects/{project}/roles/_bulk",
-    """{"roles":[{"key":"seller","displayName":"seller"},{"key":"bidder","displayName":"bidder"},{"key":"service","displayName":"service"}]}""");
+    """{"roles":[{"key":"seller","displayName":"seller"},{"key":"bidder","displayName":"bidder"},{"key":"service","displayName":"service"},{"key":"tarol-admin","displayName":"tarol-admin"}]}""");
 var clients = new StringBuilder();
-foreach (var (name, roles) in new[] { ("alice", "\"seller\""), ("bob", "\"bidder\"") })
+foreach (var (name, roles) in new[] { ("alice", "\"seller\",\"tarol-admin\""), ("bob", "\"bidder\"") })
 {
     var user = (await Call(HttpMethod.Post, "/management/v1/users/machine", $$"""{"userName":"{{name}}","name":"{{name}}","accessTokenType":"ACCESS_TOKEN_TYPE_JWT"}""")).GetProperty("userId").GetString()!;
     var secret = await Call(HttpMethod.Put, $"/management/v1/users/{user}/secret");
@@ -47,4 +47,4 @@ foreach (var (name, roles) in new[] { ("alice", "\"seller\""), ("bob", "\"bidder
 }
 await File.WriteAllTextAsync(Path.Combine(dir, "clients.txt"), clients.ToString());
 await File.WriteAllTextAsync(Path.Combine(dir, "project.txt"), project);              // last: the API waits for the setup to complete
-Console.WriteLine($"Zitadel provisioned: project {project}, machine users alice (seller), bob (bidder)");
+Console.WriteLine($"Zitadel provisioned: project {project}, machine users alice (seller, tarol-admin), bob (bidder)");

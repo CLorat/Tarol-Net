@@ -15,6 +15,7 @@
     <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Caching/Tarol.Caching/Tarol.Caching.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Operations/Tarol.Operations/Tarol.Operations.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/Messaging/Tarol.Messaging/Tarol.Messaging.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Messaging/Tarol.Messaging.Generators/Tarol.Messaging.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

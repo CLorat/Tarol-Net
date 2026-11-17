@@ -15,8 +15,8 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/operations/`](../migration/probes/operations/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions O-1 … O-8, [migration/operations.md](../migration/operations.md) §9); to be built in PRs
-15-0 and 15A–15D (§11 there).
+**Status: done** (owner decisions O-1 … O-8, [migration/operations.md](../migration/operations.md) §9); built in PRs 15-0 and
+15A–15D (§15–§18 there). The guide: [docs/operations/README.md](../operations/README.md).
 
 ## 1. What an operator of a Tarol system needs
 

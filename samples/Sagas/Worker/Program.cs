@@ -1,9 +1,11 @@
 using ArtFlow;
 using ArtFlow.Samples;
 using ArtFlow.Worker;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Tarol.Changes;
@@ -11,6 +13,7 @@ using Tarol.Jobs;
 using Tarol.Kernel;
 using Tarol.Messaging;
 using Tarol.Messaging.Npgsql;
+using Tarol.Operations;
 using Tarol.Options;
 using Tarol.Persistence;
 using Tarol.Persistence.Npgsql;
@@ -20,7 +23,7 @@ using Tarol.Sagas;
 
 // ArtFlow's reaction worker. Under the AppHost the connection string "tarol" and the OTLP endpoint come from Aspire.
 // Arguments: the number of auctions to settle itself (default 20, one per second; 0 = only work: the API produces them).
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateSlimBuilder(args);        // step 15: a small HTTP listener for the health probes
 var connectionString = builder.Configuration.GetConnectionString("tarol")
                        ?? throw new InvalidOperationException("No connection string 'tarol' (run it through the AppHost).");
 builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>().Add<DayReport>())
@@ -36,14 +39,18 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
         .UseBroker(builder.Configuration)
         .UseNpgsqlDeadLetters())
     .AddJobs(j => j.Add<SettlementReport>("15 2 * * *", o => { o.TimeZone = "Europe/Vienna"; o.PerTenant = true; }),   // step 14: once per occurrence and tenant
-        o => o.TenantSyncEvery = TimeSpan.FromSeconds(20));       // the demo's tenants appear while it runs; hourly by default
+        o => o.TenantSyncEvery = TimeSpan.FromSeconds(20))        // the demo's tenants appear while it runs; hourly by default
+    .AddOperations();                                              // step 15: the snapshot and its gauges, the health groups
 builder.Services.AddSingleton<ITenantDirectory, AuctionTenants>();
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("worker"))
-        // not "Npgsql": every idle claim (every 100 ms per worker) would be a span and bury the reactions in the dashboard
-        .WithTracing(t => t.AddSource([.. Broker.Sources, Producer.SourceName, ProjectionHost.ActivitySourceName, JobHost.ActivitySourceName]).AddOtlpExporter());
+        // step 15: "Tarol.*" (with Tarol.Sagas and Tarol.Changes) and "Npgsql": the store's data source traces commands only inside
+        // an activity, so the idle claims (every 100 ms) make no spans and the reactions' commands are their children
+        .WithTracing(t => t.AddSource([.. Broker.Sources, Producer.SourceName, "Tarol.*", "Npgsql"]).AddOtlpExporter())
+        .WithMetrics(m => m.AddMeter("Tarol.*", "Npgsql").AddOtlpExporter());
 
-using var host = builder.Build();
+var host = builder.Build();
+host.MapTarolHealth();                                             // /health/live, /health/ready, /health/tarol
 await host.StartAsync();
 var store = host.Services.GetRequiredService<NpgsqlAggregateStore>();
 var pipeline = host.Services.GetRequiredService<ChangePipeline>();

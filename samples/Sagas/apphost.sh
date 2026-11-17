@@ -10,8 +10,12 @@ export ASPNETCORE_URLS=http://localhost:18888 ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOIN
 ( cd "$dir" && exec timeout 420 dotnet ArtFlow.AppHost.dll > "$log" 2>&1 ) &
 apphost=$!
 api=http://localhost:5080
-for i in $(seq 1 240); do curl -sf "$api/health" >/dev/null && break; sleep 1; done
-echo "api /health: $(curl -s -o /dev/null -w '%{http_code}' "$api/health") after ${i}s; zitadel: $(docker ps --format '{{.Image}}' | grep zitadel)"
+worker=http://localhost:5081
+# step 15: readiness (the operations snapshot is fresh, the schema ensured, the checkpoint LISTEN up) is the wait condition
+for i in $(seq 1 240); do curl -sf "$api/health/ready" >/dev/null && break; sleep 1; done
+echo "api /health/ready: $(curl -s -o /dev/null -w '%{http_code}' "$api/health/ready") after ${i}s; zitadel: $(docker ps --format '{{.Image}}' | grep zitadel)"
+for i in $(seq 1 60); do curl -sf "$worker/health/ready" >/dev/null && break; sleep 1; done
+echo "worker /health/live $(curl -s -o /dev/null -w '%{http_code}' "$worker/health/live"), /health/ready $(curl -s -o /dev/null -w '%{http_code}' "$worker/health/ready")"
 token() { read -r _ _ cid sec _ < <(grep "^client $1 " "$zt/clients.txt")
   curl -s -u "$cid:$sec" -d grant_type=client_credentials --data-urlencode "scope=openid urn:zitadel:iam:org:projects:roles urn:zitadel:iam:user:resourceowner urn:zitadel:iam:org:project:id:$(cat "$zt/project.txt"):aud" \
     http://localhost:8080/oauth/v2/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])'; }
@@ -54,9 +58,15 @@ echo "projection checkpoint: $(q "SELECT name || ' v' || version || ' ' || state
 for i in $(seq 1 100); do n=$(q "SELECT count(*) FROM tarol.events WHERE type = 'day_report' AND (payload->>'settled')::int >= $count"); [ "${n:-0}" -ge 1 ] && break; sleep 1; done
 echo "job rows: $(q "SELECT string_agg(name || CASE WHEN tenant = '00000000-0000-0000-0000-000000000000' THEN '' ELSE ' (a tenant)' END || ' [' || schedule || '] next ' || to_char(next_at AT TIME ZONE 'UTC', 'HH24:MI:SS') || ' attempts ' || attempts, '; ' ORDER BY name) FROM tarol.jobs"); dead jobs: $(q "SELECT count(*) FROM tarol.jobs_dead")"
 echo "settlement reports: $(q "SELECT count(*) || ' by ' || string_agg(DISTINCT actor_kind || ' ' || actor_id, ', ') FROM tarol.events WHERE type = 'day_report'"), settled in the last: $(q "SELECT payload->>'settled' FROM tarol.events WHERE type = 'day_report' ORDER BY recorded_at DESC LIMIT 1"), keys: $(q "SELECT count(*) FROM tarol.idempotency_keys WHERE scope = 'job:SettlementReport'")"
+# step 15: the backlogs (never readiness) and the admin entry behind the tarol-admin role (alice has it, bob does not)
+echo "worker /health/tarol: $(curl -s "$worker/health/tarol" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["status"], "; ".join("%s %s (%s)" % (k, v["status"], v.get("description", "")) for k, v in sorted(d["checks"].items())))')"
+echo "admin: alice GET dead/reactions $(curl -s -o /dev/null -w '%{http_code}' "$api/tarol/admin/dead/reactions" -H "Authorization: Bearer $alice"), bob $(curl -s -o /dev/null -w '%{http_code}' "$api/tarol/admin/dead/reactions" -H "Authorization: Bearer $bob"), anonymous $(curl -s -o /dev/null -w '%{http_code}' "$api/tarol/admin/dead/reactions"); projections: $(curl -s "$api/tarol/admin/projections" -H "Authorization: Bearer $alice" | python3 -c 'import json,sys; print(", ".join("%s v%d %s" % (p["name"], p["version"], p["state"]) for p in json.load(sys.stdin)))')"
+echo "schema versions: store $(q "SELECT version || ' (compatible from ' || compatible_from || ')' FROM tarol.schema_version"), messages_dead $(q "SELECT version FROM tarol.messages_dead_version"), audit rows $(q "SELECT count(*) FROM tarol.operations_audit")"
 echo "dead letters: outbox $(q "SELECT count(*) FROM tarol.outbox_dead")/$(q "SELECT count(*) FROM tarol.outbox_dead" billingdb), messages $(q "SELECT count(*) FROM tarol.messages_dead")/$(q "SELECT count(*) FROM tarol.messages_dead" billingdb)"
 sleep 6
-curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; print("dashboard resources with traces:", sorted(r["name"] for r in json.load(sys.stdin) if r["hasTraces"]))'
+# metrics are exported once a minute (the OTLP exporter's default): wait for the first export of the api and the worker
+for i in $(seq 1 75); do curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; rs=json.load(sys.stdin); sys.exit(0 if {"api","worker"} <= {r["name"] for r in rs if r.get("hasMetrics")} else 1)' && break; sleep 1; done
+curl -s "http://localhost:18888/api/telemetry/resources" | python3 -c 'import json,sys; rs=json.load(sys.stdin); print("dashboard resources with traces:", sorted(r["name"] for r in rs if r["hasTraces"]), "with metrics:", sorted(r["name"] for r in rs if r.get("hasMetrics")))'
 curl -s "http://localhost:18888/api/telemetry/traces?limit=5000" > "$traces"
 python3 - "$traces" <<'PY'
 import json, sys, collections

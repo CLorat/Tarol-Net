@@ -43,6 +43,7 @@ var apiNative = Environment.GetEnvironmentVariable("ARTFLOW_API_NATIVE");
 var api = apiNative is null
     ? (IResourceBuilder<IResourceWithEnvironment>)builder.AddProject<Projects.Api>("api", launchProfileName: null).WithHttpEndpoint(port: 5080, name: "http", isProxied: false)
     : builder.AddExecutable("api", apiNative, Path.GetDirectoryName(apiNative)!).WithHttpEndpoint(port: 5080, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false).WithOtlpExporter();
+((IResourceBuilder<IResourceWithEndpoints>)api).WithHttpHealthCheck("/health/ready");      // step 15: ready = snapshot fresh, schema ensured, LISTEN up
 api.WithReference(db)
    .WithEnvironment("Zitadel__Authority", "http://localhost:8080")
    .WithEnvironment("Zitadel__ProjectFile", Path.Combine(zitadelDir, "project.txt"));
@@ -50,8 +51,11 @@ api.WithReference(db)
 
 var workerNative = Environment.GetEnvironmentVariable("ARTFLOW_WORKER_NATIVE");
 var worker = workerNative is null
-    ? (IResourceBuilder<IResourceWithEnvironment>)builder.AddProject<Projects.Worker>("worker").WithArgs("0")
-    : builder.AddExecutable("worker", workerNative, Path.GetDirectoryName(workerNative)!, "0").WithOtlpExporter();
+    ? (IResourceBuilder<IResourceWithEnvironment>)builder.AddProject<Projects.Worker>("worker", launchProfileName: null).WithArgs("0")
+        .WithHttpEndpoint(port: 5081, name: "http", isProxied: false)
+    : builder.AddExecutable("worker", workerNative, Path.GetDirectoryName(workerNative)!, "0")
+        .WithHttpEndpoint(port: 5081, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false).WithOtlpExporter();
+((IResourceBuilder<IResourceWithEndpoints>)worker).WithHttpHealthCheck("/health/ready");
 worker.WithReference(db).WithReference(broker)
     .WithEnvironment("Tarol__Jobs__SettlementReport__Cron", "* * * * *");   // the nightly report every minute, so a run shows it (J-2)
 ((IResourceBuilder<IResourceWithWaitSupport>)worker).WaitFor(db).WaitFor(broker);
