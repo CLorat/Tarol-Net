@@ -31,9 +31,12 @@ public sealed class OperationsTests(Postgres postgres)
     {
         var setup = await postgres.Create();
         await setup.Seed(10, TenantA);
-        var gate = new NpgsqlProjectionGate(postgres.DataSource, setup.Schema) { RetryEvery = TimeSpan.FromMilliseconds(100), CheckEvery = TimeSpan.FromMilliseconds(200) };
+        // two processes: the first notices a lost session after 2 s, the second asks every 100 ms, so the second takes over
+        // (a host that notices first may take its gate back; either way one host runs)
+        var slow = new NpgsqlProjectionGate(postgres.DataSource, setup.Schema) { CheckEvery = TimeSpan.FromSeconds(2) };
+        var gate = new NpgsqlProjectionGate(postgres.DataSource, setup.Schema) { RetryEvery = TimeSpan.FromMilliseconds(100) };
         var options = new ProjectionOptions { Poll = TimeSpan.FromMilliseconds(20) };
-        using var first = new ProjectionHost<AuctionRow>(setup.Store, setup.ReadModels.Store<AuctionRow>(), options, gate: gate);
+        using var first = new ProjectionHost<AuctionRow>(setup.Store, setup.ReadModels.Store<AuctionRow>(), options, gate: slow);
         using var second = new ProjectionHost<AuctionRow>(setup.Store, setup.ReadModels.Store<AuctionRow>(), options, gate: gate);
         await first.StartAsync(Ct);
         await Eventually(() => first.Position >= setup.Last, "the first host caught up");
@@ -44,7 +47,7 @@ public sealed class OperationsTests(Postgres postgres)
         (first.IsRunner, second.IsRunner, second.Position).ShouldBe((true, false, GlobalPosition.Start));   // the second only asks
 
         // the runner's session ends (a crash, a failover): its lock dies with it
-        var key = gate.Key(first.Name, first.Version);
+        var key = slow.Key(first.Name, first.Version);
         (await postgres.Scalar($"""
             SELECT count(pg_terminate_backend(l.pid)) FROM pg_locks l
             WHERE l.locktype = 'advisory' AND l.objsubid = 1 AND l.objid::bigint = (hashtext('{key}')::bigint & 4294967295)

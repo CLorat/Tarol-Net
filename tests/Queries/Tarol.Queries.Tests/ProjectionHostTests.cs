@@ -276,7 +276,7 @@ public sealed class ProjectionHostTests
     }
 
     [Fact]
-    public async Task With_a_gate_one_host_runs_and_another_takes_over_when_it_loses_the_gate()
+    public async Task With_a_gate_one_host_runs_and_another_takes_over_when_it_stops()
     {
         var test = ProjectionTest<AuctionRow>.Create();
         Seed(test, 3, A);
@@ -292,13 +292,32 @@ public sealed class ProjectionHostTests
 
         (first.IsRunner, second.IsRunner, second.Position).ShouldBe((true, false, GlobalPosition.Start));   // the second waited
 
-        gate.Break(first.Name, first.Version);                                            // the runner's session ended
+        await first.StopAsync(TestContext.Current.CancellationToken);                              // the runner stops: its gate is free
         Seed(test, 1, A);
         (await second.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
         second.IsRunner.ShouldBeTrue();
-        await first.StopAsync(TestContext.Current.CancellationToken);
+        first.IsRunner.ShouldBeFalse();
         await second.StopAsync(TestContext.Current.CancellationToken);
         test.Rows(A).Count.ShouldBe(6);
         first.Conflicts.ShouldBeLessThanOrEqualTo(1);                                               // the guard stays the safety net
+    }
+
+    [Fact]
+    public async Task A_host_that_lost_its_gate_stops_and_asks_again()
+    {
+        var test = ProjectionTest<AuctionRow>.Create();
+        Seed(test, 2, A);
+        var gate = new MemoryGate();
+        using var host = new ProjectionHost<AuctionRow>(test.Store!, test.ReadModels, new ProjectionOptions { Poll = TimeSpan.FromMilliseconds(5) }, gate: gate);
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        (await host.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
+
+        gate.Break(host.Name, host.Version);                                                        // its session ended
+        Seed(test, 1, A);                                                                           // it asks again, re-reads its checkpoint and goes on
+        (await host.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        host.IsRunner.ShouldBeFalse();                                                              // stopping released the gate
+        test.Rows(A).Count.ShouldBe(3);
     }
 }
