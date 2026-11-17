@@ -322,7 +322,7 @@ public sealed class NpgsqlJobRows : IJobRows
             SELECT count(*) FROM u
             """;
 
-        public string Move => Guarded("next_at = $4");
+        public string Move => Guarded("next_at = $4, attempts = 1, last_error = NULL");
 
         public string Extend => Guarded("lease_until = $4");
 

@@ -20,6 +20,9 @@
     <Project Path="src/Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
     <Project Path="src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj" />
   </Folder>
+  <Folder Name="/src/Jobs/">
+    <Project Path="src/Jobs/Tarol.Jobs/Tarol.Jobs.csproj" />
+  </Folder>
   <Folder Name="/src/Kernel/">
     <Project Path="src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj" />
     <Project Path="src/Kernel/Tarol.Kernel/Tarol.Kernel.csproj" />
