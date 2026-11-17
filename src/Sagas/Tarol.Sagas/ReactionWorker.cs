@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Tarol.Changes;
@@ -32,7 +33,14 @@ public sealed partial class ReactionWorker
     /// <summary>The name of the <see cref="ActivitySource"/> of reactions: add it to your tracing.</summary>
     public const string ActivitySourceName = "Tarol.Sagas";
 
+    /// <summary>The name of the reactions' meter (step 15): <c>tarol.reactions.runs</c>, <c>.duration</c>, <c>.lateness</c>.</summary>
+    public const string MeterName = "Tarol.Sagas";
+
     private static readonly ActivitySource Source = new(ActivitySourceName);
+    private static readonly Meter SharedMeter = new(MeterName);
+    private readonly Counter<long> _runs;
+    private readonly Histogram<double> _duration;
+    private readonly Histogram<double> _lateness;
 
     private readonly IOutbox _outbox;
     private readonly IOutboxRowHandler _rows;
@@ -51,8 +59,9 @@ public sealed partial class ReactionWorker
     /// <param name="time">The clock of retry times (the store's clock decides what is due).</param>
     /// <param name="options">Batch, lease, poll interval and policy.</param>
     /// <param name="logger">Logs retries, dead letters and lost leases; <see langword="null"/> = none.</param>
+    /// <param name="meters">Creates the meter <see cref="MeterName"/> (the host's <see cref="IMeterFactory"/>); <see langword="null"/> = a shared meter.</param>
     public ReactionWorker(IOutbox outbox, IOutboxRowHandler rows, ChangePipeline pipeline, TimeProvider time, ReactionOptions? options = null,
-        ILogger? logger = null)
+        ILogger? logger = null, IMeterFactory? meters = null)
     {
         ArgumentNullException.ThrowIfNull(outbox);
         ArgumentNullException.ThrowIfNull(rows);
@@ -66,6 +75,10 @@ public sealed partial class ReactionWorker
         _time = time;
         _options = options;
         _log = logger ?? NullLogger.Instance;
+        var meter = meters?.Create(MeterName) ?? SharedMeter;
+        _runs = meter.CreateCounter<long>("tarol.reactions.runs", "{row}", "Outbox rows handled, by reaction and outcome (completed, retried, buried).");
+        _duration = meter.CreateHistogram<double>("tarol.reactions.duration", "s", "Duration of a reaction row, its verdict included.");
+        _lateness = meter.CreateHistogram<double>("tarol.reactions.lateness", "s", "Start of a reaction row minus the time it was due.");
     }
 
     /// <summary>Claims one batch and handles it.</summary>
@@ -140,6 +153,9 @@ public sealed partial class ReactionWorker
         activity?.SetTag("tarol.stream.id", row.Event.Event.StreamId.ToString());
         activity?.SetTag("messaging.message.id", row.Event.Event.EventId.ToString());
         activity?.SetTag("tarol.attempt", row.Attempts);
+        var started = Stopwatch.GetTimestamp();
+        if (row.DueAt is { } due)
+            _lateness.Record(Math.Max(0, (_time.GetUtcNow() - due).TotalSeconds), new KeyValuePair<string, object?>("tarol.reaction", row.Reaction));
 
         Verdict verdict;
         string? reason = null;
@@ -174,6 +190,13 @@ public sealed partial class ReactionWorker
                 .ConfigureAwait(false),
             _ => await _outbox.Bury(row, reason ?? "", CancellationToken.None).ConfigureAwait(false),
         };
+        var tags = new TagList
+        {
+            { "tarol.reaction", row.Reaction },
+            { "tarol.outcome", verdict switch { Verdict.Done => "completed", Verdict.Retry => "retried", _ => "buried" } },
+        };
+        _runs.Add(1, tags);
+        _duration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds, tags);
         if (!kept)
             LeaseLost(_log, row.Reaction, row.Id, row.Attempts);
         else if (verdict == Verdict.Retry)

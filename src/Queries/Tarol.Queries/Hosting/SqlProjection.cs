@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Tarol.Persistence;
 
@@ -80,9 +81,12 @@ public sealed class SqlProjectionHost : ProjectionHost
     /// <param name="time">The clock of waits.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="signal">Wakes the host after a commit.</param>
+    /// <param name="gate">Lets one runner of the version work (step 15); <see langword="null"/> = every host runs.</param>
+    /// <param name="meters">Creates the meter <see cref="ProjectionHost.MeterName"/>; <see langword="null"/> = a shared meter.</param>
     public SqlProjectionHost(ISqlProjection projection, IEventFeed feed, ISqlProjectionStore store, ProjectionOptions? options = null,
-        TimeProvider? time = null, ILogger<SqlProjectionHost>? logger = null, IFeedSignal? signal = null)
-        : base(ArgumentNullThen(projection).Name, projection.Version, feed, options, time, logger, signal)
+        TimeProvider? time = null, ILogger<SqlProjectionHost>? logger = null, IFeedSignal? signal = null, IProjectionGate? gate = null,
+        IMeterFactory? meters = null)
+        : base(ArgumentNullThen(projection).Name, projection.Version, feed, options, time, logger, signal, gate, meters)
     {
         ArgumentNullException.ThrowIfNull(store);
         _projection = projection;

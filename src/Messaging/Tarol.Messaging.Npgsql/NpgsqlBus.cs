@@ -243,6 +243,29 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
         return (long)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
+    /// <summary>
+    /// The deliveries that wait for each subscription of <paramref name="application"/> (<c>&lt;application&gt;.*</c>, due or not):
+    /// the snapshot signal <c>tarol.messages.backlog</c> (step 15). A count per subscription: it scans the waiting deliveries
+    /// (acknowledged ones are deleted), once per poll, never per scrape.
+    /// </summary>
+    /// <param name="application">The application's name (the prefix of its subscriptions).</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>One entry per subscription with deliveries.</returns>
+    public async Task<IReadOnlyList<(string Subscription, long Count)>> Backlog(string application, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(application);
+        // starts_with, not a range: under a linguistic collation '.' and '/' do not sort by their code points
+        await using var command = _db.CreateCommand(
+            $"SELECT subscription, count(*) FROM {Schema}.deliveries WHERE starts_with(subscription, $1) GROUP BY subscription ORDER BY subscription");
+        command.Parameters.Add(new() { Value = application + "." });
+        var list = new List<(string, long)>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                list.Add((reader.GetString(0), reader.GetInt64(1)));
+        return list;
+    }
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {

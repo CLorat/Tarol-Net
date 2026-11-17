@@ -26,6 +26,13 @@ public sealed record NpgsqlReadModelOptions
     /// <c>Checkpoint</c> from memory. Set it in the worker (it sends) and in the API process (it listens).
     /// </summary>
     public bool PushCheckpoints { get; init; }
+
+    /// <summary>
+    /// One runner per projection version (step 15, O-8; default <see langword="true"/>): the hosts of every process take a
+    /// session advisory lock (<see cref="NpgsqlProjectionGate"/>); the others wait and take over when the runner stops. Off:
+    /// every host runs and the checkpoint guard refuses all but one batch (4 runners wasted 75 % of their batches).
+    /// </summary>
+    public bool SingleRunner { get; init; } = true;
 }
 
 /// <summary>The PostgreSQL read stores on the <see cref="TarolBuilder"/>.</summary>
@@ -65,6 +72,11 @@ public static class NpgsqlQueriesTarolBuilderExtensions
                 : null);
         });
         builder.Services.TryAddSingleton<IFeedSignal>(static provider => (IFeedSignal?)provider.GetRequiredService<FeedSignalSlot>().Signal ?? NoSignal.Instance);
+        if (options.SingleRunner)
+            builder.Services.TryAddSingleton<IProjectionGate>(provider => new NpgsqlProjectionGate(dataSource(provider),
+                provider.GetRequiredService<NpgsqlReadModels>().Schema, provider.GetService<TimeProvider>()));
+        builder.Services.AddSingleton(new OperationsSignal(OperationsSignals.Meter, OperationsSignals.ProjectionsLag, "s",
+            "Feed head time minus the time of each projection's checkpoint (its newest version).", static (provider, ct) => ProjectionLag(provider, ct)));
         if (push)
         {
             builder.Services.TryAddSingleton(provider => new NpgsqlProjectionPositions(dataSource(provider),
@@ -73,6 +85,33 @@ public static class NpgsqlQueriesTarolBuilderExtensions
             builder.Services.TryAddSingleton<IProjectionPositions>(static provider => provider.GetRequiredService<NpgsqlProjectionPositions>());
         }
         return builder.AddProjectionPositions();
+    }
+
+    /// <summary>
+    /// The lag of each projection's newest version in seconds (step 15): recorded time of the feed head minus that of the
+    /// checkpoint's event (of the first event while nothing was handled); index lookups on <c>events_feed</c> and the event's key.
+    /// Needs the PostgreSQL store in the same database; without one there are no values.
+    /// </summary>
+    private static async Task<IReadOnlyList<SignalValue>> ProjectionLag(IServiceProvider provider, CancellationToken cancellationToken)
+    {
+        if (provider.GetService<NpgsqlAggregateStore>() is not { } store)
+            return [];
+        var models = provider.GetRequiredService<NpgsqlReadModels>();
+        var (s, rm) = (store.Schema, models.Schema);
+        await using var command = models.DataSource.CreateCommand($"""
+            WITH head AS (SELECT recorded_at FROM {s}.events ORDER BY tx_id DESC, position DESC LIMIT 1),
+                 first AS (SELECT recorded_at FROM {s}.events ORDER BY tx_id, position LIMIT 1),
+                 p AS (SELECT DISTINCT ON (name) name, tx, pos FROM {rm}.projections ORDER BY name, version DESC)
+            SELECT p.name, coalesce(extract(epoch FROM (SELECT recorded_at FROM head)
+                     - coalesce((SELECT e.recorded_at FROM {s}.events e WHERE e.tx_id = p.tx AND e.position = p.pos), (SELECT recorded_at FROM first))), 0)::float8
+            FROM p ORDER BY p.name
+            """);
+        var values = new List<SignalValue>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                values.Add(new SignalValue(Math.Max(0, reader.GetDouble(1)), "tarol.projection", reader.GetString(0)));
+        return values;
     }
 
     // DI cannot register "no service" from a factory; the slot holds the signal or null, NoSignal polls.

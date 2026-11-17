@@ -273,6 +273,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `outbox_dead` and `jobs_dead`. `Tarol.Messaging.Npgsql`: the bus and `messages_dead` on the same upgrader
   (`NpgsqlBusSchema.Definition/UpgradeScript`, `DeadLettersVersion` 2 with `messages_dead_version`, `NpgsqlBusOptions.SchemaMode`).
 
+* Step 15B (docs/migration/operations.md §16, O-1, O-3, O-6, O-8): operations contracts in `Tarol.Persistence`
+  (`OperationsSignal`, `IDeadLetterSource`, `DeadLetterQuery` keyset paging, `DeadLetterPage`); `Discard` and paged dead letters
+  on `IOutbox`, `IJobRows`, `IMessageDeadLetters`, `IOutbox.OldestDue`; audited re-drive and discard on PostgreSQL
+  (`operations_audit`); meters `Tarol.Changes`, `Tarol.Sagas`, `Tarol.Jobs`, `Tarol.Queries`, `Tarol.Messaging` from
+  `IMeterFactory`; `ActivitySource "Tarol.Changes"` (one span per pipeline run) and logs 7001–7003; the snapshot signals of the
+  stores, the bus and the read models; `IProjectionGate` and `NpgsqlProjectionGate`; `NpgsqlTracing.TraceOnlyInActivities`.
+
 ### Fixed
 
 * `Tarol.Sagas`: a reaction that ran while the host was shutting down was not completed (the verdict used the stopping
@@ -281,6 +288,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* Step 15B (announced in docs/migration/operations.md §10): the data sources `UseNpgsqlStore(connectionString)` and
+  `UseNpgsqlBus(connectionString)` build trace Npgsql commands only inside an activity (`TraceRootCommands` opts out);
+  `UseNpgsqlReadModels` lets one host per projection version run (`SingleRunner`, on by default); `DropVersion` gives up
+  after its lock timeouts (`TimeoutException`); `UseNpgsqlStore(Func)` registers its data source; the ports `IOutbox`,
+  `IJobRows`, `IMessageDeadLetters` gain members (implementers must add them); `tarol.authorization.denied` has the unit
+  `{request}`.
 * Step 15A (announced in docs/migration/operations.md §10): `EnsureSchema` of the store, the bus and `messages_dead` takes a
   polled advisory lock (6 concurrent first starts no longer fail), runs the version 1 script only on an unversioned schema,
   and **accepts a newer schema while it is compatible** (`compatible_from` ≤ the package's version) instead of refusing any

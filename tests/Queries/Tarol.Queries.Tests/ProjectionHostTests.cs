@@ -220,4 +220,104 @@ public sealed class ProjectionHostTests
             head = e.Position;
         return head;
     }
+    // ------------------------------------------------------------------------------------------------- step 15 (O-1, O-8)
+
+    [Fact]
+    public async Task Every_batch_counts_its_events_and_outcome_and_a_refused_one_is_refused()
+    {
+        using var meters = new Tarol.Testing.Metrics.Measurements();
+        var test = ProjectionTest<AuctionRow>.Create(options: new ProjectionOptions { Batch = 4 });
+        Seed(test, 6, A);
+        var mine = new ProjectionHost<AuctionRow>(test.Store!, test.ReadModels, new ProjectionOptions { Batch = 4 }, meters: meters);
+        var other = new ProjectionHost<AuctionRow>(test.Store!, test.ReadModels, new ProjectionOptions { Batch = 4 });
+
+        (await mine.RunOnce(TestContext.Current.CancellationToken)).ShouldBe(4);
+        (await other.RunOnce(TestContext.Current.CancellationToken)).ShouldBe(4);
+        (await mine.RunOnce(TestContext.Current.CancellationToken)).ShouldBe(4);                    // refused: the other moved it
+
+        meters.Of("tarol.projections.batches").Select(m => ((string)m.Tags["tarol.projection"]!, (string)m.Tags["tarol.outcome"]!))
+            .ShouldBe([(mine.Name, "written"), (mine.Name, "refused")]);
+        meters.Of("tarol.projections.events").Select(m => m.Value).ShouldBe([4, 4]);
+        meters.Of("tarol.projections.batch.duration").ShouldAllBe(m => m.Unit == "s");
+        meters.All.ShouldAllBe(m => m.Meter == ProjectionHost.MeterName);
+    }
+
+    /// <summary>A gate in memory: one holder per (name, version) at a time.</summary>
+    private sealed class MemoryGate : IProjectionGate
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<(string, int), Lease> _held = new();
+
+        public TimeSpan RetryEvery => TimeSpan.FromMilliseconds(10);
+
+        public void Break(string name, int version)
+        {
+            if (_held.TryRemove((name, version), out var lease))
+                lease.Lost = true;
+        }
+
+        public ValueTask<IProjectionGateLease?> TryEnter(string name, int version, CancellationToken cancellationToken)
+        {
+            var lease = new Lease(this, (name, version));
+            return ValueTask.FromResult<IProjectionGateLease?>(_held.TryAdd((name, version), lease) ? lease : null);
+        }
+
+        private sealed class Lease(MemoryGate gate, (string, int) key) : IProjectionGateLease
+        {
+            public bool Lost { get; set; }
+
+            public ValueTask<bool> Held(CancellationToken cancellationToken) => ValueTask.FromResult(!Lost);
+
+            public ValueTask DisposeAsync()
+            {
+                _ = gate._held.TryRemove(new KeyValuePair<(string, int), Lease>(key, this));
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task With_a_gate_one_host_runs_and_another_takes_over_when_it_stops()
+    {
+        var test = ProjectionTest<AuctionRow>.Create();
+        Seed(test, 3, A);
+        var gate = new MemoryGate();
+        var options = new ProjectionOptions { Poll = TimeSpan.FromMilliseconds(5) };
+        using var first = new ProjectionHost<AuctionRow>(test.Store!, test.ReadModels, options, gate: gate);
+        using var second = new ProjectionHost<AuctionRow>(test.Store!, test.ReadModels, options, gate: gate);
+        await first.StartAsync(TestContext.Current.CancellationToken);
+        (await first.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
+        await second.StartAsync(TestContext.Current.CancellationToken);
+        Seed(test, 2, A);
+        (await first.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
+
+        (first.IsRunner, second.IsRunner, second.Position).ShouldBe((true, false, GlobalPosition.Start));   // the second waited
+
+        await first.StopAsync(TestContext.Current.CancellationToken);                              // the runner stops: its gate is free
+        Seed(test, 1, A);
+        (await second.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
+        second.IsRunner.ShouldBeTrue();
+        first.IsRunner.ShouldBeFalse();
+        await second.StopAsync(TestContext.Current.CancellationToken);
+        test.Rows(A).Count.ShouldBe(6);
+        first.Conflicts.ShouldBeLessThanOrEqualTo(1);                                               // the guard stays the safety net
+    }
+
+    [Fact]
+    public async Task A_host_that_lost_its_gate_stops_and_asks_again()
+    {
+        var test = ProjectionTest<AuctionRow>.Create();
+        Seed(test, 2, A);
+        var gate = new MemoryGate();
+        using var host = new ProjectionHost<AuctionRow>(test.Store!, test.ReadModels, new ProjectionOptions { Poll = TimeSpan.FromMilliseconds(5) }, gate: gate);
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        (await host.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
+
+        gate.Break(host.Name, host.Version);                                                        // its session ended
+        Seed(test, 1, A);                                                                           // it asks again, re-reads its checkpoint and goes on
+        (await host.WaitFor(await Head(test.Store!), TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).ShouldBeTrue();
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        host.IsRunner.ShouldBeFalse();                                                              // stopping released the gate
+        test.Rows(A).Count.ShouldBe(3);
+    }
 }

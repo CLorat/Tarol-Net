@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -32,7 +33,9 @@ public sealed class ProjectionsBuilder
             Options(configure),
             provider.GetService<TimeProvider>(),
             provider.GetService<ILogger<ProjectionHost<TRow>>>(),
-            provider.GetService<IFeedSignal>()));
+            provider.GetService<IFeedSignal>(),
+            provider.GetService<IProjectionGate>(),
+            provider.GetService<IMeterFactory>()));
         Services.AddSingleton<ProjectionHost>(static provider => provider.GetRequiredService<ProjectionHost<TRow>>());
         Services.AddSingleton<IHostedService>(static provider => provider.GetRequiredService<ProjectionHost<TRow>>());
         return this;
@@ -84,7 +87,9 @@ public sealed class ProjectionsBuilder
                     options,
                     provider.GetService<TimeProvider>(),
                     provider.GetService<ILogger<SqlProjectionHost>>(),
-                    provider.GetService<IFeedSignal>());
+                    provider.GetService<IFeedSignal>(),
+                    provider.GetService<IProjectionGate>(),
+                    provider.GetService<IMeterFactory>());
         }
     }
 }

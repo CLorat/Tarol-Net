@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -9,8 +10,10 @@ namespace Tarol.Persistence.Npgsql;
 public static class NpgsqlTarolBuilderExtensions
 {
     /// <summary>
-    /// The PostgreSQL store on a data source built from <paramref name="connectionString"/> (slim, arrays enabled; disposed
-    /// with the container). The builder's reactions and JSON options are used unless <paramref name="options"/> sets them.
+    /// The PostgreSQL store on a data source built from <paramref name="connectionString"/> (slim, arrays enabled, Npgsql spans
+    /// only inside an activity unless <see cref="NpgsqlStoreOptions.TraceRootCommands"/>; registered as the
+    /// <see cref="NpgsqlDataSource"/>, disposed with the container). The builder's reactions and JSON options are used unless
+    /// <paramref name="options"/> sets them.
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="connectionString">The connection string.</param>
@@ -21,11 +24,21 @@ public static class NpgsqlTarolBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        builder.Services.AddSingleton(_ => new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays().Build());
+        var traceRoots = options?.TraceRootCommands ?? false;
+        builder.Services.AddSingleton(_ =>
+        {
+            var source = new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays();
+            if (!traceRoots)
+                source.TraceOnlyInActivities();                                                     // O-6: no root spans from idle polls
+            return source.Build();
+        });
         return builder.UseNpgsqlStore(static provider => provider.GetRequiredService<NpgsqlDataSource>(), options, ensureSchema);
     }
 
-    /// <summary>The PostgreSQL store on a data source the application provides (e.g. from Aspire's integration).</summary>
+    /// <summary>
+    /// The PostgreSQL store on a data source the application provides (e.g. from Aspire's integration). Registers it as the
+    /// <see cref="NpgsqlDataSource"/> unless one is registered already (step 15), so the read models and the dead letters find it.
+    /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="dataSource">Resolves the data source; it needs arrays enabled.</param>
     /// <param name="options">Schema, lookups, notify, …</param>
@@ -36,6 +49,9 @@ public static class NpgsqlTarolBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(dataSource);
+        // the read models (UseNpgsqlReadModels) and the dead letters (UseNpgsqlDeadLetters) resolve NpgsqlDataSource: register
+        // the store's unless the application (or Aspire's integration) did (operations.md §5 item 13)
+        builder.Services.TryAddSingleton(dataSource);
         builder.UseStore(provider =>
         {
             var configured = options ?? new NpgsqlStoreOptions();
@@ -45,6 +61,8 @@ public static class NpgsqlTarolBuilderExtensions
                 StateOptions = configured.StateOptions ?? builder.Json,
             }, provider.GetService<ILoggerFactory>()?.CreateLogger<NpgsqlAggregateStore>());
         }, static store => store.Outbox, static store => store.Jobs);
+        foreach (var signal in NpgsqlStoreSignals.All)
+            builder.Services.AddSingleton(signal);
         if (ensureSchema)
             builder.Services.AddHostedService(static provider => new EnsureSchemaService(provider.GetRequiredService<NpgsqlAggregateStore>()));
         return builder;

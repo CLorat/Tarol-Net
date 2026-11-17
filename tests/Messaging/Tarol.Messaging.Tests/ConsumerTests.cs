@@ -3,6 +3,7 @@ using Shop;
 using Tarol.Changes;
 using Tarol.Kernel;
 using Tarol.Options;
+using Tarol.Persistence;
 using Tarol.Sagas;
 using Tarol.StronglyTypedId;
 
@@ -307,5 +308,7 @@ public sealed class ConsumerTests
         public Task Add(string subscription, Incoming incoming, string reason, CancellationToken cancellationToken) => throw new IOException("the database is down");
         public Task<IReadOnlyList<DeadMessage>> List(int max, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<DeadMessage>>([]);
         public Task<DeadMessage?> Take(long id, CancellationToken cancellationToken) => Task.FromResult<DeadMessage?>(null);
+        public Task<IReadOnlyList<DeadMessage>> List(DeadLetterQuery query, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<DeadMessage>>([]);
+        public Task<bool> Discard(long id, CancellationToken cancellationToken) => Task.FromResult(false);
     }
 }

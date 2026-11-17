@@ -148,6 +148,13 @@ var then = await test.Later(TimeSpan.FromDays(8)).When(new SettleAuction(auction
 // then.Result, then.Events (what this change committed), then.Recorded (with the operation context), test.Load(id)
 ```
 
+## Operations (step 15)
+
+Every run is one `Internal` span `change <Name>` of the `ActivitySource` `"Tarol.Changes"` and one count of
+`tarol.changes.runs` / one `tarol.changes.duration` on the meter `"Tarol.Changes"`, tagged `tarol.change` and
+`tarol.outcome` (`committed`, `conflict`, `invalid`, `denied`, `not_found`, `error`); never the tenant. Logs 7001 (error
+result), 7002 (conflict, Debug), 7003 (exception). The meter comes from the host's `IMeterFactory`.
+
 ## AOT
 
 No reflection: the pipeline is generic over the aggregate (static abstracts), the dispatcher is a generated `switch`, and

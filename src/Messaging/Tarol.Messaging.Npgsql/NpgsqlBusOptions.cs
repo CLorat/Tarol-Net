@@ -19,6 +19,13 @@ public sealed record NpgsqlBusOptions
     /// </summary>
     public Tarol.Persistence.Npgsql.SchemaMode SchemaMode { get; init; } = Tarol.Persistence.Npgsql.SchemaMode.Upgrade;
 
+    /// <summary>
+    /// Trace every Npgsql command of the data source that <c>UseNpgsqlBus(connectionString)</c> builds, also outside an activity
+    /// (default <see langword="false"/>: an idle consumer's polls make no root spans; O-6). Ignored for a data source the
+    /// application provides.
+    /// </summary>
+    public bool TraceRootCommands { get; init; }
+
     /// <summary>The <c>lock_timeout</c> of each upgrade step (default 2 s), retried up to 5 times.</summary>
     public TimeSpan SchemaLockTimeout { get; init; } = TimeSpan.FromSeconds(2);
 

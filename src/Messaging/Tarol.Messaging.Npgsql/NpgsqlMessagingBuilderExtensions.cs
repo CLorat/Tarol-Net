@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Tarol.Persistence;
+using Tarol.Persistence.Npgsql;
 
 namespace Tarol.Messaging.Npgsql;
 
@@ -24,8 +25,15 @@ public static class NpgsqlMessagingBuilderExtensions
         options ??= new NpgsqlBusOptions();
         options.Validate();
         AddRetention(messaging, options);
-        return messaging.UseTransport(provider => new NpgsqlBus(new NpgsqlSlimDataSourceBuilder(connectionString).Build(), ownsDataSource: true,
-            provider.GetRequiredService<TimeProvider>(), options, provider.GetService<ILogger<NpgsqlBus>>()));
+        AddBacklog(messaging);
+        return messaging.UseTransport(provider =>
+        {
+            var source = new NpgsqlSlimDataSourceBuilder(connectionString);
+            if (!options.TraceRootCommands)
+                source.TraceOnlyInActivities();                                                     // O-6: no root spans from idle polls
+            return new NpgsqlBus(source.Build(), ownsDataSource: true, provider.GetRequiredService<TimeProvider>(), options,
+                provider.GetService<ILogger<NpgsqlBus>>());
+        });
     }
 
     /// <summary>Uses the in-database bus on a data source the application provides (e.g. the store's, or Aspire's).</summary>
@@ -40,9 +48,21 @@ public static class NpgsqlMessagingBuilderExtensions
         options ??= new NpgsqlBusOptions();
         options.Validate();
         AddRetention(messaging, options);
+        AddBacklog(messaging);
         return messaging.UseTransport(provider => new NpgsqlBus(dataSource(provider), provider.GetRequiredService<TimeProvider>(), options,
             provider.GetService<ILogger<NpgsqlBus>>()));
     }
+
+    /// <summary>The bus backlog per subscription as a snapshot signal (step 15): a count of the deliveries, read once per poll.</summary>
+    private static void AddBacklog(MessagingBuilder messaging)
+        => messaging.Tarol.Services.AddSingleton(new OperationsSignal(OperationsSignals.Meter, OperationsSignals.MessagesBacklog, "{message}",
+            "Deliveries waiting on the PostgreSQL bus, per subscription of this application.", static async (provider, ct) =>
+            {
+                if (provider.GetRequiredService<IMessageTransport>() is not NpgsqlBus bus)
+                    return [];
+                var application = provider.GetRequiredService<MessagingOptions>().Application;
+                return [.. (await bus.Backlog(application, ct).ConfigureAwait(false)).Select(static b => new SignalValue(b.Count, "tarol.subscription", b.Subscription))];
+            }));
 
     /// <summary>The name of the bus retention's system job (J-9).</summary>
     public const string PurgeMessagesJob = "tarol.purge-messages";
@@ -81,6 +101,11 @@ public static class NpgsqlMessagingBuilderExtensions
         messaging.UseDeadLetters(provider => new NpgsqlMessageDeadLetters(
             dataSource?.Invoke(provider) ?? provider.GetRequiredService<NpgsqlDataSource>(), provider.GetRequiredService<TimeProvider>(), schema,
             provider.GetService<ILogger<NpgsqlMessageDeadLetters>>()));
+        messaging.Tarol.Services.AddSingleton(new OperationsSignal(OperationsSignals.Meter, OperationsSignals.MessagesDead, "{message}",
+            "Dead consumer messages (messages_dead).", static async (provider, ct) =>
+                provider.GetRequiredService<IMessageDeadLetters>() is NpgsqlMessageDeadLetters dead
+                    ? [new SignalValue(await dead.Count(ct).ConfigureAwait(false))]
+                    : []));
         if (ensureSchema)
             messaging.Tarol.Services.AddHostedService(static provider => new EnsureDeadLetters((NpgsqlMessageDeadLetters)provider.GetRequiredService<IMessageDeadLetters>()));
         return messaging;

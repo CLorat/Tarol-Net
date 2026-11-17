@@ -43,7 +43,8 @@ public sealed class CloseAuctionRule : ChangeHandler<CloseAuction, Auction>
   (`ChangeHandler<Read<Auction>, Auction>` + `context.Succeed(requirement)`).
 * **Context**: `requirement.Context` holds the operation, the time and the change's `[Read]` aggregates.
 * **Audit**: every denial is a warning log (event 1001: change, aggregate, id, actor kind and id, reason) and the counter
-  `tarol.authorization.denied` (tags `change`, `reason`, `actor.kind`) on the meter `Tarol.Security`. No events.
+  `tarol.authorization.denied` (unit `{request}`, tags `change`, `reason`, `actor.kind`) on the meter `Tarol.Security`, created
+  from the host's `IMeterFactory` (step 15). No events.
 * **Authentication** stays the application's (JwtBearer, schemes, claims transformations); roles are read with
   `ClaimsPrincipal.IsInRole`.
 * Works without a web host (`AddAuthorizationCore`); Native-AOT ready, no reflection. Handlers are singletons.

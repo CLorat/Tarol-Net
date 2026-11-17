@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -38,7 +39,7 @@ public abstract partial class ProjectionHost : BackgroundService
     private long _conflicts;
 
     private protected ProjectionHost(string name, int version, IEventFeed feed, ProjectionOptions? options, TimeProvider? time, ILogger? logger,
-        IFeedSignal? signal)
+        IFeedSignal? signal, IProjectionGate? gate, IMeterFactory? meters)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);
@@ -52,7 +53,28 @@ public abstract partial class ProjectionHost : BackgroundService
         _time = time ?? TimeProvider.System;
         _log = logger ?? NullLogger.Instance;
         _signal = signal;
+        _runnerGate = gate;
+        var meter = meters?.Create(MeterName) ?? SharedMeter;
+        _events = meter.CreateCounter<long>("tarol.projections.events", "{event}", "Feed events in projection batches, by outcome (written, refused).");
+        _batches = meter.CreateCounter<long>("tarol.projections.batches", "{batch}", "Projection batches, by outcome (written, refused).");
+        _batchDuration = meter.CreateHistogram<double>("tarol.projections.batch.duration", "s", "Duration of a projection batch: read, apply, write.");
     }
+
+    /// <summary>The name of the projections' meter (step 15).</summary>
+    public const string MeterName = "Tarol.Queries";
+
+    private static readonly Meter SharedMeter = new(MeterName);
+    private readonly IProjectionGate? _runnerGate;
+    private readonly Counter<long> _events;
+    private readonly Counter<long> _batches;
+    private readonly Histogram<double> _batchDuration;
+    private IProjectionGateLease? _lease;
+
+    /// <summary>
+    /// Whether this host runs batches: it holds the projection's gate (<see cref="IProjectionGate"/>, step 15), or there is no
+    /// gate. A host without the gate waits and asks again every <see cref="IProjectionGate.RetryEvery"/>.
+    /// </summary>
+    public bool IsRunner => _runnerGate is null || Volatile.Read(ref _lease) is not null;
 
     /// <summary>The projection's name.</summary>
     public string Name { get; }
@@ -112,12 +134,17 @@ public abstract partial class ProjectionHost : BackgroundService
             return 0;
 
         var to = events.Count > 0 ? events[^1].Position : current.Position;
+        var started = Stopwatch.GetTimestamp();
         using var activity = Source.StartActivity(ActivityKind.Internal, default(ActivityContext), name: "project " + Name);
         activity?.SetTag("tarol.projection", Name);
         activity?.SetTag("tarol.projection.version", Version);
         activity?.SetTag("tarol.events", events.Count);
         var (written, rows) = await Write(events, current.Position, to, state, cancellationToken).ConfigureAwait(false);
         activity?.SetTag("tarol.rows", rows);
+        var tags = new TagList { { "tarol.projection", Name }, { "tarol.outcome", written ? "written" : "refused" } };
+        _batches.Add(1, tags);
+        _events.Add(events.Count, tags);
+        _batchDuration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds, tags);
         if (!written)
         {
             Interlocked.Increment(ref _conflicts);
@@ -189,10 +216,50 @@ public abstract partial class ProjectionHost : BackgroundService
     {
         var poll = _options.PollFor(_signal is not null);
         var failures = 0;
+        try
+        {
+            await Loop(poll, failures, stoppingToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (Interlocked.Exchange(ref _lease, null) is { } lease)
+                await lease.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Holds the gate before a batch (step 15, O-8): false = another runner works, wait and ask again.</summary>
+    private async ValueTask<bool> Gate(CancellationToken cancellationToken)
+    {
+        if (_runnerGate is null)
+            return true;
+        if (_lease is { } held)
+        {
+            if (await held.Held(cancellationToken).ConfigureAwait(false))
+                return true;
+            Volatile.Write(ref _lease, null);
+            await held.DisposeAsync().ConfigureAwait(false);
+            GateLost(_log, Name, Version);
+        }
+        var lease = await _runnerGate.TryEnter(Name, Version, cancellationToken).ConfigureAwait(false);
+        if (lease is null)
+            return false;
+        _loaded = false;                                                               // the previous runner moved the checkpoint
+        Volatile.Write(ref _lease, lease);
+        GateTaken(_log, Name, Version);
+        return true;
+    }
+
+    private async Task Loop(TimeSpan poll, int failures, CancellationToken stoppingToken)
+    {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (!await Gate(stoppingToken).ConfigureAwait(false))
+                {
+                    await Task.Delay(_runnerGate!.RetryEvery, _time, stoppingToken).ConfigureAwait(false);
+                    continue;
+                }
                 var read = await RunOnce(stoppingToken).ConfigureAwait(false);
                 failures = 0;
                 if (read >= _options.Batch)
@@ -235,6 +302,12 @@ public abstract partial class ProjectionHost : BackgroundService
     /// <summary>Applies and writes a batch with the guarded checkpoint move; whether it was written and how many rows changed.</summary>
     private protected abstract ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition to,
         ProjectionState state, CancellationToken cancellationToken);
+
+    [LoggerMessage(EventId = 12010, Level = LogLevel.Information, Message = "Projection {Projection} v{Version}: this host is the runner")]
+    private static partial void GateTaken(ILogger logger, string projection, int version);
+
+    [LoggerMessage(EventId = 12011, Level = LogLevel.Warning, Message = "Projection {Projection} v{Version}: the runner's gate was lost; asking again")]
+    private static partial void GateLost(ILogger logger, string projection, int version);
 
     [LoggerMessage(EventId = 12001, Level = LogLevel.Warning, Message = "Projection {Projection} v{Version}: batch {Failures} failed; trying again in {Wait}")]
     private static partial void BatchFailed(ILogger logger, Exception exception, string projection, int version, int failures, TimeSpan wait);

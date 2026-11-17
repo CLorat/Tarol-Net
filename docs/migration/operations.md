@@ -714,3 +714,129 @@ At `9291f8f` (the code of this PR), in a separate detached worktree, with Docker
   script and `EnsureSchema(VerifyOnly)` of `Tarol.Persistence.Npgsql.AotSmoke` natively);
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
 * the repeated runs of §15.4: 10 of 10 each.
+
+## 16. Implementation 15B: instruments, logs and traces per package; dead-letter paging; the projection gate
+
+`instruments, logs and traces per package; dead-letter paging; the projection gate`, stacked on 15A. Labels as in the conventions.
+
+### 16.1 Public API
+
+`Tarol.Persistence` (the contracts of O-7):
+* `OperationsSignal(Meter, Name, Unit, Description, Read)`, `SignalValue(Value, TagName?, TagValue?)`, `OperationsSignals` (the
+  meter `Tarol.Operations` and the gauge names);
+* `IDeadLetterSource` (`Kind`, `List`, `Redrive(id, actor)`, `Discard(id, actor)`), `DeadLetterQuery` (`After`, `Limit` 1–200,
+  `Tenant`, `Name`), `DeadLetterPage(Items, Next)`, `DeadLetterItem`, `DeadLetterKinds`; `DeadLetter.ToItem()`, `DeadJob.ToItem()`;
+* `IOutbox.DeadLetters(DeadLetterQuery)`, `Discard(id)`, `OldestDue()`; `IJobRows.DeadJobs(DeadLetterQuery)`, `Discard(id)`;
+  `OutboxRow.DueAt` (init property). `UseStore` registers an `IDeadLetterSource` for the outbox and the job rows (the store's own
+  when it implements one); `UseInMemoryStore` the in-memory signals.
+
+`Tarol.Persistence.Npgsql`: `NpgsqlOutbox` and `NpgsqlJobRows` implement `IDeadLetterSource` (audited); `NpgsqlTracing.TraceOnlyInActivities()`;
+`NpgsqlStoreOptions.TraceRootCommands`; the snapshot signals (registered by `UseNpgsqlStore`); `UseNpgsqlStore(Func)` registers
+the data source (`TryAdd`).
+
+`Tarol.Messaging`: `IMessageDeadLetters.List(DeadLetterQuery)`, `Discard(id)`, and the default methods `Take(id, actor)`,
+`Discard(id, actor)`; `DeadMessage.Tenant`, `ToItem()`; `InMemoryMessageDeadLetters.Count`; `MessageConsumers.Redrive(id, actor)`,
+`MeterName`; optional `IMeterFactory` on `MessageConsumers` and `MessagePublisher`. `AddMessaging` registers the `messages`
+source; `UseInMemoryDeadLetters` its signal. `Tarol.Messaging.Npgsql`: `NpgsqlMessageDeadLetters` paging, `Count`, audited
+`Take`/`Discard`; `NpgsqlBus.Backlog(application)`; `NpgsqlBusOptions.TraceRootCommands`; signals `tarol.messages.backlog`, `.dead`.
+
+`Tarol.Changes`: `ChangePipeline.ActivitySourceName`, `MeterName` (`"Tarol.Changes"`), optional `ILogger<ChangePipeline>` and
+`IMeterFactory`; logs 7001 (error result, Warning), 7002 (conflict, Debug), 7003 (exception, Error).
+
+`Tarol.Sagas`: `ReactionWorker.MeterName`, optional `IMeterFactory` on `ReactionWorker` and `ReactionHost`. `Tarol.Jobs`:
+`JobHost.MeterName`. `Tarol.Queries`: `IProjectionGate`, `IProjectionGateLease`, `ProjectionHost.MeterName`, `IsRunner`, optional
+`gate` and `meters` on both hosts; logs 12010 (this host is the runner), 12011 (the gate was lost). `Tarol.Queries.Npgsql`:
+`NpgsqlProjectionGate` (`RetryEvery` 1 s, `CheckEvery` 5 s, `Key`), `NpgsqlReadModelOptions.SingleRunner` (true),
+`NpgsqlReadModels.DropLockTimeout` (200 ms), `DropAttempts` (5); signal `tarol.projections.lag`. `Tarol.Security`: optional
+`IMeterFactory` on `ChangeAuthorization`.
+
+| Meter | Instruments |
+|---|---|
+| `Tarol.Changes` | `tarol.changes.runs` `{change}`, `tarol.changes.duration` `s`; `tarol.change`, `tarol.outcome` (committed, conflict, invalid, denied, not_found, error) |
+| `Tarol.Sagas` | `tarol.reactions.runs` `{row}`, `.duration`, `.lateness` `s`; `tarol.reaction`, `tarol.outcome` (completed, retried, buried) |
+| `Tarol.Jobs` | `tarol.jobs.occurrences` `{occurrence}`, `.duration`, `.lateness` `s`; `tarol.job`, `tarol.outcome` (ran, retried, dead, skipped) |
+| `Tarol.Queries` | `tarol.projections.events` `{event}`, `.batches` `{batch}`, `.batch.duration` `s`; `tarol.projection`, `tarol.outcome` (written, refused) |
+| `Tarol.Messaging` | `tarol.messages.consumed` `{message}`, `.duration` `s` (`tarol.consumer`; completed, dropped, retried, buried); `tarol.messages.published` (`tarol.contract`; published, skipped, failed) |
+| `Tarol.Security` | `tarol.authorization.denied` now `{request}`, from `IMeterFactory` |
+| `Tarol.Operations` (signals; gauges in 15C) | `tarol.reactions.backlog`, `.oldest_due`, `.dead`; `tarol.jobs.overdue`, `.dead`; `tarol.projections.lag`; `tarol.messages.dead`, `.backlog` |
+
+### 16.2 Deliberate differences from §6 and §11
+
+| Sketch | Built | Why |
+|---|---|---|
+| `DeadLetterQuery` positional | init properties with validation (`Limit` 1–200, `After` ≥ 0) | a positional record cannot validate |
+| audit "in the same statement" | reactions: the re-drive's CTE (`DELETE … RETURNING` → `INSERT INTO outbox` and `INSERT INTO operations_audit`) inside the existing transaction with the stream lock; jobs and messages one statement | the outbox re-drive needs its stream lock first (S-8) |
+| the ports' `Redrive`/`Discard(id)` audit | only the `IDeadLetterSource` acts (with an actor) audit; the ports stay unaudited | an actor is needed for an audit row; the ports are for code |
+| the messages source in `Tarol.Messaging.Npgsql` | in `Tarol.Messaging` over `IMessageDeadLetters` + `MessageConsumers`, with default interface methods `Take(id, actor)` / `Discard(id, actor)` that `messages_dead` overrides | a re-drive runs the consumer, which lives in `Tarol.Messaging`; nothing references upward |
+| messages `Tenant` filter | the envelope header `ce-tenant` (`headers->>'ce-tenant'`) | `messages_dead` has no tenant column |
+| `UseNpgsqlReadModels` resolves `NpgsqlDataSource` (open, §14) | `UseNpgsqlStore(Func)` registers its data source with `TryAdd` | registered rather than documented; an Aspire registration wins |
+| the gate in `Tarol.Queries.Npgsql` | the hosts in `Tarol.Queries` take an `IProjectionGate`; `Tarol.Queries.Npgsql` registers `NpgsqlProjectionGate` | the loop is generic; any store can supply a gate |
+| the gate holds its lock | the lease pings its connection every `CheckEvery` (5 s) and the host asks again when it is gone | a terminated session is only noticed on the next command |
+| `DropVersion` failure | `TimeoutException` after `DropAttempts`; "in use in this process" stays `InvalidOperationException` | 15C maps both to 409 |
+| bus backlog on the `deliveries_due` index | `starts_with(subscription, '<app>.')` and a count | a range `[app., app/)` matched nothing under a linguistic collation (found by the test) |
+| lateness for every reaction | from `OutboxRow.DueAt`, which both stores fill at the claim | no extra query |
+| new event ids 12010/12011 | in `Tarol.Queries` (free: 12001–12003 and 12101–12103 are taken) | the gate's log lines belong to the host |
+
+### 16.3 Changes against steps 7–14
+
+| Where | Change | Kind |
+|---|---|---|
+| `IOutbox`, `IJobRows`, `IMessageDeadLetters` | new members (paging, `Discard`, `OldestDue`) | **breaking for implementers** of the ports (Tarol's own and the test doubles updated); callers unaffected |
+| `UseNpgsqlStore(connectionString)`, `UseNpgsqlBus(connectionString)` | Npgsql traces commands only inside an activity | **behaviour: fewer Npgsql spans** (operations.md §10); `TraceRootCommands = true` restores |
+| `UseNpgsqlReadModels` | `SingleRunner` on: one host per projection version runs | **behaviour** (operations.md §10, O-8); `SingleRunner = false` restores |
+| `NpgsqlReadModels.DropVersion` | `lock_timeout` 200 ms, 5 attempts, then `TimeoutException` | behaviour: it no longer waits behind readers |
+| `UseNpgsqlStore(Func)` | registers `NpgsqlDataSource` unless one is | additive registration |
+| `ChangeAuthorization` | the counter's unit `{request}`, an instance meter from `IMeterFactory` | metadata |
+| `ChangePipeline`, `ReactionWorker`, `ReactionHost`, `MessageConsumers`, `MessagePublisher`, `ProjectionHost<TRow>`, `SqlProjectionHost`, `ChangeAuthorization` | optional trailing parameters (`ILogger`, `IMeterFactory`, `IProjectionGate`) | source compatible |
+| `IOutbox.Pending` | documented as a full count | docs |
+
+### 16.4 Tests
+
+* Contracts (memory, PostgreSQL, upgraded version 1 schema): outbox paging by id with tenant and reaction filters, discard,
+  `OldestDue` (claimed heads count, scheduled rows only when due, `DueAt` on the claim); job-rows paging, filters, discard.
+* `Tarol.Persistence.Npgsql.IntegrationTests.OperationsTests` (5): audited re-drive and discard of reactions and jobs (rows, actor,
+  target, detail); the store's signals on a populated schema (oldest due 120 s, 3 dead, backlog 1 after `ANALYZE`, a job 120 s
+  overdue); the root filter (`ActivityListener` on `Npgsql`, a marker query: idle 0 roots, inside an activity 1 child;
+  `TraceRootCommands` 1 root); the data source registered by `UseNpgsqlStore(Func)` unless one is.
+* `Tarol.Messaging.Npgsql.IntegrationTests`: `messages_dead` paging by id, subscription and `ce-tenant`, audited take and discard;
+  the bus backlog per subscription of the application (not of `artflowx.*`).
+* Instruments through a per-test `IMeterFactory` (`tests/Shared/Metrics/Measurements.cs`): names, units, outcome tags and only
+  the declared tag keys (never the tenant) for changes, reactions (lateness 42 s on a fake clock), jobs (one occurrence through
+  the job host), projections (written and refused), messages (a poison message buried), authorization (`{request}`).
+* Spans: `change CreateAuction` is `Internal` under the caller's activity; the change a reaction runs is the child of
+  `reaction MarkPayoutDue`.
+* The gate: in memory, one host runs and the other takes over when it stops; a host whose gate breaks asks again and goes on; on
+  PostgreSQL two hosts, the runner's session terminated (`pg_terminate_backend` on its advisory lock), the second takes over,
+  the first notices, 20 rows exact, bounded by events (30 s caps). `DropVersion` behind a reader (alone: it holds a transaction):
+  `TimeoutException`, a reader arriving meanwhile waits < 1 s. The lag signal: 0, 45 s after a commit 45 s later, 0 after the
+  catch-up.
+
+**Repeated in Release, alone [verified]**: the PostgreSQL gate, lag and drop tests 10 × 3 of 3; the in-memory gate and batch tests
+10 × 3 of 3 (after the fix of `be422cf`: the first version broke the runner's gate and expected the other host to take over; the
+host that lost it won it back in 5 of 10 runs, correct behaviour, wrong test); the store's operations tests 10 × 5 of 5.
+
+### 16.5 Skill checklist
+
+| Skill | Added | Task to check |
+|---|---|---|
+| `tarol-changes` | span, meter, outcome tags, logs 7001–7003 | "trace and count my changes" → `AddSource/AddMeter("Tarol.*")`, no own wrapper span |
+| `tarol-sagas` | meter, lateness, alert on `oldest_due`, paging | "alert on stuck reactions" → `tarol.reactions.oldest_due`, not `Pending` |
+| `tarol-jobs` | meter, paging and discard of dead jobs | "list all dead jobs" → `DeadJobs(DeadLetterQuery)` with `After` |
+| `tarol-queries-npgsql` | rules 7–9: the gate, `DropVersion` timeout, lag | "run two workers" → nothing to do (`SingleRunner`); "drop v1" → after old pods are gone |
+| `tarol-persistence`, `tarol-persistence-npgsql` | contracts; root filter, signals, audited sources | "my own data source spams spans" → `TraceOnlyInActivities()` |
+| `tarol-messaging` | meter, paging, audited re-drive | "re-drive a dead message as a person" → `Redrive(id, actor)` |
+
+### 16.6 Suppressions
+
+None.
+
+### 16.7 Verification (SDK 11.0.100, 2026-11-17) **[verified]**
+
+At `be422cf` (the code of this PR), in a separate detached worktree, with Docker and the smoke containers:
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx` with Docker: **1684 of 1684** (15A's 1650, + 34: the contract additions on three stores, the
+  operations tests of the store, bus, read models and packages, the gate and drop tests);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **22 apps, 0 IL warnings**, all checks passed;
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the repeated runs of §16.4: 10 of 10 each.

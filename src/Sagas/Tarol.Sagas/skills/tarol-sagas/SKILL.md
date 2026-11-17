@@ -105,5 +105,11 @@ builder.Services.AddTarolReactions(GeneratedReactions.Set, o => o.PurgeKeys = st
 
 No reflection: the set is generated, the worker calls the pipeline through the generated switch. Hosting, DI and
 logging come from .NET 11's base framework (no package reference). Traces: add the `ActivitySource` `"Tarol.Sagas"`;
-each reaction is a Consumer activity linked to the request that committed its event. Logs: event ids 9001 (retry),
-9002 (dead letter), 9003 (lease lost), 9004 (loop failure), 9010/9011 (key purge).
+each reaction is a Consumer activity linked to the request that committed its event, and the change it runs is its
+child (`change <Name>`, source `"Tarol.Changes"`). Metrics (step 15): meter `"Tarol.Sagas"` (`ReactionWorker.MeterName`):
+`tarol.reactions.runs` (`{row}`, tags `tarol.reaction`, `tarol.outcome` = completed | retried | buried),
+`tarol.reactions.duration` and `tarol.reactions.lateness` (start − due) in seconds; never the tenant. Export everything
+with `AddMeter("Tarol.*")` / `AddSource("Tarol.*")`. Alert on the gauge `tarol.reactions.oldest_due` (`Tarol.Operations`),
+not on `IOutbox.Pending` (a full count). Dead letters: `IOutbox.DeadLetters(new DeadLetterQuery { After, Limit, Tenant,
+Name })` pages by id; `Redrive(id)`, `Discard(id)`. Logs: event ids 9001 (retry), 9002 (dead letter), 9003 (lease
+lost), 9004 (loop failure), 9010/9011 (key purge).

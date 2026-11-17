@@ -31,8 +31,8 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
     /// <summary>The code of a refusal no rule explained (nothing granted the change).</summary>
     public const string ForbiddenCode = "Auth.Forbidden";
 
-    private static readonly Meter Meter = new(MeterName);
-    private static readonly Counter<long> Denied = Meter.CreateCounter<long>("tarol.authorization.denied", description: "Changes and reads refused by authorization.");
+    private static readonly Meter SharedMeter = new(MeterName);
+    private readonly Counter<long> _denied;
 
     private readonly IAuthorizationService _authorization;
     private readonly ILogger _log;
@@ -40,11 +40,13 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
     /// <summary>Creates the authorization.</summary>
     /// <param name="authorization">ASP.NET Core's authorization service (<c>AddAuthorizationCore</c>).</param>
     /// <param name="logger">The denial log.</param>
-    public ChangeAuthorization(IAuthorizationService authorization, ILogger<ChangeAuthorization>? logger = null)
+    /// <param name="meters">Creates the meter <see cref="MeterName"/> (the host's <see cref="IMeterFactory"/>, step 15); <see langword="null"/> = a shared meter.</param>
+    public ChangeAuthorization(IAuthorizationService authorization, ILogger<ChangeAuthorization>? logger = null, IMeterFactory? meters = null)
     {
         ArgumentNullException.ThrowIfNull(authorization);
         _authorization = authorization;
         _log = (ILogger?)logger ?? NullLogger.Instance;
+        _denied = (meters?.Create(MeterName) ?? SharedMeter).CreateCounter<long>("tarol.authorization.denied", "{request}", "Changes and reads refused by authorization.");
     }
 
     /// <inheritdoc />
@@ -63,7 +65,7 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
         var code = anonymous ? RequiredCode : reason ?? ForbiddenCode;
         var name = Name(change);
         var actor = context.Operation.Actor;
-        Denied.Add(1, new KeyValuePair<string, object?>("change", name), new KeyValuePair<string, object?>("reason", code),
+        _denied.Add(1, new KeyValuePair<string, object?>("change", name), new KeyValuePair<string, object?>("reason", code),
             new KeyValuePair<string, object?>("actor.kind", actor.Kind.ToString()));
         Refused(_log, name, typeof(T).Name, aggregate.Id.Value, actor.Kind, actor.Id, code);
         return anonymous ? Error.Unauthorized(RequiredCode) : Error.Forbidden(code);
@@ -82,7 +84,7 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
         var anonymous = principal.Identity?.IsAuthenticated != true;
         var code = anonymous ? RequiredCode : result.Failure?.FailureReasons.FirstOrDefault()?.Message ?? ForbiddenCode;
         var actor = context.Operation.Actor;
-        Denied.Add(1, new KeyValuePair<string, object?>("change", "List<" + typeof(T).Name + ">"), new KeyValuePair<string, object?>("reason", code),
+        _denied.Add(1, new KeyValuePair<string, object?>("change", "List<" + typeof(T).Name + ">"), new KeyValuePair<string, object?>("reason", code),
             new KeyValuePair<string, object?>("actor.kind", actor.Kind.ToString()));
         ListRefused(_log, typeof(T).Name, actor.Kind, actor.Id, code);
         return anonymous ? Error.Unauthorized(RequiredCode) : Error.Forbidden(code);

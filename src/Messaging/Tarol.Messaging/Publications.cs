@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -237,6 +238,7 @@ public sealed partial class MessagePublisher : IOutboxRowHandler
     private readonly JsonSerializerOptions _json;
     private readonly ILogger _log;
     private readonly Lock _gate = new();
+    private readonly Counter<long> _published;
     private Task? _prepared;
 
     /// <summary>Creates the publisher.</summary>
@@ -244,7 +246,8 @@ public sealed partial class MessagePublisher : IOutboxRowHandler
     /// <param name="transport">The transport.</param>
     /// <param name="json">The application's JSON options (its source-generated context lists the contract records).</param>
     /// <param name="logger">Logs skipped publications; <see langword="null"/> = none.</param>
-    public MessagePublisher(PublicationSet set, IMessageTransport transport, JsonSerializerOptions json, ILogger? logger = null)
+    /// <param name="meters">Creates the meter <see cref="MessageConsumers.MeterName"/>; <see langword="null"/> = a shared meter.</param>
+    public MessagePublisher(PublicationSet set, IMessageTransport transport, JsonSerializerOptions json, ILogger? logger = null, IMeterFactory? meters = null)
     {
         ArgumentNullException.ThrowIfNull(set);
         ArgumentNullException.ThrowIfNull(transport);
@@ -253,6 +256,8 @@ public sealed partial class MessagePublisher : IOutboxRowHandler
         _transport = transport;
         _json = json;
         _log = logger ?? NullLogger.Instance;
+        _published = (meters?.Create(MessageConsumers.MeterName) ?? MessageConsumers.SharedMeter)
+            .CreateCounter<long>("tarol.messages.published", "{message}", "Publications handed to the transport, by contract and outcome (published, skipped, failed).");
     }
 
     /// <summary>The publications.</summary>
@@ -287,6 +292,7 @@ public sealed partial class MessagePublisher : IOutboxRowHandler
         if (_set.Map(reaction, recorded, _json) is not { } data)
         {
             NotPublished(_log, info.Contract, info.Version, recorded.EventId);
+            _published.Add(1, new TagList { { "tarol.contract", info.Contract }, { "tarol.outcome", "skipped" } });
             return done;
         }
         var activity = Activity.Current;
@@ -303,8 +309,10 @@ public sealed partial class MessagePublisher : IOutboxRowHandler
         {
             lock (_gate)
                 _prepared = null;                                                   // a lost topology is declared again
+            _published.Add(1, new TagList { { "tarol.contract", info.Contract }, { "tarol.outcome", "failed" } });
             throw;                                                                  // the worker retries the row
         }
+        _published.Add(1, new TagList { { "tarol.contract", info.Contract }, { "tarol.outcome", "published" } });
         Published?.Invoke(message);
         return done;
     }

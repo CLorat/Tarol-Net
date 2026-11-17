@@ -57,6 +57,13 @@ public sealed record NpgsqlStoreOptions
     /// </summary>
     public TimeSpan SchemaLockTimeout { get; init; } = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// Trace every Npgsql command of the data source that <c>UseNpgsqlStore(connectionString)</c> builds, also outside an
+    /// activity (default <see langword="false"/>: only inside one, <see cref="NpgsqlTracing.TraceOnlyInActivities"/>; O-6).
+    /// Ignored for a data source the application provides.
+    /// </summary>
+    public bool TraceRootCommands { get; init; }
+
     /// <summary>The unique lookups; share one instance with the in-memory store of your tests.</summary>
     public StoreLookups Lookups { get; init; } = new();
 }

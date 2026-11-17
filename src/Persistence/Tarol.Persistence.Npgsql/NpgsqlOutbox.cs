@@ -1,4 +1,5 @@
 using Npgsql;
+using NpgsqlTypes;
 using Tarol.Kernel;
 using Tarol.Options;
 using Tarol.StronglyTypedId;
@@ -21,7 +22,7 @@ namespace Tarol.Persistence.Npgsql;
 /// listens on one connection per outbox; it costs writers throughput (docs/migration/sagas.md §4.3), so it is opt-in.
 /// Dispose the outbox to close that connection.
 /// </remarks>
-public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
+public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IAsyncDisposable
 {
     private readonly NpgsqlDataSource _db;
     private readonly EventCodec _codec;
@@ -64,10 +65,11 @@ public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
             var rows = new List<OutboxRow>();
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                var recorded = RecordedEvents.Read(reader, 6, _codec);
+                var recorded = RecordedEvents.Read(reader, 7, _codec);
                 rows.Add(new OutboxRow(reader.GetInt64(0), reader.GetGuid(1), reader.GetString(2), recorded.Event.Context.Tenant,
                     reader.GetInt32(3), reader.IsDBNull(4) ? Option.None : reader.GetString(4), recorded,
-                    reader.IsDBNull(5) ? Option.None : reader.GetString(5)));
+                    reader.IsDBNull(5) ? Option.None : reader.GetString(5))
+                { DueAt = reader.GetFieldValue<DateTimeOffset>(6) });
             }
             return rows;
         }
@@ -104,6 +106,22 @@ public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(max);
         await using var command = _db.CreateCommand(_sql.DeadLetters);
         Add(command, max);
+        return await ReadDead(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DeadLetter>> DeadLetters(DeadLetterQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await using var command = _db.CreateCommand(_sql.DeadPage);
+        Add(command, query.After, query.Limit);
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Uuid, Value = query.Tenant.TryGetValue(out Id<ITenant> t) ? t.Value : DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)query.Name ?? DBNull.Value });
+        return await ReadDead(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<DeadLetter>> ReadDead(NpgsqlCommand command, CancellationToken cancellationToken)
+    {
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))
         {
@@ -120,7 +138,57 @@ public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<bool> Redrive(long id, CancellationToken cancellationToken)
+    public Task<bool> Discard(long id, CancellationToken cancellationToken) => Discard(id, null, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<Option<DateTimeOffset>> OldestDue(CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(_sql.OldestDue);
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) && !reader.IsDBNull(0)
+                ? reader.GetFieldValue<DateTimeOffset>(0)
+                : Option.None;
+    }
+
+    /// <summary>The kind of these dead letters: <see cref="DeadLetterKinds.Reactions"/>.</summary>
+    string IDeadLetterSource.Kind => DeadLetterKinds.Reactions;
+
+    /// <inheritdoc />
+    async Task<DeadLetterPage> IDeadLetterSource.List(DeadLetterQuery query, CancellationToken cancellationToken)
+    {
+        var rows = await DeadLetters(query, cancellationToken).ConfigureAwait(false);
+        return new DeadLetterPage([.. rows.Select(static d => d.ToItem())], rows.Count == query.Limit ? rows[^1].Id : null);
+    }
+
+    /// <inheritdoc />
+    Task<bool> IDeadLetterSource.Redrive(long id, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        return Redrive(id, actor, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    Task<bool> IDeadLetterSource.Discard(long id, string actor, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        return Discard(id, actor, cancellationToken);
+    }
+
+    private async Task<bool> Discard(long id, string? actor, CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(actor is null ? _sql.Discard : _sql.DiscardAudited);
+        Add(command, id);
+        if (actor is not null)
+            Add(command, _time.GetUtcNow().UtcDateTime, actor);
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is 1L;
+    }
+
+    /// <inheritdoc />
+    public Task<bool> Redrive(long id, CancellationToken cancellationToken) => Redrive(id, null, cancellationToken);
+
+    private async Task<bool> Redrive(long id, string? actor, CancellationToken cancellationToken)
     {
         var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using (connection.ConfigureAwait(false))
@@ -137,9 +205,12 @@ public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
                 }
                 if (reaction is null)
                     return false;
-                await using var redrive = new NpgsqlCommand(_sql.Redrive, connection, transaction);
-                Add(redrive, id, _time.GetUtcNow(), _reactions?.IsScheduled(reaction) ?? false);
-                var moved = await redrive.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+                var now = _time.GetUtcNow();
+                await using var redrive = new NpgsqlCommand(actor is null ? _sql.Redrive : _sql.RedriveAudited, connection, transaction);
+                Add(redrive, id, now, _reactions?.IsScheduled(reaction) ?? false);
+                if (actor is not null)
+                    Add(redrive, actor);
+                var moved = await redrive.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is 1L;
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 return moved;
             }
@@ -261,8 +332,8 @@ public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
             u AS (
                 UPDATE {schema}.outbox o SET claim_id = gen_random_uuid(), lease_until = $3, attempts = o.attempts + 1
                 FROM c WHERE o.id = c.id
-                RETURNING o.id, o.claim_id, o.reaction, o.attempts, o.last_error, o.event_id)
-            SELECT u.id, u.claim_id, u.reaction, u.attempts, u.last_error, e.traceparent, {RecordedEvents.Columns("e")}
+                RETURNING o.id, o.claim_id, o.reaction, o.attempts, o.last_error, o.event_id, o.due_at)
+            SELECT u.id, u.claim_id, u.reaction, u.attempts, u.last_error, e.traceparent, u.due_at, {RecordedEvents.Columns("e")}
             FROM u JOIN {schema}.events e ON e.event_id = u.event_id
             ORDER BY u.id
             """;
@@ -303,14 +374,47 @@ public sealed class NpgsqlOutbox : IOutbox, IAsyncDisposable
             FOR NO KEY UPDATE OF s
             """;
 
-        public string Redrive => $"""
-            WITH d AS (DELETE FROM {schema}.outbox_dead WHERE id = $1 RETURNING tenant, reaction, type, stream_id, version, event_id)
-            INSERT INTO {schema}.outbox (tenant, reaction, type, stream_id, version, event_id, due_at, head)
-            SELECT d.tenant, d.reaction, d.type, d.stream_id, d.version, d.event_id, $2,
-                   $3 OR NOT EXISTS (SELECT 1 FROM {schema}.outbox p
-                                     WHERE p.tenant = d.tenant AND p.type = d.type AND p.stream_id = d.stream_id AND p.reaction = d.reaction)
-            FROM d
+        private string RedriveOf(string audit) => $"""
+            WITH d AS (DELETE FROM {schema}.outbox_dead WHERE id = $1 RETURNING id, tenant, reaction, type, stream_id, version, event_id),
+            i AS (INSERT INTO {schema}.outbox (tenant, reaction, type, stream_id, version, event_id, due_at, head)
+                  SELECT d.tenant, d.reaction, d.type, d.stream_id, d.version, d.event_id, $2,
+                         $3 OR NOT EXISTS (SELECT 1 FROM {schema}.outbox p
+                                           WHERE p.tenant = d.tenant AND p.type = d.type AND p.stream_id = d.stream_id AND p.reaction = d.reaction)
+                  FROM d RETURNING 1){audit}
+            SELECT count(*) FROM i
             """;
+
+        public string Redrive => RedriveOf("");
+
+        // the audit row in the same statement (O-3): DELETE … RETURNING feeds it
+        public string RedriveAudited => RedriveOf(Audit("redrive", "$2", "$4"));
+
+        private string Audit(string action, string at, string actor) => $"""
+            ,
+            a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
+                  SELECT {at}, {actor}, '{action}', 'reactions:' || d.id,
+                         jsonb_build_object('reaction', d.reaction, 'tenant', d.tenant, 'stream', d.type || '/' || d.stream_id, 'event', d.event_id) FROM d)
+            """;
+
+        private const string DeadColumns = "d.id, d.reaction, d.tenant, d.type, d.stream_id, d.event_id, d.attempts, d.last_error, d.dead_at";
+
+        public string DeadPage => $"""
+            SELECT {DeadColumns} FROM {schema}.outbox_dead d
+            WHERE d.id > $1 AND ($3::uuid IS NULL OR d.tenant = $3) AND ($4::text IS NULL OR d.reaction = $4)
+            ORDER BY d.id LIMIT $2
+            """;
+
+        private string DiscardOf(string audit) => $"""
+            WITH d AS (DELETE FROM {schema}.outbox_dead WHERE id = $1 RETURNING id, tenant, reaction, type, stream_id, event_id){audit}
+            SELECT count(*) FROM d
+            """;
+
+        public string Discard => DiscardOf("");
+
+        public string DiscardAudited => DiscardOf(Audit("discard", "$2", "$3"));
+
+        // the oldest due head: an index lookup on outbox_heads (due_at, id) WHERE head
+        public string OldestDue => $"SELECT min(due_at) FROM {schema}.outbox WHERE head AND due_at <= $1";
 
         public string Pending => $"SELECT count(*) FROM {schema}.outbox";
     }

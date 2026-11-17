@@ -29,7 +29,15 @@ description: >-
    poll and a poll after every reconnect as the fallback). `Checkpoint<TRow>` then costs no round trip and
    `WaitFor` (`Tarol-Read-After`) wakes on the notification instead of polling every 5 ms. `Tarol.Caching` needs it.
    `IsListening` tells a health check whether the connection is up.
-7. An `ISqlProjection` runs its statements on the `connection` and `transaction` it is given, keys its rows by tenant
+7. **One runner per projection version** (step 15, on by default, `NpgsqlReadModelOptions.SingleRunner`): every host
+   asks `NpgsqlProjectionGate` (a session `pg_try_advisory_lock` on its own connection); the others wait (`IsRunner`
+   false) and take over within a second when the runner's session ends. Scale workers freely; the checkpoint guard stays.
+8. **`DropVersion`** has a `lock_timeout` (`DropLockTimeout` 200 ms, `DropAttempts` 5) and throws `TimeoutException` while
+   another session still reads the table; drop only after no pod of the old version runs (else readers fail with `42P01`).
+9. **Lag**: the snapshot signal `tarol.projections.lag` (seconds, tag `tarol.projection`) and the meter `"Tarol.Queries"`
+   (`tarol.projections.events`, `.batches`, `.batch.duration`, outcome written | refused). A data source the application
+   provides to `UseNpgsqlStore(Func)` is registered as `NpgsqlDataSource` for the read models.
+10. An `ISqlProjection` runs its statements on the `connection` and `transaction` it is given, keys its rows by tenant
    first, and creates its tables in `Prepare` with `CREATE TABLE IF NOT EXISTS`.
 
 ## Example
@@ -80,6 +88,8 @@ public sealed class SellerTotals(string schema) : ISqlProjection
 | `PushCheckpoints` only in the API process | the worker sends nothing: `Checkpoint` moves only with the 1 s poll, cached lists lag up to 1 s |
 | `PushCheckpoints` behind a pooler in transaction mode (PgBouncer) | `LISTEN` needs a session: the positions fall back to the 1 s poll; give the read models a direct data source |
 | an `ISqlProjection` that opens its own connection | its writes commit apart from the checkpoint: no longer exactly once |
+| `SingleRunner = false` with several workers | every host runs, the guard refuses all but one batch (75 % wasted with 4) |
+| `DropVersion` while old pods still run | `TimeoutException` (they read it), or later `42P01` in those pods |
 | `DateTimeOffset` parameters with an offset in your own SQL | Npgsql refuses them for `timestamptz`: pass `ToUniversalTime()` |
 
 ## AOT

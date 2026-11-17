@@ -112,6 +112,15 @@ await foreach (var e in store.ReadAll(GlobalPosition.Start, 100, ct))
 | a renamed event without `[EventType]` pin or upcaster | `InvalidOperationException` on load: "no upcaster moves it" |
 | `AppJson.Default.Options` with value objects in events | TVAL009; use `ValueObjectJson.Options(AppJson.Default)` |
 
+## Operations contracts (step 15)
+
+* `IOutbox.DeadLetters(DeadLetterQuery)` / `IJobRows.DeadJobs(DeadLetterQuery)`: keyset pages (`After` = the last id,
+  `Limit` ≤ 200, `Tenant`, `Name`); `Discard(id)` deletes one for good; `IOutbox.OldestDue()` is the backlog's age (alert
+  on it, not on `Pending`, a count of every row).
+* A package registers `OperationsSignal` singletons (one number of the snapshot, read once per poll by
+  `Tarol.Operations`, never per scrape) and `IDeadLetterSource`s (kinds `reactions`, `jobs`, `messages`); `UseStore`
+  registers the store's. Names are `tarol.<area>.<what>` (`OperationsSignals`), tags never the tenant.
+
 ## AOT
 
 No reflection: the store calls the aggregate's generated static members and writes JSON through the options you pass;

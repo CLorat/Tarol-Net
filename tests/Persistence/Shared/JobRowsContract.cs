@@ -335,4 +335,29 @@ public abstract class JobRowsContract
         (await rows.Move(row, at.AddSeconds(1), Ct)).ShouldBeTrue();
         (await rows.Rows(Ct)).Single().NextAt.UtcTicks.ShouldBe(at.AddSeconds(1).UtcTicks);
     }
+    // ------------------------------------------------------------------------------------------------- step 15 (O-3)
+
+    [Fact]
+    public async Task Dead_jobs_page_by_id_and_filter_by_tenant_and_name_and_a_discarded_one_is_gone()
+    {
+        var a = Id<ITenant>.New();
+        var rows = await Create(Time);
+        _ = await rows.Sync([Nightly(Start, a), Nightly(Start), new JobSchedule("Hourly", a, "0 * * * * UTC", true, Start)], Ct);
+        for (var i = 0; i < 3; i++)
+            (await rows.Bury(await Claimed(rows), Start.AddDays(1), "gave up", Ct)).ShouldBeTrue();
+
+        var first = await rows.DeadJobs(new DeadLetterQuery { Limit = 2 }, Ct);
+        var second = await rows.DeadJobs(new DeadLetterQuery { Limit = 2, After = first[^1].Id }, Ct);
+        (first.Count, second.Count).ShouldBe((2, 1));
+        first.Concat(second).Select(d => d.Id).ShouldBe(first.Concat(second).Select(d => d.Id).Order());
+        (await rows.DeadJobs(new DeadLetterQuery { Tenant = a }, Ct)).Count.ShouldBe(2);
+        (await rows.DeadJobs(new DeadLetterQuery { Name = "Hourly" }, Ct)).ShouldHaveSingleItem().Tenant.ShouldBe(Option.Some(a));
+        (await rows.DeadJobs(new DeadLetterQuery { Tenant = a, Name = "Nightly" }, Ct)).ShouldHaveSingleItem();
+
+        var gone = second.Single().Id;
+        (await rows.Discard(gone, Ct)).ShouldBeTrue();
+        (await rows.Discard(gone, Ct)).ShouldBeFalse();
+        (await rows.Redrive(gone, Ct)).ShouldBeFalse();
+        (await rows.DeadJobs(new DeadLetterQuery(), Ct)).Count.ShouldBe(2);
+    }
 }

@@ -70,6 +70,12 @@ var page = await readModels.Store<AuctionRow>().Search(new ListQuery(tenant)
 | TQRY003 | a `When` that takes no event of the projection's one aggregate, a second parameter other than `RecordedEvent`, or returns another type |
 | TQRY004 | `[Sort]` on a member without a non-nullable column |
 
+## Operations (step 15)
+
+Meter `"Tarol.Queries"`: `tarol.projections.events`, `tarol.projections.batches` (outcome written | refused),
+`tarol.projections.batch.duration`. `IProjectionGate` lets one host of a projection version run (`IsRunner`); the
+PostgreSQL read stores provide one.
+
 ## Links
 
 * Concept: `docs/architecture/queries.md`; decisions QR-1 … QR-7: `docs/migration/queries.md`.

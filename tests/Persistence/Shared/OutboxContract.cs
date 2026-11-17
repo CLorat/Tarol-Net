@@ -236,4 +236,84 @@ public abstract class OutboxContract
 
         (await Task.WhenAny(wait, Task.Delay(TimeSpan.FromSeconds(30), TimeProvider.System, Ct))).ShouldBe(wait);
     }
+    // ------------------------------------------------------------------------------------------------- step 15 (O-3)
+
+    private static async Task<Member> JoinedAs(IAggregateStore store, OperationContext context)
+    {
+        var member = Member.Join(Id<Member>.New(), "");
+        member.Earn(1).ShouldBe(Result.Success());
+        (await store.Append(member, 0, context, Option.None, Ct)).ToResult().ShouldBe(Result.Success());
+        AggregateChanges.Committed(member);
+        return member;
+    }
+
+    [Fact]
+    public async Task Dead_letters_page_by_id_and_filter_by_tenant_and_reaction()
+    {
+        var (store, outbox) = await Create();
+        var bob = OperationContext.Start(Actor.User("bob"), Id<ITenant>.New(), TimeProvider.System);
+        for (var i = 0; i < 3; i++)
+            _ = await JoinedAs(store, Alice);
+        for (var i = 0; i < 2; i++)
+            _ = await JoinedAs(store, bob);
+        foreach (var row in await outbox.Claim(100, Lease, Ct))                 // Welcome and Notify of each member (Remind is not due)
+            (await outbox.Bury(row, "gave up", Ct)).ShouldBeTrue();
+
+        var all = new List<DeadLetter>();
+        var query = new DeadLetterQuery { Limit = 4 };
+        while (true)
+        {
+            var page = await outbox.DeadLetters(query, Ct);
+            page.Count.ShouldBeLessThanOrEqualTo(4);
+            all.AddRange(page);
+            if (page.Count < 4)
+                break;
+            query = query with { After = page[^1].Id };
+        }
+        all.Count.ShouldBe(10);
+        all.Select(d => d.Id).ShouldBe(all.Select(d => d.Id).Order(), "keyset: by id");
+        all.Select(d => d.Id).Distinct().Count().ShouldBe(10);
+        (await outbox.DeadLetters(new DeadLetterQuery { Tenant = bob.Tenant, Limit = 200 }, Ct)).Count.ShouldBe(4);
+        (await outbox.DeadLetters(new DeadLetterQuery { Name = "Welcome", Limit = 200 }, Ct)).Count.ShouldBe(5);
+        (await outbox.DeadLetters(new DeadLetterQuery { Tenant = bob.Tenant, Name = "Welcome" }, Ct)).ShouldAllBe(d => d.Reaction == "Welcome" && d.Tenant == bob.Tenant);
+        (await outbox.DeadLetters(new DeadLetterQuery { After = all[^1].Id }, Ct)).ShouldBeEmpty();
+        Should.Throw<ArgumentOutOfRangeException>(() => new DeadLetterQuery { Limit = DeadLetterQuery.MaxLimit + 1 });
+        Should.Throw<ArgumentOutOfRangeException>(() => new DeadLetterQuery { After = -1 });
+    }
+
+    [Fact]
+    public async Task A_discarded_dead_letter_is_gone_and_cannot_be_redriven()
+    {
+        var (store, outbox) = await Create();
+        _ = await Joined(store, 1);
+        var head = (await Claim(outbox, "Notify")).Single();
+        (await outbox.Bury(head, "gave up", Ct)).ShouldBeTrue();
+
+        (await outbox.Discard(head.Id, Ct)).ShouldBeTrue();
+
+        (await outbox.DeadLetters(new DeadLetterQuery(), Ct)).ShouldBeEmpty();
+        (await outbox.Redrive(head.Id, Ct)).ShouldBeFalse();
+        (await outbox.Discard(head.Id, Ct)).ShouldBeFalse();
+        (await Claim(outbox, "Notify")).ShouldBeEmpty();                     // its event is not delivered again
+    }
+
+    [Fact]
+    public async Task OldestDue_is_the_due_time_of_the_oldest_due_head_claimed_or_not()
+    {
+        var (store, outbox) = await Create();
+        (await outbox.OldestDue(Ct)).ShouldBe(Option.None);
+        _ = await Joined(store, 1);                                         // Welcome and Notify due now, Remind in an hour
+        Time.Advance(TimeSpan.FromMinutes(10));
+
+        (await outbox.OldestDue(Ct)).ShouldBe(Option.Some(Start));
+        var claimed = await outbox.Claim(100, Lease, Ct);
+        (await outbox.OldestDue(Ct)).ShouldBe(Option.Some(Start));          // a claimed head is still the backlog
+        foreach (var row in claimed)
+            (await outbox.Complete(row, Ct)).ShouldBeTrue();
+        (await outbox.OldestDue(Ct)).ShouldBe(Option.None);                 // Remind is not due yet
+
+        Time.Advance(TimeSpan.FromHours(1));
+        (await outbox.OldestDue(Ct)).ShouldBe(Option.Some(Start.AddHours(1)));
+        (await Claim(outbox, "Remind")).ShouldHaveSingleItem().DueAt.ShouldBe(Start.AddHours(1));
+    }
 }

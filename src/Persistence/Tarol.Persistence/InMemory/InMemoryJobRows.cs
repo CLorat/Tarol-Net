@@ -9,7 +9,7 @@ namespace Tarol.Persistence;
 /// the store's clock, guarded by the claim id, dead jobs and re-drives), so <c>JobTest</c> and unit tests run the whole
 /// schedule on a fake clock without a database.
 /// </summary>
-internal sealed class InMemoryJobRows(TimeProvider time) : IJobRows
+internal sealed class InMemoryJobRows(TimeProvider time) : IJobRows, IDeadLetterSource
 {
     private sealed class Row
     {
@@ -214,6 +214,44 @@ internal sealed class InMemoryJobRows(TimeProvider time) : IJobRows
             return Task.FromResult(true);
         }
     }
+
+    public Task<IReadOnlyList<DeadJob>> DeadJobs(DeadLetterQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        lock (_gate)
+            return Task.FromResult<IReadOnlyList<DeadJob>>([.. _dead
+                .Where(d => d.Id > query.After && (query.Name is null || d.Name == query.Name) && (query.Tenant.IsNone || Tenant(d.Tenant) == query.Tenant))
+                .OrderBy(d => d.Id).Take(query.Limit)
+                .Select(d => new DeadJob(d.Id, Tenant(d.Tenant), d.Name, d.Occurrence, d.Attempts, d.LastError, d.DeadAt, d.Redriven))]);
+    }
+
+    public Task<bool> Discard(long id, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+            return Task.FromResult(_dead.RemoveAll(d => d.Id == id) == 1);
+    }
+
+    /// <summary>The dead jobs (for the in-memory snapshot signals).</summary>
+    internal int DeadCount
+    {
+        get
+        {
+            lock (_gate)
+                return _dead.Count;
+        }
+    }
+
+    string IDeadLetterSource.Kind => DeadLetterKinds.Jobs;
+
+    async Task<DeadLetterPage> IDeadLetterSource.List(DeadLetterQuery query, CancellationToken cancellationToken)
+    {
+        var rows = await DeadJobs(query, cancellationToken).ConfigureAwait(false);
+        return new DeadLetterPage([.. rows.Select(static d => d.ToItem())], rows.Count == query.Limit ? rows[^1].Id : null);
+    }
+
+    Task<bool> IDeadLetterSource.Redrive(long id, string actor, CancellationToken cancellationToken) => Redrive(id, cancellationToken);
+
+    Task<bool> IDeadLetterSource.Discard(long id, string actor, CancellationToken cancellationToken) => Discard(id, cancellationToken);
 
     public Task<IReadOnlyList<JobState>> Rows(CancellationToken cancellationToken)
     {

@@ -119,6 +119,13 @@ the oldest occurrence not yet run, claimed by the job host of `Tarol.Jobs` (docs
 Every call after a claim returns `false` once the claim is lost. Times are whole seconds (an occurrence must survive
 `timestamptz`); other times throw.
 
+## Operations contracts (step 15)
+
+`OperationsSignal` (one number of the snapshot `Tarol.Operations` polls), `IDeadLetterSource` (a kind of dead letters the
+admin entry pages, re-drives and discards), `DeadLetterQuery` (keyset paging: `After`, `Limit` ≤ 200, `Tenant`, `Name`).
+`IOutbox.DeadLetters(query)`, `Discard`, `OldestDue`; `IJobRows.DeadJobs(query)`, `Discard`. `UseStore` registers the
+store's dead-letter sources; the in-memory store also its signals.
+
 ## AOT
 
 No reflection: loads call the aggregate's generated static `Rehydrate`/`ReadState`, the state is written by generated

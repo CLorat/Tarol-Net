@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,9 @@ public sealed partial class JobHost : BackgroundService
     /// <summary>The <see cref="System.Diagnostics.ActivitySource"/> of the job runs: one activity per occurrence, <c>job &lt;name&gt;</c>.</summary>
     public const string ActivitySourceName = "Tarol.Jobs";
 
+    /// <summary>The name of the job host's meter (step 15): <c>tarol.jobs.occurrences</c>, <c>.duration</c>, <c>.lateness</c>.</summary>
+    public const string MeterName = "Tarol.Jobs";
+
     private readonly IJobRows _rows;
     private readonly JobRegistry _registry;
     private readonly IServiceProvider _services;
@@ -27,6 +31,7 @@ public sealed partial class JobHost : BackgroundService
     private readonly JobHostOptions _options;
     private readonly ITenantDirectory? _tenants;
     private readonly ILogger _log;
+    private readonly JobInstruments _instruments;
 
     internal JobHost(IJobRows rows, JobRegistry registry, IServiceProvider services, TimeProvider time, JobHostOptions options, ITenantDirectory? tenants, ILogger? logger)
     {
@@ -39,6 +44,7 @@ public sealed partial class JobHost : BackgroundService
         _options = options;
         _tenants = tenants;
         _log = logger ?? NullLogger.Instance;
+        _instruments = JobInstruments.For(services.GetService<IMeterFactory>());
     }
 
     /// <summary>The names of the declared jobs (generated entries, job classes and system jobs), after the configuration override.</summary>
@@ -73,7 +79,7 @@ public sealed partial class JobHost : BackgroundService
         }
         var loops = new List<Task>(_options.Workers + 1);
         for (var i = 0; i < _options.Workers; i++)
-            loops.Add(new JobWorker(_rows, _registry, _services, _time, _options, _log).Run(stoppingToken));
+            loops.Add(new JobWorker(_rows, _registry, _services, _time, _options, _log, _instruments).Run(stoppingToken));
         if (_registry.PerTenant)
             loops.Add(SyncTenants(stoppingToken));
         await Task.WhenAll(loops).ConfigureAwait(false);

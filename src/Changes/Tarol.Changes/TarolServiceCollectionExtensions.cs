@@ -1,5 +1,7 @@
+using System.Diagnostics.Metrics;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Tarol.Persistence;
 using Tarol.Validations;
 
@@ -31,7 +33,8 @@ public static class TarolServiceCollectionExtensions
         aggregates(codec);
         var builder = new TarolBuilder(services, options, codec);
         services.AddSingleton(static provider => new ChangePipeline(provider.GetRequiredService<IAggregateStore>(),
-            provider.GetRequiredService<TimeProvider>(), provider.GetService<IChangeAuthorization>()));
+            provider.GetRequiredService<TimeProvider>(), provider.GetService<IChangeAuthorization>(),
+            provider.GetService<ILogger<ChangePipeline>>(), provider.GetService<IMeterFactory>()));
         return builder;
     }
 

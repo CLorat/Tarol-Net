@@ -86,6 +86,16 @@ Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for yo
   hosts (`Tarol.Queries.Npgsql`) wake at once instead of polling; off by default like `Notify`. `Append` returns the
   commit's `GlobalPosition` (its transaction and the position of its last event).
 
+## Operations (step 15)
+
+* The data source `UseNpgsqlStore(connectionString)` builds traces Npgsql commands only inside an activity: an idle
+  worker's polls made 51 root spans per second. `TraceRootCommands = true` opts out; `TraceOnlyInActivities()` puts the
+  filter on a data source you build.
+* Snapshot signals (`tarol.reactions.backlog`, `.oldest_due`, `.dead`, `tarol.jobs.overdue`, `.dead`): index lookups and
+  small counts, read once per poll.
+* Dead letters: paged queries, `Discard`, and the audited `IDeadLetterSource` acts (`operations_audit` in the same
+  statement as the re-drive or discard).
+
 ## AOT
 
 No reflection: SQL is plain text, JSON goes through your source-generated context and the generated state code. Use
