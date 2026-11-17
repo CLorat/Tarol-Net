@@ -289,7 +289,7 @@ internal static class SelfTest
 #endif
 #if WEB
         var web = Microsoft.AspNetCore.Builder.WebApplication.CreateSlimBuilder();
-        web.WebHost.UseUrls("http://127.0.0.1:5199");
+        Microsoft.AspNetCore.Hosting.HostingAbstractionsWebHostBuilderExtensions.UseUrls(web.WebHost, "http://127.0.0.1:5199");
         web.Services.AddSingleton(signals);
         var wh = web.Services.AddHealthChecks();
         foreach (var name in new[] { "reactions", "dead-letters", "jobs", "projections" })

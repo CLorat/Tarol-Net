@@ -34,9 +34,19 @@ internal static partial class Bench
         var change = new KeyValuePair<string, object?>("tarol.change", "TouchItem");
         var outcome = new KeyValuePair<string, object?>("tarol.outcome", "committed");
         const int n = 5_000_000;
-        double Ns(Action a) { a(); var sw = Stopwatch.StartNew(); for (var i = 0; i < n; i++) a(); return sw.Elapsed.TotalNanoseconds / n; }
+        double Ns(Action a)
+        {
+            var best = double.MaxValue;
+            for (var run = 0; run < 3; run++)   // min of 3: the first run of the helper is still in tier 0
+            {
+                var sw = Stopwatch.StartNew();
+                for (var i = 0; i < n; i++) a();
+                best = Math.Min(best, sw.Elapsed.TotalNanoseconds / n);
+            }
+            return best;
+        }
         var logger = NullLogger.Instance;
-        Console.WriteLine("| operation | no listener | MeterListener on (aggregating) |");
+        Console.WriteLine("| operation | no listener | a MeterListener callback on |");
         Console.WriteLine("|---|---|---|");
         var offCounter = Ns(() => counter.Add(1, change, outcome));
         var offHist = Ns(() => histogram.Record(0.007, change, outcome));
@@ -65,7 +75,7 @@ internal static partial class Bench
         }
         t.Sort();
         Lab.Info($"one commit (Item.Create, 1 event + 0 outbox rows) on the Npgsql store: p50 {Lab.F(Lab.Pct(t, 0.5))} ms, p99 {Lab.F(Lab.Pct(t, 0.99))} ms");
-        Lab.Info($"a counter + a histogram with a listener per commit: {Lab.F((onCounter + onHist) / (Lab.Pct(t, 0.5) * 1e6) * 100)} % of the p50 commit");
+        Lab.Info($"a counter + a histogram with a listener per commit: {Lab.F((onCounter + onHist) / (Lab.Pct(t, 0.5) * 1e6) * 1e6)} ppm of the p50 commit");
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Change {Change} committed {Events} event(s)")]
@@ -87,8 +97,10 @@ internal static partial class Bench
             INSERT INTO {s}.events (tenant, type, stream_id, version, event_id, alias, alias_version, entity_id, payload, recorded_at, actor_kind, actor_id, correlation_id)
             SELECT '00000000-0000-0000-0000-000000000000', 'item', md5(g::text)::uuid, v, gen_random_uuid(), 'item.touched', 1, md5(g::text)::uuid, jsonb_build_object('n', 1),
                    now() - interval '1 hour' + (g * 10 + v) * interval '3 ms', 'user', 'alice', gen_random_uuid()
-            FROM generate_series(1, 100000) g, generate_series(1, 10) v
+            FROM generate_series(1, 100000) g, generate_series(1, 10) v;
+            UPDATE {s}.events SET recorded_at = now() - interval '1 hour' + position * interval '3 ms';   -- feed order = time order
             """);
+        await Lab.Exec($"VACUUM ANALYZE {s}.events");
         await Lab.Exec($"INSERT INTO {s}_rm.projections (name, version, tx, pos, state) SELECT 'item-list', 1, tx_id, position, 'current' FROM {s}.events ORDER BY tx_id, position OFFSET 500000 LIMIT 1");
         await Lab.Exec($"INSERT INTO {s}.jobs (tenant, name, schedule, next_at) SELECT md5(g::text)::uuid, 'nightly', '0 2 * * * UTC', date_trunc('second', now()) + (g % 100) * interval '1 minute' - interval '5 minutes' FROM generate_series(1, 10000) g");
         using var signals = new Signals(Lab.Db, s, s + "_rm");
@@ -251,8 +263,8 @@ internal static partial class Bench
                 ANALYZE {s}.outbox_dead; ANALYZE {s}.jobs_dead; ANALYZE ret_msg.messages_dead;
                 """);
         }
-        Console.WriteLine("| table | rows | index on dead_at | purge older than 30 days (batches of 1,000) | batches | per batch |");
-        Console.WriteLine("|---|---|---|---|---|---|");
+        Console.WriteLine("| table | rows | index on dead_at | purge older than 30 days (batches of 1,000) | batches | per batch | the next run, nothing to purge (100,000 young rows, after VACUUM ANALYZE) |");
+        Console.WriteLine("|---|---|---|---|---|---|---|");
         foreach (var indexed in new[] { false, true })
         {
             await Fill();
@@ -267,7 +279,10 @@ internal static partial class Bench
                     deleted = (int)await Lab.Scalar<long>($"WITH d AS (DELETE FROM {table} WHERE {key} IN (SELECT {key} FROM {table} WHERE dead_at < now() - interval '30 days' LIMIT 1000) RETURNING 1) SELECT count(*) FROM d");
                     batches++;
                 } while (deleted > 0);
-                Console.WriteLine($"| `{table}` | {Lab.N(rows)} | {(indexed ? "yes" : "no")} | {Lab.F(sw.Elapsed.TotalMilliseconds)} ms | {batches} | {Lab.F(sw.Elapsed.TotalMilliseconds / batches)} ms |");
+                var took = sw.Elapsed.TotalMilliseconds;
+                await Lab.Exec($"VACUUM ANALYZE {table}");   // the steady state: autovacuum has run since the last purge
+                var idle = await Lab.Median(() => Lab.Scalar<long>($"WITH d AS (DELETE FROM {table} WHERE {key} IN (SELECT {key} FROM {table} WHERE dead_at < now() - interval '30 days' LIMIT 1000) RETURNING 1) SELECT count(*) FROM d"), 9);
+                Console.WriteLine($"| `{table}` | {Lab.N(rows)} | {(indexed ? "yes" : "no")} | {Lab.F(took)} ms | {batches} | {Lab.F(took / batches)} ms | {Lab.F(idle)} ms |");
             }
         }
     }
@@ -334,7 +349,7 @@ internal static partial class Bench
         await Lab.Seed(store, items, 9);
         var head = await Lab.Scalar<long>($"SELECT count(*) FROM {s}.events");
         Lab.Info($"feed: {Lab.N(head)} events ({Lab.N(items)} items × 10, one commit each)");
-        Console.WriteLine("| runners | gate | catch-up time | batches written | batches refused by the guard (wasted) |");
+        Console.WriteLine("| runners | gate | catch-up time | batches run (read from the feed) | of them refused by the checkpoint guard (wasted) |");
         Console.WriteLine("|---|---|---|---|---|");
         foreach (var gated in new[] { false, true })
             foreach (var k in new[] { 1, 2, 4 })
