@@ -39,6 +39,12 @@ public sealed class PushTests
         }
     }
 
+    /// <summary>
+    /// How long a test waits for the client to be connected again: its retries come after 0, 1, 2 and 5 s, then every 10 s
+    /// (±20 %), so under load an attempt that just missed the restarted server costs up to 12 s more (30 s failed in a full run).
+    /// </summary>
+    private static readonly TimeSpan ReconnectCap = TimeSpan.FromSeconds(60);
+
     private static bool IsMarker(PushedMessage message) => message.Data.TryGetProperty("marker", out _);
 
     private static bool IsAfter(PushedMessage message) => message.Data.TryGetProperty("after", out _);
@@ -122,7 +128,7 @@ public sealed class PushTests
         await host.Stop();                                                                           // the server goes away …
         await host.Restart();                                                                        // … and comes back on the same port
         var waited = System.Diagnostics.Stopwatch.StartNew();
-        while (client.State != HubConnectionState.Connected && waited.Elapsed < TimeSpan.FromSeconds(30))
+        while (client.State != HubConnectionState.Connected && waited.Elapsed < ReconnectCap)
             await Task.Delay(50, Ct);
         client.State.ShouldBe(HubConnectionState.Connected);
         await Replayed(client, inbox, "artflow.chat");                                              // the replay runs on Reconnected
@@ -152,7 +158,7 @@ public sealed class PushTests
         await host.Stop();
         await host.Restart();
         var waited = System.Diagnostics.Stopwatch.StartNew();
-        while (client.State != HubConnectionState.Connected && waited.Elapsed < TimeSpan.FromSeconds(30))
+        while (client.State != HubConnectionState.Connected && waited.Elapsed < ReconnectCap)
             await Task.Delay(50, Ct);
         client.State.ShouldBe(HubConnectionState.Connected);
         await Replayed(client, inbox, "artflow.chat");                                              // the replay follows the start
