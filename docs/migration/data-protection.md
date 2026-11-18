@@ -551,7 +551,7 @@ Docs and probes only; the package code is `main` at `eabacb5` (step 15 done).
 
 ## 14. Open items
 
-1. **Rolling deploy into sealing; existing plaintext** (16B; §5 item 7). Recommended: the version 3 steps keep `compatible_from` 2
+1. **Rolling deploy into sealing; existing plaintext**: **decided, DP-10 (§16.3)**. As designed (16B; §5 item 7): the version 3 steps keep `compatible_from` 2
    (old code runs on the new schema). A store that seals raises `compatible_from` to 3 on its first `EnsureSchema` with sealing
    on, so pre-16B pods refuse instead of showing envelopes as values. Existing plaintext fields are sealed by an explicit
    `SealHistory<T>()` (batched, like `RebuildStates`), the one physical rewrite of `events` Tarol does; it is never automatic.
@@ -766,15 +766,35 @@ PR 16B builds §6.3 on top of 16A.
    writers commit" commits before `EnsureSchema`), and it stores rows exactly as before.
 4. **The version 3 steps are compatible from 1, not 2** (§14 item 1 said "keep `compatible_from` 2"). The steps are
    additive, and code of version 1 and 2 never touches the new tables or columns, so it runs on a version 3 schema that
-   does not seal. A sealing store raises it to 3. **Asked of the owner (§16.3).**
+   does not seal. A sealing store raises it to 3. The owner confirmed this (DP-10, §16.3).
 5. **`ReadStream` returns `PositionedEvent`s** (with the `RecordedEvent`'s context and position) instead of
    `StreamEvent`s, so a projection re-fold (16C) can call its `When(event, recorded)` methods.
 6. **`DeleteStreams` uses `streams.updated_at`** (the last commit's time) for "older than", and locks the expired stream
    rows `FOR UPDATE SKIP LOCKED`: a racing commit waits, then finds no stream row and reports a version conflict.
 
-### 16.3 Owner's answers (16B)
+### 16.3 Owner's answers (2026-11-18)
 
-To be recorded at once when given.
+Asked with the measurement §14 item 1 required **[verified]** ([`SealHistoryBench.cs.txt`](probes/data-protection/SealHistoryBench.cs.txt),
+[`sealhistory-output.txt`](probes/data-protection/sealhistory-output.txt); 4 cores, PostgreSQL 17 in Docker on the same host,
+JIT Release). The setup: 250,000 customers with 4 plaintext events each (1,000,000 events, 250,000 states), then
+`SealHistory<T>(500)` while 4 writers committed new sealed customers.
+
+| | value |
+|---|---|
+| `SealHistory`: 1,000,004 events + 250,001 states | **264 s** (3,787 events/s), 0 left unsealed |
+| writers alone (20 s, 16,795 commits) | p50 4.43 ms, p99 10.3 ms, max 67 ms |
+| writers during `SealHistory` (190,047 commits) | p50 4.92 ms, p99 13.3 ms, **max 353 ms** |
+| events table afterwards (1,206,846 rows) | 789 MB |
+
+The first run of the benchmark found two faults, both fixed before the recorded run:
+* the key cache's bound crashed under concurrent writers (§16.4);
+* `SealHistory` paged and updated by `position`, which has no index, so every page scanned the table: about 770
+  events/s at 780,000 events, and slower as the writers grew the table. It now pages by the primary key and writes one
+  update per page.
+
+| # | Question (with the numbers it was asked with) | Answer |
+|---|---|---|
+| DP-10 | §14 item 1: the rolling deploy into sealing, and existing plaintext (the table above; the version 3 steps are additive, so 16B makes them compatible from 1 where the design said 2) | **Raise on seal + explicit** (recommended): the version 3 steps are compatible from 1, so code of version 1 and 2 keeps running on a schema that does not seal; a store with keys raises `compatible_from` to 3 on its first `EnsureSchema`, so pods from before 16B refuse instead of showing envelopes as values; existing plaintext is sealed only by an explicit, batched `SealHistory<T>()`, never automatically. |
 
 ### 16.4 Changes against steps 7–15 and 16A
 
@@ -783,6 +803,7 @@ To be recorded at once when given.
 * `RecordedEvents` reads raw rows and decodes a page with one key call per tenant.
 * The shared contract model `Badge.Name` is `[PersonalData] string?`. `Member` is therefore a sealed aggregate wherever a
   store has keys, and an unmarked one elsewhere.
+* `SealHistory` pages and updates by the primary key (§16.3: the first version, by `position`, scanned the table on every page).
 * A bug that measurement found: the key cache's bound evicted by ordering the live `ConcurrentDictionary` while other
   threads added keys, which throws. It now orders a snapshot. A regression test with a bound of 50 and four writers
   passes; the race is timing-dependent, and the test has not been shown to fail on the old code.

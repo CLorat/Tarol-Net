@@ -1,0 +1,6 @@
+seeded 250000 streams, 1000000 events in 17.2 s
+writers alone (20 s):        n=16795 p50 4.43 ms, p99 10.27 ms, max 67.1 ms
+SealHistory: 1000004 events, 250001 states in 264.1 s (3787 events/s)
+writers during SealHistory:  n=190047 p50 4.92 ms, p99 13.27 ms, max 353.1 ms
+unsealed afterwards: 0 of 1206846
+events table: 789 MB
