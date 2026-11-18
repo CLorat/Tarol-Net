@@ -54,7 +54,7 @@ public sealed class DataSubjectsTests
             a => a.Actor.ShouldBe("operator"),
             a => a.Action.ShouldBe("erase"),
             a => a.Target.ShouldBe($"subject:{ada.Id.Value}"),
-            a => a.Detail!.ShouldNotContain("Ada"));
+            a => a.Detail!.ShouldNotContain("Ada", Case.Sensitive));                         // the detail holds the tenant id: lowercase hex may read "ada"
     }
 
     [Fact]
