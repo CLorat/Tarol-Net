@@ -277,6 +277,42 @@ public sealed class ConsumerTests
     }
 
     [Fact]
+    public async Task A_dead_letter_redriven_before_the_cause_is_fixed_is_dead_again_not_lost()
+    {
+        var test = Test();
+        var auction = Auction.Open(Start);
+        test.Given(auction);
+        await test.Send(Paid(test, auction, 33m));
+        for (var i = 0; i < 3; i++)
+            await test.Later(TimeSpan.FromSeconds(5)).Drain();                  // Conflict × 3: buried
+        var letter = (await test.DeadMessages()).ShouldHaveSingleItem();
+
+        var redriven = await test.Redrive(letter.Id);                           // still a Conflict: a retry verdict at attempt 1
+
+        redriven!.Verdict.ShouldBe(Verdict.Bury);
+        var again = (await test.DeadMessages()).ShouldHaveSingleItem();
+        (again.MessageId, again.Reason).ShouldBe((letter.MessageId, letter.Reason));
+        test.Transport.Pending.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_dead_letter_of_a_source_mismatch_is_not_run_again_by_a_redrive()
+    {
+        var test = Test();
+        var auction = Settled(test);
+        var message = Paid(test, auction);
+        _ = await test.Consumers.Handle("RecordPayment", new Incoming(message, 1, "artflow", message.Data, message.Type), TestContext.Current.CancellationToken);
+        var letter = (await test.DeadMessages()).ShouldHaveSingleItem();
+        letter.Reason.ShouldStartWith("Messaging.SourceMismatch");
+
+        var redriven = await test.Redrive(letter.Id);                           // the transport's "artflow" is not kept with the letter
+
+        redriven!.Verdict.ShouldBe(Verdict.Bury);
+        (await test.DeadMessages()).ShouldHaveSingleItem().Reason.ShouldBe(letter.Reason);
+        test.Load(auction.Id).Paid.ShouldBe(0m);
+    }
+
+    [Fact]
     public async Task An_exception_in_a_factory_is_a_retry_never_a_crash()
     {
         var throwing = new ConsumerSet([new ConsumerInfo("Broken", ["billing.invoice-paid"])],

@@ -99,8 +99,10 @@ public sealed partial class MessageConsumers
     }
 
     /// <summary>
-    /// Re-drives a dead letter: runs it again in this process as attempt 1, through the same checks; given up again if it
-    /// fails again. The key still holds, so a message whose change did commit is not repeated.
+    /// Re-drives a dead letter: runs it again in this process as attempt 1, through the same checks; given up again (a new
+    /// dead letter) if it fails again, transiently or not, or if the run throws. A letter given up for
+    /// <c>Messaging.SourceMismatch</c> is given up again without a run: the transport's authentication is not kept with it.
+    /// The key still holds, so a message whose change did commit is not repeated.
     /// </summary>
     /// <param name="id">The dead letter's id.</param>
     /// <param name="cancellationToken">Cancels the run.</param>
@@ -121,9 +123,33 @@ public sealed partial class MessageConsumers
             ? letter.Subscription[(_options.Application.Length + 1)..]
             : letter.Subscription;
         var message = Message.From(h => letter.Headers.TryGetValue(h, out var v) ? v : null, letter.Data);
-        var (_, attempt) = await HandleCore(consumer, new Incoming(message, 1, null, letter.Data, letter.Topic), cancellationToken).ConfigureAwait(false);
-        return attempt;
+        var incoming = new Incoming(message, 1, null, letter.Data, letter.Topic);
+
+        // the transport's authentication is not kept with the letter, so a source mismatch cannot be checked again: it stays
+        // dead (re-driving it would skip the check, M-13); nothing about a mismatch changes between the attempts
+        if (letter.Reason.StartsWith(SourceMismatch, StringComparison.Ordinal))
+            return (await Bury(consumer, letter.Subscription, incoming, letter.Reason, null, CancellationToken.None).ConfigureAwait(false)).Item2;
+
+        // the letter was taken (deleted) above: whatever happens now, it must end done or dead again, never lost
+        ConsumerAttempt attempt;
+        try
+        {
+            (_, attempt) = await HandleCore(consumer, incoming, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            var reason = e is OperationCanceledException ? letter.Reason : "Messaging.HostFailed: " + e.GetType().Name + ": " + e.Message;
+            await _dead.Add(letter.Subscription, incoming, reason, CancellationToken.None).ConfigureAwait(false);
+            Buried(_log, consumer, message?.Id, incoming.Attempt, reason);
+            throw;
+        }
+        if (attempt.Verdict != Verdict.Retry)
+            return attempt;
+        var again = attempt.Reason.TryGetValue(out string? why) ? why : letter.Reason;   // no transport to retry it: dead again
+        return (await Bury(consumer, letter.Subscription, incoming, again, null, CancellationToken.None).ConfigureAwait(false)).Item2;
     }
+
+    private const string SourceMismatch = "Messaging.SourceMismatch";
 
     /// <summary>Handles one delivery for <paramref name="consumer"/>; throws only when <paramref name="cancellationToken"/> is cancelled.</summary>
     /// <param name="consumer">The consumer's name.</param>
@@ -189,7 +215,7 @@ public sealed partial class MessageConsumers
         if (source.Length == 0 || !string.Equals(message.Source, source, StringComparison.Ordinal)
             || (incoming.AuthenticatedAs is { } who && !string.Equals(who, source, StringComparison.Ordinal)))
             return await Bury(consumer, subscription, incoming,
-                $"Messaging.SourceMismatch: contract {message.Type}, ce-source {message.Source}, authenticated {incoming.AuthenticatedAs ?? "-"}", activity, cancellationToken)
+                $"{SourceMismatch}: contract {message.Type}, ce-source {message.Source}, authenticated {incoming.AuthenticatedAs ?? "-"}", activity, cancellationToken)
                 .ConfigureAwait(false);
         if (!_options.Sources.TryGetValue(source, out var trust))
             return await Bury(consumer, subscription, incoming, "Messaging.UnknownSource: " + source, activity, cancellationToken).ConfigureAwait(false);

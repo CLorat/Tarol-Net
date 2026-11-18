@@ -228,7 +228,9 @@ transport. `NpgsqlBusSchema.DeadLettersScript(schema)` for a migration tool.
 
 `MessageConsumers.DeadLetters.List(max, ct)` lists them (subscription, topic, message id, attempts, reason, headers,
 bytes); after fixing the cause, `MessageConsumers.Redrive(id, ct)` runs one again as attempt 1. The key still holds: a
-message whose change did commit is not repeated.
+message whose change did commit is not repeated. A re-drive that fails again, even transiently, or throws, leaves a new dead
+letter (there is no transport to retry it); a `Messaging.SourceMismatch` letter is given up again without a run, because the
+transport's authentication is not kept with it.
 
 ## Testing
 

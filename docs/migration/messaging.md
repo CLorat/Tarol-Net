@@ -900,3 +900,20 @@ failed twice in full suite runs, `client.State` still `Disconnected` after 60 s,
   * the whole `Tarol.Messaging.SignalR.Tests` project (19 tests) passes 10 of 10 in Release, alone.
 * **Public API**: none. **Behaviour**: a client that was not stopped keeps restarting after a timed-out attempt, as its
   documentation always said.
+
+## 21. Fix: a re-drive no longer loses the dead letter (2026-11-18)
+
+**Behaviour change.** `MessageConsumers.Redrive` takes (deletes) the dead letter and then runs it as attempt 1. Two paths lost it:
+* a transient failure (a `Conflict`, `Unavailable`, …) returned `Verdict.Retry`, but a re-drive has no transport to deliver it
+  again, so the message was in neither the transport nor `messages_dead`;
+* an exception during the run (cancellation, a failing dead-letter store) left it nowhere either.
+
+Now a `Retry` verdict buries it again (a new dead letter with the run's reason), and an exception buries it again (the original
+reason on cancellation, `Messaging.HostFailed: …` otherwise) before it is rethrown.
+
+**Security.** The re-drive passed `AuthenticatedAs: null`, so a letter given up for `Messaging.SourceMismatch` because the transport
+saw another system publish it passed the check (M-13) on a re-drive. The transport's identity is not kept with the letter, and
+nothing about a mismatch changes between attempts, so such a letter is now given up again without a run.
+
+Tests: `ConsumerTests.A_dead_letter_redriven_before_the_cause_is_fixed_is_dead_again_not_lost` and
+`A_dead_letter_of_a_source_mismatch_is_not_run_again_by_a_redrive` (both fail without the fix).
