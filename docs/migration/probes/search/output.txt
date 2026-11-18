@@ -505,3 +505,99 @@ INFO seeded 20,000 artworks (4 events, 2 commits each, sealed owner) with 8 writ
 INFO one Load<Artwork> (stored state, sealed owner, keys cached after the first): p50 0.56 ms, p99 1.02 ms
 
 ## 8. Native AOT: publish (IL warnings), the contract natively against every engine, the feeder natively
+IL warnings: 0
+native binary: 11284272 bytes
+# selftest pg (Native AOT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000001,00000002,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (2 hits, pg_trgm word_similarity_threshold 0.4)
+INFO no  typo with pg_trgm's default word_similarity_threshold 0.6  (0 hits)
+PASS counts per type are exact  (artist=1,auction=1,lot=1)
+PASS snippet marks the matched word  (watercolour of a lake below <b>glaciers</b>)
+INFO yes stemming (english): 'paintings' finds 'painting' and 'paints'  (2 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO no  accents folded: 'cafe muller' finds 'Café Müller'  (0 hits)
+INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
+PASS pg: a per-document regconfig column drives the generated tsvector (german row stemmed german)
+PASS pg: german + unaccent: 'Gemalde' finds 'Gemälde'
+PASS pg: english + unaccent: 'café' finds 'Cafe Society', 'houses' finds 'house'
+PASS pg: unaccent() itself is refused in a generated column (42P17, not immutable): the configuration is the way
+PASS pg: websearch syntax: 'harbour -sunset' excludes a word
+PASS pg: websearch syntax: a quoted phrase matches adjacent words only
+PASS pg: websearch syntax: OR
+PASS pg: websearch_to_tsquery never fails on user input (no syntax error)
+ALL 19 CHECKS PASSED (selftest pg, Native AOT)
+# feeder selftest (Native AOT): Tarol.Persistence.Npgsql store with sealing, the feeder prototype, the index in the store's database
+PASS aggregate found by its own fields; another stream type (Note) is not indexed
+PASS an entity is found by its own field and shown through its aggregate (type, aggregate id, the aggregate's title)
+PASS tenant first: tenant B finds only its own
+PASS a sealed [PersonalData] field never lands in the index as text (blind token only)
+PASS blind index: the exact value (normalised) finds its aggregate
+PASS blind index: a part of the value does not (exact match only)
+PASS a change re-indexes the aggregate and its entities (the edition shows the new title)
+PASS a second runner from an older checkpoint is refused by the guard
+PASS a replay from the start is idempotent (documents replaced per stream, not duplicated)
+PASS after the tombstone alone the blind token still finds the subject (the index must take part in erasure)
+PASS after the participant re-indexed the subject's streams it is no longer found  (tombstone 1.3 ms, find streams + re-index 12.0 ms)
+PASS the rest of the erased aggregate stays searchable
+PASS plaintext variant: the personal value is found by a partial word
+PASS plaintext variant: after the tombstone the plaintext is still in the index
+PASS plaintext variant: after the re-index it is gone
+PASS export: the subject's streams locate its documents through (tenant, aggregate)
+PASS retention: deleted streams load as none and their documents go
+ALL 17 CHECKS PASSED (feeder, Native AOT)
+# selftest meili (Native AOT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000002,00000001,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (3 hits)
+PASS counts per type are exact  (artist=1,auction=1,lot=1)
+PASS snippet marks the matched word  (watercolour of a lake below <em>glaciers</em>)
+INFO no  stemming (english): 'paintings' finds 'painting' and 'paints'  (1 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO yes accents folded: 'cafe muller' finds 'Café Müller'  (1 hits)
+INFO yes german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (1 hits)
+ALL 11 CHECKS PASSED (selftest meili, Native AOT)
+# selftest typesense (Native AOT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000002,00000001,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (3 hits)
+PASS counts per type are exact  (lot=1,artist=1,auction=1)
+PASS snippet marks the matched word  (watercolour of a lake below <mark>glaciers</mark>)
+INFO yes stemming (english): 'paintings' finds 'painting' and 'paints'  (2 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO yes accents folded: 'cafe muller' finds 'Café Müller'  (1 hits)
+INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
+ALL 11 CHECKS PASSED (selftest typesense, Native AOT)
+# selftest opensearch (Native AOT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000002,00000001,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (3 hits)
+PASS counts per type are exact  (artist=1,auction=1,lot=1)
+PASS snippet marks the matched word  (watercolour of a lake below <em>glaciers</em>)
+INFO yes stemming (english): 'paintings' finds 'painting' and 'paints'  (2 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO no  accents folded: 'cafe muller' finds 'Café Müller'  (0 hits)
+INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
+ALL 11 CHECKS PASSED (selftest opensearch, Native AOT)
+
+## done 21:49
