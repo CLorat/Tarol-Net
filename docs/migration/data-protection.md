@@ -566,4 +566,6 @@ Docs and probes only; the package code is `main` at `eabacb5` (step 15 done).
 5. **`SqlProjection` tables** (the app's own SQL) are outside the participants: the guide says the app registers its own
    `ErasureParticipant`.
 6. **`AllocationTests.Validating_A_Valid_Input_Allocates_Nothing` can fail under the parallel suite** (§13: 3,136 bytes once,
-   0 of 25 alone). A fix (a longer warm-up, or measuring the minimum of several loops) goes in its own PR.
+   0 of 25 alone). **Fixed in its own PR** (owner's choice, 2026-11-17: "the minimum of several loops"): both allocation tests
+   warm up 100 calls, then measure 5 loops of 1,000 and assert on the least allocating one. 25 of 25 runs alone and 10 of 10 runs
+   of the whole project in Release passed **[verified]**.
