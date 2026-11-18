@@ -976,8 +976,19 @@ subject endpoints, `AuditRetention`) and `tarol-messaging-nats` (`MaxAge`).
 
 None.
 
-<<<<<<< HEAD
-### 17.7 Verification
+### 17.7 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean. The first run found whitespace in a test decorator
+  (`CacheTests.cs`), fixed;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (16B's 1843 + 20: 11 unit and 4 integration tests of the new
+  package, and one each in Queries, Queries.Npgsql, Caching, Operations and Messaging.Nats);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**, all checks passed
+  (`Tarol.DataProtection.AotSmoke`, in memory and on PostgreSQL);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK, and `tarol-data-protection` is in the package. The first run
+  failed on CA1050 in the new package consumer; its types now sit in a namespace, and the consumer seals, exports and
+  erases from the packed package.
 
 ## 18. Implementation 16D: the guide and the sample
 
@@ -1036,18 +1047,3 @@ No new skill. `tarol-data-protection` (16C) is what the guide's tasks map to (§
 None.
 
 ### 18.6 Verification
-=======
-### 17.7 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
-
-In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
-* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
-* `dotnet format Tarol.slnx --verify-no-changes`: clean. The first run found whitespace in a test decorator
-  (`CacheTests.cs`), fixed;
-* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (16B's 1843 + 20: 11 unit and 4 integration tests of the new
-  package, and one each in Queries, Queries.Npgsql, Caching, Operations and Messaging.Nats);
-* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**, all checks passed
-  (`Tarol.DataProtection.AotSmoke`, in memory and on PostgreSQL);
-* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK, and `tarol-data-protection` is in the package. The first run
-  failed on CA1050 in the new package consumer; its types now sit in a namespace, and the consumer seals, exports and
-  erases from the packed package.
->>>>>>> claude/admiring-mendel-dvb2qu-16c
