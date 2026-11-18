@@ -667,3 +667,10 @@ effect and hand back the result, but only when called on an instance. The awaite
 those names are exempt too; a method of the same name elsewhere is still reported.
 
 Test: `ResultAnalyzerTests.TRES002_Should_NotReport_HandledResultsAndTaps` (two awaited cases; fails without the fix).
+
+## 14. Performance: fewer allocations reading results and building `Invalid` (2026-11-18)
+
+No behaviour change. `ResultJsonConverter` read each member name with `GetString()` (a string per property per read); it compares
+the UTF-8 bytes now (`ValueTextEquals`), as the Kernel and id converters do. `new Invalid(params ReadOnlySpan<FieldError>)` copied
+its errors twice (the span's `ToArray()`, then the list constructor's copy), and so did `Combine`; both now hand their array to a
+private constructor that keeps it. The checks and their exceptions are the same. The unit suite passes (1543).

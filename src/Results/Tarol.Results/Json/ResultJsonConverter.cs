@@ -27,13 +27,13 @@ public sealed class ResultJsonConverter<T> : JsonConverter<Result<T>>
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             var name = ResultJson.ReadPropertyName(ref reader);
-            if (name == ResultJson.ValueName)
+            if (name == ResultJson.Value)
             {
                 var info = options.GetTypeInfo<T>();
                 var value = JsonSerializer.Deserialize(ref reader, info) ?? throw new JsonException("\"value\" of a result must not be null.");
                 result = ResultJson.Once(result, new Result<T>(value));
             }
-            else if (name == ResultJson.FailureName)
+            else if (name == ResultJson.Failure)
             {
                 result = ResultJson.Once(result, new Result<T>(ResultJson.ReadViolation(ref reader, options)));
             }
@@ -82,7 +82,7 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             var name = ResultJson.ReadPropertyName(ref reader);
-            if (name == ResultJson.SuccessName)
+            if (name == ResultJson.Success)
             {
                 if (reader.TokenType != JsonTokenType.True)
                 {
@@ -91,7 +91,7 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
 
                 result = ResultJson.Once(result, Result.Success());
             }
-            else if (name == ResultJson.FailureName)
+            else if (name == ResultJson.Failure)
             {
                 result = ResultJson.Once(result, new Result(ResultJson.ReadViolation(ref reader, options)));
             }
@@ -138,9 +138,18 @@ internal static class ResultJson
         }
     }
 
-    internal static string ReadPropertyName(ref Utf8JsonReader reader)
+    internal const int Other = 0;
+    internal const int Value = 1;
+    internal const int Success = 2;
+    internal const int Failure = 3;
+
+    /// <summary>Which member the reader is on (compared on the UTF-8 bytes: no string per name), and moves to its value.</summary>
+    internal static int ReadPropertyName(ref Utf8JsonReader reader)
     {
-        var name = reader.GetString()!;
+        var name = reader.ValueTextEquals("value"u8) ? Value
+            : reader.ValueTextEquals("failure"u8) ? Failure
+            : reader.ValueTextEquals("success"u8) ? Success
+            : Other;
         reader.Read();
         return name;
     }

@@ -87,8 +87,22 @@ public sealed record Invalid : Violation
     /// <param name="errors">The field errors.</param>
     /// <exception cref="ArgumentException"><paramref name="errors"/> is empty.</exception>
     public Invalid(params ReadOnlySpan<FieldError> errors)
-        : this((IReadOnlyList<FieldError>)errors.ToArray())
+        : this(Checked(errors.ToArray()), owned: true)
     {
+    }
+
+    // takes an array it owns (already copied and checked): the list constructor's copy is not made a second time
+    private Invalid(FieldError[] errors, bool owned)
+    {
+        _ = owned;
+        Errors = errors;
+    }
+
+    private static FieldError[] Checked(FieldError[] errors)
+    {
+        foreach (var error in errors)
+            ArgumentNullException.ThrowIfNull(error, nameof(errors));
+        return errors.Length > 0 ? errors : throw new ArgumentException("An Invalid violation needs at least one field error.", nameof(errors));
     }
 
     /// <summary>The field errors, never empty.</summary>
@@ -108,7 +122,7 @@ public sealed record Invalid : Violation
     public Invalid Combine(Invalid other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        return new Invalid([.. Errors, .. other.Errors]);
+        return new Invalid([.. Errors, .. other.Errors], owned: true);
     }
 
     /// <inheritdoc />
