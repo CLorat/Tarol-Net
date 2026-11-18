@@ -676,22 +676,25 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         if (personal.Count > 0)
         {
             var aliases = personal.Select(static t => t.Alias).Distinct().ToArray();
-            var last = 0L;
+            // keyset over the primary key (tenant, type, stream_id, version): events has no index on position
+            var (lastTenant, lastStream, lastVersion) = (Guid.Empty, Guid.Empty, 0L);
             while (true)
             {
-                var page = new List<(long Position, Guid Tenant, Guid Stream, EventType Type, byte[] Payload)>();
+                var page = new List<(Guid Tenant, Guid Stream, long Version, EventType Type, byte[] Payload)>();
                 await using (var select = _db.CreateCommand(_sql.UnsealedEvents))
                 {
-                    Add(select, type, aliases, last, batch);
+                    Add(select, type, lastTenant, lastStream, lastVersion, aliases, batch);
                     var reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
                     await using (reader.ConfigureAwait(false))
                         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-                            page.Add((reader.GetInt64(0), reader.GetGuid(1), reader.GetGuid(2), new EventType(reader.GetString(3), reader.GetInt32(4)), reader.GetFieldValue<byte[]>(5)));
+                            page.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetInt64(2), new EventType(reader.GetString(3), reader.GetInt32(4)), reader.GetFieldValue<byte[]>(5)));
                 }
                 if (page.Count == 0)
                     break;
-                last = page[^1].Position;
-                var positions = new List<long>();
+                (lastTenant, lastStream, lastVersion, _, _) = page[^1];
+                var tenants = new List<Guid>();
+                var streamIds = new List<Guid>();
+                var versions = new List<long>();
                 var payloads = new List<string>();
                 var subjects = new List<string?>();
                 var buffer = new ArrayBufferWriter<byte>(512);
@@ -710,15 +713,17 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                     {
                         buffer.ResetWrittenCount();
                         _codec.SealStored<T>(row.Type, row.Payload, row.Stream, ring, buffer);
-                        positions.Add(row.Position);
+                        tenants.Add(row.Tenant);
+                        streamIds.Add(row.Stream);
+                        versions.Add(row.Version);
                         payloads.Add(Encoding.UTF8.GetString(buffer.WrittenSpan));
                         subjects.Add("{" + string.Join(",", list.Distinct()) + "}");
                     }
                 }
-                if (positions.Count > 0)
+                if (versions.Count > 0)
                 {
                     await using var update = _db.CreateCommand(_sql.SealEvents);
-                    Add(update, type, positions.ToArray(), Jsonb(payloads.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text), Jsonb(subjects.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text));
+                    Add(update, type, tenants.ToArray(), streamIds.ToArray(), versions.ToArray(), Jsonb(payloads.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text), Jsonb(subjects.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text));
                     events += await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -741,6 +746,11 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                 if (page.Count == 0)
                     break;
                 (lastTenant, lastId, _, _) = page[^1];
+                var tenants = new List<Guid>();
+                var ids = new List<Guid>();
+                var versions = new List<long>();
+                var sealedStates = new List<string>();
+                var subjects = new List<string>();
                 foreach (var (tenant, id, version, state) in page)
                 {
                     if (EventCodec.IsSealed(state))
@@ -753,8 +763,18 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                     var buffer = new ArrayBufferWriter<byte>(state.Length * 2);
                     if (!SealStoredState<T>(state, id, ring, buffer))
                         continue;
-                    await using var update = _db.CreateCommand(_sql.SealState);
-                    Add(update, tenant, type, id, Jsonb(Encoding.UTF8.GetString(buffer.WrittenSpan), NpgsqlDbType.Jsonb), version, list.Distinct().ToArray());
+                    tenants.Add(tenant);
+                    ids.Add(id);
+                    versions.Add(version);
+                    sealedStates.Add(Encoding.UTF8.GetString(buffer.WrittenSpan));
+                    subjects.Add("{" + string.Join(",", list.Distinct()) + "}");
+                }
+
+                if (ids.Count > 0)
+                {
+                    await using var update = _db.CreateCommand(_sql.SealStates);
+                    Add(update, type, tenants.ToArray(), ids.ToArray(), versions.ToArray(),
+                        Jsonb(sealedStates.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text), Jsonb(subjects.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text));
                     states += await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -1090,26 +1110,28 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             """;
 
         public string UnsealedEvents => $"""
-            SELECT position, tenant, stream_id, alias, alias_version, payload FROM {schema}.events
-            WHERE type = $1 AND subjects IS NULL AND alias = ANY($2::text[]) AND position > $3
-            ORDER BY position LIMIT $4
+            SELECT tenant, stream_id, version, alias, alias_version, payload FROM {schema}.events
+            WHERE (tenant, type, stream_id, version) > ($2, $1, $3, $4) AND type = $1 AND subjects IS NULL AND alias = ANY($5::text[])
+            ORDER BY tenant, type, stream_id, version LIMIT $6
             """;
 
         public string SealEvents => $"""
-            UPDATE {schema}.events e SET payload = u.p::jsonb, subjects = u.s::uuid[]
-            FROM unnest($2::bigint[], $3::text[], $4::text[]) AS u(pos, p, s)
-            WHERE e.type = $1 AND e.position = u.pos AND e.subjects IS NULL
+            UPDATE {schema}.events e SET payload = u.p::jsonb, subjects = u.sj::uuid[]
+            FROM unnest($2::uuid[], $3::uuid[], $4::bigint[], $5::text[], $6::text[]) AS u(t, s, v, p, sj)
+            WHERE e.tenant = u.t AND e.type = $1 AND e.stream_id = u.s AND e.version = u.v AND e.subjects IS NULL
             """;
 
         public string UnsealedStates => $"""
             SELECT tenant, id, version, state FROM {schema}.streams
-            WHERE type = $1 AND subjects IS NULL AND state IS NOT NULL AND (tenant, id) > ($2, $3)
-            ORDER BY tenant, id LIMIT $4
+            WHERE (tenant, type, id) > ($2, $1, $3) AND type = $1 AND subjects IS NULL AND state IS NOT NULL
+            ORDER BY tenant, type, id LIMIT $4
             """;
 
-        public string SealState => $"""
-            UPDATE {schema}.streams SET state = $4, subjects = $6::uuid[]
-            WHERE tenant = $1 AND type = $2 AND id = $3 AND version = $5 AND subjects IS NULL
+        // a commit that moved the stream meanwhile wrote a sealed state itself: skipped by the version guard
+        public string SealStates => $"""
+            UPDATE {schema}.streams x SET state = u.st::jsonb, subjects = u.sj::uuid[]
+            FROM unnest($2::uuid[], $3::uuid[], $4::bigint[], $5::text[], $6::text[]) AS u(t, i, v, st, sj)
+            WHERE x.tenant = u.t AND x.type = $1 AND x.id = u.i AND x.version = u.v AND x.subjects IS NULL
             """;
 
         public string RaiseCompatibility => $"UPDATE {schema}.schema_version SET compatible_from = greatest(compatible_from, $1)";
