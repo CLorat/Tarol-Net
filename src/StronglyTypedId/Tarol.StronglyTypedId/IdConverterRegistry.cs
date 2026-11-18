@@ -7,9 +7,10 @@ namespace Tarol.StronglyTypedId;
 ///     Registers the closed <see cref="IdTypeConverter{T}" /> for an <see cref="Id{T}" /> with
 ///     <see cref="TypeDescriptor" />.
 ///     <para>
-///         <see cref="TypeDescriptor" /> is what <c>Microsoft.Extensions.Configuration</c> binding (reflection
-///         and source-generated binder), classic MVC binders and designers use. Without a registered converter
-///         the configuration binder silently leaves an <see cref="Id{T}" /> property empty.
+///         <see cref="TypeDescriptor" /> is what the reflection-based <c>Microsoft.Extensions.Configuration</c>
+///         binder, classic MVC binders and designers use. Without a registered converter the reflection binder
+///         silently leaves an <see cref="Id{T}" /> property empty. The source-generated binder (Native AOT) does not
+///         use converters at all: bind a <see cref="Guid" /> and convert with <c>Id&lt;T&gt;.From</c>, or parse the value.
 ///     </para>
 ///     <para>
 ///         The bundled source generator emits one <c>[ModuleInitializer]</c> per consuming assembly that calls
