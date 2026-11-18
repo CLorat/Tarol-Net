@@ -979,3 +979,19 @@ names).
 
 Tests: `RabbitMqTransportTests.A_short_retry_does_not_wait_behind_a_long_one` (1 h and 1 s retries; with the old routing the 1 s
 copy is still waiting after 20 s) and `DelayTierTests.A_backoff_goes_to_the_nearest_delay_queue` (10 cases).
+
+## 26. Fix: a connection that closes again during the client's restart is started again (2026-11-18)
+
+**Behaviour change.** `MessagePushClient` restarts a connection that closed for good in a background loop and ignores every
+`Closed` event while that loop runs (`_restarting`). When the restarted connection closed again right away (the server was still
+shutting down, or closed it after the handshake), its `Closed` was dropped; the loop's `Replay` failed quietly, the loop logged
+the restart as done and ended, and the client stayed `Disconnected` for good. This is what made
+`PushTests.A_connection_that_closed_for_good_is_started_again_by_the_client` fail now and then under the full suite's load (twice
+in this session's runs, after the fix of §20).
+
+The loop now reports a restart only when the connection is still connected after the replay, and tries again otherwise. After the
+loop ends it looks once more and starts a new restart if a `Closed` came between its last look and the reset of the flag.
+
+Test: `PushTests.A_connection_that_closes_again_while_the_client_restarts_is_started_again`. A hub filter in the test host closes
+the first connection after the restart right after its handshake, so the client's start succeeds and the connection then closes.
+Without the fix the client is still `Disconnected` after 60 s; with it the suite passed 5 of 5.

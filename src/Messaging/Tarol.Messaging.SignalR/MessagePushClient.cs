@@ -179,6 +179,10 @@ public sealed partial class MessagePushClient : IAsyncDisposable
                         if (_connection.State == HubConnectionState.Disconnected)
                             await _connection.StartAsync(_stopped.Token).ConfigureAwait(false);
                         await Replay(_stopped.Token).ConfigureAwait(false);
+                        // the server may close the new connection right away (a server shutting down): its Closed came while this
+                        // loop ran and was not acted on, so look again instead of reporting a restart that did not hold
+                        if (_connection.State == HubConnectionState.Disconnected)
+                            continue;
                         Restarted(_log, attempt + 1);
                         return;
                     }
@@ -197,6 +201,10 @@ public sealed partial class MessagePushClient : IAsyncDisposable
             {
                 Volatile.Write(ref _restarting, 0);
             }
+
+            // a Closed between the last look and the flag's reset was dropped by the check above: act on it now
+            if (!Volatile.Read(ref _userStopped) && !_stopped.IsCancellationRequested && _connection.State == HubConnectionState.Disconnected)
+                _ = OnClosed(null);
         });
         return Task.CompletedTask;
     }

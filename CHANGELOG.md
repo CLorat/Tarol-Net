@@ -35,6 +35,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * Generators and analyzers: no id registration for markers nested in generic types; a record deriving from an input that adds
   parameters is reported (TVAL002); TRES002 does not report the awaited `Tap` extensions.
 * CI runs every integration-test project (DataProtection and Operations were left out).
+* SignalR: a push connection that closes again during the client's own restart is started again instead of staying disconnected.
 
 ## [0.1.0]
 
