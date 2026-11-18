@@ -23,7 +23,8 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 * Messaging: one failed subscription restarts all of them instead of staying dead; a re-drive never loses its dead letter, and a
   `SourceMismatch` letter stays dead; the Npgsql bus hands a batch's tail back once half its lease has passed; RabbitMQ nacks a
-  delivery whose retry copy the broker refused.
+  delivery whose retry copy the broker refused, and its retries go to six fixed delay queues (`.retry.1s` … `.retry.1h`) so a
+  short retry never waits behind a long one.
 * Jobs: a failed lease extension is retried, and the run is cancelled before its lease could run out.
 * Persistence: an undecodable outbox row no longer stalls its batch; commits ignore a late cancellation; an erased key is never
   cached across a read; each SQL text is built once; `RebuildStates` pages in primary-key order.

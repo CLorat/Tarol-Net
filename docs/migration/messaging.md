@@ -962,3 +962,20 @@ retry queue; times out without the fix).
 Open: the shared `<queue>.retry` uses per-message TTLs, and RabbitMQ expires only the message at the head of a queue, so one long
 backoff holds back every shorter one behind it. Fixing that changes the queue topology (delay tiers or a delayed exchange) and is
 left for a decision.
+
+## 25. Fix: a short RabbitMQ retry no longer waits behind a long one (2026-11-18)
+
+**Behaviour change, topology change.** The open item of §24. Every retry copy went into one `<queue>.retry` with a per-message
+TTL, and RabbitMQ expires only the message at the head of a queue: an attempt-9 copy with a 4-minute backoff held back every
+attempt-1 copy behind it, so the backoff stopped being honoured. Owner's choice (2026-11-18): fixed delay queues, no plugin.
+
+Each subscription now has six delay queues, `<queue>.retry.1s`, `.5s`, `.30s`, `.2m`, `.10m` and `.1h`, quorum queues with a
+queue TTL (`x-message-ttl`) that dead-letter back to the queue (at-least-once, `reject-publish`, as before). A retry goes to the
+tier nearest its backoff on a log scale, so a delay is rounded: the default policy's attempts wait 1, 1, 5, 5, 30, 30 s, 2, 2,
+2, 10 min (about 17 min in all, where it asked for about 13). Every message in a tier has the same TTL, so none waits behind a
+longer one. The `<queue>.retry` queue of earlier versions is still declared with its old arguments, so copies already in it flow
+back; nothing new goes in, and it can be deleted once empty. The user's permissions need no change (`billing\..*` covers the new
+names).
+
+Tests: `RabbitMqTransportTests.A_short_retry_does_not_wait_behind_a_long_one` (1 h and 1 s retries; with the old routing the 1 s
+copy is still waiting after 20 s) and `DelayTierTests.A_backoff_goes_to_the_nearest_delay_queue` (10 cases).

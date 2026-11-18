@@ -73,7 +73,7 @@ public sealed class RabbitMqTransportTests(RabbitMq rabbit)
         var factory = new ConnectionFactory { Uri = new Uri(rabbit.Uri()) };
         await using (var connection = await factory.CreateConnectionAsync(Ct))
         await using (var channel = await connection.CreateChannelAsync(cancellationToken: Ct))
-            _ = await channel.QueueDeleteAsync(transport.QueueOf(subscription.Name) + ".retry", cancellationToken: Ct);   // the copy is unroutable
+            _ = await channel.QueueDeleteAsync(transport.QueueOf(subscription.Name) + ".retry.1s", cancellationToken: Ct);   // the copy is unroutable
         await transport.Publish(Raw("artflow.stuck"), Ct);
 
         var attempts = new List<int>();
@@ -91,6 +91,33 @@ public sealed class RabbitMqTransportTests(RabbitMq rabbit)
     }
 
     [Fact]
+    public async Task A_short_retry_does_not_wait_behind_a_long_one()
+    {
+        var prefix = "r" + Guid.NewGuid().ToString("N")[..8];
+        await using var transport = new RabbitMqTransport(new RabbitMqTransportOptions { Uri = new Uri(rabbit.Uri()), Prefix = prefix, StampUserId = false });
+        var subscription = new Subscription("t.Mixed", ["artflow.mixed"]);
+        await transport.Prepare(["artflow.mixed"], [subscription], Ct);
+        var slow = Raw("artflow.mixed");
+        var quick = Raw("artflow.mixed");
+        await transport.Publish(slow, Ct);
+        await transport.Publish(quick, Ct);
+
+        // with one queue of per-message TTLs, the 1 s copy would wait behind the 1 h one (RabbitMQ expires only the head)
+        var back = new List<Guid>();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        await transport.Consume(subscription, async (incoming, _) =>
+        {
+            if (incoming.Attempt == 1)
+                return new Handled(Ack.Retry, incoming.Message!.Id == slow.Id ? TimeSpan.FromHours(1) : TimeSpan.FromSeconds(1));
+            back.Add(incoming.Message!.Id);
+            await stop.CancelAsync();
+            return new Handled(Ack.Ack);
+        }, stop.Token);
+
+        back.ShouldBe([quick.Id]);                                                              // back after ~1 s, the other still waits
+    }
+
+    [Fact]
     public async Task An_unroutable_message_is_logged_and_counts_as_delivered()
     {
         await using var transport = new RabbitMqTransport(new RabbitMqTransportOptions { Uri = new Uri(rabbit.Uri()), Prefix = "r" + Guid.NewGuid().ToString("N")[..8], StampUserId = false });
@@ -101,4 +128,22 @@ public sealed class RabbitMqTransportTests(RabbitMq rabbit)
         transport.Unroutable.ShouldBe(1);
         transport.ExchangeOf("artflow.x").ShouldEndWith(".artflow");
     }
+}
+
+/// <summary>Which delay queue a backoff goes to (no broker needed).</summary>
+public sealed class DelayTierTests
+{
+    [Theory]
+    [InlineData(0, ".retry.1s")]
+    [InlineData(1, ".retry.1s")]
+    [InlineData(2, ".retry.1s")]
+    [InlineData(4, ".retry.5s")]
+    [InlineData(16, ".retry.30s")]
+    [InlineData(64, ".retry.2m")]
+    [InlineData(250, ".retry.2m")]
+    [InlineData(300, ".retry.10m")]
+    [InlineData(600, ".retry.10m")]
+    [InlineData(86400, ".retry.1h")]
+    public void A_backoff_goes_to_the_nearest_delay_queue(int seconds, string suffix)
+        => RabbitMqTransport.DelayQueueFor(TimeSpan.FromSeconds(seconds)).ShouldBe(suffix);
 }
