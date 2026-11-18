@@ -27,7 +27,7 @@ public static class NpgsqlTarolBuilderExtensions
         var traceRoots = options?.TraceRootCommands ?? false;
         builder.Services.AddSingleton(_ =>
         {
-            var source = new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays();
+            var source = new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays().AutoPrepareUnlessSet();
             if (!traceRoots)
                 source.TraceOnlyInActivities();                                                     // O-6: no root spans from idle polls
             return source.Build();

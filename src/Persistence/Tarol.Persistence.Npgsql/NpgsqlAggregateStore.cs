@@ -1003,14 +1003,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         return command;
     }
 
-    /// <summary>Every statement, built once per schema name.</summary>
+    /// <summary>Every statement, built once per schema name (on first use; the store keeps one instance).</summary>
     /// <remarks>Only a sealing store writes the <c>subjects</c> columns (version 3): a store without keys runs, as before, on older schemas.</remarks>
     private sealed class Sql(string schema, bool sealing)
     {
         public string Schema => schema;
 
         // $22: per event, its sealed subjects as a uuid[] literal (NULL when nothing of it is sealed); $23: the state's
-        private string Events => $"""
+        private string Events => field ??= $"""
             INSERT INTO {schema}.events (tenant, type, stream_id, version, event_id, alias, alias_version, entity_id, parent_id, payload,
                                          recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, traceparent{(sealing ? ", subjects" : "")})
             SELECT $1, $2, $3, v, e, a, av, en, NULLIF(p, '00000000-0000-0000-0000-000000000000'::uuid), pl, $4, $5, $6, $7, $8, $9, $10{(sealing ? ", sj::uuid[]" : "")}
@@ -1020,32 +1020,32 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
 
         private string Ours(string eventId) => $"EXISTS (SELECT 1 FROM {schema}.events WHERE event_id = {eventId})";
 
-        public string CreateStream => $"""
+        public string CreateStream => field ??= $"""
             WITH g AS (INSERT INTO {schema}.streams (tenant, type, id, version, schema, state, updated_at{(sealing ? ", subjects" : "")})
                        VALUES ($1, $2, $3, $18, $19, $20, $4{(sealing ? ", $23::uuid[]" : "")}) ON CONFLICT (tenant, type, id) DO NOTHING
                        RETURNING 1)
             {Events} AND $21::bigint = 0
             """;
 
-        public string AppendStream => $"""
+        public string AppendStream => field ??= $"""
             WITH g AS (UPDATE {schema}.streams SET version = $18, schema = $19, state = $20, updated_at = $4{(sealing ? ", subjects = $23::uuid[]" : "")}
                        WHERE tenant = $1 AND type = $2 AND id = $3 AND version = $21
                        RETURNING 1)
             {Events}
             """;
 
-        public string StoreKey => $"""
+        public string StoreKey => field ??= $"""
             INSERT INTO {schema}.idempotency_keys (tenant, scope, key, stream_id, version, events, stored_at, fingerprint)
             SELECT $1, $2, $3, $4, $5, $6, $7, $9 WHERE {Ours("$8")}
             ON CONFLICT (tenant, scope, key) DO NOTHING
             """;
 
-        public string ReleaseLookup => $"""
+        public string ReleaseLookup => field ??= $"""
             DELETE FROM {schema}.lookups
             WHERE tenant = $1 AND type = $2 AND lookup = $3 AND stream_id = $4 AND key IS DISTINCT FROM $5::text AND {Ours("$6")}
             """;
 
-        public string ClaimLookup => $"""
+        public string ClaimLookup => field ??= $"""
             INSERT INTO {schema}.lookups (tenant, type, lookup, key, stream_id)
             SELECT $1, $2, $3, $4, $5 WHERE {Ours("$6")}
             ON CONFLICT (tenant, type, lookup, key) DO UPDATE SET stream_id = EXCLUDED.stream_id WHERE lookups.stream_id = EXCLUDED.stream_id
@@ -1054,7 +1054,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         // head: a scheduled reaction's row always; else the first row per reaction of this commit when no live row of the
         // stream and reaction waits. The guarded UPDATE of the stream row (statement 1) holds its lock, so a promotion in
         // Complete/Bury (FOR SHARE on that row) either committed before this snapshot or waits for this commit.
-        public string WriteOutbox => $"""
+        public string WriteOutbox => field ??= $"""
             INSERT INTO {schema}.outbox (tenant, reaction, type, stream_id, version, event_id, due_at, head)
             SELECT $1, u.r, $2, $3, u.v, u.e, u.d,
                    u.s OR (row_number() OVER (PARTITION BY u.r ORDER BY u.v) = 1
@@ -1065,35 +1065,35 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             """;
 
         // one notification per commit with rows; returns a count so the reader loop's last row stays the stream version
-        public string NotifyOutbox => $"""
+        public string NotifyOutbox => field ??= $"""
             WITH n AS (SELECT pg_notify($1, '') WHERE {Ours("$2")})
             SELECT count(*) FROM n
             """;
 
-        public string StreamVersion => $"SELECT version FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
+        public string StreamVersion => field ??= $"SELECT version FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
 
         // the stream's version (column 0, as StreamVersion) plus this commit's transaction and the position of its last event
-        public string CommitPosition => $"""
+        public string CommitPosition => field ??= $"""
             SELECT s.version, pg_current_xact_id()::text,
                    (SELECT max(e.position) FROM {schema}.events e
                     WHERE e.tenant = $1 AND e.type = $2 AND e.stream_id = $3 AND e.version > $4 AND e.tx_id = pg_current_xact_id())
             FROM {schema}.streams s WHERE s.tenant = $1 AND s.type = $2 AND s.id = $3
             """;
 
-        public string LoadState => $"SELECT schema, state FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
+        public string LoadState => field ??= $"SELECT schema, state FROM {schema}.streams WHERE tenant = $1 AND type = $2 AND id = $3";
 
-        public string LoadEvents => $"""
+        public string LoadEvents => field ??= $"""
             SELECT version, entity_id, parent_id, alias, alias_version, payload FROM {schema}.events
             WHERE tenant = $1 AND type = $2 AND stream_id = $3 ORDER BY version
             """;
 
-        public string Find => $"SELECT stream_id FROM {schema}.lookups WHERE tenant = $1 AND type = $2 AND lookup = $3 AND key = $4";
+        public string Find => field ??= $"SELECT stream_id FROM {schema}.lookups WHERE tenant = $1 AND type = $2 AND lookup = $3 AND key = $4";
 
-        public string Seen => $"SELECT stream_id, version, events, fingerprint FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
+        public string Seen => field ??= $"SELECT stream_id, version, events, fingerprint FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
 
         // (tx_id, position) is the order; only transactions older than the oldest running one are final (P-14).
         // The text column needs its own name: ORDER BY tx_id would otherwise sort by the text output column.
-        public string ReadAll => $"""
+        public string ReadAll => field ??= $"""
             SELECT {RecordedEvents.Columns("events")}
             FROM {schema}.events
             WHERE (tx_id, position) > ($1::text::xid8, $2) AND tx_id < pg_snapshot_xmin(pg_current_snapshot())
@@ -1101,38 +1101,38 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             LIMIT $3
             """;
 
-        public string StaleStates => $"""
+        public string StaleStates => field ??= $"""
             SELECT tenant, id, version FROM {schema}.streams
             WHERE type = $1 AND schema <> $2 AND (tenant, id) > ($3, $4)
             ORDER BY tenant, id LIMIT $5
             """;
 
-        public string RewriteState => $"""
+        public string RewriteState => field ??= $"""
             UPDATE {schema}.streams SET schema = $4, state = $5{(sealing ? ", subjects = $7::uuid[]" : "")}
             WHERE tenant = $1 AND type = $2 AND id = $3 AND version = $6
             """;
 
-        public string ReadStream => $"""
+        public string ReadStream => field ??= $"""
             SELECT {RecordedEvents.Columns("events")} FROM {schema}.events
             WHERE tenant = $1 AND type = $2 AND stream_id = $3 ORDER BY version
             """;
 
-        public string StreamsOf => $"""
+        public string StreamsOf => field ??= $"""
             SELECT DISTINCT type, stream_id FROM {schema}.events WHERE tenant = $1 AND subjects @> $2::uuid[] ORDER BY type, stream_id
             """;
 
-        public string EventsOf => $"""
+        public string EventsOf => field ??= $"""
             SELECT {RecordedEvents.Columns("events")} FROM {schema}.events
             WHERE tenant = $1 AND subjects @> $2::uuid[] ORDER BY events.tx_id, events.position
             """;
 
-        public string DeleteLookups => $"""
+        public string DeleteLookups => field ??= $"""
             DELETE FROM {schema}.lookups WHERE tenant = $1 AND type = $2 AND lookup = ANY($3::text[]) AND stream_id = ANY($4::uuid[])
             """;
 
         // the oldest expired streams without pending reactions, locked (a racing commit waits, then finds no stream row);
         // their events, lookups and the stream rows go in one statement
-        public string DeleteStreams => $"""
+        public string DeleteStreams => field ??= $"""
             WITH d AS (SELECT s.tenant, s.id FROM {schema}.streams s
                        WHERE s.type = $1 AND s.updated_at < $2
                          AND NOT EXISTS (SELECT 1 FROM {schema}.outbox o WHERE o.tenant = s.tenant AND o.type = s.type AND o.stream_id = s.id)
@@ -1144,42 +1144,42 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             RETURNING x.tenant, x.id
             """;
 
-        public string UnsealedEvents => $"""
+        public string UnsealedEvents => field ??= $"""
             SELECT tenant, stream_id, version, alias, alias_version, payload FROM {schema}.events
             WHERE (tenant, type, stream_id, version) > ($2, $1, $3, $4) AND type = $1 AND subjects IS NULL AND alias = ANY($5::text[])
             ORDER BY tenant, type, stream_id, version LIMIT $6
             """;
 
-        public string SealEvents => $"""
+        public string SealEvents => field ??= $"""
             UPDATE {schema}.events e SET payload = u.p::jsonb, subjects = u.sj::uuid[]
             FROM unnest($2::uuid[], $3::uuid[], $4::bigint[], $5::text[], $6::text[]) AS u(t, s, v, p, sj)
             WHERE e.tenant = u.t AND e.type = $1 AND e.stream_id = u.s AND e.version = u.v AND e.subjects IS NULL
             """;
 
-        public string UnsealedStates => $"""
+        public string UnsealedStates => field ??= $"""
             SELECT tenant, id, version, state FROM {schema}.streams
             WHERE (tenant, type, id) > ($2, $1, $3) AND type = $1 AND subjects IS NULL AND state IS NOT NULL
             ORDER BY tenant, type, id LIMIT $4
             """;
 
         // a commit that moved the stream meanwhile wrote a sealed state itself: skipped by the version guard
-        public string SealStates => $"""
+        public string SealStates => field ??= $"""
             UPDATE {schema}.streams x SET state = u.st::jsonb, subjects = u.sj::uuid[]
             FROM unnest($2::uuid[], $3::uuid[], $4::bigint[], $5::text[], $6::text[]) AS u(t, i, v, st, sj)
             WHERE x.tenant = u.t AND x.type = $1 AND x.id = u.i AND x.version = u.v AND x.subjects IS NULL
             """;
 
-        public string StreamsOfType => $"SELECT id FROM {schema}.streams WHERE tenant = $1 AND type = $2 ORDER BY id";
+        public string StreamsOfType => field ??= $"SELECT id FROM {schema}.streams WHERE tenant = $1 AND type = $2 ORDER BY id";
 
-        public string Audit => $"INSERT INTO {schema}.operations_audit (at, actor, action, target, detail) VALUES ($1, $2, $3, $4, $5)";
+        public string Audit => field ??= $"INSERT INTO {schema}.operations_audit (at, actor, action, target, detail) VALUES ($1, $2, $3, $4, $5)";
 
-        public string PurgeAudit => $"""
+        public string PurgeAudit => field ??= $"""
             DELETE FROM {schema}.operations_audit WHERE id IN (SELECT id FROM {schema}.operations_audit WHERE at < $1 ORDER BY id LIMIT $2)
             """;
 
-        public string RaiseCompatibility => $"UPDATE {schema}.schema_version SET compatible_from = greatest(compatible_from, $1)";
+        public string RaiseCompatibility => field ??= $"UPDATE {schema}.schema_version SET compatible_from = greatest(compatible_from, $1)";
 
-        public string PurgeKeys => $"""
+        public string PurgeKeys => field ??= $"""
             DELETE FROM {schema}.idempotency_keys k USING (
                 SELECT tenant, scope, key FROM {schema}.idempotency_keys WHERE stored_at < $1 ORDER BY stored_at LIMIT $2) d
             WHERE (k.tenant, k.scope, k.key) = (d.tenant, d.scope, d.key)

@@ -1,2 +1,3 @@
 #nullable enable
 Tarol.Persistence.Npgsql.NpgsqlOutbox.Release(Tarol.Persistence.OutboxRow! row, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+static Tarol.Persistence.Npgsql.NpgsqlTracing.AutoPrepareUnlessSet(this Npgsql.NpgsqlSlimDataSourceBuilder! builder, int statements = 64) -> Npgsql.NpgsqlSlimDataSourceBuilder!

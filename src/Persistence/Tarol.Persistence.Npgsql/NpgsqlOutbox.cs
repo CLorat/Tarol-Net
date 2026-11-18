@@ -396,7 +396,7 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
                   RETURNING 1)
             """;
 
-        public string Claim => $"""
+        public string Claim => field ??= $"""
             WITH c AS (
                 SELECT o.id FROM {schema}.outbox o
                 WHERE o.head AND o.due_at <= $1 AND (o.lease_until IS NULL OR o.lease_until <= $1)
@@ -414,26 +414,26 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
 
         // statement 1 of Complete and Bury: share-lock the stream row, so a commit of this stream (which updates that row)
         // either finished before the promotion's snapshot or waits until the promotion committed
-        public string LockForRow => $"""
+        public string LockForRow => field ??= $"""
             SELECT 1 FROM {schema}.streams s JOIN {schema}.outbox o ON s.tenant = o.tenant AND s.type = o.type AND s.id = o.stream_id
             WHERE o.id = $1 AND o.claim_id = $2
             FOR SHARE OF s
             """;
 
-        public string Complete => $"""
+        public string Complete => field ??= $"""
             WITH d AS (DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2 RETURNING id, tenant, type, stream_id, reaction),
             {Promote("d")}
             SELECT count(*) FROM d
             """;
 
-        public string Retry => $"UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4 WHERE id = $1 AND claim_id = $2";
+        public string Retry => field ??= $"UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4 WHERE id = $1 AND claim_id = $2";
 
-        public string Release => $"""
+        public string Release => field ??= $"""
             UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4, attempts = greatest(attempts - 1, 0)
             WHERE id = $1 AND claim_id = $2
             """;
 
-        public string Bury => $"""
+        public string Bury => field ??= $"""
             WITH d AS (DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2
                        RETURNING id, tenant, reaction, type, stream_id, version, event_id, attempts),
             i AS (INSERT INTO {schema}.outbox_dead (id, tenant, reaction, type, stream_id, version, event_id, attempts, last_error, dead_at)
@@ -442,12 +442,12 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
             SELECT count(*) FROM d
             """;
 
-        public string DeadLetters => $"""
+        public string DeadLetters => field ??= $"""
             SELECT d.id, d.reaction, d.tenant, d.type, d.stream_id, d.event_id, d.attempts, d.last_error, d.dead_at
             FROM {schema}.outbox_dead d ORDER BY d.id LIMIT $1
             """;
 
-        public string LockForDead => $"""
+        public string LockForDead => field ??= $"""
             SELECT d.reaction FROM {schema}.streams s JOIN {schema}.outbox_dead d ON s.tenant = d.tenant AND s.type = d.type AND s.id = d.stream_id
             WHERE d.id = $1
             FOR NO KEY UPDATE OF s
@@ -463,10 +463,10 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
             SELECT count(*) FROM i
             """;
 
-        public string Redrive => RedriveOf("");
+        public string Redrive => field ??= RedriveOf("");
 
         // the audit row in the same statement (O-3): DELETE … RETURNING feeds it
-        public string RedriveAudited => RedriveOf(Audit("redrive", "$2", "$4"));
+        public string RedriveAudited => field ??= RedriveOf(Audit("redrive", "$2", "$4"));
 
         private string Audit(string action, string at, string actor) => $"""
             ,
@@ -477,14 +477,14 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
 
         private const string DeadColumns = "d.id, d.reaction, d.tenant, d.type, d.stream_id, d.event_id, d.attempts, d.last_error, d.dead_at";
 
-        public string Purge => $"""
+        public string Purge => field ??= $"""
             WITH d AS (DELETE FROM {schema}.outbox_dead WHERE id IN (SELECT id FROM {schema}.outbox_dead WHERE dead_at < $1 ORDER BY dead_at LIMIT $2) RETURNING id),
             a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
                   SELECT $3, $4, 'purge', 'reactions', jsonb_build_object('rows', count(*), 'before', $1) FROM d HAVING count(*) > 0)
             SELECT count(*) FROM d
             """;
 
-        public string DeadPage => $"""
+        public string DeadPage => field ??= $"""
             SELECT {DeadColumns} FROM {schema}.outbox_dead d
             WHERE d.id > $1 AND ($3::uuid IS NULL OR d.tenant = $3) AND ($4::text IS NULL OR d.reaction = $4)
             ORDER BY d.id LIMIT $2
@@ -495,13 +495,13 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
             SELECT count(*) FROM d
             """;
 
-        public string Discard => DiscardOf("");
+        public string Discard => field ??= DiscardOf("");
 
-        public string DiscardAudited => DiscardOf(Audit("discard", "$2", "$3"));
+        public string DiscardAudited => field ??= DiscardOf(Audit("discard", "$2", "$3"));
 
         // the oldest due head: an index lookup on outbox_heads (due_at, id) WHERE head
-        public string OldestDue => $"SELECT min(due_at) FROM {schema}.outbox WHERE head AND due_at <= $1";
+        public string OldestDue => field ??= $"SELECT min(due_at) FROM {schema}.outbox WHERE head AND due_at <= $1";
 
-        public string Pending => $"SELECT count(*) FROM {schema}.outbox";
+        public string Pending => field ??= $"SELECT count(*) FROM {schema}.outbox";
     }
 }

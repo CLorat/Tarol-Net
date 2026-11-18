@@ -108,5 +108,5 @@ plaintext written before. `StreamsOf`, `EventsOf`, `StateOf`, `DeletePersonalLoo
 ## AOT
 
 No reflection: SQL is plain text, JSON goes through your source-generated context and the generated state code. Use
-`NpgsqlSlimDataSourceBuilder` with `EnableArrays()`; jsonb is sent and read as text, so `EnableJsonTypes()` is not
+`NpgsqlSlimDataSourceBuilder` with `EnableArrays()` (and `AutoPrepareUnlessSet()`: `UseNpgsqlStore(connectionString)` sets `Max Auto Prepare=64` unless the connection string sets it; `Max Auto Prepare=0` behind a pooler that cannot keep prepared statements); jsonb is sent and read as text, so `EnableJsonTypes()` is not
 needed. The smoke app publishes with 0 IL warnings and runs against PostgreSQL natively.

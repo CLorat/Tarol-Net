@@ -28,7 +28,7 @@ public static class NpgsqlMessagingBuilderExtensions
         AddBacklog(messaging);
         return messaging.UseTransport(provider =>
         {
-            var source = new NpgsqlSlimDataSourceBuilder(connectionString);
+            var source = new NpgsqlSlimDataSourceBuilder(connectionString).AutoPrepareUnlessSet();
             if (!options.TraceRootCommands)
                 source.TraceOnlyInActivities();                                                     // O-6: no root spans from idle polls
             return new NpgsqlBus(source.Build(), ownsDataSource: true, provider.GetRequiredService<TimeProvider>(), options,

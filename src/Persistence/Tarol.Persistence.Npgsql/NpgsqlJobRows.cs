@@ -345,29 +345,29 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource, IDeadLetterRete
 
         public static string SyncLock => "SELECT pg_advisory_xact_lock(hashtext($1))";
 
-        public string SyncRead => $"SELECT tenant, name, schedule, enabled FROM {schema}.jobs";
+        public string SyncRead => field ??= $"SELECT tenant, name, schedule, enabled FROM {schema}.jobs";
 
-        public string SyncInsert => $"""
+        public string SyncInsert => field ??= $"""
             INSERT INTO {schema}.jobs (tenant, name, schedule, enabled, next_at)
             SELECT * FROM unnest($1::uuid[], $2::text[], $3::text[], $4::boolean[], $5::timestamptz[])
             ON CONFLICT (tenant, name) DO NOTHING
             """;
 
-        public string SyncRestart => $"""
+        public string SyncRestart => field ??= $"""
             UPDATE {schema}.jobs j SET schedule = u.schedule, enabled = u.enabled, next_at = u.first,
                    claim_id = NULL, lease_until = NULL, attempts = 0, last_error = NULL
             FROM unnest($1::uuid[], $2::text[], $3::text[], $4::boolean[], $5::timestamptz[]) AS u(tenant, name, schedule, enabled, first)
             WHERE j.tenant = u.tenant AND j.name = u.name
             """;
 
-        public string SyncDisable => $"""
+        public string SyncDisable => field ??= $"""
             UPDATE {schema}.jobs j SET enabled = false
             FROM unnest($1::uuid[], $2::text[]) AS u(tenant, name)
             WHERE j.tenant = u.tenant AND j.name = u.name
             """;
 
         // A pending re-drive of a free row first (the partial index is empty almost always), else the oldest due cursor.
-        public string Claim => $"""
+        public string Claim => field ??= $"""
             WITH r AS (
                 SELECT j.tenant, j.name, d.id AS redrive, d.occurrence
                 FROM {schema}.jobs_dead d JOIN {schema}.jobs j ON j.tenant = d.tenant AND j.name = d.name
@@ -391,13 +391,13 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource, IDeadLetterRete
             SELECT count(*) FROM u
             """;
 
-        public string Move => Guarded("next_at = $4, attempts = 1, last_error = NULL");
+        public string Move => field ??= Guarded("next_at = $4, attempts = 1, last_error = NULL");
 
-        public string Extend => Guarded("lease_until = $4");
+        public string Extend => field ??= Guarded("lease_until = $4");
 
-        public string Retry => Guarded("claim_id = NULL, lease_until = $4, last_error = $5");
+        public string Retry => field ??= Guarded("claim_id = NULL, lease_until = $4, last_error = $5");
 
-        public string Advance => $"""
+        public string Advance => field ??= $"""
             WITH u AS (UPDATE {schema}.jobs SET next_at = $4, claim_id = NULL, lease_until = NULL, attempts = 0, last_error = NULL
                        WHERE tenant = $1 AND name = $2 AND claim_id = $3 RETURNING 1),
                  d AS (DELETE FROM {schema}.jobs_dead WHERE id = $5 AND EXISTS (SELECT 1 FROM u))
@@ -405,7 +405,7 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource, IDeadLetterRete
             """;
 
         // $5 the re-drive (or NULL), $6 the occurrence, $7 attempts, $8 reason, $9 now
-        public string Bury => $"""
+        public string Bury => field ??= $"""
             WITH u AS (UPDATE {schema}.jobs SET next_at = $4, claim_id = NULL, lease_until = NULL, attempts = 0, last_error = NULL
                        WHERE tenant = $1 AND name = $2 AND claim_id = $3 RETURNING 1),
                  i AS (INSERT INTO {schema}.jobs_dead (tenant, name, occurrence, attempts, last_error, dead_at)
@@ -415,7 +415,7 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource, IDeadLetterRete
             SELECT count(*) FROM u
             """;
 
-        public string DeadJobs => $"""
+        public string DeadJobs => field ??= $"""
             SELECT id, tenant, name, occurrence, attempts, last_error, dead_at, redrive FROM {schema}.jobs_dead ORDER BY id LIMIT $1
             """;
 
@@ -426,36 +426,36 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource, IDeadLetterRete
             SELECT count(*) FROM d
             """;
 
-        private string RedriveRow => $"UPDATE {schema}.jobs_dead SET redrive = true WHERE id = $1 AND NOT redrive";
+        private string RedriveRow => field ??= $"UPDATE {schema}.jobs_dead SET redrive = true WHERE id = $1 AND NOT redrive";
 
-        private string DiscardRow => $"DELETE FROM {schema}.jobs_dead WHERE id = $1";
+        private string DiscardRow => field ??= $"DELETE FROM {schema}.jobs_dead WHERE id = $1";
 
-        public string Redrive => $"WITH d AS ({RedriveRow} RETURNING id) SELECT count(*) FROM d";
+        public string Redrive => field ??= $"WITH d AS ({RedriveRow} RETURNING id) SELECT count(*) FROM d";
 
-        public string Discard => $"WITH d AS ({DiscardRow} RETURNING id) SELECT count(*) FROM d";
+        public string Discard => field ??= $"WITH d AS ({DiscardRow} RETURNING id) SELECT count(*) FROM d";
 
         // the audit row in the same statement (O-3)
-        public string RedriveAudited => Audited(RedriveRow, "redrive");
+        public string RedriveAudited => field ??= Audited(RedriveRow, "redrive");
 
-        public string DiscardAudited => Audited(DiscardRow, "discard");
+        public string DiscardAudited => field ??= Audited(DiscardRow, "discard");
 
-        public string Purge => $"""
+        public string Purge => field ??= $"""
             WITH d AS (DELETE FROM {schema}.jobs_dead WHERE id IN (SELECT id FROM {schema}.jobs_dead WHERE dead_at < $1 ORDER BY dead_at LIMIT $2) RETURNING id),
             a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
                   SELECT $3, $4, 'purge', 'jobs', jsonb_build_object('rows', count(*), 'before', $1) FROM d HAVING count(*) > 0)
             SELECT count(*) FROM d
             """;
 
-        public string DeadPage => $"""
+        public string DeadPage => field ??= $"""
             SELECT id, tenant, name, occurrence, attempts, last_error, dead_at, redrive FROM {schema}.jobs_dead
             WHERE id > $1 AND ($3::uuid IS NULL OR tenant = $3) AND ($4::text IS NULL OR name = $4)
             ORDER BY id LIMIT $2
             """;
 
-        public string Rows => $"""
+        public string Rows => field ??= $"""
             SELECT tenant, name, schedule, enabled, next_at, lease_until, attempts, last_error FROM {schema}.jobs ORDER BY name, tenant
             """;
 
-        public string Overdue => $"SELECT min(next_at) FROM {schema}.jobs WHERE enabled AND next_at <= $1";
+        public string Overdue => field ??= $"SELECT min(next_at) FROM {schema}.jobs WHERE enabled AND next_at <= $1";
     }
 }

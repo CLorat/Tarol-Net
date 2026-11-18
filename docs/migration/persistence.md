@@ -684,3 +684,18 @@ the read-model batches) committed with the caller's `CancellationToken`. A cance
 `OperationCanceledException` although the transaction may have committed, so the caller could not tell whether to retry; without
 an idempotency key a retry appended twice. `CommitAsync` now gets `CancellationToken.None`, as the rollbacks already did; the
 cancellation still stops the statements before it. No test: the window is the COMMIT round trip itself.
+
+## 25. Performance: statements are built once and prepared (2026-11-18)
+
+**Behaviour change, public API addition.**
+* The SQL texts of the store, the outbox and the job rows were expression-bodied interpolated strings, so each access built the
+  string again (several KB per commit and per claim), although the remarks said "built once per schema name". Each is now built on
+  first use and kept (`=> field ??= …`).
+* No statement was prepared: the data sources Tarol builds did not set `Max Auto Prepare`, so every commit sent its batch of up to
+  seven statements to be parsed and planned again, and so did every claim and load. `NpgsqlTracing.AutoPrepareUnlessSet(builder,
+  statements = 64)` (new) sets it unless the connection string does; `UseNpgsqlStore(connectionString)` and
+  `UseNpgsqlBus(connectionString)` call it. Behind PgBouncer in transaction mode without `max_prepared_statements`, set
+  `Max Auto Prepare=0` in the connection string. A data source the application builds is unchanged.
+
+Test: `AutoPrepareTests.Auto_prepare_is_set_unless_the_connection_string_sets_it`; the whole suite with Docker (1883 tests) passes
+with both changes. Not measured here: the gain per commit.
