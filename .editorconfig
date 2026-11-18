@@ -94,6 +94,14 @@ dotnet_naming_rule.constants_pascal.severity = warning
 # CA1000: "Do not declare static members on generic types". Tarol's value types are generic by
 # design (Id<T>.Empty, Result<T>.Success); the static members ARE the API. Fires on every family.
 dotnet_diagnostic.CA1000.severity = none
+# CA2100: "Review SQL queries for security vulnerabilities". It flags every non-constant command text and follows no data flow.
+# Tarol builds SQL only from identifiers checked against ^[a-z_][a-z0-9_]{0,62}$ (schema, projection names) and constants, and
+# passes every value as a parameter. CodeQL's SQL-injection query (codeql.yml) checks the real data flow
+# (docs/migration/release.md RL-10).
+dotnet_diagnostic.CA2100.severity = none
+# CA5394: "Do not use insecure randomness". Tarol uses Random only for retry jitter (Tarol.Messaging.SignalR) and test data;
+# keys, nonces and ids come from RandomNumberGenerator / Guid.CreateVersion7 (RL-10).
+dotnet_diagnostic.CA5394.severity = none
 
 # --- Generated code -------------------------------------------------------
 [*.{g.cs,generated.cs,Designer.cs}]

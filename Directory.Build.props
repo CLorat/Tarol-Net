@@ -13,6 +13,8 @@
 
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- Every security rule on, as errors (docs/migration/release.md RL-10); CA2100 and CA5394 are configured in .editorconfig. -->
+    <AnalysisLevelSecurity>latest-all</AnalysisLevelSecurity>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
 

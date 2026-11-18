@@ -401,3 +401,43 @@ How to handle them was asked of the owner again (2026-11-18):
 | # | Question | Answer |
 |---|---|---|
 | RL-10 | The .NET security rules with 80 findings: all on with CA2100/CA5394 off, all on with a justified suppression per site, or CodeQL only | **All on; CA2100 and CA5394 off** (recommended): `AnalysisLevelSecurity=latest-all` in `Directory.Build.props`, so every security rule is an error; `.editorconfig` sets CA2100 (no data flow; SQL from validated identifiers; CodeQL's SQL-injection query covers it) and CA5394 (`Random` only for jitter and test data) to `none`, for tests and smoke apps too. No code changes. |
+
+## 15. Implementation 17A: SHA-pinned actions, reusable CI, CodeQL, security rules
+
+### 15.1 What changed
+
+* `ci.yml`:
+  * the 12 `uses:` are pinned to commit SHAs with the tag as a comment (§3.5: checkout v5.1.0, setup-dotnet v5.4.0, cache v4.3.0,
+    upload-artifact v4.6.2);
+  * `workflow_call` added, so the release can run the whole CI on the tag;
+  * the concurrency group is `ci-${{ github.workflow }}-${{ github.ref }}`. When the release calls the file, `github.workflow`
+    is the caller's name, so a dry run on a PR does not cancel that PR's own CI (both have the same `github.ref`).
+* `codeql.yml` (new): C#, `build-mode: manual` (`dotnet build -c Release -p:UseSharedCompilation=false`, so CodeQL traces every
+  compiler call), `security-extended`; push to `main`, PRs, Mondays 04:17 UTC, `workflow_dispatch`; `security-events: write`
+  on the job only.
+* `Directory.Build.props`: `AnalysisLevelSecurity=latest-all` (RL-10).
+* `.editorconfig`: CA2100 and CA5394 `none`, with the reasons of §14.
+* `tests/Operations/Tarol.Operations.AotSmoke`: its `HttpClientHandler` checks certificate revocation, fixing CA5399 instead of
+  configuring it.
+* Conventions §7 and the plan's CI section.
+* Dependabot unchanged: its `github-actions` ecosystem updates SHA pins **[unverified]** until its first PR (§13 item 2).
+
+### 15.2 Public API and behaviour
+
+None: no package code changed. The security rules found nothing beyond CA2100/CA5394 in the packages (§14).
+
+### 15.3 Suppressions
+
+* `.editorconfig`: CA2100, CA5394 `none` (RL-10, reasons in the file and §14).
+
+
+### 15.4 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors, with every security rule on;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863**;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK;
+* both workflows parse as YAML with the expected triggers and jobs. `actionlint` was not run here (downloading a binary was
+  not allowed in this session), so the PR's own CI and CodeQL runs prove the workflows.

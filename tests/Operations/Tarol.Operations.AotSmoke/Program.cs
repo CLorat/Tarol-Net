@@ -35,7 +35,7 @@ var json = new JsonSerializerOptions(JsonSerializerDefaults.Web) { TypeInfoResol
     app.MapTarolAdmin("/tarol/admin", policy: "tarol-admin");
     await app.StartAsync();
     var address = app.Urls.First();
-    using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(address) };
+    using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, CheckCertificateRevocationList = true }) { BaseAddress = new Uri(address) };
 
     var host = app.Services.GetRequiredService<OperationsHost>();
     var snapshot = await host.PollOnce();

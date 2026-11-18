@@ -5,12 +5,15 @@ on:
     branches: [main, "claude/**"]
   pull_request:
   workflow_dispatch:
+  # the release workflow runs the whole CI on the tagged commit first (docs/migration/release.md RL-6)
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # github.workflow is the caller's name when the release calls this file, so its run never cancels the PR's own CI
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -23,15 +26,15 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0 # MinVer reads the version from tags
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
@@ -65,14 +68,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-results
           path: artifacts/test-results/
           retention-days: 14
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: packages
           path: artifacts/package/release/
@@ -82,15 +85,15 @@ jobs:
     name: integration
     runs-on: ubuntu-latest   # Docker is available on the hosted runner; Testcontainers starts postgres:17 (D-15)
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
@@ -143,7 +146,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: integration-test-results
           path: artifacts/test-results/
@@ -177,15 +180,15 @@ jobs:
       TAROL_NATS: nats://localhost:4222
       TAROL_RABBITMQ: amqp://smoke:smoke@localhost:5672/
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}

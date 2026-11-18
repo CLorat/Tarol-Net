@@ -1,0 +1,50 @@
+name: CodeQL
+
+# C# code scanning (docs/migration/release.md RL-7). The repository is public, so code scanning is available without a licence.
+# build-mode manual: the repository's own build (SDK from global.json, the generators), as in CI.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  analyze:
+    name: codeql (csharp)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # upload the results to code scanning
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: csharp
+          build-mode: manual
+          queries: security-extended
+
+      # The compiler server would compile outside the traced process; CodeQL must see every csc call.
+      - name: Build
+        run: dotnet build Tarol.slnx -c Release -p:UseSharedCompilation=false
+
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:csharp
