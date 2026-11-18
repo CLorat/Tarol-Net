@@ -258,6 +258,14 @@ Workflow `.github/workflows/ci.yml` on every push and pull request:
 | `aot-smoke` | for each `tests/*/*.AotSmoke`: publish, fail on IL warnings, run; a PostgreSQL 17 service and `TAROL_PG` for the database checks of `Tarol.Persistence.Npgsql.AotSmoke` | yes |
 | `integration` | Docker available; runs `Category=Integration` (`Tarol.Persistence.Npgsql.IntegrationTests`, Testcontainers PostgreSQL) | yes (since step 8B) |
 
+| `codeql` (`codeql.yml`) | C# code scanning, `build-mode: manual` with the repository's build, `security-extended`; on pushes to `main`, PRs and weekly | no (results in code scanning) |
+
+* Every `uses:` names a full commit SHA with its tag as a comment (`actions/checkout@<sha> # v5.1.0`), updated by Dependabot (D-13).
+  Only `actions/*` and `github/*` actions.
+* `ci.yml` is also a reusable workflow (`workflow_call`): the release runs it on the tagged commit.
+* Every .NET security rule is an error (`AnalysisLevelSecurity=latest-all`), except CA2100 and CA5394 (root `.editorconfig`,
+  with reasons; RL-10).
+
 Release (tag `v*`), CodeQL and Dependabot are described in [the migration plan](../migration/plan.md#ci-and-release).
 
 ## 8. Per-package checklist (definition of done for every migration step)

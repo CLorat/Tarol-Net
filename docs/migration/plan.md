@@ -110,7 +110,8 @@ Every change reaches `main` through a pull request with **one clear feature**:
   (never nuget.org, D-1), GitHub release notes from `CHANGELOG.md` and the `AnalyzerReleases.Shipped.md` files.
   Keep the repository private so the packages stay private.
 * **Dependabot** (`.github/dependabot.yml`): NuGet and GitHub Actions, weekly, grouped.
-* **CodeQL** for C#: to add with the release workflow.
+* **CodeQL** for C#: `.github/workflows/codeql.yml` (step 17A; the repository is public, RL-1, RL-7).
+* **Action pinning**: full commit SHAs with the tag as a comment, updated by Dependabot (D-13, step 17A).
 
 ## Decisions
 
