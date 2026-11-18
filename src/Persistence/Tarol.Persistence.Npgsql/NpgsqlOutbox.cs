@@ -275,7 +275,7 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
                 if (actor is not null)
                     Add(redrive, actor);
                 var moved = await redrive.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is 1L;
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 return moved;
             }
         }
@@ -364,7 +364,7 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
                 await using var command = new NpgsqlCommand(change, connection, transaction);
                 Add(command, values);
                 var done = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is long n && n == 1;
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 return done;
             }
         }

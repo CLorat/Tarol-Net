@@ -185,7 +185,7 @@ public sealed partial class NpgsqlSchemaUpgrader
                         await Execute(connection, step.Sql, cancellationToken, transaction: transaction).ConfigureAwait(false);
                         if (d.Closes(index))
                             await Execute(connection, d.Bump(step.Version), cancellationToken, transaction: transaction).ConfigureAwait(false);
-                        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                        await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                     }
                 }
                 else

@@ -112,7 +112,7 @@ public sealed class NpgsqlJobRows : IJobRows, IDeadLetterSource, IDeadLetterRete
                     disable.Parameters.Add(new NpgsqlParameter { Value = flips.Select(f => f.Key.Name).ToArray() });
                     _ = await disable.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 }
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 return changes;
             }
         }

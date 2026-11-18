@@ -676,3 +676,11 @@ released row comes back once the lease has passed and runs when the event can be
 
 Test: `NpgsqlOutboxTests.A_row_whose_event_cannot_be_decoded_is_released_alone_and_does_not_hold_back_its_batch` (fails without the
 fix). The in-memory outbox does not decode, so the unit tests cannot show it.
+
+## 24. Fix: a commit's outcome no longer depends on a late cancellation (2026-11-18)
+
+**Behaviour change.** Every Npgsql transaction (`Append`, the outbox re-drive and bury, `Sync` of the job rows, the schema steps,
+the read-model batches) committed with the caller's `CancellationToken`. A cancellation arriving during `COMMIT` threw
+`OperationCanceledException` although the transaction may have committed, so the caller could not tell whether to retry; without
+an idempotency key a retry appended twice. `CommitAsync` now gets `CancellationToken.None`, as the rollbacks already did; the
+cancellation still stops the statements before it. No test: the window is the COMMIT round trip itself.

@@ -124,7 +124,7 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore,
                                 audit.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.TimestampTz, Value = _time.GetUtcNow().UtcDateTime });
                                 await audit.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                             }
-                        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                        await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                         return;
                     }
                 }
@@ -214,7 +214,7 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore,
                     await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 }
                 await projection.Prepare(connection, transaction, cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
             }
         }
     }
@@ -257,7 +257,7 @@ public sealed partial class NpgsqlReadModels : IReadModels, ISqlProjectionStore,
                 if (_channel is not null)
                     await CheckpointSql.Notify(connection, transaction, _channel, projection.Name, projection.Version, through, state, cancellationToken).ConfigureAwait(false);
                 var rows = events.Count == 0 ? 0 : await projection.Apply(events, connection, transaction, cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 return (true, rows);
             }
         }

@@ -470,7 +470,9 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                         return refused;
                     }
 
-                    await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    // not the caller's token: a cancellation during COMMIT would throw although the commit may have happened,
+                    // and the caller could not tell whether to retry
+                    await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                     return position;
                 }
             }
