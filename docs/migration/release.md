@@ -30,8 +30,16 @@ merged), SDK 11.0.100, 4 cores.
   * **Actions**: 4 actions, 12 `uses:`, all on major tags; each resolves to one SHA. Newer majors exist for all four.
   * **Security rules**: `AnalysisModeSecurity=All` finds 0 diagnostics in the 24 packages.
   * **`main`**: 1863 of 1863 tests, 24 AOT apps with 0 IL warnings, package verification OK.
-* **Asked of the owner** (RL-1 … RL-8): visibility, symbols, the first version, the meta-package, the PublicAPI rule settings,
-  the release gate, CodeQL, the PR split and branches.
+* **Decided by the owner** (RL-1 … RL-9, §9):
+  * the repository stays public, under **AGPL-3.0**;
+  * PDBs are embedded;
+  * the first version is `0.1.0`, first tagged `v0.1.0-preview.1`;
+  * a meta-package `Tarol` of 17 packages (no Npgsql, no transports, no SignalR, no Zitadel);
+  * RS0026/RS0027/RS0041 off with reasons;
+  * the release re-runs CI, behind an environment `release`;
+  * CodeQL and the .NET security rules;
+  * six PRs 17A–17F;
+  * packages public on GitHub Packages; nuget.org still excluded.
 
 ## 1. Inventory **[verified by reading]**
 
@@ -203,7 +211,51 @@ A full rebuild of the 24 packages (`--no-incremental`, alternating, min of 3): *
 
 ## 5. Decided design
 
-Filled in from the owner's answers (§9).
+### 5.1 Licence (RL-1; 17D)
+
+* `LICENSE` becomes the unmodified text of the GNU Affero General Public License v3.0 as published by the FSF. `README.md` and
+  a `NOTICE` file carry the copyright line `Copyright (C) 2026 Christoph Lorat` and say that a commercial licence can be had
+  from the owner.
+* Packages declare `PackageLicenseExpression` `AGPL-3.0-only` (no "or later", so the owner keeps the choice) and still carry
+  `LICENSE` as a plain file. NuGet allows only one of `PackageLicenseExpression` and `PackageLicenseFile` **[unverified]** until
+  17D's pack.
+* No per-file licence headers: AGPL recommends them, but does not require them.
+* Contributions need a CLA before they are merged, so relicensing stays possible (§9.1). `CONTRIBUTING.md` says so.
+* AGENTS.md, the conventions, plan D-1 and the root README change in the same PR. nuget.org stays excluded (RL-9).
+
+### 5.2 Public API (RL-5; 17B)
+
+* `Microsoft.CodeAnalysis.PublicApiAnalyzers` 5.6.0 on the 24 runtime packages and the meta-package.
+* `eng/public-api.py` with `update`, `ship` and `check-shipped`.
+* The baseline goes straight into `PublicAPI.Shipped.txt`; every `Unshipped.txt` is empty.
+* `.editorconfig`: RS0026, RS0027 and RS0041 `none`, each with its reason.
+* RS0016/RS0017 stay errors: a public change without its line fails the build.
+
+### 5.3 Meta-package (RL-4; 17C)
+
+* `src/Meta/Tarol` (package id `Tarol`): no code (`IncludeBuildOutput=false`); references the 17 packages of §9 round 2.
+* README and the skill `tarol-overview` (which package for what).
+* A package consumer test references only `Tarol` and builds an aggregate, a change, a query and a consumer, which proves the
+  generators flow.
+* `verify-packages.sh` learns a package without `lib/`.
+
+### 5.4 Release (RL-2, RL-3, RL-6, RL-9; 17E, 17F)
+
+* `release.yml`:
+  * triggers: `push: tags: [v*]`; `workflow_dispatch` with `dry_run` (default `true`); `pull_request` on the release files
+    (dry run);
+  * jobs: `ci` (uses `ci.yml`), `pack`, `publish` (environment `release`, `packages: write`, `contents: write`, skipped on a
+    dry run);
+  * push: `dotnet nuget push --skip-duplicate` to `https://nuget.pkg.github.com/CLorat/index.json` with `GITHUB_TOKEN`;
+  * release: `gh release create` (a pre-release for `-…` versions).
+* `eng/release.py` with `check <version>` and `notes <version>`, and unit tests (Python `unittest`, run in CI `build`).
+* Symbols: `DebugType=embedded`, `IncludeSymbols` off (RL-2).
+* Version: first `0.1.0`; the owner creates the first tag, `v0.1.0-preview.1` (RL-3).
+* Packages public on GitHub Packages (RL-9).
+
+### 5.5 CI (RL-7, D-13; 17A)
+
+SHA pins for every `uses:`; `ci.yml` gains `workflow_call`; `codeql.yml`; `AnalysisModeSecurity=All`.
 
 ## 6. Earlier decisions that constrain the release (not re-asked)
 
@@ -253,6 +305,15 @@ Round 2 (2026-11-18):
 | RL-9 | Who installs the packages, now that the repository stays public? | **Public on GitHub Packages** (recommended): the packages follow the repository; nuget.org stays excluded (a decision of its own). |
 | RL-5 | RS0026/RS0027 (12 overload pairs), RS0041 (30 oblivious symbols) | **Configure off with reasons** (recommended): `.editorconfig` severity `none` for the three rules, each with its reason; RS0016/RS0017 stay errors. |
 
+Round 3 (2026-11-18):
+
+| # | Question | Answer |
+|---|---|---|
+| RL-1 (licence) | With the answers of §9.1: PolyForm Noncommercial, PolyForm + OSS-only clause, AGPL-3.0, or keep proprietary | **AGPL-3.0 now** (owner's choice; the recommendation was PolyForm Noncommercial). Commercial use stays allowed under AGPL's terms; a paid licence for others can be offered later. D-1 changes accordingly (§5.1). |
+| RL-6 | The release gate | **Re-run CI on the tag + environment `release`** (recommended): `ci.yml` as `workflow_call`; the publish job in the environment `release`; the owner adds a required reviewer and a `v*` tag ruleset in the settings. |
+| RL-7 | Code security with a public repository | **CodeQL + .NET security rules** (recommended): `codeql.yml` (C#, manual build, push to `main`, PRs, weekly, `security-extended`) and `AnalysisModeSecurity=All`. |
+| RL-8 | The split, and branches beyond `ccr-23c21594-m0xy0g` | **Six PRs on branches `ccr-23c21594-m0xy0g-17a` … `-17f`** (recommended), stacked; the order is §11. |
+
 ### 9.1 The licence questions (answered in the chat, 2026-11-18; not legal advice)
 
 * **PolyForm now, AGPL-3.0 later?** Yes. As the only copyright holder the owner can license later versions under any licence.
@@ -276,7 +337,31 @@ None in this PR. 17B adds two files per package and three `.editorconfig` entrie
 
 ## 11. What each PR must do
 
-Filled in from RL-8.
+The six PRs are stacked: 17A on `main`, each next one on the previous. Each is green on its own, and each is retargeted to
+`main` before its base merges.
+
+### PR 17A `ci: SHA-pinned actions, reusable CI, CodeQL, security rules`
+§5.5, plus conventions §7 and the plan's CI section. Verification: the PR's CI and CodeQL runs; a local build.
+
+### PR 17B `build: the public API baseline`
+§5.2. Verification: full (build, format, tests with Docker, AOT, pack); a deliberate public change fails the build (recorded).
+
+### PR 17C `meta: the Tarol meta-package`
+§5.3. Verification: full; the consumer test.
+
+### PR 17D `licence: AGPL-3.0`
+§5.1. Verification: the pack shows the licence expression; `verify-packages.sh` checks it.
+
+### PR 17E `release: the release workflow`
+§5.4 without the shipping. Verification: the PR's dry run (everything up to `publish`); the script's tests.
+
+### PR 17F `release: ship 0.1.0`
+* The diagnostics move to `## Release 0.1.0`.
+* `CHANGELOG` gets `[0.1.0]` with the upgrade notes (§8).
+* PDBs are embedded.
+* Plan row 17 becomes "done".
+
+Then the owner creates `v0.1.0-preview.1` (asked before).
 
 ## 12. Verification of this PR
 

@@ -1,10 +1,10 @@
 # Release
 
 Concept note for step 17 (see [migration/release.md](../migration/release.md)): **a tag `v*` turns a green commit on `main`
-into 24 private packages and a GitHub release, with nothing done by hand except creating the tag.**
+into 25 packages (24 and the meta-package `Tarol`) and a GitHub release, with nothing done by hand except creating the tag.**
 * The release workflow re-runs CI on the tagged commit, packs once (MinVer reads the tag), verifies the packages, checks
   that the release ships its API and diagnostics, writes the release notes from `CHANGELOG.md` and the
-  `AnalyzerReleases.Shipped.md` files, and only then pushes to the owner's private GitHub Packages feed (never nuget.org, D-1).
+  `AnalyzerReleases.Shipped.md` files, and only then pushes to the owner's GitHub Packages feed (public like the repository; never nuget.org, RL-9).
 * Every runtime package records its public API in `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt`, generated from the
   code by the analyzer itself (D-6). A change to the public surface is a build error until the file says so.
 * Every action is pinned to a full commit SHA, kept current by Dependabot (D-13).
@@ -14,8 +14,9 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/releasing/`](../migration/probes/releasing/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions RL-1 … RL-8, [migration/release.md](../migration/release.md) §9). Built in PRs 17A–17D
-(§11 there).
+**Status: designed** (owner decisions RL-1 … RL-9, [migration/release.md](../migration/release.md) §9 and §5): the repository stays
+public under AGPL-3.0, PDBs embedded, `0.1.0` first tagged `v0.1.0-preview.1`, a meta-package `Tarol` of 17 packages. Built in
+PRs 17A–17F (§11 there).
 
 ## 1. What exists today **[verified by reading]**
 
@@ -111,8 +112,8 @@ repository is public, or with GitHub Code Security on a private one (RL-1) **[un
 ## 8. Meta-package (D-8, RL-4)
 
 Generators already flow to a consumer through package dependencies: a consumer of `Tarol.Sagas` alone gets all seven generators
-below it **[verified]**, although every dependency is packed with `exclude="Build,Analyzers"`. A meta-package is therefore only a
-naming convenience; what it should hold is the owner's decision (RL-4).
+below it **[verified]**, although every dependency is packed with `exclude="Build,Analyzers"`. A meta-package is therefore a naming convenience. Decided (RL-4): `Tarol` references the 17 packages that are not a specific
+implementation (no Npgsql store or read tables, no transports, no SignalR, no Zitadel); an app adds those itself.
 
 ## 9. Out of scope
 
