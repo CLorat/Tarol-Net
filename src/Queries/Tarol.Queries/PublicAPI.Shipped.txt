@@ -1,0 +1,306 @@
+#nullable enable
+Tarol.Queries.ColumnFilter
+Tarol.Queries.ColumnFilter.Column.get -> string!
+Tarol.Queries.ColumnFilter.Column.init -> void
+Tarol.Queries.ColumnFilter.ColumnFilter() -> void
+Tarol.Queries.ColumnFilter.ColumnFilter(string! Column, object? Value) -> void
+Tarol.Queries.ColumnFilter.Deconstruct(out string! Column, out object? Value) -> void
+Tarol.Queries.ColumnFilter.Equals(Tarol.Queries.ColumnFilter other) -> bool
+Tarol.Queries.ColumnFilter.Value.get -> object?
+Tarol.Queries.ColumnFilter.Value.init -> void
+Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.BigInt = 5 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Boolean = 2 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Float8 = 7 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Int2 = 3 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Int4 = 4 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Numeric = 6 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Text = 1 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.TimestampTz = 8 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Uuid = 0 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnValues
+Tarol.Queries.Cursor
+Tarol.Queries.DescendingAttribute
+Tarol.Queries.DescendingAttribute.DescendingAttribute() -> void
+Tarol.Queries.IFeedSignal
+Tarol.Queries.IFeedSignal.Wait(System.TimeSpan max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.IProjection<TRow>
+Tarol.Queries.IProjection<TRow>.Apply(TRow? row, Tarol.Primitives.RecordedEvent! recorded) -> TRow?
+Tarol.Queries.IProjection<TRow>.Columns.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ProjectionColumn<TRow!>!>!
+Tarol.Queries.IProjection<TRow>.Name.get -> string!
+Tarol.Queries.IProjection<TRow>.StreamType.get -> string!
+Tarol.Queries.IProjection<TRow>.Version.get -> int
+Tarol.Queries.IProjectionGate
+Tarol.Queries.IProjectionGate.RetryEvery.get -> System.TimeSpan
+Tarol.Queries.IProjectionGate.TryEnter(string! name, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.IProjectionGateLease?>
+Tarol.Queries.IProjectionGateLease
+Tarol.Queries.IProjectionGateLease.Held(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Queries.IProjectionPositions
+Tarol.Queries.IProjectionPositions.Checkpoint<TRow>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.IProjectionPositions.WaitFor<TRow>(Tarol.Persistence.GlobalPosition position, System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Queries.IQuery<TRow>
+Tarol.Queries.IReadModelStore<TRow>
+Tarol.Queries.IReadModelStore<TRow>.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.IReadModelStore<TRow>.Find(Tarol.Queries.RowKey key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.Versioned<TRow!>?>
+Tarol.Queries.IReadModelStore<TRow>.Load(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<Tarol.Queries.RowKey, Tarol.Queries.Versioned<TRow!>!>!>
+Tarol.Queries.IReadModelStore<TRow>.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.IReadModelStore<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.IReadModelStore<TRow>.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.IReadModelStore<TRow>.Search(Tarol.Queries.ListQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Queries.Page<TRow!>!>>
+Tarol.Queries.IReadModelStore<TRow>.Write(Tarol.Queries.ProjectionBatch<TRow!>! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Queries.IReadModels
+Tarol.Queries.IReadModels.Store<TRow>() -> Tarol.Queries.IReadModelStore<TRow!>!
+Tarol.Queries.ISqlProjection
+Tarol.Queries.ISqlProjection.Apply(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>! events, System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.ISqlProjection.Name.get -> string!
+Tarol.Queries.ISqlProjection.Prepare(System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.ISqlProjection.StreamTypes.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Queries.ISqlProjection.Version.get -> int
+Tarol.Queries.ISqlProjectionStore
+Tarol.Queries.ISqlProjectionStore.Checkpoint(Tarol.Queries.ISqlProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.ISqlProjectionStore.Prepare(Tarol.Queries.ISqlProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.ISqlProjectionStore.Write(Tarol.Queries.ISqlProjection! projection, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>! events, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(bool Written, int Rows)>
+Tarol.Queries.InMemoryReadModelStore<TRow>
+Tarol.Queries.InMemoryReadModelStore<TRow>.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.InMemoryReadModelStore<TRow>.Find(Tarol.Queries.RowKey key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.Versioned<TRow!>?>
+Tarol.Queries.InMemoryReadModelStore<TRow>.InMemoryReadModelStore() -> void
+Tarol.Queries.InMemoryReadModelStore<TRow>.Load(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<Tarol.Queries.RowKey, Tarol.Queries.Versioned<TRow!>!>!>
+Tarol.Queries.InMemoryReadModelStore<TRow>.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.InMemoryReadModelStore<TRow>.Refused.get -> int
+Tarol.Queries.InMemoryReadModelStore<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.InMemoryReadModelStore<TRow>.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.InMemoryReadModelStore<TRow>.Rows.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>!
+Tarol.Queries.InMemoryReadModelStore<TRow>.Search(Tarol.Queries.ListQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Queries.Page<TRow!>!>>
+Tarol.Queries.InMemoryReadModelStore<TRow>.Write(Tarol.Queries.ProjectionBatch<TRow!>! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Queries.InMemoryReadModels
+Tarol.Queries.InMemoryReadModels.InMemoryReadModels() -> void
+Tarol.Queries.InMemoryReadModels.Store<TRow>() -> Tarol.Queries.InMemoryReadModelStore<TRow!>!
+Tarol.Queries.ListQuery
+Tarol.Queries.ListQuery.<Clone>$() -> Tarol.Queries.ListQuery!
+Tarol.Queries.ListQuery.After.get -> string?
+Tarol.Queries.ListQuery.After.init -> void
+Tarol.Queries.ListQuery.Count.get -> bool
+Tarol.Queries.ListQuery.Count.init -> void
+Tarol.Queries.ListQuery.Deconstruct(out System.Guid Tenant) -> void
+Tarol.Queries.ListQuery.Descending.get -> bool
+Tarol.Queries.ListQuery.Descending.init -> void
+Tarol.Queries.ListQuery.Equals(Tarol.Queries.ListQuery? other) -> bool
+Tarol.Queries.ListQuery.Filters.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ColumnFilter>!
+Tarol.Queries.ListQuery.Filters.init -> void
+Tarol.Queries.ListQuery.Limit.get -> int
+Tarol.Queries.ListQuery.Limit.init -> void
+Tarol.Queries.ListQuery.ListQuery(System.Guid Tenant) -> void
+Tarol.Queries.ListQuery.Offset.get -> int?
+Tarol.Queries.ListQuery.Offset.init -> void
+Tarol.Queries.ListQuery.Sort.get -> string?
+Tarol.Queries.ListQuery.Sort.init -> void
+Tarol.Queries.ListQuery.Tenant.get -> System.Guid
+Tarol.Queries.ListQuery.Tenant.init -> void
+Tarol.Queries.ListQueryPlan<TRow>
+Tarol.Queries.ListQueryPlan<TRow>.CursorId.get -> System.Guid
+Tarol.Queries.ListQueryPlan<TRow>.CursorValue.get -> object?
+Tarol.Queries.ListQueryPlan<TRow>.FilterHash.get -> ulong
+Tarol.Queries.ListQueryPlan<TRow>.Filters.get -> System.Collections.Generic.IReadOnlyList<(Tarol.Queries.ProjectionColumn<TRow!>! Column, object? Value)>!
+Tarol.Queries.ListQueryPlan<TRow>.HasCursor.get -> bool
+Tarol.Queries.ListQueryPlan<TRow>.Limit.get -> int
+Tarol.Queries.ListQueryPlan<TRow>.Offset.get -> int
+Tarol.Queries.ListQueryPlan<TRow>.Query.get -> Tarol.Queries.ListQuery!
+Tarol.Queries.ListQueryPlan<TRow>.Sort.get -> Tarol.Queries.ProjectionColumn<TRow!>?
+Tarol.Queries.ListQueryPlan<TRow>.SortKey.get -> string!
+Tarol.Queries.ListQueryPlan<TRow>.ToPage(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! fetched, Tarol.Persistence.GlobalPosition position, long? total) -> Tarol.Queries.Page<TRow!>!
+Tarol.Queries.Page<T>
+Tarol.Queries.Page<T>.<Clone>$() -> Tarol.Queries.Page<T>!
+Tarol.Queries.Page<T>.Deconstruct(out System.Collections.Generic.IReadOnlyList<T>! Items, out string? Next, out string! ETag, out Tarol.Persistence.GlobalPosition Position, out long? Total) -> void
+Tarol.Queries.Page<T>.ETag.get -> string!
+Tarol.Queries.Page<T>.ETag.init -> void
+Tarol.Queries.Page<T>.Equals(Tarol.Queries.Page<T>? other) -> bool
+Tarol.Queries.Page<T>.Items.get -> System.Collections.Generic.IReadOnlyList<T>!
+Tarol.Queries.Page<T>.Items.init -> void
+Tarol.Queries.Page<T>.Next.get -> string?
+Tarol.Queries.Page<T>.Next.init -> void
+Tarol.Queries.Page<T>.Page(System.Collections.Generic.IReadOnlyList<T>! Items, string? Next, string! ETag, Tarol.Persistence.GlobalPosition Position, long? Total = null) -> void
+Tarol.Queries.Page<T>.Position.get -> Tarol.Persistence.GlobalPosition
+Tarol.Queries.Page<T>.Position.init -> void
+Tarol.Queries.Page<T>.Total.get -> long?
+Tarol.Queries.Page<T>.Total.init -> void
+Tarol.Queries.ProjectionAttribute
+Tarol.Queries.ProjectionAttribute.Name.get -> string!
+Tarol.Queries.ProjectionAttribute.ProjectionAttribute(string! name) -> void
+Tarol.Queries.ProjectionAttribute.Version.get -> int
+Tarol.Queries.ProjectionAttribute.Version.set -> void
+Tarol.Queries.ProjectionBatch<TRow>
+Tarol.Queries.ProjectionBatch<TRow>.<Clone>$() -> Tarol.Queries.ProjectionBatch<TRow>!
+Tarol.Queries.ProjectionBatch<TRow>.Deconstruct(out System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow>!>! Rows, out Tarol.Persistence.GlobalPosition From, out Tarol.Persistence.GlobalPosition To, out Tarol.Queries.ProjectionState State) -> void
+Tarol.Queries.ProjectionBatch<TRow>.Equals(Tarol.Queries.ProjectionBatch<TRow>? other) -> bool
+Tarol.Queries.ProjectionBatch<TRow>.From.get -> Tarol.Persistence.GlobalPosition
+Tarol.Queries.ProjectionBatch<TRow>.From.init -> void
+Tarol.Queries.ProjectionBatch<TRow>.ProjectionBatch(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow>!>! Rows, Tarol.Persistence.GlobalPosition From, Tarol.Persistence.GlobalPosition To, Tarol.Queries.ProjectionState State) -> void
+Tarol.Queries.ProjectionBatch<TRow>.Rows.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow>!>!
+Tarol.Queries.ProjectionBatch<TRow>.Rows.init -> void
+Tarol.Queries.ProjectionBatch<TRow>.State.get -> Tarol.Queries.ProjectionState
+Tarol.Queries.ProjectionBatch<TRow>.State.init -> void
+Tarol.Queries.ProjectionBatch<TRow>.To.get -> Tarol.Persistence.GlobalPosition
+Tarol.Queries.ProjectionBatch<TRow>.To.init -> void
+Tarol.Queries.ProjectionCheckpoint
+Tarol.Queries.ProjectionCheckpoint.Deconstruct(out Tarol.Persistence.GlobalPosition Position, out Tarol.Queries.ProjectionState State) -> void
+Tarol.Queries.ProjectionCheckpoint.Equals(Tarol.Queries.ProjectionCheckpoint other) -> bool
+Tarol.Queries.ProjectionCheckpoint.Position.get -> Tarol.Persistence.GlobalPosition
+Tarol.Queries.ProjectionCheckpoint.Position.init -> void
+Tarol.Queries.ProjectionCheckpoint.ProjectionCheckpoint() -> void
+Tarol.Queries.ProjectionCheckpoint.ProjectionCheckpoint(Tarol.Persistence.GlobalPosition Position, Tarol.Queries.ProjectionState State) -> void
+Tarol.Queries.ProjectionCheckpoint.State.get -> Tarol.Queries.ProjectionState
+Tarol.Queries.ProjectionCheckpoint.State.init -> void
+Tarol.Queries.ProjectionColumn<TRow, TValue>
+Tarol.Queries.ProjectionColumn<TRow, TValue>.ProjectionColumn(string! name, string! member, Tarol.Queries.ColumnType type, bool nullable, bool sortable, System.Func<TRow, TValue>! get) -> void
+Tarol.Queries.ProjectionColumn<TRow>
+Tarol.Queries.ProjectionColumn<TRow>.Member.get -> string!
+Tarol.Queries.ProjectionColumn<TRow>.Name.get -> string!
+Tarol.Queries.ProjectionColumn<TRow>.Nullable.get -> bool
+Tarol.Queries.ProjectionColumn<TRow>.Sortable.get -> bool
+Tarol.Queries.ProjectionColumn<TRow>.Type.get -> Tarol.Queries.ColumnType
+Tarol.Queries.ProjectionEraser<TRow>
+Tarol.Queries.ProjectionEraser<TRow>.ProjectionEraser(System.IServiceProvider! services) -> void
+Tarol.Queries.ProjectionEraser<TRow>.Refold(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(int Replaced, int Removed)>!
+Tarol.Queries.ProjectionHost
+Tarol.Queries.ProjectionHost.CatchUp(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<long>!
+Tarol.Queries.ProjectionHost.Conflicts.get -> long
+Tarol.Queries.ProjectionHost.IsRunner.get -> bool
+Tarol.Queries.ProjectionHost.Name.get -> string!
+Tarol.Queries.ProjectionHost.Position.get -> Tarol.Persistence.GlobalPosition
+Tarol.Queries.ProjectionHost.RunOnce(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
+Tarol.Queries.ProjectionHost.State.get -> Tarol.Queries.ProjectionState
+Tarol.Queries.ProjectionHost.Version.get -> int
+Tarol.Queries.ProjectionHost.WaitFor(Tarol.Persistence.GlobalPosition position, System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Tarol.Queries.ProjectionHost<TRow>
+Tarol.Queries.ProjectionHost<TRow>.ProjectionHost(Tarol.Persistence.IEventFeed! feed, Tarol.Queries.IReadModelStore<TRow!>! store, Tarol.Queries.ProjectionOptions? options = null, System.TimeProvider? time = null, Microsoft.Extensions.Logging.ILogger<Tarol.Queries.ProjectionHost<TRow!>!>? logger = null, Tarol.Queries.IFeedSignal? signal = null, Tarol.Queries.IProjectionGate? gate = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Queries.ProjectionHost<TRow>.Store.get -> Tarol.Queries.IReadModelStore<TRow!>!
+Tarol.Queries.ProjectionOptions
+Tarol.Queries.ProjectionOptions.Backoff.get -> System.TimeSpan
+Tarol.Queries.ProjectionOptions.Backoff.set -> void
+Tarol.Queries.ProjectionOptions.Batch.get -> int
+Tarol.Queries.ProjectionOptions.Batch.set -> void
+Tarol.Queries.ProjectionOptions.MaxBackoff.get -> System.TimeSpan
+Tarol.Queries.ProjectionOptions.MaxBackoff.set -> void
+Tarol.Queries.ProjectionOptions.Poll.get -> System.TimeSpan?
+Tarol.Queries.ProjectionOptions.Poll.set -> void
+Tarol.Queries.ProjectionOptions.ProjectionOptions() -> void
+Tarol.Queries.ProjectionPositions
+Tarol.Queries.ProjectionPositions.Checkpoint<TRow>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.ProjectionPositions.PollInterval.get -> System.TimeSpan
+Tarol.Queries.ProjectionPositions.PollInterval.init -> void
+Tarol.Queries.ProjectionPositions.ProjectionPositions(Tarol.Queries.IReadModels! readModels, System.Collections.Generic.IEnumerable<Tarol.Queries.ProjectionHost!>? hosts = null, System.TimeProvider? time = null) -> void
+Tarol.Queries.ProjectionPositions.WaitFor<TRow>(Tarol.Persistence.GlobalPosition position, System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Queries.ProjectionState
+Tarol.Queries.ProjectionState.Building = 0 -> Tarol.Queries.ProjectionState
+Tarol.Queries.ProjectionState.Current = 1 -> Tarol.Queries.ProjectionState
+Tarol.Queries.ProjectionTest<TRow>
+Tarol.Queries.ProjectionTest<TRow>.CatchUp() -> System.Threading.Tasks.Task<long>!
+Tarol.Queries.ProjectionTest<TRow>.Feed.get -> Tarol.Persistence.IEventFeed!
+Tarol.Queries.ProjectionTest<TRow>.Given<T>(T! aggregate, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> Tarol.Queries.ProjectionTest<TRow!>!
+Tarol.Queries.ProjectionTest<TRow>.Host.get -> Tarol.Queries.ProjectionHost<TRow!>!
+Tarol.Queries.ProjectionTest<TRow>.ReadModels.get -> Tarol.Queries.InMemoryReadModelStore<TRow!>!
+Tarol.Queries.ProjectionTest<TRow>.Row(System.Guid streamId, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> TRow?
+Tarol.Queries.ProjectionTest<TRow>.Rows(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> System.Collections.Generic.IReadOnlyList<TRow!>!
+Tarol.Queries.ProjectionTest<TRow>.Search(Tarol.Queries.ListQuery! query) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Queries.Page<TRow!>!>>
+Tarol.Queries.ProjectionTest<TRow>.Store.get -> Tarol.Persistence.InMemoryAggregateStore?
+Tarol.Queries.Projections
+Tarol.Queries.ProjectionsBuilder
+Tarol.Queries.ProjectionsBuilder.Add(Tarol.Queries.ISqlProjection! projection, System.Action<Tarol.Queries.ProjectionOptions!>? configure = null) -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.ProjectionsBuilder.Add<TRow>(System.Action<Tarol.Queries.ProjectionOptions!>? configure = null) -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.ProjectionsBuilder.Defaults.get -> Tarol.Queries.ProjectionOptions!
+Tarol.Queries.ProjectionsBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Tarol.Queries.QueriesTarolBuilderExtensions
+Tarol.Queries.RowKey
+Tarol.Queries.RowKey.Deconstruct(out System.Guid Tenant, out System.Guid Id) -> void
+Tarol.Queries.RowKey.Equals(Tarol.Queries.RowKey other) -> bool
+Tarol.Queries.RowKey.Id.get -> System.Guid
+Tarol.Queries.RowKey.Id.init -> void
+Tarol.Queries.RowKey.RowKey() -> void
+Tarol.Queries.RowKey.RowKey(System.Guid Tenant, System.Guid Id) -> void
+Tarol.Queries.RowKey.Tenant.get -> System.Guid
+Tarol.Queries.RowKey.Tenant.init -> void
+Tarol.Queries.SortAttribute
+Tarol.Queries.SortAttribute.SortAttribute() -> void
+Tarol.Queries.SqlProjectionHost
+Tarol.Queries.SqlProjectionHost.Projection.get -> Tarol.Queries.ISqlProjection!
+Tarol.Queries.SqlProjectionHost.SqlProjectionHost(Tarol.Queries.ISqlProjection! projection, Tarol.Persistence.IEventFeed! feed, Tarol.Queries.ISqlProjectionStore! store, Tarol.Queries.ProjectionOptions? options = null, System.TimeProvider? time = null, Microsoft.Extensions.Logging.ILogger<Tarol.Queries.SqlProjectionHost!>? logger = null, Tarol.Queries.IFeedSignal? signal = null, Tarol.Queries.IProjectionGate? gate = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Queries.Versioned<TRow>
+Tarol.Queries.Versioned<TRow>.<Clone>$() -> Tarol.Queries.Versioned<TRow>!
+Tarol.Queries.Versioned<TRow>.Deconstruct(out Tarol.Queries.RowKey Key, out long Version, out TRow Row) -> void
+Tarol.Queries.Versioned<TRow>.Equals(Tarol.Queries.Versioned<TRow>? other) -> bool
+Tarol.Queries.Versioned<TRow>.Key.get -> Tarol.Queries.RowKey
+Tarol.Queries.Versioned<TRow>.Key.init -> void
+Tarol.Queries.Versioned<TRow>.Row.get -> TRow
+Tarol.Queries.Versioned<TRow>.Row.init -> void
+Tarol.Queries.Versioned<TRow>.Version.get -> long
+Tarol.Queries.Versioned<TRow>.Version.init -> void
+Tarol.Queries.Versioned<TRow>.Versioned(Tarol.Queries.RowKey Key, long Version, TRow Row) -> void
+abstract Tarol.Queries.ProjectionColumn<TRow>.CompareTo(TRow row, object? value) -> int
+abstract Tarol.Queries.ProjectionColumn<TRow>.Value(TRow row) -> object?
+abstract Tarol.Queries.ProjectionColumn<TRow>.Values(System.Collections.Generic.IReadOnlyList<TRow>! rows) -> System.Array!
+const Tarol.Queries.ListQuery.DefaultLimit = 50 -> int
+const Tarol.Queries.ListQuery.MaxLimit = 200 -> int
+const Tarol.Queries.ListQuery.MaxOffset = 1000 -> int
+const Tarol.Queries.ProjectionHost.ActivitySourceName = "Tarol.Queries" -> string!
+const Tarol.Queries.ProjectionHost.MeterName = "Tarol.Queries" -> string!
+~override Tarol.Queries.ColumnFilter.Equals(object obj) -> bool
+override Tarol.Queries.ColumnFilter.GetHashCode() -> int
+~override Tarol.Queries.ColumnFilter.ToString() -> string
+override Tarol.Queries.ListQuery.Equals(object? obj) -> bool
+override Tarol.Queries.ListQuery.GetHashCode() -> int
+override Tarol.Queries.ListQuery.ToString() -> string!
+override Tarol.Queries.Page<T>.Equals(object? obj) -> bool
+override Tarol.Queries.Page<T>.GetHashCode() -> int
+override Tarol.Queries.Page<T>.ToString() -> string!
+override Tarol.Queries.ProjectionBatch<TRow>.Equals(object? obj) -> bool
+override Tarol.Queries.ProjectionBatch<TRow>.GetHashCode() -> int
+override Tarol.Queries.ProjectionBatch<TRow>.ToString() -> string!
+~override Tarol.Queries.ProjectionCheckpoint.Equals(object obj) -> bool
+override Tarol.Queries.ProjectionCheckpoint.GetHashCode() -> int
+~override Tarol.Queries.ProjectionCheckpoint.ToString() -> string
+override Tarol.Queries.ProjectionColumn<TRow, TValue>.CompareTo(TRow row, object? value) -> int
+override Tarol.Queries.ProjectionColumn<TRow, TValue>.Value(TRow row) -> object?
+override Tarol.Queries.ProjectionColumn<TRow, TValue>.Values(System.Collections.Generic.IReadOnlyList<TRow>! rows) -> System.Array!
+override Tarol.Queries.ProjectionEraser<TRow>.Deleted(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Queries.ProjectionEraser<TRow>.Forget(System.Guid tenant, System.Guid subject, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Queries.ProjectionEraser<TRow>.ForgetTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Queries.ProjectionEraser<TRow>.Name.get -> string!
+~override Tarol.Queries.RowKey.Equals(object obj) -> bool
+override Tarol.Queries.RowKey.GetHashCode() -> int
+~override Tarol.Queries.RowKey.ToString() -> string
+override Tarol.Queries.Versioned<TRow>.Equals(object? obj) -> bool
+override Tarol.Queries.Versioned<TRow>.GetHashCode() -> int
+override Tarol.Queries.Versioned<TRow>.ToString() -> string!
+static Tarol.Queries.ColumnFilter.operator !=(Tarol.Queries.ColumnFilter left, Tarol.Queries.ColumnFilter right) -> bool
+static Tarol.Queries.ColumnFilter.operator ==(Tarol.Queries.ColumnFilter left, Tarol.Queries.ColumnFilter right) -> bool
+static Tarol.Queries.ColumnValues.Compare(Tarol.Queries.ColumnType type, object? left, object? right) -> int
+static Tarol.Queries.ColumnValues.CompareIds(System.Guid left, System.Guid right) -> int
+static Tarol.Queries.ColumnValues.Format(Tarol.Queries.ColumnType type, object? value) -> string!
+static Tarol.Queries.ColumnValues.Normalize(Tarol.Queries.ColumnType type, object? value) -> object?
+static Tarol.Queries.ColumnValues.Timestamp(System.DateTimeOffset value) -> System.DateTimeOffset
+static Tarol.Queries.ColumnValues.Timestamp(System.DateTimeOffset? value) -> System.DateTimeOffset?
+static Tarol.Queries.ColumnValues.TryParse(Tarol.Queries.ColumnType type, string! text, out object? value) -> bool
+static Tarol.Queries.Cursor.ETag(System.Collections.Generic.IEnumerable<(System.Guid Id, long Version)>! rows) -> string!
+static Tarol.Queries.Cursor.Encode(string! sort, ulong filters, string! value, System.Guid id) -> string!
+static Tarol.Queries.Cursor.Hash(System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, object? Value)>! filters) -> ulong
+static Tarol.Queries.Cursor.TryDecode(string! text, string! sort, ulong filters, out string! value, out System.Guid id) -> bool
+static Tarol.Queries.ListQuery.operator !=(Tarol.Queries.ListQuery? left, Tarol.Queries.ListQuery? right) -> bool
+static Tarol.Queries.ListQuery.operator ==(Tarol.Queries.ListQuery? left, Tarol.Queries.ListQuery? right) -> bool
+static Tarol.Queries.ListQueryPlan<TRow>.Create(Tarol.Queries.ListQuery! query) -> Tarol.Results.Result<Tarol.Queries.ListQueryPlan<TRow!>!>
+static Tarol.Queries.Page<T>.operator !=(Tarol.Queries.Page<T>? left, Tarol.Queries.Page<T>? right) -> bool
+static Tarol.Queries.Page<T>.operator ==(Tarol.Queries.Page<T>? left, Tarol.Queries.Page<T>? right) -> bool
+static Tarol.Queries.ProjectionBatch<TRow>.operator !=(Tarol.Queries.ProjectionBatch<TRow>? left, Tarol.Queries.ProjectionBatch<TRow>? right) -> bool
+static Tarol.Queries.ProjectionBatch<TRow>.operator ==(Tarol.Queries.ProjectionBatch<TRow>? left, Tarol.Queries.ProjectionBatch<TRow>? right) -> bool
+static Tarol.Queries.ProjectionCheckpoint.operator !=(Tarol.Queries.ProjectionCheckpoint left, Tarol.Queries.ProjectionCheckpoint right) -> bool
+static Tarol.Queries.ProjectionCheckpoint.operator ==(Tarol.Queries.ProjectionCheckpoint left, Tarol.Queries.ProjectionCheckpoint right) -> bool
+static Tarol.Queries.ProjectionTest<TRow>.Create(System.TimeProvider? time = null, Tarol.Queries.ProjectionOptions? options = null) -> Tarol.Queries.ProjectionTest<TRow!>!
+static Tarol.Queries.ProjectionTest<TRow>.Over(Tarol.Persistence.IEventFeed! feed, Tarol.Queries.ProjectionOptions? options = null, System.TimeProvider? time = null) -> Tarol.Queries.ProjectionTest<TRow!>!
+static Tarol.Queries.Projections.StreamTypeOf<TAggregate>() -> string!
+static Tarol.Queries.Projections.TableOf<TRow>() -> string!
+static Tarol.Queries.QueriesTarolBuilderExtensions.AddProjectionPositions(this Tarol.Persistence.TarolBuilder! builder) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Queries.QueriesTarolBuilderExtensions.AddProjections(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Queries.ProjectionsBuilder!>! configure) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Queries.QueriesTarolBuilderExtensions.UseInMemoryReadModels(this Tarol.Persistence.TarolBuilder! builder) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Queries.RowKey.operator !=(Tarol.Queries.RowKey left, Tarol.Queries.RowKey right) -> bool
+static Tarol.Queries.RowKey.operator ==(Tarol.Queries.RowKey left, Tarol.Queries.RowKey right) -> bool
+static Tarol.Queries.Versioned<TRow>.operator !=(Tarol.Queries.Versioned<TRow>? left, Tarol.Queries.Versioned<TRow>? right) -> bool
+static Tarol.Queries.Versioned<TRow>.operator ==(Tarol.Queries.Versioned<TRow>? left, Tarol.Queries.Versioned<TRow>? right) -> bool

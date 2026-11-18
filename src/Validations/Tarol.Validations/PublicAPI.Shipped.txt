@@ -1,0 +1,70 @@
+#nullable enable
+Tarol.Validations.CountAttribute
+Tarol.Validations.CountAttribute.CountAttribute() -> void
+Tarol.Validations.CountAttribute.CountAttribute(int min, int max) -> void
+Tarol.Validations.CountAttribute.Max.get -> int
+Tarol.Validations.CountAttribute.Max.set -> void
+Tarol.Validations.CountAttribute.Min.get -> int
+Tarol.Validations.CountAttribute.Min.set -> void
+Tarol.Validations.EmailAttribute
+Tarol.Validations.EmailAttribute.EmailAttribute() -> void
+Tarol.Validations.IValidatable
+Tarol.Validations.IValidatable.Validate(ref Tarol.Validations.ValidationErrors errors) -> void
+Tarol.Validations.LengthAttribute
+Tarol.Validations.LengthAttribute.LengthAttribute() -> void
+Tarol.Validations.LengthAttribute.LengthAttribute(int min, int max) -> void
+Tarol.Validations.LengthAttribute.Max.get -> int
+Tarol.Validations.LengthAttribute.Max.set -> void
+Tarol.Validations.LengthAttribute.Min.get -> int
+Tarol.Validations.LengthAttribute.Min.set -> void
+Tarol.Validations.NotEmptyAttribute
+Tarol.Validations.NotEmptyAttribute.NotEmptyAttribute() -> void
+Tarol.Validations.PatternAttribute
+Tarol.Validations.PatternAttribute.IgnoreCase.get -> bool
+Tarol.Validations.PatternAttribute.IgnoreCase.set -> void
+Tarol.Validations.PatternAttribute.Pattern.get -> string!
+Tarol.Validations.PatternAttribute.PatternAttribute(string! pattern) -> void
+Tarol.Validations.PatternAttribute.TimeoutMilliseconds.get -> int
+Tarol.Validations.PatternAttribute.TimeoutMilliseconds.set -> void
+Tarol.Validations.RangeAttribute
+Tarol.Validations.RangeAttribute.Max.get -> object?
+Tarol.Validations.RangeAttribute.Max.set -> void
+Tarol.Validations.RangeAttribute.Min.get -> object?
+Tarol.Validations.RangeAttribute.Min.set -> void
+Tarol.Validations.RangeAttribute.RangeAttribute() -> void
+Tarol.Validations.RangeAttribute.RangeAttribute(double min, double max) -> void
+Tarol.Validations.RangeAttribute.RangeAttribute(long min, long max) -> void
+Tarol.Validations.RangeAttribute.RangeAttribute(string! min, string! max) -> void
+Tarol.Validations.Rules
+Tarol.Validations.ValidatableExtensions
+Tarol.Validations.ValidationCodes
+Tarol.Validations.ValidationErrors
+Tarol.Validations.ValidationErrors.Add(string! code, string? detail = null) -> void
+Tarol.Validations.ValidationErrors.AddAt(string! member, string! code, string? detail = null) -> void
+Tarol.Validations.ValidationErrors.Count.get -> int
+Tarol.Validations.ValidationErrors.CurrentPath.get -> string!
+Tarol.Validations.ValidationErrors.Enter(string! member) -> void
+Tarol.Validations.ValidationErrors.EnterIndex(int index) -> void
+Tarol.Validations.ValidationErrors.Exit() -> void
+Tarol.Validations.ValidationErrors.IsValid.get -> bool
+Tarol.Validations.ValidationErrors.ToInvalid() -> Tarol.Results.Invalid?
+Tarol.Validations.ValidationErrors.ToResult() -> Tarol.Results.Result
+Tarol.Validations.ValidationErrors.ValidationErrors() -> void
+Tarol.Validations.ValueObjectJson
+const Tarol.Validations.ValidationCodes.Count = "Count" -> string!
+const Tarol.Validations.ValidationCodes.Email = "Email" -> string!
+const Tarol.Validations.ValidationCodes.Length = "Length" -> string!
+const Tarol.Validations.ValidationCodes.Pattern = "Pattern" -> string!
+const Tarol.Validations.ValidationCodes.Range = "Range" -> string!
+const Tarol.Validations.ValidationCodes.Required = "Required" -> string!
+static Tarol.Validations.Rules.Email(System.ReadOnlySpan<char> value) -> bool
+static Tarol.Validations.Rules.InRange<T>(T value, T min, T max) -> bool
+static Tarol.Validations.Rules.Length(string? value, int min, int max) -> bool
+static Tarol.Validations.Rules.Matches(System.Text.RegularExpressions.Regex! regex, string? value) -> bool
+static Tarol.Validations.Rules.NotBlank(string? value) -> bool
+static Tarol.Validations.ValidatableExtensions.Validated<T>(this T value) -> Tarol.Results.Result<T>
+static Tarol.Validations.ValueObjectJson.AddValueObjects(this System.Text.Json.JsonSerializerOptions! options) -> System.Text.Json.JsonSerializerOptions!
+static Tarol.Validations.ValueObjectJson.IsRegistered(System.Type! type) -> bool
+static Tarol.Validations.ValueObjectJson.Options(System.Text.Json.Serialization.JsonSerializerContext! context) -> System.Text.Json.JsonSerializerOptions!
+static Tarol.Validations.ValueObjectJson.Register<T>(System.Text.Json.Serialization.JsonConverter<T>! converter) -> void
+static Tarol.Validations.ValueObjectJson.Resolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!

@@ -1,0 +1,185 @@
+#nullable enable
+Tarol.Results.Error
+Tarol.Results.Error.Code.get -> string!
+Tarol.Results.Error.Detail.get -> string?
+Tarol.Results.Error.Equals(Tarol.Results.Error? other) -> bool
+Tarol.Results.Error.Error(Tarol.Results.ErrorType type, string! code, string? detail = null) -> void
+Tarol.Results.Error.Type.get -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType
+Tarol.Results.ErrorType.Conflict = 2 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.Forbidden = 3 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.Gone = 5 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.Internal = 0 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.NotFound = 1 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.Timeout = 9 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.TooManyRequests = 7 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.Unauthorized = 4 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.Unavailable = 8 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorType.UnprocessableEntity = 6 -> Tarol.Results.ErrorType
+Tarol.Results.ErrorTypeExtensions
+Tarol.Results.FieldError
+Tarol.Results.FieldError.<Clone>$() -> Tarol.Results.FieldError!
+Tarol.Results.FieldError.Code.get -> string!
+Tarol.Results.FieldError.Detail.get -> string?
+Tarol.Results.FieldError.Equals(Tarol.Results.FieldError? other) -> bool
+Tarol.Results.FieldError.Field.get -> string!
+Tarol.Results.FieldError.FieldError(string! field, string! code, string? detail = null) -> void
+Tarol.Results.Invalid
+Tarol.Results.Invalid.Combine(Tarol.Results.Invalid! other) -> Tarol.Results.Invalid!
+Tarol.Results.Invalid.Equals(Tarol.Results.Invalid? other) -> bool
+Tarol.Results.Invalid.Errors.get -> System.Collections.Generic.IReadOnlyList<Tarol.Results.FieldError!>!
+Tarol.Results.Invalid.Invalid(System.Collections.Generic.IReadOnlyList<Tarol.Results.FieldError!>! errors) -> void
+Tarol.Results.Invalid.Invalid(params System.ReadOnlySpan<Tarol.Results.FieldError!> errors) -> void
+Tarol.Results.Json.ResultJsonConverter
+Tarol.Results.Json.ResultJsonConverter.ResultJsonConverter() -> void
+Tarol.Results.Json.ResultJsonConverter<T>
+Tarol.Results.Json.ResultJsonConverter<T>.ResultJsonConverter() -> void
+Tarol.Results.OptionResultExtensions
+Tarol.Results.Result
+Tarol.Results.Result.Bind(System.Func<Tarol.Results.Result>! bind) -> Tarol.Results.Result
+Tarol.Results.Result.Bind<T>(System.Func<Tarol.Results.Result<T>>! bind) -> Tarol.Results.Result<T>
+Tarol.Results.Result.BindAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Tarol.Results.Result>>! bind, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Results.Result.BindAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>>! bind, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>
+Tarol.Results.Result.Ensure(System.Func<bool>! predicate, Tarol.Results.Violation! violation) -> Tarol.Results.Result
+Tarol.Results.Result.Equals(Tarol.Results.Result other) -> bool
+Tarol.Results.Result.HasValue.get -> bool
+Tarol.Results.Result.IsFailure.get -> bool
+Tarol.Results.Result.IsSuccess.get -> bool
+Tarol.Results.Result.Map<T>(System.Func<T>! map) -> Tarol.Results.Result<T>
+Tarol.Results.Result.MapAsync<T>(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<T>>! map, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>
+Tarol.Results.Result.Match<TOut>(System.Func<TOut>! success, System.Func<Tarol.Results.Violation!, TOut>! failure) -> TOut
+Tarol.Results.Result.Result() -> void
+Tarol.Results.Result.Result(Tarol.Results.Success success) -> void
+Tarol.Results.Result.Result(Tarol.Results.Violation! violation) -> void
+Tarol.Results.Result.Tap(System.Action! action) -> Tarol.Results.Result
+Tarol.Results.Result.TapAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! action, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Results.Result.TapFailure(System.Action<Tarol.Results.Violation!>! action) -> Tarol.Results.Result
+Tarol.Results.Result.TryGetValue(out Tarol.Results.Success success) -> bool
+Tarol.Results.Result.TryGetValue(out Tarol.Results.Violation? violation) -> bool
+Tarol.Results.Result.Value.get -> object!
+Tarol.Results.Result<T>
+Tarol.Results.Result<T>.Bind(System.Func<T, Tarol.Results.Result>! bind) -> Tarol.Results.Result
+Tarol.Results.Result<T>.Bind<TNew>(System.Func<T, Tarol.Results.Result<TNew>>! bind) -> Tarol.Results.Result<TNew>
+Tarol.Results.Result<T>.BindAsync(System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Tarol.Results.Result>>! bind, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Results.Result<T>.BindAsync<TNew>(System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Tarol.Results.Result<TNew>>>! bind, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<TNew>>
+Tarol.Results.Result<T>.Ensure(System.Func<T, bool>! predicate, Tarol.Results.Violation! violation) -> Tarol.Results.Result<T>
+Tarol.Results.Result<T>.EnsureAsync(System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<bool>>! predicate, Tarol.Results.Violation! violation, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>
+Tarol.Results.Result<T>.Equals(Tarol.Results.Result<T> other) -> bool
+Tarol.Results.Result<T>.GetValueOrDefault(System.Func<Tarol.Results.Violation!, T>! fallback) -> T
+Tarol.Results.Result<T>.GetValueOrDefault(T defaultValue) -> T
+Tarol.Results.Result<T>.GetValueOrThrow() -> T
+Tarol.Results.Result<T>.HasValue.get -> bool
+Tarol.Results.Result<T>.IsFailure.get -> bool
+Tarol.Results.Result<T>.IsSuccess.get -> bool
+Tarol.Results.Result<T>.Map<TNew>(System.Func<T, TNew>! map) -> Tarol.Results.Result<TNew>
+Tarol.Results.Result<T>.MapAsync<TNew>(System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TNew>>! map, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<TNew>>
+Tarol.Results.Result<T>.Match<TOut>(System.Func<T, TOut>! success, System.Func<Tarol.Results.Violation!, TOut>! failure) -> TOut
+Tarol.Results.Result<T>.Result() -> void
+Tarol.Results.Result<T>.Result(T value) -> void
+Tarol.Results.Result<T>.Result(Tarol.Results.Violation! violation) -> void
+Tarol.Results.Result<T>.Tap(System.Action<T>! action) -> Tarol.Results.Result<T>
+Tarol.Results.Result<T>.TapAsync(System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask>! action, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>
+Tarol.Results.Result<T>.TapFailure(System.Action<Tarol.Results.Violation!>! action) -> Tarol.Results.Result<T>
+Tarol.Results.Result<T>.ToOption() -> Tarol.Options.Option<T>
+Tarol.Results.Result<T>.ToResult() -> Tarol.Results.Result
+Tarol.Results.Result<T>.TryGetValue(out T value) -> bool
+Tarol.Results.Result<T>.TryGetValue(out Tarol.Results.Violation? violation) -> bool
+Tarol.Results.Result<T>.Value.get -> object!
+Tarol.Results.ResultExtensions
+Tarol.Results.Success
+Tarol.Results.Success.Equals(Tarol.Results.Success other) -> bool
+Tarol.Results.Success.Success() -> void
+Tarol.Results.Violation
+Tarol.Results.Violation.Violation() -> void
+Tarol.Results.Violation.Violation(Tarol.Results.Violation! original) -> void
+abstract Tarol.Results.Violation.<Clone>$() -> Tarol.Results.Violation!
+abstract Tarol.Results.Violation.ToHttpStatusCode() -> int
+override Tarol.Results.Error.<Clone>$() -> Tarol.Results.Error!
+override Tarol.Results.Error.Equals(object? obj) -> bool
+override Tarol.Results.Error.GetHashCode() -> int
+override Tarol.Results.Error.ToHttpStatusCode() -> int
+override Tarol.Results.Error.ToString() -> string!
+override Tarol.Results.FieldError.Equals(object? obj) -> bool
+override Tarol.Results.FieldError.GetHashCode() -> int
+override Tarol.Results.FieldError.ToString() -> string!
+override Tarol.Results.Invalid.<Clone>$() -> Tarol.Results.Invalid!
+override Tarol.Results.Invalid.Equals(object? obj) -> bool
+override Tarol.Results.Invalid.GetHashCode() -> int
+override Tarol.Results.Invalid.ToHttpStatusCode() -> int
+override Tarol.Results.Invalid.ToString() -> string!
+override Tarol.Results.Json.ResultJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Results.Result
+override Tarol.Results.Json.ResultJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Results.Result value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.Results.Json.ResultJsonConverter<T>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Results.Result<T>
+override Tarol.Results.Json.ResultJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Results.Result<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.Results.Result.Equals(object? obj) -> bool
+override Tarol.Results.Result.GetHashCode() -> int
+override Tarol.Results.Result.ToString() -> string!
+override Tarol.Results.Result<T>.Equals(object? obj) -> bool
+override Tarol.Results.Result<T>.GetHashCode() -> int
+override Tarol.Results.Result<T>.ToString() -> string!
+override Tarol.Results.Success.Equals(object? obj) -> bool
+override Tarol.Results.Success.GetHashCode() -> int
+override Tarol.Results.Success.ToString() -> string!
+override Tarol.Results.Violation.Equals(object? obj) -> bool
+override Tarol.Results.Violation.GetHashCode() -> int
+override Tarol.Results.Violation.ToString() -> string!
+override sealed Tarol.Results.Error.Equals(Tarol.Results.Violation? other) -> bool
+override sealed Tarol.Results.Invalid.Equals(Tarol.Results.Violation? other) -> bool
+static Tarol.Results.Error.Conflict(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.Forbidden(string! code = "Auth.Forbidden", string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.Gone(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.Internal(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.NotFound(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.NotFound<TEntity, TId>(TId id) -> Tarol.Results.Error!
+static Tarol.Results.Error.Timeout(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.TooManyRequests(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.Unauthorized(string! code = "Auth.Unauthorized", string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.Unavailable(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.Uninitialized.get -> Tarol.Results.Error!
+static Tarol.Results.Error.UnprocessableEntity(string! code, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.operator !=(Tarol.Results.Error? left, Tarol.Results.Error? right) -> bool
+static Tarol.Results.Error.operator ==(Tarol.Results.Error? left, Tarol.Results.Error? right) -> bool
+static Tarol.Results.ErrorTypeExtensions.ToHttpStatusCode(this Tarol.Results.ErrorType type) -> int
+static Tarol.Results.FieldError.operator !=(Tarol.Results.FieldError? left, Tarol.Results.FieldError? right) -> bool
+static Tarol.Results.FieldError.operator ==(Tarol.Results.FieldError? left, Tarol.Results.FieldError? right) -> bool
+static Tarol.Results.Invalid.Field(string! field, string! code, string? detail = null) -> Tarol.Results.Invalid!
+static Tarol.Results.Invalid.operator !=(Tarol.Results.Invalid? left, Tarol.Results.Invalid? right) -> bool
+static Tarol.Results.Invalid.operator ==(Tarol.Results.Invalid? left, Tarol.Results.Invalid? right) -> bool
+static Tarol.Results.OptionResultExtensions.ToResult<T>(this Tarol.Options.Option<T> option, System.Func<Tarol.Results.Violation!>! whenNone) -> Tarol.Results.Result<T>
+static Tarol.Results.OptionResultExtensions.ToResult<T>(this Tarol.Options.Option<T> option, Tarol.Results.Violation! whenNone) -> Tarol.Results.Result<T>
+static Tarol.Results.Result.Combine(System.Collections.Generic.IEnumerable<Tarol.Results.Result>! results) -> Tarol.Results.Result
+static Tarol.Results.Result.Combine(params System.ReadOnlySpan<Tarol.Results.Result> results) -> Tarol.Results.Result
+static Tarol.Results.Result.Combine<T1, T2, T3>(Tarol.Results.Result<T1> first, Tarol.Results.Result<T2> second, Tarol.Results.Result<T3> third) -> Tarol.Results.Result<(T1, T2, T3)>
+static Tarol.Results.Result.Combine<T1, T2>(Tarol.Results.Result<T1> first, Tarol.Results.Result<T2> second) -> Tarol.Results.Result<(T1, T2)>
+static Tarol.Results.Result.Failure(Tarol.Results.Violation! violation) -> Tarol.Results.Result
+static Tarol.Results.Result.Success() -> Tarol.Results.Result
+static Tarol.Results.Result.Success<T>(T value) -> Tarol.Results.Result<T>
+static Tarol.Results.Result.implicit operator Tarol.Results.Result(Tarol.Results.Success success) -> Tarol.Results.Result
+static Tarol.Results.Result.implicit operator Tarol.Results.Result(Tarol.Results.Violation! violation) -> Tarol.Results.Result
+static Tarol.Results.Result.operator !=(Tarol.Results.Result left, Tarol.Results.Result right) -> bool
+static Tarol.Results.Result.operator ==(Tarol.Results.Result left, Tarol.Results.Result right) -> bool
+static Tarol.Results.Result<T>.Failure(Tarol.Results.Violation! violation) -> Tarol.Results.Result<T>
+static Tarol.Results.Result<T>.Success(T value) -> Tarol.Results.Result<T>
+static Tarol.Results.Result<T>.implicit operator Tarol.Results.Result<T>(T value) -> Tarol.Results.Result<T>
+static Tarol.Results.Result<T>.implicit operator Tarol.Results.Result<T>(Tarol.Results.Violation! violation) -> Tarol.Results.Result<T>
+static Tarol.Results.Result<T>.operator !=(Tarol.Results.Result<T> left, Tarol.Results.Result<T> right) -> bool
+static Tarol.Results.Result<T>.operator ==(Tarol.Results.Result<T> left, Tarol.Results.Result<T> right) -> bool
+static Tarol.Results.ResultExtensions.Bind(this System.Threading.Tasks.ValueTask<Tarol.Results.Result> result, System.Func<Tarol.Results.Result>! bind) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+static Tarol.Results.ResultExtensions.Bind<T, TNew>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>> result, System.Func<T, Tarol.Results.Result<TNew>>! bind) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<TNew>>
+static Tarol.Results.ResultExtensions.BindAsync<T, TNew>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>> result, System.Func<T, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<Tarol.Results.Result<TNew>>>! bind, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<TNew>>
+static Tarol.Results.ResultExtensions.Ensure<T>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>> result, System.Func<T, bool>! predicate, Tarol.Results.Violation! violation) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>
+static Tarol.Results.ResultExtensions.Map<T, TNew>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>> result, System.Func<T, TNew>! map) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<TNew>>
+static Tarol.Results.ResultExtensions.Match<T, TOut>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>> result, System.Func<T, TOut>! success, System.Func<Tarol.Results.Violation!, TOut>! failure) -> System.Threading.Tasks.ValueTask<TOut>
+static Tarol.Results.ResultExtensions.Match<TOut>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result> result, System.Func<TOut>! success, System.Func<Tarol.Results.Violation!, TOut>! failure) -> System.Threading.Tasks.ValueTask<TOut>
+static Tarol.Results.ResultExtensions.Sequence<T>(this System.Collections.Generic.IEnumerable<Tarol.Results.Result<T>>! results) -> Tarol.Results.Result<System.Collections.Generic.IReadOnlyList<T>!>
+static Tarol.Results.ResultExtensions.Tap<T>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>> result, System.Action<T>! action) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>
+static Tarol.Results.ResultExtensions.TapFailure<T>(this System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>> result, System.Action<Tarol.Results.Violation!>! action) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T>>
+static Tarol.Results.ResultExtensions.ToResult<T>(this T? value, Tarol.Results.Violation! whenNull) -> Tarol.Results.Result<T!>
+static Tarol.Results.ResultExtensions.ToResult<T>(this T? value, Tarol.Results.Violation! whenNull) -> Tarol.Results.Result<T>
+static Tarol.Results.Success.operator !=(Tarol.Results.Success left, Tarol.Results.Success right) -> bool
+static Tarol.Results.Success.operator ==(Tarol.Results.Success left, Tarol.Results.Success right) -> bool
+static Tarol.Results.Violation.operator !=(Tarol.Results.Violation? left, Tarol.Results.Violation? right) -> bool
+static Tarol.Results.Violation.operator ==(Tarol.Results.Violation? left, Tarol.Results.Violation? right) -> bool
+virtual Tarol.Results.Violation.EqualityContract.get -> System.Type!
+virtual Tarol.Results.Violation.Equals(Tarol.Results.Violation? other) -> bool
+virtual Tarol.Results.Violation.PrintMembers(System.Text.StringBuilder! builder) -> bool

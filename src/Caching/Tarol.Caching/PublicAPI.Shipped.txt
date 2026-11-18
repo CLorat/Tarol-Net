@@ -1,0 +1,58 @@
+#nullable enable
+Tarol.Caching.CacheOptions
+Tarol.Caching.CacheOptions.CacheOptions() -> void
+Tarol.Caching.CacheOptions.IdleExpiry.get -> System.TimeSpan
+Tarol.Caching.CacheOptions.IdleExpiry.set -> void
+Tarol.Caching.CacheOptions.MaxBytes.get -> long
+Tarol.Caching.CacheOptions.MaxBytes.set -> void
+Tarol.Caching.CacheOptions.MaxEntries.get -> int
+Tarol.Caching.CacheOptions.MaxEntries.set -> void
+Tarol.Caching.CachedReadModels
+Tarol.Caching.CachedReadModels.Cache.get -> Tarol.Caching.IPageCache!
+Tarol.Caching.CachedReadModels.CachedReadModels(Tarol.Queries.IReadModels! inner, Tarol.Queries.IProjectionPositions! positions, Tarol.Caching.IPageCache! cache, System.Text.Json.JsonSerializerOptions? json = null) -> void
+Tarol.Caching.CachedReadModels.Inner.get -> Tarol.Queries.IReadModels!
+Tarol.Caching.CachedReadModels.Store<TRow>() -> Tarol.Queries.IReadModelStore<TRow!>!
+Tarol.Caching.CachingTarolBuilderExtensions
+Tarol.Caching.IPageCache
+Tarol.Caching.IPageCache.Clear() -> void
+Tarol.Caching.IPageCache.Clear(System.Guid tenant) -> void
+Tarol.Caching.IPageCache.Put<TRow>(Tarol.Caching.PageKey key, Tarol.Persistence.GlobalPosition position, Tarol.Queries.Page<TRow!>! page, long size) -> void
+Tarol.Caching.IPageCache.TryGet<TRow>(Tarol.Caching.PageKey key, Tarol.Persistence.GlobalPosition position, out Tarol.Queries.Page<TRow!>? page) -> bool
+Tarol.Caching.MemoryPageCache
+Tarol.Caching.MemoryPageCache.Bytes.get -> long
+Tarol.Caching.MemoryPageCache.Clear() -> void
+Tarol.Caching.MemoryPageCache.Clear(System.Guid tenant) -> void
+Tarol.Caching.MemoryPageCache.Count.get -> int
+Tarol.Caching.MemoryPageCache.Dispose() -> void
+Tarol.Caching.MemoryPageCache.MemoryPageCache(Tarol.Caching.CacheOptions? options = null, System.TimeProvider? time = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Caching.MemoryPageCache.Put<TRow>(Tarol.Caching.PageKey key, Tarol.Persistence.GlobalPosition position, Tarol.Queries.Page<TRow!>! page, long size) -> void
+Tarol.Caching.MemoryPageCache.TryGet<TRow>(Tarol.Caching.PageKey key, Tarol.Persistence.GlobalPosition position, out Tarol.Queries.Page<TRow!>? page) -> bool
+Tarol.Caching.PageCacheEraser
+Tarol.Caching.PageCacheEraser.PageCacheEraser(Tarol.Caching.IPageCache! cache) -> void
+Tarol.Caching.PageKey
+Tarol.Caching.PageKey.Deconstruct(out System.Guid Tenant, out string! Projection, out int Version, out string! Query) -> void
+Tarol.Caching.PageKey.Equals(Tarol.Caching.PageKey other) -> bool
+Tarol.Caching.PageKey.PageKey() -> void
+Tarol.Caching.PageKey.PageKey(System.Guid Tenant, string! Projection, int Version, string! Query) -> void
+Tarol.Caching.PageKey.Projection.get -> string!
+Tarol.Caching.PageKey.Projection.init -> void
+Tarol.Caching.PageKey.Query.get -> string!
+Tarol.Caching.PageKey.Query.init -> void
+Tarol.Caching.PageKey.Tenant.get -> System.Guid
+Tarol.Caching.PageKey.Tenant.init -> void
+Tarol.Caching.PageKey.Version.get -> int
+Tarol.Caching.PageKey.Version.init -> void
+const Tarol.Caching.CachingTarolBuilderExtensions.InnerReadModelsKey = "Tarol.Caching.Inner" -> string!
+const Tarol.Caching.MemoryPageCache.MeterName = "Tarol.Caching" -> string!
+override Tarol.Caching.PageCacheEraser.Deleted(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Caching.PageCacheEraser.Evict(System.Guid tenant, System.Guid? subject) -> void
+override Tarol.Caching.PageCacheEraser.Forget(System.Guid tenant, System.Guid subject, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Caching.PageCacheEraser.ForgetTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Caching.PageCacheEraser.Name.get -> string!
+~override Tarol.Caching.PageKey.Equals(object obj) -> bool
+override Tarol.Caching.PageKey.GetHashCode() -> int
+~override Tarol.Caching.PageKey.ToString() -> string
+static Tarol.Caching.CachingTarolBuilderExtensions.AddCaching(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Caching.CacheOptions!>? configure = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Caching.PageKey.Of<TRow>(Tarol.Queries.ListQueryPlan<TRow!>! plan) -> Tarol.Caching.PageKey
+static Tarol.Caching.PageKey.operator !=(Tarol.Caching.PageKey left, Tarol.Caching.PageKey right) -> bool
+static Tarol.Caching.PageKey.operator ==(Tarol.Caching.PageKey left, Tarol.Caching.PageKey right) -> bool

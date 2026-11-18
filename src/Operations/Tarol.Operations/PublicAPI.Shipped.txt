@@ -1,0 +1,193 @@
+#nullable enable
+Tarol.Operations.AdminError
+Tarol.Operations.AdminError.<Clone>$() -> Tarol.Operations.AdminError!
+Tarol.Operations.AdminError.AdminError(string! Error) -> void
+Tarol.Operations.AdminError.Deconstruct(out string! Error) -> void
+Tarol.Operations.AdminError.Equals(Tarol.Operations.AdminError? other) -> bool
+Tarol.Operations.AdminError.Error.get -> string!
+Tarol.Operations.AdminError.Error.init -> void
+Tarol.Operations.DeadLetterAdmin
+Tarol.Operations.DeadLetterAdmin.DeadLetterAdmin(System.Collections.Generic.IEnumerable<Tarol.Persistence.IDeadLetterSource!>! sources, Tarol.Persistence.IReadModelAdmin? readModels = null, Microsoft.Extensions.Logging.ILogger<Tarol.Operations.DeadLetterAdmin!>? logger = null) -> void
+Tarol.Operations.DeadLetterAdmin.Discard(string! kind, long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Operations.DeadLetterAdmin.DropVersion(string! name, int version, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Operations.DeadLetterAdmin.Kinds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Operations.DeadLetterAdmin.List(string! kind, Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Persistence.DeadLetterPage!>!
+Tarol.Operations.DeadLetterAdmin.Projections(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ProjectionVersion!>!>!
+Tarol.Operations.DeadLetterAdmin.Redrive(string! kind, Tarol.Persistence.DeadLetterQuery! filter, int max, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Operations.DeadLetterAdmin.Redrive(string! kind, long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Operations.DeadLetterPageView
+Tarol.Operations.DeadLetterPageView.<Clone>$() -> Tarol.Operations.DeadLetterPageView!
+Tarol.Operations.DeadLetterPageView.DeadLetterPageView(System.Collections.Generic.IReadOnlyList<Tarol.Operations.DeadLetterView!>! Items, long? Next) -> void
+Tarol.Operations.DeadLetterPageView.Deconstruct(out System.Collections.Generic.IReadOnlyList<Tarol.Operations.DeadLetterView!>! Items, out long? Next) -> void
+Tarol.Operations.DeadLetterPageView.Equals(Tarol.Operations.DeadLetterPageView? other) -> bool
+Tarol.Operations.DeadLetterPageView.Items.get -> System.Collections.Generic.IReadOnlyList<Tarol.Operations.DeadLetterView!>!
+Tarol.Operations.DeadLetterPageView.Items.init -> void
+Tarol.Operations.DeadLetterPageView.Next.get -> long?
+Tarol.Operations.DeadLetterPageView.Next.init -> void
+Tarol.Operations.DeadLetterView
+Tarol.Operations.DeadLetterView.<Clone>$() -> Tarol.Operations.DeadLetterView!
+Tarol.Operations.DeadLetterView.Attempts.get -> int
+Tarol.Operations.DeadLetterView.Attempts.init -> void
+Tarol.Operations.DeadLetterView.DeadAt.get -> System.DateTimeOffset
+Tarol.Operations.DeadLetterView.DeadAt.init -> void
+Tarol.Operations.DeadLetterView.DeadLetterView(long Id, string! Kind, string! Name, System.Guid? Tenant, string! Subject, int Attempts, string? Error, System.DateTimeOffset DeadAt) -> void
+Tarol.Operations.DeadLetterView.Deconstruct(out long Id, out string! Kind, out string! Name, out System.Guid? Tenant, out string! Subject, out int Attempts, out string? Error, out System.DateTimeOffset DeadAt) -> void
+Tarol.Operations.DeadLetterView.Equals(Tarol.Operations.DeadLetterView? other) -> bool
+Tarol.Operations.DeadLetterView.Error.get -> string?
+Tarol.Operations.DeadLetterView.Error.init -> void
+Tarol.Operations.DeadLetterView.Id.get -> long
+Tarol.Operations.DeadLetterView.Id.init -> void
+Tarol.Operations.DeadLetterView.Kind.get -> string!
+Tarol.Operations.DeadLetterView.Kind.init -> void
+Tarol.Operations.DeadLetterView.Name.get -> string!
+Tarol.Operations.DeadLetterView.Name.init -> void
+Tarol.Operations.DeadLetterView.Subject.get -> string!
+Tarol.Operations.DeadLetterView.Subject.init -> void
+Tarol.Operations.DeadLetterView.Tenant.get -> System.Guid?
+Tarol.Operations.DeadLetterView.Tenant.init -> void
+Tarol.Operations.ErasureView
+Tarol.Operations.ErasureView.<Clone>$() -> Tarol.Operations.ErasureView!
+Tarol.Operations.ErasureView.AlreadyErased.get -> bool
+Tarol.Operations.ErasureView.AlreadyErased.init -> void
+Tarol.Operations.ErasureView.Deconstruct(out System.Guid Tenant, out System.Guid Subject, out bool AlreadyErased, out int Streams) -> void
+Tarol.Operations.ErasureView.Equals(Tarol.Operations.ErasureView? other) -> bool
+Tarol.Operations.ErasureView.ErasureView(System.Guid Tenant, System.Guid Subject, bool AlreadyErased, int Streams) -> void
+Tarol.Operations.ErasureView.Streams.get -> int
+Tarol.Operations.ErasureView.Streams.init -> void
+Tarol.Operations.ErasureView.Subject.get -> System.Guid
+Tarol.Operations.ErasureView.Subject.init -> void
+Tarol.Operations.ErasureView.Tenant.get -> System.Guid
+Tarol.Operations.ErasureView.Tenant.init -> void
+Tarol.Operations.IDeadLetterAdmin
+Tarol.Operations.IDeadLetterAdmin.Discard(string! kind, long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Operations.IDeadLetterAdmin.DropVersion(string! name, int version, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Operations.IDeadLetterAdmin.Kinds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Operations.IDeadLetterAdmin.List(string! kind, Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Persistence.DeadLetterPage!>!
+Tarol.Operations.IDeadLetterAdmin.Projections(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ProjectionVersion!>!>!
+Tarol.Operations.IDeadLetterAdmin.Redrive(string! kind, Tarol.Persistence.DeadLetterQuery! filter, int max, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Operations.IDeadLetterAdmin.Redrive(string! kind, long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Operations.OperationsHost
+Tarol.Operations.OperationsHost.OperationsHost(System.Collections.Generic.IEnumerable<Tarol.Persistence.OperationsSignal!>! signals, System.IServiceProvider! services, Tarol.Operations.OperationsOptions! options, System.TimeProvider! time, Microsoft.Extensions.Logging.ILogger<Tarol.Operations.OperationsHost!>? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Operations.OperationsHost.PollOnce(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tarol.Operations.OperationsSnapshot!>!
+Tarol.Operations.OperationsHost.Signals.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.OperationsSignal!>!
+Tarol.Operations.OperationsHost.Snapshot.get -> Tarol.Operations.OperationsSnapshot!
+Tarol.Operations.OperationsJson
+~Tarol.Operations.OperationsJson.AdminError.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Operations.AdminError>
+~Tarol.Operations.OperationsJson.Boolean.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<bool>
+~Tarol.Operations.OperationsJson.DateTimeOffset.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.DateTimeOffset>
+~Tarol.Operations.OperationsJson.DeadLetterPageView.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Operations.DeadLetterPageView>
+~Tarol.Operations.OperationsJson.DeadLetterView.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Operations.DeadLetterView>
+~Tarol.Operations.OperationsJson.ErasureView.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Operations.ErasureView>
+~Tarol.Operations.OperationsJson.Guid.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Guid>
+~Tarol.Operations.OperationsJson.IReadOnlyListDeadLetterView.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IReadOnlyList<Tarol.Operations.DeadLetterView>>
+~Tarol.Operations.OperationsJson.IReadOnlyListProjectionVersion.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ProjectionVersion>>
+~Tarol.Operations.OperationsJson.Int32.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<int>
+~Tarol.Operations.OperationsJson.Int64.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<long>
+~Tarol.Operations.OperationsJson.NullableGuid.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Guid?>
+~Tarol.Operations.OperationsJson.NullableInt64.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<long?>
+Tarol.Operations.OperationsJson.OperationsJson() -> void
+Tarol.Operations.OperationsJson.OperationsJson(System.Text.Json.JsonSerializerOptions! options) -> void
+~Tarol.Operations.OperationsJson.ProjectionVersion.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Persistence.ProjectionVersion>
+~Tarol.Operations.OperationsJson.RedriveView.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Operations.RedriveView>
+~Tarol.Operations.OperationsJson.String.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<string>
+Tarol.Operations.OperationsOptions
+Tarol.Operations.OperationsOptions.AuditRetention.get -> System.TimeSpan?
+Tarol.Operations.OperationsOptions.AuditRetention.set -> void
+Tarol.Operations.OperationsOptions.DeadRetention.get -> System.TimeSpan?
+Tarol.Operations.OperationsOptions.DeadRetention.set -> void
+Tarol.Operations.OperationsOptions.OperationsOptions() -> void
+Tarol.Operations.OperationsOptions.PollEvery.get -> System.TimeSpan
+Tarol.Operations.OperationsOptions.PollEvery.set -> void
+Tarol.Operations.OperationsOptions.PurgeBatch.get -> int
+Tarol.Operations.OperationsOptions.PurgeBatch.set -> void
+Tarol.Operations.OperationsOptions.StaleAfter.get -> int
+Tarol.Operations.OperationsOptions.StaleAfter.set -> void
+Tarol.Operations.OperationsOptions.Thresholds.get -> Tarol.Operations.OperationsThresholds!
+Tarol.Operations.OperationsSnapshot
+Tarol.Operations.OperationsSnapshot.<Clone>$() -> Tarol.Operations.OperationsSnapshot!
+Tarol.Operations.OperationsSnapshot.Deconstruct(out System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.SignalValue>!>! Values, out System.DateTimeOffset? LastSuccess, out System.DateTimeOffset? LastPoll, out int Failures, out string? LastError) -> void
+Tarol.Operations.OperationsSnapshot.Equals(Tarol.Operations.OperationsSnapshot? other) -> bool
+Tarol.Operations.OperationsSnapshot.Failures.get -> int
+Tarol.Operations.OperationsSnapshot.Failures.init -> void
+Tarol.Operations.OperationsSnapshot.Has(string! name) -> bool
+Tarol.Operations.OperationsSnapshot.LastError.get -> string?
+Tarol.Operations.OperationsSnapshot.LastError.init -> void
+Tarol.Operations.OperationsSnapshot.LastPoll.get -> System.DateTimeOffset?
+Tarol.Operations.OperationsSnapshot.LastPoll.init -> void
+Tarol.Operations.OperationsSnapshot.LastSuccess.get -> System.DateTimeOffset?
+Tarol.Operations.OperationsSnapshot.LastSuccess.init -> void
+Tarol.Operations.OperationsSnapshot.Max(string! name) -> double
+Tarol.Operations.OperationsSnapshot.OperationsSnapshot(System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.SignalValue>!>! Values, System.DateTimeOffset? LastSuccess, System.DateTimeOffset? LastPoll, int Failures, string? LastError) -> void
+Tarol.Operations.OperationsSnapshot.Sum(string! name) -> double
+Tarol.Operations.OperationsSnapshot.Values.get -> System.Collections.Generic.IReadOnlyDictionary<string!, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.SignalValue>!>!
+Tarol.Operations.OperationsSnapshot.Values.init -> void
+Tarol.Operations.OperationsTarolBuilderExtensions
+Tarol.Operations.OperationsThresholds
+Tarol.Operations.OperationsThresholds.DeadDegraded.get -> long
+Tarol.Operations.OperationsThresholds.DeadDegraded.set -> void
+Tarol.Operations.OperationsThresholds.JobsDegraded.get -> System.TimeSpan
+Tarol.Operations.OperationsThresholds.JobsDegraded.set -> void
+Tarol.Operations.OperationsThresholds.JobsUnhealthy.get -> System.TimeSpan
+Tarol.Operations.OperationsThresholds.JobsUnhealthy.set -> void
+Tarol.Operations.OperationsThresholds.LagDegraded.get -> System.TimeSpan
+Tarol.Operations.OperationsThresholds.LagDegraded.set -> void
+Tarol.Operations.OperationsThresholds.LagUnhealthy.get -> System.TimeSpan
+Tarol.Operations.OperationsThresholds.LagUnhealthy.set -> void
+Tarol.Operations.OperationsThresholds.OperationsThresholds() -> void
+Tarol.Operations.OperationsThresholds.ReactionsDegraded.get -> System.TimeSpan
+Tarol.Operations.OperationsThresholds.ReactionsDegraded.set -> void
+Tarol.Operations.OperationsThresholds.ReactionsUnhealthy.get -> System.TimeSpan
+Tarol.Operations.OperationsThresholds.ReactionsUnhealthy.set -> void
+Tarol.Operations.RedriveView
+Tarol.Operations.RedriveView.<Clone>$() -> Tarol.Operations.RedriveView!
+Tarol.Operations.RedriveView.Deconstruct(out int Redriven) -> void
+Tarol.Operations.RedriveView.Equals(Tarol.Operations.RedriveView? other) -> bool
+Tarol.Operations.RedriveView.RedriveView(int Redriven) -> void
+Tarol.Operations.RedriveView.Redriven.get -> int
+Tarol.Operations.RedriveView.Redriven.init -> void
+Tarol.Operations.TarolAdminEndpoints
+Tarol.Operations.TarolHealthEndpoints
+Tarol.Operations.TarolHealthTags
+const Tarol.Operations.IDeadLetterAdmin.MaxRedrive = 1000 -> int
+const Tarol.Operations.OperationsTarolBuilderExtensions.PurgeAuditJob = "tarol.purge-audit" -> string!
+const Tarol.Operations.OperationsTarolBuilderExtensions.PurgeDeadJob = "tarol.purge-dead" -> string!
+const Tarol.Operations.TarolHealthTags.Live = "live" -> string!
+const Tarol.Operations.TarolHealthTags.Ready = "ready" -> string!
+const Tarol.Operations.TarolHealthTags.Tarol = "tarol" -> string!
+override Tarol.Operations.AdminError.Equals(object? obj) -> bool
+override Tarol.Operations.AdminError.GetHashCode() -> int
+override Tarol.Operations.AdminError.ToString() -> string!
+override Tarol.Operations.DeadLetterPageView.Equals(object? obj) -> bool
+override Tarol.Operations.DeadLetterPageView.GetHashCode() -> int
+override Tarol.Operations.DeadLetterPageView.ToString() -> string!
+override Tarol.Operations.DeadLetterView.Equals(object? obj) -> bool
+override Tarol.Operations.DeadLetterView.GetHashCode() -> int
+override Tarol.Operations.DeadLetterView.ToString() -> string!
+override Tarol.Operations.ErasureView.Equals(object? obj) -> bool
+override Tarol.Operations.ErasureView.GetHashCode() -> int
+override Tarol.Operations.ErasureView.ToString() -> string!
+override Tarol.Operations.OperationsHost.Dispose() -> void
+override Tarol.Operations.OperationsJson.GetTypeInfo(System.Type! type) -> System.Text.Json.Serialization.Metadata.JsonTypeInfo?
+override Tarol.Operations.OperationsSnapshot.Equals(object? obj) -> bool
+override Tarol.Operations.OperationsSnapshot.GetHashCode() -> int
+override Tarol.Operations.OperationsSnapshot.ToString() -> string!
+override Tarol.Operations.RedriveView.Equals(object? obj) -> bool
+override Tarol.Operations.RedriveView.GetHashCode() -> int
+override Tarol.Operations.RedriveView.ToString() -> string!
+static Tarol.Operations.AdminError.operator !=(Tarol.Operations.AdminError? left, Tarol.Operations.AdminError? right) -> bool
+static Tarol.Operations.AdminError.operator ==(Tarol.Operations.AdminError? left, Tarol.Operations.AdminError? right) -> bool
+static Tarol.Operations.DeadLetterPageView.operator !=(Tarol.Operations.DeadLetterPageView? left, Tarol.Operations.DeadLetterPageView? right) -> bool
+static Tarol.Operations.DeadLetterPageView.operator ==(Tarol.Operations.DeadLetterPageView? left, Tarol.Operations.DeadLetterPageView? right) -> bool
+static Tarol.Operations.DeadLetterView.operator !=(Tarol.Operations.DeadLetterView? left, Tarol.Operations.DeadLetterView? right) -> bool
+static Tarol.Operations.DeadLetterView.operator ==(Tarol.Operations.DeadLetterView? left, Tarol.Operations.DeadLetterView? right) -> bool
+static Tarol.Operations.ErasureView.operator !=(Tarol.Operations.ErasureView? left, Tarol.Operations.ErasureView? right) -> bool
+static Tarol.Operations.ErasureView.operator ==(Tarol.Operations.ErasureView? left, Tarol.Operations.ErasureView? right) -> bool
+static Tarol.Operations.OperationsJson.Default.get -> Tarol.Operations.OperationsJson!
+static Tarol.Operations.OperationsSnapshot.Empty.get -> Tarol.Operations.OperationsSnapshot!
+static Tarol.Operations.OperationsSnapshot.operator !=(Tarol.Operations.OperationsSnapshot? left, Tarol.Operations.OperationsSnapshot? right) -> bool
+static Tarol.Operations.OperationsSnapshot.operator ==(Tarol.Operations.OperationsSnapshot? left, Tarol.Operations.OperationsSnapshot? right) -> bool
+static Tarol.Operations.OperationsTarolBuilderExtensions.AddOperations(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Operations.OperationsOptions!>? configure = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Operations.RedriveView.operator !=(Tarol.Operations.RedriveView? left, Tarol.Operations.RedriveView? right) -> bool
+static Tarol.Operations.RedriveView.operator ==(Tarol.Operations.RedriveView? left, Tarol.Operations.RedriveView? right) -> bool
+static Tarol.Operations.TarolAdminEndpoints.MapTarolAdmin(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! prefix, string! policy) -> Microsoft.AspNetCore.Routing.RouteGroupBuilder!
+static Tarol.Operations.TarolHealthEndpoints.MapTarolHealth(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! prefix = "/health") -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!

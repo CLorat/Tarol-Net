@@ -1,0 +1,34 @@
+#nullable enable
+Tarol.DataProtection.DataProtectionOptions
+Tarol.DataProtection.DataProtectionOptions.DataProtectionOptions() -> void
+Tarol.DataProtection.DataProtectionOptions.MasterKey.get -> string?
+Tarol.DataProtection.DataProtectionOptions.MasterKey.set -> void
+Tarol.DataProtection.DataProtectionOptions.MasterKeyId.get -> string!
+Tarol.DataProtection.DataProtectionOptions.MasterKeyId.set -> void
+Tarol.DataProtection.DataProtectionOptions.PreviousKeys.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Tarol.DataProtection.DataProtectionOptions.Retention.get -> System.Collections.Generic.IDictionary<string!, int?>!
+Tarol.DataProtection.DataProtectionOptions.RetentionBatch.get -> int
+Tarol.DataProtection.DataProtectionOptions.RetentionBatch.set -> void
+Tarol.DataProtection.DataProtectionOptions.RetentionEvery.get -> System.TimeSpan
+Tarol.DataProtection.DataProtectionOptions.RetentionEvery.set -> void
+Tarol.DataProtection.DataProtectionTarolBuilderExtensions
+Tarol.DataProtection.DataSubjects
+Tarol.DataProtection.DataSubjects.DataSubjects(Tarol.Persistence.IKeyStore! keys, Tarol.Persistence.IDataProtectionStore! store, System.Collections.Generic.IEnumerable<Tarol.Persistence.ErasureParticipant!>! participants, System.Text.Json.JsonSerializerOptions! json, System.TimeProvider! time, Microsoft.Extensions.Logging.ILogger<Tarol.DataProtection.DataSubjects!>? logger = null) -> void
+Tarol.DataProtection.DataSubjects.EraseSubject(System.Guid tenant, System.Guid subject, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.SubjectErasure!>
+Tarol.DataProtection.DataSubjects.EraseTenant(System.Guid tenant, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.SubjectErasure!>
+Tarol.DataProtection.DataSubjects.Export(System.Guid tenant, System.Guid subject, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.SubjectExport!>
+Tarol.DataProtection.DataSubjects.Participants.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ErasureParticipant!>!
+Tarol.DataProtection.ErasureIncompleteException
+Tarol.DataProtection.ErasureIncompleteException.ErasureIncompleteException() -> void
+Tarol.DataProtection.ErasureIncompleteException.ErasureIncompleteException(System.Guid tenant, System.Guid? subject, System.Collections.Generic.IReadOnlyList<string!>! failed) -> void
+Tarol.DataProtection.ErasureIncompleteException.ErasureIncompleteException(string! message) -> void
+Tarol.DataProtection.ErasureIncompleteException.ErasureIncompleteException(string! message, System.Exception! innerException) -> void
+Tarol.DataProtection.ErasureIncompleteException.Failed.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.DataProtection.ErasureIncompleteException.Subject.get -> System.Guid?
+Tarol.DataProtection.ErasureIncompleteException.Tenant.get -> System.Guid
+Tarol.DataProtection.PersonalLookupsEraser
+Tarol.DataProtection.PersonalLookupsEraser.PersonalLookupsEraser(Tarol.Persistence.IDataProtectionStore! store) -> void
+override Tarol.DataProtection.PersonalLookupsEraser.Forget(System.Guid tenant, System.Guid subject, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.DataProtection.PersonalLookupsEraser.Name.get -> string!
+static Tarol.DataProtection.DataProtectionTarolBuilderExtensions.AddDataProtection(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.DataProtection.DataProtectionOptions!>? configure = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.DataProtection.DataProtectionTarolBuilderExtensions.UseInMemoryKeyStore(this Tarol.Persistence.TarolBuilder! builder) -> Tarol.Persistence.TarolBuilder!

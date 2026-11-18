@@ -1,0 +1,80 @@
+#nullable enable
+Tarol.Queries.Npgsql.NpgsqlFeedSignal
+Tarol.Queries.Npgsql.NpgsqlFeedSignal.Channel.get -> string!
+Tarol.Queries.Npgsql.NpgsqlFeedSignal.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Tarol.Queries.Npgsql.NpgsqlFeedSignal.NpgsqlFeedSignal(Npgsql.NpgsqlDataSource! dataSource, string! channel, System.TimeProvider? time = null) -> void
+Tarol.Queries.Npgsql.NpgsqlFeedSignal.Wait(System.TimeSpan max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.Npgsql.NpgsqlProjectionGate
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.CheckEvery.get -> System.TimeSpan
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.CheckEvery.init -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.Key(string! name, int version) -> string!
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.NpgsqlProjectionGate(Npgsql.NpgsqlDataSource! dataSource, string! schema = "tarol", System.TimeProvider? time = null) -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.RetryEvery.get -> System.TimeSpan
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.RetryEvery.init -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.TryEnter(string! name, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.IProjectionGateLease?>
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.Backoff.get -> System.TimeSpan
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.Backoff.init -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.Channel.get -> string!
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.Checkpoint<TRow>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.IsListening.get -> bool
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.MaxBackoff.get -> System.TimeSpan
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.MaxBackoff.init -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.NpgsqlProjectionPositions(Npgsql.NpgsqlDataSource! dataSource, string! schema = "tarol", System.Collections.Generic.IEnumerable<Tarol.Queries.ProjectionHost!>? hosts = null, System.TimeProvider? time = null, Microsoft.Extensions.Logging.ILogger<Tarol.Queries.Npgsql.NpgsqlProjectionPositions!>? logger = null) -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.PollInterval.get -> System.TimeSpan
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.PollInterval.init -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionPositions.WaitFor<TRow>(Tarol.Persistence.GlobalPosition position, System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Queries.Npgsql.NpgsqlQueriesTarolBuilderExtensions
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.<Clone>$() -> Tarol.Queries.Npgsql.NpgsqlReadModelOptions!
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.Equals(Tarol.Queries.Npgsql.NpgsqlReadModelOptions? other) -> bool
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.Listen.get -> bool?
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.Listen.init -> void
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.NpgsqlReadModelOptions() -> void
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.PushCheckpoints.get -> bool
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.PushCheckpoints.init -> void
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.Schema.get -> string?
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.Schema.init -> void
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.SingleRunner.get -> bool
+Tarol.Queries.Npgsql.NpgsqlReadModelOptions.SingleRunner.init -> void
+Tarol.Queries.Npgsql.NpgsqlReadModelSchema
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Find(Tarol.Queries.RowKey key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.Versioned<TRow!>?>
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Load(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<Tarol.Queries.RowKey, Tarol.Queries.Versioned<TRow!>!>!>
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.NpgsqlReadModelStore(Npgsql.NpgsqlDataSource! dataSource, System.Text.Json.JsonSerializerOptions! json, string! schema = "tarol", bool pushCheckpoints = false) -> void
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.PushesCheckpoints.get -> bool
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Search(Tarol.Queries.ListQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Queries.Page<TRow!>!>>
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Table.get -> string!
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Write(Tarol.Queries.ProjectionBatch<TRow!>! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Queries.Npgsql.NpgsqlReadModels
+Tarol.Queries.Npgsql.NpgsqlReadModels.Checkpoint(Tarol.Queries.ISqlProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Queries.Npgsql.NpgsqlReadModels.DropAttempts.get -> int
+Tarol.Queries.Npgsql.NpgsqlReadModels.DropAttempts.init -> void
+Tarol.Queries.Npgsql.NpgsqlReadModels.DropLockTimeout.get -> System.TimeSpan
+Tarol.Queries.Npgsql.NpgsqlReadModels.DropLockTimeout.init -> void
+Tarol.Queries.Npgsql.NpgsqlReadModels.DropVersion(string! name, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Queries.Npgsql.NpgsqlReadModels.NpgsqlReadModels(Npgsql.NpgsqlDataSource! dataSource, System.Text.Json.JsonSerializerOptions! json, string! schema = "tarol", bool pushCheckpoints = false, System.TimeProvider? time = null) -> void
+Tarol.Queries.Npgsql.NpgsqlReadModels.Prepare(Tarol.Queries.ISqlProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.Npgsql.NpgsqlReadModels.PushesCheckpoints.get -> bool
+Tarol.Queries.Npgsql.NpgsqlReadModels.Schema.get -> string!
+Tarol.Queries.Npgsql.NpgsqlReadModels.Store<TRow>() -> Tarol.Queries.IReadModelStore<TRow!>!
+Tarol.Queries.Npgsql.NpgsqlReadModels.Typed<TRow>() -> Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow!>!
+Tarol.Queries.Npgsql.NpgsqlReadModels.Versions(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ProjectionVersion!>!>!
+Tarol.Queries.Npgsql.NpgsqlReadModels.Write(Tarol.Queries.ISqlProjection! projection, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>! events, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(bool Written, int Rows)>
+const Tarol.Queries.Npgsql.NpgsqlProjectionPositions.ChannelSuffix = "_checkpoint" -> string!
+const Tarol.Queries.Npgsql.NpgsqlReadModelSchema.DefaultSchema = "tarol" -> string!
+const Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.NotPreparedCode = "Projection.NotPrepared" -> string!
+override Tarol.Queries.Npgsql.NpgsqlReadModelOptions.Equals(object? obj) -> bool
+override Tarol.Queries.Npgsql.NpgsqlReadModelOptions.GetHashCode() -> int
+override Tarol.Queries.Npgsql.NpgsqlReadModelOptions.ToString() -> string!
+static Tarol.Queries.Npgsql.NpgsqlQueriesTarolBuilderExtensions.UseNpgsqlReadModels(this Tarol.Persistence.TarolBuilder! builder, Tarol.Queries.Npgsql.NpgsqlReadModelOptions? options = null, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>? dataSource = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Queries.Npgsql.NpgsqlReadModelOptions.operator !=(Tarol.Queries.Npgsql.NpgsqlReadModelOptions? left, Tarol.Queries.Npgsql.NpgsqlReadModelOptions? right) -> bool
+static Tarol.Queries.Npgsql.NpgsqlReadModelOptions.operator ==(Tarol.Queries.Npgsql.NpgsqlReadModelOptions? left, Tarol.Queries.Npgsql.NpgsqlReadModelOptions? right) -> bool
+static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.ProjectionsTable(string! schema = "tarol") -> string!
+static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.Script<TRow>(string! schema = "tarol") -> string!
+static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.SqlType(Tarol.Queries.ColumnType type) -> string!

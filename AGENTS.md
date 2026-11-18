@@ -23,6 +23,7 @@ dotnet pack Tarol.slnx -c Release          # -> artifacts/package/release
 eng/verify-packages.sh                     # inspects the .nupkg files and runs the package consumer tests
 eng/aot-smoke.sh                           # publishes every *.AotSmoke app with Native AOT, 0 IL warnings
                                            # (TAROL_PG=<connection string> adds the Npgsql database checks)
+eng/public-api.py update                   # after a public API change: rewrites PublicAPI.Unshipped.txt from the analyzer
 ```
 
 Generator snapshot tests: on a mismatch a `*.received.*` file is written next to the `*.verified.*` file.

@@ -1,0 +1,364 @@
+#nullable enable
+Tarol.Primitives.AggregateChanges
+Tarol.Primitives.AggregateOutcome<TSelf>
+~Tarol.Primitives.AggregateOutcome<TSelf>.<Clone>$() -> Tarol.Primitives.AggregateOutcome<TSelf>!
+Tarol.Primitives.AggregateOutcome<TSelf>.Aggregate.get -> TSelf!
+Tarol.Primitives.AggregateOutcome<TSelf>.Aggregate.init -> void
+Tarol.Primitives.AggregateOutcome<TSelf>.AggregateOutcome(Tarol.Results.Result Result, System.Collections.Generic.IReadOnlyList<Tarol.Primitives.DomainEvent!>! Events, TSelf! Aggregate, System.Collections.Generic.IReadOnlyList<Tarol.Primitives.StreamEvent>! History) -> void
+Tarol.Primitives.AggregateOutcome<TSelf>.Deconstruct(out Tarol.Results.Result Result, out System.Collections.Generic.IReadOnlyList<Tarol.Primitives.DomainEvent!>! Events, out TSelf! Aggregate, out System.Collections.Generic.IReadOnlyList<Tarol.Primitives.StreamEvent>! History) -> void
+~Tarol.Primitives.AggregateOutcome<TSelf>.Equals(Tarol.Primitives.AggregateOutcome<TSelf>? other) -> bool
+Tarol.Primitives.AggregateOutcome<TSelf>.Events.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.DomainEvent!>!
+Tarol.Primitives.AggregateOutcome<TSelf>.Events.init -> void
+Tarol.Primitives.AggregateOutcome<TSelf>.History.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.StreamEvent>!
+Tarol.Primitives.AggregateOutcome<TSelf>.History.init -> void
+Tarol.Primitives.AggregateOutcome<TSelf>.Replay() -> TSelf!
+Tarol.Primitives.AggregateOutcome<TSelf>.Result.get -> Tarol.Results.Result
+Tarol.Primitives.AggregateOutcome<TSelf>.Result.init -> void
+Tarol.Primitives.AggregateRoot<TSelf>
+Tarol.Primitives.AggregateRoot<TSelf>.AggregateRoot(Tarol.StronglyTypedId.Id<TSelf!> id) -> void
+Tarol.Primitives.AggregateRoot<TSelf>.ApplyRaised(in Tarol.Primitives.StreamEvent stream) -> void
+Tarol.Primitives.AggregateRoot<TSelf>.Event
+Tarol.Primitives.AggregateRoot<TSelf>.Event.Event() -> void
+~Tarol.Primitives.AggregateRoot<TSelf>.Event.Event(Tarol.Primitives.AggregateRoot<TSelf>.Event! original) -> void
+Tarol.Primitives.AggregateRoot<TSelf>.ForbiddenStep(Tarol.Primitives.LifecycleViolation! violation) -> void
+Tarol.Primitives.AggregateRoot<TSelf>.Id.get -> Tarol.StronglyTypedId.Id<TSelf!>
+Tarol.Primitives.AggregateRoot<TSelf>.IsBroken.get -> bool
+~Tarol.Primitives.AggregateRoot<TSelf>.Raise(Tarol.Primitives.AggregateRoot<TSelf>.Event! event) -> Tarol.Results.Success
+Tarol.Primitives.AggregateRoot<TSelf>.Raise<TChild>(Tarol.Primitives.Entity<TSelf!, TChild!>.Created! event) -> TChild!
+Tarol.Primitives.AggregateRoot<TSelf>.Raise<TChild>(Tarol.Primitives.Entity<TSelf!, TChild!>.Created! event, Tarol.StronglyTypedId.Id<TChild!> id) -> TChild!
+Tarol.Primitives.AggregateRoot<TSelf>.UncommittedChanges.get -> System.ReadOnlySpan<Tarol.Primitives.StreamEvent>
+Tarol.Primitives.AggregateRoot<TSelf>.Version.get -> long
+Tarol.Primitives.AggregateState
+Tarol.Primitives.AggregateTest
+Tarol.Primitives.AggregateTest<TSelf>
+Tarol.Primitives.AggregateTest<TSelf>.Aggregate.get -> TSelf!
+Tarol.Primitives.AggregateTest<TSelf>.And(System.Func<TSelf!, Tarol.Results.Result>! behaviour) -> Tarol.Primitives.AggregateTest<TSelf!>!
+Tarol.Primitives.AggregateTest<TSelf>.History.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.StreamEvent>!
+Tarol.Primitives.AggregateTest<TSelf>.When(System.Func<TSelf!, Tarol.Results.Result>! behaviour) -> Tarol.Primitives.AggregateOutcome<TSelf!>!
+Tarol.Primitives.AggregateTest<TSelf>.When<T>(System.Func<TSelf!, Tarol.Results.Result<T>>! behaviour) -> Tarol.Primitives.AggregateOutcome<TSelf!>!
+Tarol.Primitives.DomainEvent
+Tarol.Primitives.DomainEvent.DomainEvent() -> void
+Tarol.Primitives.DomainEvent.DomainEvent(Tarol.Primitives.DomainEvent! original) -> void
+Tarol.Primitives.Entity<TRoot, TSelf>
+Tarol.Primitives.Entity<TRoot, TSelf>.Created
+Tarol.Primitives.Entity<TRoot, TSelf>.Created.Created() -> void
+~Tarol.Primitives.Entity<TRoot, TSelf>.Created.Created(Tarol.Primitives.Entity<TRoot, TSelf>.Created! original) -> void
+Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>
+Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.CreatedIn() -> void
+~Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.CreatedIn(Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>! original) -> void
+Tarol.Primitives.Entity<TRoot, TSelf>.Deleted
+Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.Deleted() -> void
+~Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.Deleted(Tarol.Primitives.Entity<TRoot, TSelf>.Deleted! original) -> void
+Tarol.Primitives.Entity<TRoot, TSelf>.Entity(Tarol.StronglyTypedId.Id<TSelf!> id, TRoot! root) -> void
+Tarol.Primitives.Entity<TRoot, TSelf>.Event
+Tarol.Primitives.Entity<TRoot, TSelf>.Event.Event() -> void
+~Tarol.Primitives.Entity<TRoot, TSelf>.Event.Event(Tarol.Primitives.Entity<TRoot, TSelf>.Event! original) -> void
+Tarol.Primitives.Entity<TRoot, TSelf>.Id.get -> Tarol.StronglyTypedId.Id<TSelf!>
+~Tarol.Primitives.Entity<TRoot, TSelf>.Raise(Tarol.Primitives.Entity<TRoot, TSelf>.Deleted! event) -> Tarol.Results.Success
+~Tarol.Primitives.Entity<TRoot, TSelf>.Raise(Tarol.Primitives.Entity<TRoot, TSelf>.Event! event) -> Tarol.Results.Success
+Tarol.Primitives.Entity<TRoot, TSelf>.Raise<TChild>(Tarol.Primitives.Entity<TRoot!, TChild!>.Created! event) -> TChild!
+Tarol.Primitives.Entity<TRoot, TSelf>.Raise<TChild>(Tarol.Primitives.Entity<TRoot!, TChild!>.Created! event, Tarol.StronglyTypedId.Id<TChild!> id) -> TChild!
+Tarol.Primitives.Entity<TRoot, TSelf>.Root.get -> TRoot!
+Tarol.Primitives.EntityRef<TEntity>
+Tarol.Primitives.EntityRef<TEntity>.EntityRef() -> void
+Tarol.Primitives.EntityRef<TEntity>.HasValue.get -> bool
+Tarol.Primitives.EntityRef<TEntity>.Value.get -> TEntity?
+Tarol.Primitives.EntitySet
+Tarol.Primitives.EntitySet<TEntity>
+Tarol.Primitives.EntitySet<TEntity>.Contains(Tarol.StronglyTypedId.Id<TEntity> id) -> bool
+Tarol.Primitives.EntitySet<TEntity>.Count.get -> int
+Tarol.Primitives.EntitySet<TEntity>.EntitySet() -> void
+Tarol.Primitives.EntitySet<TEntity>.GetEnumerator() -> System.Collections.Generic.List<TEntity>.Enumerator
+Tarol.Primitives.EntitySet<TEntity>.TryGet(Tarol.StronglyTypedId.Id<TEntity> id, out TEntity entity) -> bool
+Tarol.Primitives.EntitySet<TEntity>.this[Tarol.StronglyTypedId.Id<TEntity> id].get -> TEntity
+Tarol.Primitives.EntitySet<TEntity>.this[int index].get -> TEntity
+Tarol.Primitives.EventCatalog
+Tarol.Primitives.EventCatalog.EventCatalog(string! streamType, params Tarol.Primitives.EventCatalogEntry[]! events) -> void
+Tarol.Primitives.EventCatalog.Events.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.EventCatalogEntry>!
+Tarol.Primitives.EventCatalog.HasPersonalData.get -> bool
+Tarol.Primitives.EventCatalog.RetentionDays.get -> int?
+Tarol.Primitives.EventCatalog.RetentionDays.init -> void
+Tarol.Primitives.EventCatalog.State.get -> Tarol.Primitives.PersonalShape?
+Tarol.Primitives.EventCatalog.State.init -> void
+Tarol.Primitives.EventCatalog.StreamType.get -> string!
+Tarol.Primitives.EventCatalogEntry
+Tarol.Primitives.EventCatalogEntry.ClrType.get -> System.Type!
+Tarol.Primitives.EventCatalogEntry.ClrType.init -> void
+Tarol.Primitives.EventCatalogEntry.Deconstruct(out Tarol.Primitives.EventType Type, out System.Type! ClrType) -> void
+Tarol.Primitives.EventCatalogEntry.Equals(Tarol.Primitives.EventCatalogEntry other) -> bool
+Tarol.Primitives.EventCatalogEntry.EventCatalogEntry() -> void
+Tarol.Primitives.EventCatalogEntry.EventCatalogEntry(Tarol.Primitives.EventType Type, System.Type! ClrType) -> void
+Tarol.Primitives.EventCatalogEntry.Personal.get -> Tarol.Primitives.PersonalShape?
+Tarol.Primitives.EventCatalogEntry.Personal.init -> void
+Tarol.Primitives.EventCatalogEntry.Type.get -> Tarol.Primitives.EventType
+Tarol.Primitives.EventCatalogEntry.Type.init -> void
+Tarol.Primitives.EventType
+Tarol.Primitives.EventType.Alias.get -> string!
+Tarol.Primitives.EventType.Alias.init -> void
+Tarol.Primitives.EventType.Deconstruct(out string! Alias, out int Version) -> void
+Tarol.Primitives.EventType.Equals(Tarol.Primitives.EventType other) -> bool
+Tarol.Primitives.EventType.EventType() -> void
+Tarol.Primitives.EventType.EventType(string! Alias, int Version) -> void
+Tarol.Primitives.EventType.Version.get -> int
+Tarol.Primitives.EventType.Version.init -> void
+Tarol.Primitives.EventTypeAttribute
+Tarol.Primitives.EventTypeAttribute.Alias.get -> string!
+Tarol.Primitives.EventTypeAttribute.EventTypeAttribute(string! alias, int version = 1) -> void
+Tarol.Primitives.EventTypeAttribute.Version.get -> int
+Tarol.Primitives.IAggregateRoot
+Tarol.Primitives.IAggregateRoot<TSelf>
+Tarol.Primitives.IAggregateRoot<TSelf>.EventTypeOf(Tarol.Primitives.DomainEvent! domainEvent) -> Tarol.Primitives.EventType
+Tarol.Primitives.IAggregateRoot<TSelf>.EventTypes.get -> Tarol.Primitives.EventCatalog!
+Tarol.Primitives.IAggregateRoot<TSelf>.ReadState(Tarol.StronglyTypedId.Id<TSelf!> id, ref System.Text.Json.Utf8JsonReader reader, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Options.Option<TSelf!>
+Tarol.Primitives.IAggregateRoot<TSelf>.Rehydrate(Tarol.StronglyTypedId.Id<TSelf!> id, System.ReadOnlySpan<Tarol.Primitives.StreamEvent> history) -> TSelf!
+Tarol.Primitives.IAggregateRoot<TSelf>.StateSchema.get -> int
+Tarol.Primitives.IAggregateRoot<TSelf>.StreamType.get -> string!
+Tarol.Primitives.IAggregateRoot<TSelf>.WriteState(System.Text.Json.Utf8JsonWriter! writer, TSelf! aggregate, System.Text.Json.JsonSerializerOptions! options) -> void
+Tarol.Primitives.IEntity<TSelf>
+Tarol.Primitives.IEntity<TSelf>.Id.get -> Tarol.StronglyTypedId.Id<TSelf>
+Tarol.Primitives.IOwnedBy<TOwner>
+Tarol.Primitives.IRegistry<TEntity>
+Tarol.Primitives.IRegistry<TEntity>.TryFind(Tarol.StronglyTypedId.Id<TEntity> id, out TEntity entity) -> bool
+Tarol.Primitives.InvariantAttribute
+Tarol.Primitives.InvariantAttribute.InvariantAttribute() -> void
+Tarol.Primitives.LifecycleAttribute
+Tarol.Primitives.LifecycleAttribute.Initial.get -> string?
+Tarol.Primitives.LifecycleAttribute.Initial.set -> void
+Tarol.Primitives.LifecycleAttribute.LifecycleAttribute() -> void
+Tarol.Primitives.LifecycleViolation
+Tarol.Primitives.LifecycleViolation.<Clone>$() -> Tarol.Primitives.LifecycleViolation!
+Tarol.Primitives.LifecycleViolation.Deconstruct(out string! Field, out string! From, out string! To, out string! Event) -> void
+Tarol.Primitives.LifecycleViolation.Equals(Tarol.Primitives.LifecycleViolation? other) -> bool
+Tarol.Primitives.LifecycleViolation.Event.get -> string!
+Tarol.Primitives.LifecycleViolation.Event.init -> void
+Tarol.Primitives.LifecycleViolation.Field.get -> string!
+Tarol.Primitives.LifecycleViolation.Field.init -> void
+Tarol.Primitives.LifecycleViolation.From.get -> string!
+Tarol.Primitives.LifecycleViolation.From.init -> void
+Tarol.Primitives.LifecycleViolation.LifecycleViolation(string! Field, string! From, string! To, string! Event) -> void
+Tarol.Primitives.LifecycleViolation.To.get -> string!
+Tarol.Primitives.LifecycleViolation.To.init -> void
+Tarol.Primitives.LifecycleViolation.ToError() -> Tarol.Results.Error!
+Tarol.Primitives.LoadByReplayAttribute
+Tarol.Primitives.LoadByReplayAttribute.LoadByReplayAttribute() -> void
+Tarol.Primitives.PersonalChild
+Tarol.Primitives.PersonalChild.<Clone>$() -> Tarol.Primitives.PersonalChild!
+Tarol.Primitives.PersonalChild.Deconstruct(out string! JsonName, out Tarol.Primitives.PersonalShape! Shape) -> void
+Tarol.Primitives.PersonalChild.Equals(Tarol.Primitives.PersonalChild? other) -> bool
+Tarol.Primitives.PersonalChild.JsonName.get -> string!
+Tarol.Primitives.PersonalChild.JsonName.init -> void
+Tarol.Primitives.PersonalChild.PersonalChild(string! JsonName, Tarol.Primitives.PersonalShape! Shape) -> void
+Tarol.Primitives.PersonalChild.Shape.get -> Tarol.Primitives.PersonalShape!
+Tarol.Primitives.PersonalChild.Shape.init -> void
+Tarol.Primitives.PersonalDataAttribute
+Tarol.Primitives.PersonalDataAttribute.PersonalDataAttribute() -> void
+Tarol.Primitives.PersonalDataAttribute.Subject.get -> string?
+Tarol.Primitives.PersonalDataAttribute.Subject.init -> void
+Tarol.Primitives.PersonalMember
+Tarol.Primitives.PersonalMember.<Clone>$() -> Tarol.Primitives.PersonalMember!
+Tarol.Primitives.PersonalMember.Deconstruct(out string! Name, out string? JsonName, out string? Subject, out string? SubjectJsonName) -> void
+Tarol.Primitives.PersonalMember.Equals(Tarol.Primitives.PersonalMember? other) -> bool
+Tarol.Primitives.PersonalMember.JsonName.get -> string?
+Tarol.Primitives.PersonalMember.JsonName.init -> void
+Tarol.Primitives.PersonalMember.Name.get -> string!
+Tarol.Primitives.PersonalMember.Name.init -> void
+Tarol.Primitives.PersonalMember.PersonalMember(string! Name, string? JsonName = null, string? Subject = null, string? SubjectJsonName = null) -> void
+Tarol.Primitives.PersonalMember.Subject.get -> string?
+Tarol.Primitives.PersonalMember.Subject.init -> void
+Tarol.Primitives.PersonalMember.SubjectJsonName.get -> string?
+Tarol.Primitives.PersonalMember.SubjectJsonName.init -> void
+Tarol.Primitives.PersonalShape
+Tarol.Primitives.PersonalShape.Children.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.PersonalChild!>!
+Tarol.Primitives.PersonalShape.Members.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.PersonalMember!>!
+Tarol.Primitives.PersonalShape.PersonalShape(Tarol.Primitives.PersonalMember![]! members, params Tarol.Primitives.PersonalChild![]! children) -> void
+Tarol.Primitives.RecordedEvent
+Tarol.Primitives.RecordedEvent.<Clone>$() -> Tarol.Primitives.RecordedEvent!
+Tarol.Primitives.RecordedEvent.Context.get -> Tarol.Kernel.OperationContext!
+Tarol.Primitives.RecordedEvent.Context.init -> void
+Tarol.Primitives.RecordedEvent.Deconstruct(out System.Guid StreamId, out Tarol.Primitives.StreamEvent Event, out System.Guid EventId, out System.DateTimeOffset RecordedAt, out Tarol.Kernel.OperationContext! Context) -> void
+Tarol.Primitives.RecordedEvent.Equals(Tarol.Primitives.RecordedEvent? other) -> bool
+Tarol.Primitives.RecordedEvent.Event.get -> Tarol.Primitives.StreamEvent
+Tarol.Primitives.RecordedEvent.Event.init -> void
+Tarol.Primitives.RecordedEvent.EventId.get -> System.Guid
+Tarol.Primitives.RecordedEvent.EventId.init -> void
+Tarol.Primitives.RecordedEvent.RecordedAt.get -> System.DateTimeOffset
+Tarol.Primitives.RecordedEvent.RecordedAt.init -> void
+Tarol.Primitives.RecordedEvent.RecordedEvent(System.Guid StreamId, Tarol.Primitives.StreamEvent Event, System.Guid EventId, System.DateTimeOffset RecordedAt, Tarol.Kernel.OperationContext! Context) -> void
+Tarol.Primitives.RecordedEvent.StreamId.get -> System.Guid
+Tarol.Primitives.RecordedEvent.StreamId.init -> void
+Tarol.Primitives.RetentionAttribute
+Tarol.Primitives.RetentionAttribute.Days.get -> int
+Tarol.Primitives.RetentionAttribute.Days.init -> void
+Tarol.Primitives.RetentionAttribute.RetentionAttribute() -> void
+Tarol.Primitives.StateJson
+Tarol.Primitives.StateNameAttribute
+Tarol.Primitives.StateNameAttribute.Name.get -> string!
+Tarol.Primitives.StateNameAttribute.StateNameAttribute(string! name) -> void
+Tarol.Primitives.StreamEvent
+Tarol.Primitives.StreamEvent.Deconstruct(out long Version, out System.Guid EntityId, out System.Guid ParentId, out Tarol.Primitives.DomainEvent! Event) -> void
+Tarol.Primitives.StreamEvent.EntityId.get -> System.Guid
+Tarol.Primitives.StreamEvent.EntityId.init -> void
+Tarol.Primitives.StreamEvent.Equals(Tarol.Primitives.StreamEvent other) -> bool
+Tarol.Primitives.StreamEvent.Event.get -> Tarol.Primitives.DomainEvent!
+Tarol.Primitives.StreamEvent.Event.init -> void
+Tarol.Primitives.StreamEvent.ParentId.get -> System.Guid
+Tarol.Primitives.StreamEvent.ParentId.init -> void
+Tarol.Primitives.StreamEvent.StreamEvent() -> void
+Tarol.Primitives.StreamEvent.StreamEvent(long Version, System.Guid EntityId, System.Guid ParentId, Tarol.Primitives.DomainEvent! Event) -> void
+Tarol.Primitives.StreamEvent.Version.get -> long
+Tarol.Primitives.StreamEvent.Version.init -> void
+Tarol.Primitives.StreamTypeAttribute
+Tarol.Primitives.StreamTypeAttribute.Name.get -> string!
+Tarol.Primitives.StreamTypeAttribute.StreamTypeAttribute(string! name) -> void
+Tarol.Primitives.ThrowHelper
+Tarol.Primitives.ToAttribute
+Tarol.Primitives.ToAttribute.States.get -> System.Collections.Generic.IReadOnlyList<object!>!
+Tarol.Primitives.ToAttribute.ToAttribute(params object![]! states) -> void
+Tarol.Primitives.TransientAttribute
+Tarol.Primitives.TransientAttribute.TransientAttribute() -> void
+Tarol.Primitives.TransitionAttribute<TEnum>
+Tarol.Primitives.TransitionAttribute<TEnum>.From.get -> TEnum
+Tarol.Primitives.TransitionAttribute<TEnum>.To.get -> TEnum
+Tarol.Primitives.TransitionAttribute<TEnum>.TransitionAttribute(TEnum from, TEnum to) -> void
+abstract Tarol.Primitives.AggregateRoot<TSelf>.Dispatch(in Tarol.Primitives.StreamEvent stream) -> void
+abstract Tarol.Primitives.DomainEvent.<Clone>$() -> Tarol.Primitives.DomainEvent!
+const Tarol.Primitives.LifecycleViolation.Code = "Lifecycle.ForbiddenStep" -> string!
+const Tarol.Primitives.LifecycleViolation.New = "(new)" -> string!
+override Tarol.Primitives.AggregateOutcome<TSelf>.Equals(object? obj) -> bool
+override Tarol.Primitives.AggregateOutcome<TSelf>.GetHashCode() -> int
+override Tarol.Primitives.AggregateOutcome<TSelf>.ToString() -> string!
+override Tarol.Primitives.AggregateRoot<TSelf>.Event.EqualityContract.get -> System.Type!
+override Tarol.Primitives.AggregateRoot<TSelf>.Event.Equals(object? obj) -> bool
+override Tarol.Primitives.AggregateRoot<TSelf>.Event.GetHashCode() -> int
+override Tarol.Primitives.AggregateRoot<TSelf>.Event.PrintMembers(System.Text.StringBuilder! builder) -> bool
+override Tarol.Primitives.AggregateRoot<TSelf>.Event.ToString() -> string!
+override Tarol.Primitives.DomainEvent.Equals(object? obj) -> bool
+override Tarol.Primitives.DomainEvent.GetHashCode() -> int
+override Tarol.Primitives.DomainEvent.ToString() -> string!
+override Tarol.Primitives.Entity<TRoot, TSelf>.Created.EqualityContract.get -> System.Type!
+override Tarol.Primitives.Entity<TRoot, TSelf>.Created.Equals(object? obj) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.Created.GetHashCode() -> int
+override Tarol.Primitives.Entity<TRoot, TSelf>.Created.PrintMembers(System.Text.StringBuilder! builder) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.Created.ToString() -> string!
+override Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.EqualityContract.get -> System.Type!
+override Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.Equals(object? obj) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.GetHashCode() -> int
+override Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.PrintMembers(System.Text.StringBuilder! builder) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.ToString() -> string!
+override Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.EqualityContract.get -> System.Type!
+override Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.Equals(object? obj) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.GetHashCode() -> int
+override Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.PrintMembers(System.Text.StringBuilder! builder) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.ToString() -> string!
+override Tarol.Primitives.Entity<TRoot, TSelf>.Event.EqualityContract.get -> System.Type!
+override Tarol.Primitives.Entity<TRoot, TSelf>.Event.Equals(object? obj) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.Event.GetHashCode() -> int
+override Tarol.Primitives.Entity<TRoot, TSelf>.Event.PrintMembers(System.Text.StringBuilder! builder) -> bool
+override Tarol.Primitives.Entity<TRoot, TSelf>.Event.ToString() -> string!
+override Tarol.Primitives.EntityRef<TEntity>.ToString() -> string!
+~override Tarol.Primitives.EventCatalogEntry.Equals(object obj) -> bool
+override Tarol.Primitives.EventCatalogEntry.GetHashCode() -> int
+~override Tarol.Primitives.EventCatalogEntry.ToString() -> string
+~override Tarol.Primitives.EventType.Equals(object obj) -> bool
+override Tarol.Primitives.EventType.GetHashCode() -> int
+~override Tarol.Primitives.EventType.ToString() -> string
+override Tarol.Primitives.LifecycleViolation.Equals(object? obj) -> bool
+override Tarol.Primitives.LifecycleViolation.GetHashCode() -> int
+override Tarol.Primitives.LifecycleViolation.ToString() -> string!
+override Tarol.Primitives.PersonalChild.Equals(object? obj) -> bool
+override Tarol.Primitives.PersonalChild.GetHashCode() -> int
+override Tarol.Primitives.PersonalChild.ToString() -> string!
+override Tarol.Primitives.PersonalMember.Equals(object? obj) -> bool
+override Tarol.Primitives.PersonalMember.GetHashCode() -> int
+override Tarol.Primitives.PersonalMember.ToString() -> string!
+override Tarol.Primitives.RecordedEvent.Equals(object? obj) -> bool
+override Tarol.Primitives.RecordedEvent.GetHashCode() -> int
+override Tarol.Primitives.RecordedEvent.ToString() -> string!
+~override Tarol.Primitives.StreamEvent.Equals(object obj) -> bool
+override Tarol.Primitives.StreamEvent.GetHashCode() -> int
+~override Tarol.Primitives.StreamEvent.ToString() -> string
+~override abstract Tarol.Primitives.AggregateRoot<TSelf>.Event.<Clone>$() -> Tarol.Primitives.AggregateRoot<TSelf>.Event!
+~override abstract Tarol.Primitives.Entity<TRoot, TSelf>.Created.<Clone>$() -> Tarol.Primitives.Entity<TRoot, TSelf>.Created!
+~override abstract Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.<Clone>$() -> Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>!
+~override abstract Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.<Clone>$() -> Tarol.Primitives.Entity<TRoot, TSelf>.Deleted!
+~override abstract Tarol.Primitives.Entity<TRoot, TSelf>.Event.<Clone>$() -> Tarol.Primitives.Entity<TRoot, TSelf>.Event!
+override sealed Tarol.Primitives.AggregateRoot<TSelf>.Event.Equals(Tarol.Primitives.DomainEvent? other) -> bool
+override sealed Tarol.Primitives.Entity<TRoot, TSelf>.Created.Equals(Tarol.Primitives.DomainEvent? other) -> bool
+~override sealed Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.Equals(Tarol.Primitives.Entity<TRoot, TSelf>.Created? other) -> bool
+override sealed Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.Equals(Tarol.Primitives.DomainEvent? other) -> bool
+override sealed Tarol.Primitives.Entity<TRoot, TSelf>.Event.Equals(Tarol.Primitives.DomainEvent? other) -> bool
+static Tarol.Primitives.AggregateChanges.Committed<TSelf>(Tarol.Primitives.AggregateRoot<TSelf!>! aggregate) -> void
+static Tarol.Primitives.AggregateChanges.Prepare<TSelf>(Tarol.Primitives.AggregateRoot<TSelf!>! aggregate) -> Tarol.Results.Result
+~static Tarol.Primitives.AggregateOutcome<TSelf>.operator !=(Tarol.Primitives.AggregateOutcome<TSelf>? left, Tarol.Primitives.AggregateOutcome<TSelf>? right) -> bool
+~static Tarol.Primitives.AggregateOutcome<TSelf>.operator ==(Tarol.Primitives.AggregateOutcome<TSelf>? left, Tarol.Primitives.AggregateOutcome<TSelf>? right) -> bool
+~static Tarol.Primitives.AggregateRoot<TSelf>.Event.operator !=(Tarol.Primitives.AggregateRoot<TSelf>.Event? left, Tarol.Primitives.AggregateRoot<TSelf>.Event? right) -> bool
+~static Tarol.Primitives.AggregateRoot<TSelf>.Event.operator ==(Tarol.Primitives.AggregateRoot<TSelf>.Event? left, Tarol.Primitives.AggregateRoot<TSelf>.Event? right) -> bool
+static Tarol.Primitives.AggregateRoot<TSelf>.implicit operator Tarol.StronglyTypedId.Id<TSelf!>(Tarol.Primitives.AggregateRoot<TSelf!>! aggregateRoot) -> Tarol.StronglyTypedId.Id<TSelf!>
+static Tarol.Primitives.AggregateState.Read<TSelf>(Tarol.StronglyTypedId.Id<TSelf!> id, System.ReadOnlySpan<byte> utf8Json, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Options.Option<TSelf!>
+static Tarol.Primitives.AggregateState.Write<TSelf>(System.Buffers.IBufferWriter<byte>! buffer, TSelf! aggregate, System.Text.Json.JsonSerializerOptions! options) -> void
+static Tarol.Primitives.AggregateState.Write<TSelf>(TSelf! aggregate, System.Text.Json.JsonSerializerOptions! options) -> byte[]!
+static Tarol.Primitives.AggregateTest.Given<TSelf>(TSelf! aggregate) -> Tarol.Primitives.AggregateTest<TSelf!>!
+static Tarol.Primitives.AggregateTest.StoredStateMatchesReplay<TSelf>(TSelf! aggregate, System.ReadOnlySpan<Tarol.Primitives.StreamEvent> history, System.Text.Json.JsonSerializerOptions! options) -> TSelf!
+static Tarol.Primitives.AggregateTest.StoredStateMatchesReplay<TSelf>(TSelf! aggregate, System.Text.Json.JsonSerializerOptions! options) -> TSelf!
+static Tarol.Primitives.DomainEvent.operator !=(Tarol.Primitives.DomainEvent? left, Tarol.Primitives.DomainEvent? right) -> bool
+static Tarol.Primitives.DomainEvent.operator ==(Tarol.Primitives.DomainEvent? left, Tarol.Primitives.DomainEvent? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.Created.operator !=(Tarol.Primitives.Entity<TRoot, TSelf>.Created? left, Tarol.Primitives.Entity<TRoot, TSelf>.Created? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.Created.operator ==(Tarol.Primitives.Entity<TRoot, TSelf>.Created? left, Tarol.Primitives.Entity<TRoot, TSelf>.Created? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.operator !=(Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>? left, Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.operator ==(Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>? left, Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.operator !=(Tarol.Primitives.Entity<TRoot, TSelf>.Deleted? left, Tarol.Primitives.Entity<TRoot, TSelf>.Deleted? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.operator ==(Tarol.Primitives.Entity<TRoot, TSelf>.Deleted? left, Tarol.Primitives.Entity<TRoot, TSelf>.Deleted? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.Event.operator !=(Tarol.Primitives.Entity<TRoot, TSelf>.Event? left, Tarol.Primitives.Entity<TRoot, TSelf>.Event? right) -> bool
+~static Tarol.Primitives.Entity<TRoot, TSelf>.Event.operator ==(Tarol.Primitives.Entity<TRoot, TSelf>.Event? left, Tarol.Primitives.Entity<TRoot, TSelf>.Event? right) -> bool
+static Tarol.Primitives.EntitySet.Create<TEntity>(System.ReadOnlySpan<TEntity> items) -> Tarol.Primitives.EntitySet<TEntity>!
+static Tarol.Primitives.EventCatalogEntry.operator !=(Tarol.Primitives.EventCatalogEntry left, Tarol.Primitives.EventCatalogEntry right) -> bool
+static Tarol.Primitives.EventCatalogEntry.operator ==(Tarol.Primitives.EventCatalogEntry left, Tarol.Primitives.EventCatalogEntry right) -> bool
+static Tarol.Primitives.EventType.operator !=(Tarol.Primitives.EventType left, Tarol.Primitives.EventType right) -> bool
+static Tarol.Primitives.EventType.operator ==(Tarol.Primitives.EventType left, Tarol.Primitives.EventType right) -> bool
+static Tarol.Primitives.LifecycleViolation.operator !=(Tarol.Primitives.LifecycleViolation? left, Tarol.Primitives.LifecycleViolation? right) -> bool
+static Tarol.Primitives.LifecycleViolation.operator ==(Tarol.Primitives.LifecycleViolation? left, Tarol.Primitives.LifecycleViolation? right) -> bool
+static Tarol.Primitives.PersonalChild.operator !=(Tarol.Primitives.PersonalChild? left, Tarol.Primitives.PersonalChild? right) -> bool
+static Tarol.Primitives.PersonalChild.operator ==(Tarol.Primitives.PersonalChild? left, Tarol.Primitives.PersonalChild? right) -> bool
+static Tarol.Primitives.PersonalMember.operator !=(Tarol.Primitives.PersonalMember? left, Tarol.Primitives.PersonalMember? right) -> bool
+static Tarol.Primitives.PersonalMember.operator ==(Tarol.Primitives.PersonalMember? left, Tarol.Primitives.PersonalMember? right) -> bool
+static Tarol.Primitives.RecordedEvent.operator !=(Tarol.Primitives.RecordedEvent? left, Tarol.Primitives.RecordedEvent? right) -> bool
+static Tarol.Primitives.RecordedEvent.operator ==(Tarol.Primitives.RecordedEvent? left, Tarol.Primitives.RecordedEvent? right) -> bool
+static Tarol.Primitives.StateJson.Begin(ref System.Text.Json.Utf8JsonReader reader, int schema, string! type) -> bool
+static Tarol.Primitives.StateJson.FindId(System.Text.Json.Utf8JsonReader reader, string! type) -> System.Guid
+static Tarol.Primitives.StateJson.Info<T>(System.Text.Json.JsonSerializerOptions! options, string! member) -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>!
+static Tarol.Primitives.StateJson.Missing(string! type, string! expected) -> void
+static Tarol.Primitives.StateJson.Next(ref System.Text.Json.Utf8JsonReader reader, string! type) -> bool
+static Tarol.Primitives.StateJson.NextItem(ref System.Text.Json.Utf8JsonReader reader, string! type) -> bool
+static Tarol.Primitives.StateJson.StartArray(ref System.Text.Json.Utf8JsonReader reader, string! type) -> void
+static Tarol.Primitives.StateJson.Unknown(ref System.Text.Json.Utf8JsonReader reader, string! type) -> void
+static Tarol.Primitives.StateJson.UnknownName(ref System.Text.Json.Utf8JsonReader reader, string! type) -> void
+static Tarol.Primitives.StateJson.Value(ref System.Text.Json.Utf8JsonReader reader, string! type) -> void
+static Tarol.Primitives.StreamEvent.operator !=(Tarol.Primitives.StreamEvent left, Tarol.Primitives.StreamEvent right) -> bool
+static Tarol.Primitives.StreamEvent.operator ==(Tarol.Primitives.StreamEvent left, Tarol.Primitives.StreamEvent right) -> bool
+static Tarol.Primitives.ThrowHelper.Broken(string! aggregateType) -> void
+static Tarol.Primitives.ThrowHelper.ChildNotCreated<T>(string! childType) -> T
+static Tarol.Primitives.ThrowHelper.DuplicateEntity(string! entityType, System.Guid id) -> void
+static Tarol.Primitives.ThrowHelper.EntitySetInitializer(string! entityType) -> void
+static Tarol.Primitives.ThrowHelper.ForeignEvent(string! aggregateType, System.Guid expected, System.Guid actual) -> void
+static Tarol.Primitives.ThrowHelper.ForeignState(string! aggregateType, System.Guid expected, System.Guid actual) -> void
+static Tarol.Primitives.ThrowHelper.NegativeStateVersion(string! aggregateType, long version) -> void
+static Tarol.Primitives.ThrowHelper.NoStoredState(string! aggregateType) -> void
+static Tarol.Primitives.ThrowHelper.OrphanChild(string! childType, string! ownerType, System.Guid ownerId) -> void
+static Tarol.Primitives.ThrowHelper.OutOfOrderEvent(long expected, long actual) -> void
+static Tarol.Primitives.ThrowHelper.RaiseDuringDispatch() -> void
+static Tarol.Primitives.ThrowHelper.ReplayWithUncommittedChanges() -> void
+static Tarol.Primitives.ThrowHelper.RestoreOnUsedAggregate(string! aggregateType) -> void
+static Tarol.Primitives.ThrowHelper.SlotOccupied(string! entityType, string! ownerType) -> void
+static Tarol.Primitives.ThrowHelper.UnknownEntity(string! entityType, System.Guid id) -> void
+static Tarol.Primitives.ThrowHelper.UnknownEvent(string! eventType, string! aggregateType) -> void
+static Tarol.Primitives.ThrowHelper.UnknownEvent<T>(string! eventType, string! aggregateType) -> T
+virtual Tarol.Primitives.AggregateRoot<TSelf>.ApplyLive(in Tarol.Primitives.StreamEvent stream) -> void
+virtual Tarol.Primitives.AggregateRoot<TSelf>.CheckInvariants() -> Tarol.Results.Result
+~virtual Tarol.Primitives.AggregateRoot<TSelf>.Event.Equals(Tarol.Primitives.AggregateRoot<TSelf>.Event? other) -> bool
+virtual Tarol.Primitives.DomainEvent.EqualityContract.get -> System.Type!
+virtual Tarol.Primitives.DomainEvent.Equals(Tarol.Primitives.DomainEvent? other) -> bool
+virtual Tarol.Primitives.DomainEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
+~virtual Tarol.Primitives.Entity<TRoot, TSelf>.Created.Equals(Tarol.Primitives.Entity<TRoot, TSelf>.Created? other) -> bool
+~virtual Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>.Equals(Tarol.Primitives.Entity<TRoot, TSelf>.CreatedIn<TParent>? other) -> bool
+~virtual Tarol.Primitives.Entity<TRoot, TSelf>.Deleted.Equals(Tarol.Primitives.Entity<TRoot, TSelf>.Deleted? other) -> bool
+~virtual Tarol.Primitives.Entity<TRoot, TSelf>.Event.Equals(Tarol.Primitives.Entity<TRoot, TSelf>.Event? other) -> bool

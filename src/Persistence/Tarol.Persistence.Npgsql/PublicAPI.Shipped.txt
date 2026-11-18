@@ -1,0 +1,193 @@
+#nullable enable
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Append<T>(T! aggregate, long expectedVersion, Tarol.Kernel.OperationContext! context, Tarol.Options.Option<Tarol.Persistence.IdempotencyKey> key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Persistence.GlobalPosition>>
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Audit(string! actor, string! action, string! target, string? detail, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.DeletePersonalLookups(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.DeleteStreams(string! streamType, System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.EnsureSchema(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.EnsureSchema(Tarol.Persistence.Npgsql.SchemaMode mode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Persistence.Npgsql.SchemaState>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Ensured.get -> Tarol.Persistence.Npgsql.SchemaState?
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.EventsOf(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>!>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.FeedChannel.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Find<T>(string! lookup, string! key, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<Tarol.StronglyTypedId.Id<T!>>>
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Jobs.get -> Tarol.Persistence.Npgsql.NpgsqlJobRows!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Load<T>(Tarol.StronglyTypedId.Id<T!> id, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<T!>>
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.NotifiesFeed.get -> bool
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.NpgsqlAggregateStore(Npgsql.NpgsqlDataSource! dataSource, Tarol.Persistence.EventCodec! codec, System.TimeProvider! time, Tarol.Persistence.Npgsql.NpgsqlStoreOptions? options = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Outbox.get -> Tarol.Persistence.Npgsql.NpgsqlOutbox!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.PurgeAudit(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.PurgeKeys(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.ReadAll(Tarol.Persistence.GlobalPosition after, int limit, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Tarol.Persistence.PositionedEvent!>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.ReadStream(Tarol.Persistence.StreamRef stream, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>!>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.RebuildStates<T>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Schema.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.SealHistory<T>(int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(long Events, long States)>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Seen(Tarol.Persistence.IdempotencyKey key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<Tarol.Persistence.StoredOutcome>>
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.StateOf(Tarol.Persistence.StreamRef stream, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Streams(System.Guid tenant, string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.StreamsOf(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Advance(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Bury(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Claim(System.TimeSpan lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Options.Option<Tarol.Persistence.JobRow!>>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.DeadJobs(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadJob!>!>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.DeadJobs(int max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadJob!>!>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Discard(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Extend(Tarol.Persistence.JobRow! row, System.TimeSpan lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Move(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Overdue(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Options.Option<System.DateTimeOffset>>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Purge(System.DateTimeOffset olderThan, int max, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Redrive(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Retry(Tarol.Persistence.JobRow! row, System.DateTimeOffset retryAt, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Rows(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.JobState!>!>!
+Tarol.Persistence.Npgsql.NpgsqlJobRows.Sync(System.Collections.Generic.IReadOnlyCollection<Tarol.Persistence.JobSchedule!>! jobs, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.JobSyncChange!>!>!
+Tarol.Persistence.Npgsql.NpgsqlKeyStore
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.BlindIndex(System.Guid tenant, string! lookup, string! value, bool create, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.CachedKeys.get -> int
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.Channel.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.ClearCache() -> void
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.EraseSubject(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.EraseTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.Erased -> System.EventHandler<Tarol.Persistence.KeyErasedEventArgs!>?
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.KeyQueries.get -> int
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.Keys(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! subjects, bool create, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.KeyRing!>
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.NpgsqlKeyStore(Npgsql.NpgsqlDataSource! dataSource, Tarol.Persistence.IKeyEncryptionKey! master, System.TimeProvider! time, Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? options = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.Rewrap(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Persistence.Npgsql.NpgsqlKeyStore.StartListening(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.<Clone>$() -> Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions!
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.Equals(Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? other) -> bool
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.IdleTime.get -> System.TimeSpan
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.IdleTime.init -> void
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.MaxCachedKeys.get -> int
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.MaxCachedKeys.init -> void
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.NpgsqlKeyStoreOptions() -> void
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.Schema.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.Schema.init -> void
+Tarol.Persistence.Npgsql.NpgsqlOutbox
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Bury(Tarol.Persistence.OutboxRow! row, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Channel.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Claim(int max, System.TimeSpan lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.OutboxRow!>!>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Complete(Tarol.Persistence.OutboxRow! row, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.DeadLetters(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetter!>!>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.DeadLetters(int max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetter!>!>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Discard(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Tarol.Persistence.Npgsql.NpgsqlOutbox.OldestDue(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Options.Option<System.DateTimeOffset>>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Pending(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Purge(System.DateTimeOffset olderThan, int max, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Redrive(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Retry(Tarol.Persistence.OutboxRow! row, System.DateTimeOffset retryAt, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.WaitForRows(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.Npgsql.NpgsqlSchema
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.<Clone>$() -> Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition!
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.Baseline.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.Equals(Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition? other) -> bool
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.NpgsqlSchemaDefinition(string! owner, string! schema, string! versionTable, string! baseline, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.Npgsql.UpgradeStep!>! steps) -> void
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.Owner.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.Schema.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.Steps.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.Npgsql.UpgradeStep!>!
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.UpgradeScript(int from) -> string!
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.Version.get -> int
+Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.VersionTable.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlSchemaUpgrader
+Tarol.Persistence.Npgsql.NpgsqlSchemaUpgrader.Attempts.get -> int
+Tarol.Persistence.Npgsql.NpgsqlSchemaUpgrader.Attempts.init -> void
+Tarol.Persistence.Npgsql.NpgsqlSchemaUpgrader.Ensure(Tarol.Persistence.Npgsql.SchemaMode mode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Persistence.Npgsql.SchemaState>!
+Tarol.Persistence.Npgsql.NpgsqlSchemaUpgrader.LockTimeout.get -> System.TimeSpan
+Tarol.Persistence.Npgsql.NpgsqlSchemaUpgrader.LockTimeout.init -> void
+Tarol.Persistence.Npgsql.NpgsqlSchemaUpgrader.NpgsqlSchemaUpgrader(Npgsql.NpgsqlDataSource! dataSource, Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition! definition, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.<Clone>$() -> Tarol.Persistence.Npgsql.NpgsqlStoreOptions!
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Equals(Tarol.Persistence.Npgsql.NpgsqlStoreOptions? other) -> bool
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Keys.get -> Tarol.Persistence.IKeyStore?
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Keys.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Lookups.get -> Tarol.Persistence.StoreLookups!
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Lookups.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Notify.get -> bool
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Notify.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.NotifyFeed.get -> bool
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.NotifyFeed.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.NpgsqlStoreOptions() -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Reactions.get -> Tarol.Persistence.IOutboxReactions?
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Reactions.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Schema.get -> string!
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Schema.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.SchemaLockTimeout.get -> System.TimeSpan
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.SchemaLockTimeout.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.SchemaMode.get -> Tarol.Persistence.Npgsql.SchemaMode
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.SchemaMode.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.StateOptions.get -> System.Text.Json.JsonSerializerOptions?
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.StateOptions.init -> void
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.TraceRootCommands.get -> bool
+Tarol.Persistence.Npgsql.NpgsqlStoreOptions.TraceRootCommands.init -> void
+Tarol.Persistence.Npgsql.NpgsqlTarolBuilderExtensions
+Tarol.Persistence.Npgsql.NpgsqlTracing
+Tarol.Persistence.Npgsql.SchemaMode
+Tarol.Persistence.Npgsql.SchemaMode.Upgrade = 0 -> Tarol.Persistence.Npgsql.SchemaMode
+Tarol.Persistence.Npgsql.SchemaMode.VerifyOnly = 1 -> Tarol.Persistence.Npgsql.SchemaMode
+Tarol.Persistence.Npgsql.SchemaState
+Tarol.Persistence.Npgsql.SchemaState.CompatibleFrom.get -> int
+Tarol.Persistence.Npgsql.SchemaState.CompatibleFrom.init -> void
+Tarol.Persistence.Npgsql.SchemaState.Deconstruct(out int Version, out int CompatibleFrom, out int StepsRun) -> void
+Tarol.Persistence.Npgsql.SchemaState.Equals(Tarol.Persistence.Npgsql.SchemaState other) -> bool
+Tarol.Persistence.Npgsql.SchemaState.SchemaState() -> void
+Tarol.Persistence.Npgsql.SchemaState.SchemaState(int Version, int CompatibleFrom, int StepsRun) -> void
+Tarol.Persistence.Npgsql.SchemaState.StepsRun.get -> int
+Tarol.Persistence.Npgsql.SchemaState.StepsRun.init -> void
+Tarol.Persistence.Npgsql.SchemaState.Version.get -> int
+Tarol.Persistence.Npgsql.SchemaState.Version.init -> void
+Tarol.Persistence.Npgsql.UpgradeStep
+Tarol.Persistence.Npgsql.UpgradeStep.<Clone>$() -> Tarol.Persistence.Npgsql.UpgradeStep!
+Tarol.Persistence.Npgsql.UpgradeStep.CompatibleFrom.get -> int
+Tarol.Persistence.Npgsql.UpgradeStep.CompatibleFrom.init -> void
+Tarol.Persistence.Npgsql.UpgradeStep.Concurrently.get -> bool
+Tarol.Persistence.Npgsql.UpgradeStep.Concurrently.init -> void
+Tarol.Persistence.Npgsql.UpgradeStep.Deconstruct(out int Version, out int CompatibleFrom, out string! Sql, out bool Concurrently, out string? Index) -> void
+Tarol.Persistence.Npgsql.UpgradeStep.Equals(Tarol.Persistence.Npgsql.UpgradeStep? other) -> bool
+Tarol.Persistence.Npgsql.UpgradeStep.Index.get -> string?
+Tarol.Persistence.Npgsql.UpgradeStep.Index.init -> void
+Tarol.Persistence.Npgsql.UpgradeStep.Sql.get -> string!
+Tarol.Persistence.Npgsql.UpgradeStep.Sql.init -> void
+Tarol.Persistence.Npgsql.UpgradeStep.UpgradeStep(int Version, int CompatibleFrom, string! Sql, bool Concurrently = false, string? Index = null) -> void
+Tarol.Persistence.Npgsql.UpgradeStep.Version.get -> int
+Tarol.Persistence.Npgsql.UpgradeStep.Version.init -> void
+const Tarol.Persistence.Npgsql.NpgsqlSchema.DefaultSchema = "tarol" -> string!
+const Tarol.Persistence.Npgsql.NpgsqlSchema.SealingVersion = 3 -> int
+const Tarol.Persistence.Npgsql.NpgsqlSchema.Version = 3 -> int
+override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.Equals(object? obj) -> bool
+override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.GetHashCode() -> int
+override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.ToString() -> string!
+override Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.Equals(object? obj) -> bool
+override Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.GetHashCode() -> int
+override Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.ToString() -> string!
+override Tarol.Persistence.Npgsql.NpgsqlStoreOptions.Equals(object? obj) -> bool
+override Tarol.Persistence.Npgsql.NpgsqlStoreOptions.GetHashCode() -> int
+override Tarol.Persistence.Npgsql.NpgsqlStoreOptions.ToString() -> string!
+~override Tarol.Persistence.Npgsql.SchemaState.Equals(object obj) -> bool
+override Tarol.Persistence.Npgsql.SchemaState.GetHashCode() -> int
+~override Tarol.Persistence.Npgsql.SchemaState.ToString() -> string
+override Tarol.Persistence.Npgsql.UpgradeStep.Equals(object? obj) -> bool
+override Tarol.Persistence.Npgsql.UpgradeStep.GetHashCode() -> int
+override Tarol.Persistence.Npgsql.UpgradeStep.ToString() -> string!
+static Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.operator !=(Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? left, Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? right) -> bool
+static Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.operator ==(Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? left, Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? right) -> bool
+static Tarol.Persistence.Npgsql.NpgsqlSchema.AuditScript(string! schema = "tarol") -> string!
+static Tarol.Persistence.Npgsql.NpgsqlSchema.Definition(string! schema = "tarol") -> Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition!
+static Tarol.Persistence.Npgsql.NpgsqlSchema.Script(string! schema = "tarol") -> string!
+static Tarol.Persistence.Npgsql.NpgsqlSchema.Steps(string! schema = "tarol") -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.Npgsql.UpgradeStep!>!
+static Tarol.Persistence.Npgsql.NpgsqlSchema.UpgradeScript(string! schema, int from) -> string!
+static Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.operator !=(Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition? left, Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition? right) -> bool
+static Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition.operator ==(Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition? left, Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition? right) -> bool
+static Tarol.Persistence.Npgsql.NpgsqlStoreOptions.operator !=(Tarol.Persistence.Npgsql.NpgsqlStoreOptions? left, Tarol.Persistence.Npgsql.NpgsqlStoreOptions? right) -> bool
+static Tarol.Persistence.Npgsql.NpgsqlStoreOptions.operator ==(Tarol.Persistence.Npgsql.NpgsqlStoreOptions? left, Tarol.Persistence.Npgsql.NpgsqlStoreOptions? right) -> bool
+static Tarol.Persistence.Npgsql.NpgsqlTarolBuilderExtensions.UseNpgsqlKeyStore(this Tarol.Persistence.TarolBuilder! builder, Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? options = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Persistence.Npgsql.NpgsqlTarolBuilderExtensions.UseNpgsqlStore(this Tarol.Persistence.TarolBuilder! builder, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSource, Tarol.Persistence.Npgsql.NpgsqlStoreOptions? options = null, bool ensureSchema = true) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Persistence.Npgsql.NpgsqlTarolBuilderExtensions.UseNpgsqlStore(this Tarol.Persistence.TarolBuilder! builder, string! connectionString, Tarol.Persistence.Npgsql.NpgsqlStoreOptions? options = null, bool ensureSchema = true) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Persistence.Npgsql.NpgsqlTracing.TraceOnlyInActivities(this Npgsql.NpgsqlSlimDataSourceBuilder! builder) -> Npgsql.NpgsqlSlimDataSourceBuilder!
+static Tarol.Persistence.Npgsql.SchemaState.operator !=(Tarol.Persistence.Npgsql.SchemaState left, Tarol.Persistence.Npgsql.SchemaState right) -> bool
+static Tarol.Persistence.Npgsql.SchemaState.operator ==(Tarol.Persistence.Npgsql.SchemaState left, Tarol.Persistence.Npgsql.SchemaState right) -> bool
+static Tarol.Persistence.Npgsql.UpgradeStep.operator !=(Tarol.Persistence.Npgsql.UpgradeStep? left, Tarol.Persistence.Npgsql.UpgradeStep? right) -> bool
+static Tarol.Persistence.Npgsql.UpgradeStep.operator ==(Tarol.Persistence.Npgsql.UpgradeStep? left, Tarol.Persistence.Npgsql.UpgradeStep? right) -> bool

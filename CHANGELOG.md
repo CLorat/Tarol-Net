@@ -8,6 +8,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* The public API baseline (step 17B): every runtime package lists its public API in `PublicAPI.Shipped.txt` /
+  `PublicAPI.Unshipped.txt` (3,694 lines), checked by `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `eng/public-api.py`
+  writes the files from the analyzer's own output.
+* CI (step 17A): actions pinned to commit SHAs, CodeQL code scanning for C#, every .NET security rule an error except
+  CA2100 and CA5394.
 * Repository foundation: layered build configuration, central package management, packaging conventions
   (README, agent skills and bundled generators in every runtime package), CI.
 * `Tarol.StronglyTypedId`, migrated from CLorat/Tarol with: open generic JSON converter (no reflection fallback),

@@ -111,7 +111,7 @@ with `Justification`, or `#pragma` with a comment). Each one is listed in the fa
 | `README.md` | yes | packed as the NuGet readme: what it is, install, 30-second example, links |
 | `skills/tarol-<topic>/SKILL.md` | yes for every package a user writes code against | see §6 |
 | `InternalsVisibleTo` | only to its own test project, via `<InternalsVisibleTo Include="$(AssemblyName).Tests" />` | never to another runtime package |
-| `PublicAPI.*.txt` | no (decision D-6: adopt before 1.0) | |
+| `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt` | yes (D-6, step 17B) | the public API: Shipped = what a release shipped, Unshipped = added since. Written by `eng/public-api.py update`, never by hand; a public change without its line is RS0016/RS0017, an error. A release moves Unshipped to Shipped (`eng/public-api.py ship`) |
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -277,7 +277,8 @@ An agent that migrates or adds a package completes **all** of these in the same 
    suppression, open questions.
 2. **Code** in `src/<Family>/…` following §2–§4; no `NoWarn`, no reflection without
    `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]`.
-3. **Generator** (if any) inside the runtime package (§5) with `AnalyzerReleases.*.md`.
+3. **Generator** (if any) inside the runtime package (§5) with `AnalyzerReleases.*.md`; the public API in
+   `PublicAPI.*.txt` (`eng/public-api.py update`, §4.1).
 4. **Tests**: unit tests; generator snapshot + incrementality + diagnostics tests; integration tests if
    the package talks to infrastructure.
 5. **AOT smoke** app if the package claims `IsAotCompatible`, publishing with 0 IL warnings.

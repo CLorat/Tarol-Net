@@ -1,0 +1,20 @@
+#nullable enable
+Tarol.Security.Zitadel.ZitadelClaimsTransformation
+Tarol.Security.Zitadel.ZitadelClaimsTransformation.TransformAsync(System.Security.Claims.ClaimsPrincipal! principal) -> System.Threading.Tasks.Task<System.Security.Claims.ClaimsPrincipal!>!
+Tarol.Security.Zitadel.ZitadelClaimsTransformation.ZitadelClaimsTransformation(Tarol.Security.Zitadel.ZitadelOptions! options) -> void
+Tarol.Security.Zitadel.ZitadelOptions
+Tarol.Security.Zitadel.ZitadelOptions.Authority.get -> string!
+Tarol.Security.Zitadel.ZitadelOptions.Authority.set -> void
+Tarol.Security.Zitadel.ZitadelOptions.ProjectId.get -> string!
+Tarol.Security.Zitadel.ZitadelOptions.ProjectId.set -> void
+Tarol.Security.Zitadel.ZitadelOptions.RequireHttpsMetadata.get -> bool
+Tarol.Security.Zitadel.ZitadelOptions.RequireHttpsMetadata.set -> void
+Tarol.Security.Zitadel.ZitadelOptions.ServiceRole.get -> string?
+Tarol.Security.Zitadel.ZitadelOptions.ServiceRole.set -> void
+Tarol.Security.Zitadel.ZitadelOptions.ZitadelOptions() -> void
+Tarol.Security.Zitadel.ZitadelTarolBuilderExtensions
+Tarol.Security.Zitadel.ZitadelTenants
+const Tarol.Security.Zitadel.ZitadelClaimsTransformation.MarkerClaim = "tarol:zitadel" -> string!
+static Tarol.Security.Zitadel.ZitadelTarolBuilderExtensions.AddZitadel(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Security.Zitadel.ZitadelOptions!>! configure) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Security.Zitadel.ZitadelTenants.Actors(string? serviceRole) -> System.Func<System.Security.Claims.ClaimsPrincipal!, Tarol.Kernel.Actor!>!
+static Tarol.Security.Zitadel.ZitadelTenants.Of(string! organisation) -> Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>

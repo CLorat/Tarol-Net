@@ -1,0 +1,30 @@
+#nullable enable
+Tarol.Messaging.RabbitMq.RabbitMqMessagingBuilderExtensions
+Tarol.Messaging.RabbitMq.RabbitMqTransport
+Tarol.Messaging.RabbitMq.RabbitMqTransport.Consume(Tarol.Messaging.Subscription! subscription, Tarol.Messaging.MessageHandler! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.RabbitMq.RabbitMqTransport.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Tarol.Messaging.RabbitMq.RabbitMqTransport.ExchangeOf(string! contract) -> string!
+Tarol.Messaging.RabbitMq.RabbitMqTransport.Prepare(System.Collections.Generic.IReadOnlyList<string!>! topics, System.Collections.Generic.IReadOnlyList<Tarol.Messaging.Subscription!>! subscriptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.RabbitMq.RabbitMqTransport.Publish(Tarol.Messaging.Message! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.RabbitMq.RabbitMqTransport.QueueOf(string! subscription) -> string!
+Tarol.Messaging.RabbitMq.RabbitMqTransport.RabbitMqTransport(Tarol.Messaging.RabbitMq.RabbitMqTransportOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+Tarol.Messaging.RabbitMq.RabbitMqTransport.Unroutable.get -> long
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.<Clone>$() -> Tarol.Messaging.RabbitMq.RabbitMqTransportOptions!
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.ClientName.get -> string!
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.ClientName.init -> void
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.Equals(Tarol.Messaging.RabbitMq.RabbitMqTransportOptions? other) -> bool
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.Prefix.get -> string?
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.Prefix.init -> void
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.RabbitMqTransportOptions() -> void
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.StampUserId.get -> bool
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.StampUserId.init -> void
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.Uri.get -> System.Uri!
+Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.Uri.init -> void
+override Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.Equals(object? obj) -> bool
+override Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.GetHashCode() -> int
+override Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.ToString() -> string!
+static Tarol.Messaging.RabbitMq.RabbitMqMessagingBuilderExtensions.UseRabbitMq(this Tarol.Messaging.MessagingBuilder! messaging, Tarol.Messaging.RabbitMq.RabbitMqTransportOptions! options) -> Tarol.Messaging.MessagingBuilder!
+static Tarol.Messaging.RabbitMq.RabbitMqMessagingBuilderExtensions.UseRabbitMq(this Tarol.Messaging.MessagingBuilder! messaging, string! uri) -> Tarol.Messaging.MessagingBuilder!
+static Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.operator !=(Tarol.Messaging.RabbitMq.RabbitMqTransportOptions? left, Tarol.Messaging.RabbitMq.RabbitMqTransportOptions? right) -> bool
+static Tarol.Messaging.RabbitMq.RabbitMqTransportOptions.operator ==(Tarol.Messaging.RabbitMq.RabbitMqTransportOptions? left, Tarol.Messaging.RabbitMq.RabbitMqTransportOptions? right) -> bool

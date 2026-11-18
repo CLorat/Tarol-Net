@@ -1,0 +1,64 @@
+#nullable enable
+Tarol.Kernel.Actor
+Tarol.Kernel.Actor.<Clone>$() -> Tarol.Kernel.Actor!
+Tarol.Kernel.Actor.Actor(Tarol.Kernel.ActorKind kind, string! id, Tarol.Options.Option<string!> onBehalfOf = default(Tarol.Options.Option<string!>)) -> void
+Tarol.Kernel.Actor.Equals(Tarol.Kernel.Actor? other) -> bool
+Tarol.Kernel.Actor.Id.get -> string!
+Tarol.Kernel.Actor.Kind.get -> Tarol.Kernel.ActorKind
+Tarol.Kernel.Actor.OnBehalfOf.get -> Tarol.Options.Option<string!>
+Tarol.Kernel.ActorKind
+Tarol.Kernel.ActorKind.Anonymous = 0 -> Tarol.Kernel.ActorKind
+Tarol.Kernel.ActorKind.Service = 2 -> Tarol.Kernel.ActorKind
+Tarol.Kernel.ActorKind.System = 3 -> Tarol.Kernel.ActorKind
+Tarol.Kernel.ActorKind.User = 1 -> Tarol.Kernel.ActorKind
+Tarol.Kernel.ICausation
+Tarol.Kernel.ICorrelation
+Tarol.Kernel.ITenant
+Tarol.Kernel.Json.ActorJsonConverter
+Tarol.Kernel.Json.ActorJsonConverter.ActorJsonConverter() -> void
+Tarol.Kernel.Json.KernelJsonContext
+~Tarol.Kernel.Json.KernelJsonContext.Actor.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Kernel.Actor>
+~Tarol.Kernel.Json.KernelJsonContext.IdICausation.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.StronglyTypedId.Id<Tarol.Kernel.ICausation>>
+~Tarol.Kernel.Json.KernelJsonContext.IdICorrelation.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.StronglyTypedId.Id<Tarol.Kernel.ICorrelation>>
+~Tarol.Kernel.Json.KernelJsonContext.IdITenant.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant>>
+Tarol.Kernel.Json.KernelJsonContext.KernelJsonContext() -> void
+Tarol.Kernel.Json.KernelJsonContext.KernelJsonContext(System.Text.Json.JsonSerializerOptions! options) -> void
+~Tarol.Kernel.Json.KernelJsonContext.OperationContext.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Tarol.Kernel.OperationContext>
+Tarol.Kernel.Json.OperationContextJsonConverter
+Tarol.Kernel.Json.OperationContextJsonConverter.OperationContextJsonConverter() -> void
+Tarol.Kernel.OperationContext
+Tarol.Kernel.OperationContext.<Clone>$() -> Tarol.Kernel.OperationContext!
+Tarol.Kernel.OperationContext.Actor.get -> Tarol.Kernel.Actor!
+Tarol.Kernel.OperationContext.Actor.init -> void
+Tarol.Kernel.OperationContext.AsSystem(string! component) -> Tarol.Kernel.OperationContext!
+Tarol.Kernel.OperationContext.CausationId.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ICausation!>>
+Tarol.Kernel.OperationContext.CausationId.init -> void
+Tarol.Kernel.OperationContext.CausedBy(Tarol.StronglyTypedId.Id<Tarol.Kernel.ICausation!> causation) -> Tarol.Kernel.OperationContext!
+Tarol.Kernel.OperationContext.CorrelationId.get -> Tarol.StronglyTypedId.Id<Tarol.Kernel.ICorrelation!>
+Tarol.Kernel.OperationContext.CorrelationId.init -> void
+Tarol.Kernel.OperationContext.Deconstruct(out Tarol.Kernel.Actor! Actor, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out Tarol.StronglyTypedId.Id<Tarol.Kernel.ICorrelation!> CorrelationId, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ICausation!>> CausationId) -> void
+Tarol.Kernel.OperationContext.Equals(Tarol.Kernel.OperationContext? other) -> bool
+Tarol.Kernel.OperationContext.OperationContext(Tarol.Kernel.Actor! Actor, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, Tarol.StronglyTypedId.Id<Tarol.Kernel.ICorrelation!> CorrelationId, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ICausation!>> CausationId) -> void
+Tarol.Kernel.OperationContext.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Kernel.OperationContext.Tenant.init -> void
+override Tarol.Kernel.Actor.Equals(object? obj) -> bool
+override Tarol.Kernel.Actor.GetHashCode() -> int
+override Tarol.Kernel.Actor.ToString() -> string!
+override Tarol.Kernel.Json.ActorJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Kernel.Actor!
+override Tarol.Kernel.Json.ActorJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Kernel.Actor! value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.Kernel.Json.KernelJsonContext.GetTypeInfo(System.Type! type) -> System.Text.Json.Serialization.Metadata.JsonTypeInfo?
+override Tarol.Kernel.Json.OperationContextJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Kernel.OperationContext!
+override Tarol.Kernel.Json.OperationContextJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Kernel.OperationContext! value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.Kernel.OperationContext.Equals(object? obj) -> bool
+override Tarol.Kernel.OperationContext.GetHashCode() -> int
+override Tarol.Kernel.OperationContext.ToString() -> string!
+static Tarol.Kernel.Actor.Anonymous.get -> Tarol.Kernel.Actor!
+static Tarol.Kernel.Actor.Service(string! clientId) -> Tarol.Kernel.Actor!
+static Tarol.Kernel.Actor.System(string! component, Tarol.Options.Option<string!> onBehalfOf = default(Tarol.Options.Option<string!>)) -> Tarol.Kernel.Actor!
+static Tarol.Kernel.Actor.User(string! subject) -> Tarol.Kernel.Actor!
+static Tarol.Kernel.Actor.operator !=(Tarol.Kernel.Actor? left, Tarol.Kernel.Actor? right) -> bool
+static Tarol.Kernel.Actor.operator ==(Tarol.Kernel.Actor? left, Tarol.Kernel.Actor? right) -> bool
+static Tarol.Kernel.Json.KernelJsonContext.Default.get -> Tarol.Kernel.Json.KernelJsonContext!
+static Tarol.Kernel.OperationContext.Start(Tarol.Kernel.Actor! actor, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant, System.TimeProvider! clock) -> Tarol.Kernel.OperationContext!
+static Tarol.Kernel.OperationContext.operator !=(Tarol.Kernel.OperationContext? left, Tarol.Kernel.OperationContext? right) -> bool
+static Tarol.Kernel.OperationContext.operator ==(Tarol.Kernel.OperationContext? left, Tarol.Kernel.OperationContext? right) -> bool

@@ -1,0 +1,39 @@
+#nullable enable
+Tarol.Security.ChangeAuthorization
+Tarol.Security.ChangeAuthorization.ChangeAuthorization(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorization, Microsoft.Extensions.Logging.ILogger<Tarol.Security.ChangeAuthorization!>? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Security.ChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Security.ChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Security.ChangeHandler<TChange, TAggregate>
+Tarol.Security.ChangeHandler<TChange, TAggregate>.ChangeHandler() -> void
+Tarol.Security.ChangeHandler<TChange, TAggregate>.Deny(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext! context, string! code) -> void
+Tarol.Security.ChangeRequirement
+Tarol.Security.ChangeRequirement.Change.get -> object!
+Tarol.Security.ChangeRequirement.ChangeRequirement(object! change, Tarol.Changes.ChangeContext context) -> void
+Tarol.Security.ChangeRequirement.Context.get -> Tarol.Changes.ChangeContext
+Tarol.Security.ChangeRoles
+Tarol.Security.ChangeRoles.Authenticated() -> Tarol.Security.RoleGrants
+Tarol.Security.ChangeRoles.ChangeRoles() -> void
+Tarol.Security.ChangeRoles.Grants(System.Security.Claims.ClaimsPrincipal! user, object! change) -> bool
+Tarol.Security.ChangeRoles.Role(string! role) -> Tarol.Security.RoleGrants
+Tarol.Security.Read<TAggregate>
+Tarol.Security.RoleGrants
+Tarol.Security.RoleGrants.Equals(Tarol.Security.RoleGrants other) -> bool
+Tarol.Security.RoleGrants.May<TChange>() -> Tarol.Security.RoleGrants
+Tarol.Security.RoleGrants.RoleGrants() -> void
+Tarol.Security.SecurityTarolBuilderExtensions
+Tarol.Security.SystemPrincipal
+abstract Tarol.Security.ChangeHandler<TChange, TAggregate>.Handle(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext! context, Tarol.Security.ChangeRequirement! requirement, TChange change, TAggregate! aggregate) -> System.Threading.Tasks.Task!
+const Tarol.Security.ChangeAuthorization.ForbiddenCode = "Auth.Forbidden" -> string!
+const Tarol.Security.ChangeAuthorization.MeterName = "Tarol.Security" -> string!
+const Tarol.Security.ChangeAuthorization.RequiredCode = "Auth.Required" -> string!
+const Tarol.Security.SystemPrincipal.AuthenticationType = "Tarol.System" -> string!
+override Tarol.Security.Read<TAggregate>.ToString() -> string!
+override Tarol.Security.RoleGrants.Equals(object? obj) -> bool
+override Tarol.Security.RoleGrants.GetHashCode() -> int
+override sealed Tarol.Security.ChangeHandler<TChange, TAggregate>.HandleRequirementAsync(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext! context, Tarol.Security.ChangeRequirement! requirement, TAggregate! resource) -> System.Threading.Tasks.Task!
+static Tarol.Security.Read<TAggregate>.Instance.get -> Tarol.Security.Read<TAggregate>!
+static Tarol.Security.RoleGrants.operator !=(Tarol.Security.RoleGrants left, Tarol.Security.RoleGrants right) -> bool
+static Tarol.Security.RoleGrants.operator ==(Tarol.Security.RoleGrants left, Tarol.Security.RoleGrants right) -> bool
+static Tarol.Security.SecurityTarolBuilderExtensions.AddSecurity(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Security.ChangeRoles!>! roles) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Security.SecurityTarolBuilderExtensions.AddTarolSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Tarol.Security.ChangeRoles!>! roles) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Tarol.Security.SystemPrincipal.For(Tarol.Kernel.Actor! actor, params string![]! roles) -> System.Security.Claims.ClaimsPrincipal!

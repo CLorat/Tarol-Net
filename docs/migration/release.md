@@ -441,3 +441,53 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `eng/verify-packages.sh`: OK;
 * both workflows parse as YAML with the expected triggers and jobs. `actionlint` was not run here (downloading a binary was
   not allowed in this session), so the PR's own CI and CodeQL runs prove the workflows.
+
+## 16. Implementation 17B: the public API baseline
+
+### 16.1 What changed
+
+* `Microsoft.CodeAnalysis.PublicApiAnalyzers` 5.6.0 (`Directory.Packages.props`) on every runtime package
+  (`src/Directory.Build.props`, not the generators). Each package's `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` are
+  `AdditionalFiles`.
+* `eng/public-api.py`, the probe's script moved to `eng/`:
+  * `update` builds once with `ErrorLog=<project>.sarif` (property `TarolPublicApiLog`) and writes the analyzer's own lines;
+  * `ship` moves Unshipped to Shipped;
+  * `check-shipped` fails while any Unshipped has a line.
+* **The baseline**: 48 files with 3,694 lines; `update`, then `ship`. Every `PublicAPI.Shipped.txt` holds the package's API,
+  and every `PublicAPI.Unshipped.txt` holds only `#nullable enable`.
+* `src/PublicApi.globalconfig` (added by `src/Directory.Build.props`): RS0026, RS0027, RS0041 `none`, with reasons (RL-5).
+* Conventions §4.1 and §8, `AGENTS.md` and the repository skill `tarol-migrate-package` say how a package keeps its files.
+* `CHANGELOG.md` (Unreleased).
+
+### 16.2 Deliberate differences from §5.2
+
+1. **A global config, not `.editorconfig`**: `.editorconfig` sections do not reach generated sources, and RS0041 fired as an
+   error in the members System.Text.Json generates **[verified]**. A global analyzer config applies to every file.
+2. **No `check-shipped` in CI**: every PR that adds API puts lines into `Unshipped`. So the release (17E) runs `check-shipped`,
+   not CI. RS0016/RS0017 are the CI check.
+
+### 16.3 The check works **[verified]**
+
+* A new public type in `Tarol.Options` (`ApiProbe.One()`) fails the build: `RS0016: Symbol 'Tarol.Options.ApiProbe' is not part
+  of the declared public API` (and for `One`).
+* A line for a symbol that does not exist (`static Tarol.Options.Gone.Away() -> int`) fails it with `RS0017`.
+* Both were reverted; the build is then clean again.
+
+### 16.4 Public API and behaviour
+
+No API or behaviour changed. Every public change from now on is an error until `eng/public-api.py update` records it.
+
+### 16.5 Suppressions
+
+* `src/PublicApi.globalconfig`: RS0026, RS0027, RS0041 `none` (RL-5; reasons in the file and §2.5).
+
+
+### 16.6 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors (RS0016/RS0017 errors on every runtime package);
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863**;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK;
+* `eng/public-api.py check-shipped`: OK (every Unshipped empty).
