@@ -656,3 +656,16 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `dotnet test --solution Tarol.slnx`: **1863 of 1863** (the first run failed `PushTests.After_a_reconnect_the_subscriptions_are_replayed` once, as on `main` before step 17; §4 item 5, §21);
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
 * `eng/verify-packages.sh`: OK (no `.snupkg`; every DLL carries its PDB).
+
+## 21. Open after 17A–17F
+
+1. **The SignalR reconnect test is a real flake, in `main`'s code.** `PushTests.After_a_reconnect_the_subscriptions_are_replayed`
+   failed twice in this session's runs (§4 item 5, §20.3), each time `client.State` `Disconnected` after 60 s; it passed alone 12 of
+   12 and in each rerun. A likely cause, **[verified by reading]**, not reproduced: in `MessagePushClient.OnClosed`, the restart
+   loop's inner `catch` excludes every `OperationCanceledException`. A `TaskCanceledException` from an HTTP timeout during
+   `StartAsync` under load therefore reaches the outer `catch` and ends the loop for good, although the client was not stopped.
+   The fix (catch cancellations unless `_stopped` is cancelled) and a test that injects such a timeout belong in their own PR
+   off `main`, as #52 did. Asked of the owner.
+2. **The first tag** `v0.1.0-preview.1` is the owner's to create, after the stack is merged and the environment `release` and the
+   tag ruleset exist (§19.3). The first real run answers §13 items 1 and 2: `.snupkg` no longer matters (RL-2); whether a new
+   package starts public is checked after the push.
