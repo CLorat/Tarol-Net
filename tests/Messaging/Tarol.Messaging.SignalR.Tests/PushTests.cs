@@ -168,6 +168,64 @@ public sealed class PushTests
     }
 
     [Fact]
+    public async Task A_timed_out_restart_attempt_does_not_end_the_restarts()
+    {
+        await using var host = await PushHost.Start();
+        var negotiate = new NegotiateFailures();
+        var connection = new HubConnectionBuilder()                                                   // no automatic reconnect: Closed is final
+            .WithUrl(host.Hub, o =>
+            {
+                o.Headers["X-User"] = "alice";
+                o.Headers["X-Roles"] = "member";
+                o.HttpMessageHandlerFactory = inner => new FailingNegotiate(negotiate) { InnerHandler = inner };   // one per connection attempt
+            })
+            .AddJsonProtocol(static o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, SignalRJson.Default))
+            .Build();
+        await using var client = new MessagePushClient(connection, ownsConnection: true);
+        var inbox = new Inbox();
+        await using var handle = await client.Subscribe("artflow.chat", inbox.Add, Ct);
+        await client.Start(Ct);
+
+        negotiate.FailNext = 1;                                                                     // the next negotiate times out, as HttpClient does
+        await host.Stop();
+        await host.Restart();
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (client.State != HubConnectionState.Connected && waited.Elapsed < ReconnectCap)
+            await Task.Delay(50, Ct);
+        negotiate.Failed.ShouldBe(1);
+        client.State.ShouldBe(HubConnectionState.Connected);                                        // the restart loop went on after the timeout
+        await Replayed(client, inbox, "artflow.chat");
+    }
+
+    /// <summary>How many of the next negotiate requests fail, shared by the handlers of every connection attempt.</summary>
+    private sealed class NegotiateFailures
+    {
+        private int _failNext;
+        private int _failed;
+
+        public int FailNext { set => Volatile.Write(ref _failNext, value); }
+
+        public int Failed => Volatile.Read(ref _failed);
+
+        public bool Take()
+        {
+            if (Interlocked.Decrement(ref _failNext) < 0)
+                return false;
+            Interlocked.Increment(ref _failed);
+            return true;
+        }
+    }
+
+    /// <summary>Throws the <see cref="TaskCanceledException"/> an <see cref="HttpClient"/> timeout throws, while <see cref="NegotiateFailures"/> says so.</summary>
+    private sealed class FailingNegotiate(NegotiateFailures failures) : DelegatingHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => request.RequestUri?.AbsolutePath.EndsWith("/negotiate", StringComparison.Ordinal) == true && failures.Take()
+                ? throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.", new TimeoutException())
+                : base.SendAsync(request, cancellationToken);
+    }
+
+    [Fact]
     public async Task A_subscription_made_before_start_reaches_the_server_at_start()
     {
         await using var host = await PushHost.Start();

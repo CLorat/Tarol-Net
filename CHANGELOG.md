@@ -321,6 +321,8 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Fixed
 
+* `Tarol.Messaging.SignalR`: a restart attempt that timed out (`TaskCanceledException`) ended `MessagePushClient`'s restart loop,
+  leaving the client disconnected for good; only the client's own stop ends it now (docs/migration/messaging.md §20).
 * Step 16: `AllocationTests` measured one loop and failed under the parallel suite when a tier-up landed in it; both
   allocation tests assert the least allocating of five loops (#59).
 

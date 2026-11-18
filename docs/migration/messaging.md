@@ -875,3 +875,28 @@ and `TAROL_RABBITMQ`: **18 apps** (17 + `Tarol.Messaging.SignalR.AotSmoke`), 0 I
 pack -c Release` + `eng/verify-packages.sh`: OK (`Tarol.Messaging.SignalR` contains `lib/`, README, LICENSE and
 `skills/tarol-messaging-signalr/SKILL.md`; its package consumer runs and lists the skill). An earlier full run failed once in
 the reconnect test (a client gave up under load), which led to the reconnect policy of §19.3.
+
+## 20. Fix: a timed-out restart attempt ended the client's restarts (2026-11-18)
+
+Found in step 17 (`docs/migration/release.md` §4 item 5, §21): `PushTests.After_a_reconnect_the_subscriptions_are_replayed`
+failed twice in full suite runs, `client.State` still `Disconnected` after 60 s, and passed alone.
+
+* **Cause** **[verified]**:
+  * When a connection closes for good, `MessagePushClient.OnClosed` starts it again in a loop.
+  * The loop's inner `catch` excluded every `OperationCanceledException`, so a `TaskCanceledException` from an attempt reached the
+    outer `catch`, which ends the loop silently.
+  * An `HttpClient` timeout during the negotiate request is such an exception. One timed-out attempt therefore left the client
+    disconnected for good, although nobody had stopped it.
+  * The reconnect test takes this path when the server's shutdown closes the connection for good, instead of letting it
+    reconnect: 1 of 3 runs here showed `Disconnected`, not `Reconnecting`, right after the restart.
+* **Reproduced** by the new test `A_timed_out_restart_attempt_does_not_end_the_restarts`:
+  * a connection without automatic reconnect, whose next negotiate request throws the `TaskCanceledException` of an `HttpClient`
+    timeout, around a server restart;
+  * before the fix: `Disconnected` after 60 s, with exactly one failed negotiate.
+* **Fix**: the inner `catch` now takes every exception except `OutOfMemoryException` while the client's own `_stopped` token is
+  not cancelled, so only `Stop`/`DisposeAsync` end the loop.
+* **Verified** **[verified]**:
+  * the new test passes 10 of 10;
+  * the whole `Tarol.Messaging.SignalR.Tests` project (19 tests) passes 10 of 10 in Release, alone.
+* **Public API**: none. **Behaviour**: a client that was not stopped keeps restarting after a timed-out attempt, as its
+  documentation always said.
