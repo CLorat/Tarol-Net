@@ -395,3 +395,94 @@ INFO typesense data directory on disk: 1307 MB
 | typesense | delete | 50 | 6.3 | 27.4 | 27.4 |
 
 ## 6. Bench opensearch alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
+# bench opensearch (JIT), sizes 10000 / 100000 / 1000000
+INFO opensearch load 0 -> 10,000: 1.3 s, 7,627 docs/s (empty index)
+INFO opensearch size at 10,000: 3 MB
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | opensearch | common (rank 10) | tenant 10 % | 100 | 4.81 | 10.16 | 20 of 153 |
+| 10,000 | opensearch | common (rank 10) | tenant 0.1 % | 100 | 3.34 | 8.03 | 1 of 1 |
+| 10,000 | opensearch | common (rank 10) | all tenants | 100 | 3.56 | 11.85 | 20 of 1,445 |
+| 10,000 | opensearch | medium (rank 100) | tenant 10 % | 100 | 3.34 | 6.84 | 20 of 25 |
+| 10,000 | opensearch | medium (rank 100) | tenant 0.1 % | 100 | 2.27 | 5.59 | 0 of 0 |
+| 10,000 | opensearch | medium (rank 100) | all tenants | 100 | 2.85 | 7.83 | 20 of 266 |
+| 10,000 | opensearch | rare (rank 3000) | tenant 10 % | 100 | 2.23 | 3.31 | 0 of 0 |
+| 10,000 | opensearch | rare (rank 3000) | tenant 0.1 % | 100 | 2.08 | 3.17 | 0 of 0 |
+| 10,000 | opensearch | rare (rank 3000) | all tenants | 100 | 1.86 | 6.52 | 7 of 7 |
+| 10,000 | opensearch | two words (100 & 300) | tenant 10 % | 100 | 1.70 | 4.60 | 0 of 0 |
+| 10,000 | opensearch | two words (100 & 300) | tenant 0.1 % | 100 | 1.83 | 3.52 | 0 of 0 |
+| 10,000 | opensearch | two words (100 & 300) | all tenants | 100 | 1.73 | 3.19 | 1 of 1 |
+| 10,000 | opensearch | prefix (4 letters of rank 500) | tenant 10 % | 100 | 2.67 | 5.52 | 20 of 77 |
+| 10,000 | opensearch | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 1.96 | 5.63 | 1 of 1 |
+| 10,000 | opensearch | prefix (4 letters of rank 500) | all tenants | 100 | 2.38 | 4.78 | 20 of 682 |
+| 10,000 | opensearch | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 4.90 | 8.77 | 14 of 14 |
+| 10,000 | opensearch | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 4.48 | 7.45 | 0 of 0 |
+| 10,000 | opensearch | typo (rank 300, 1 substitution) | all tenants | 100 | 4.84 | 7.79 | 20 of 277 |
+| 10,000 | opensearch | medium + counts per type | tenant 10 % | 100 | 3.02 | 5.52 | 20 of 25 |
+| 10,000 | opensearch | medium + counts per type | tenant 0.1 % | 100 | 2.10 | 2.65 | 0 of 0 |
+| 10,000 | opensearch | medium + counts per type | all tenants | 100 | 2.27 | 4.76 | 20 of 266 |
+| 10,000 | opensearch | medium + snippets | tenant 10 % | 100 | 3.26 | 6.01 | 20 of 25 |
+| 10,000 | opensearch | medium + snippets | tenant 0.1 % | 100 | 1.48 | 3.52 | 0 of 0 |
+| 10,000 | opensearch | medium + snippets | all tenants | 100 | 2.32 | 5.59 | 20 of 266 |
+INFO opensearch load 10,000 -> 100,000: 4.7 s, 19,350 docs/s (index maintained)
+INFO opensearch size at 100,000: 27 MB
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 100,000 | opensearch | common (rank 10) | tenant 10 % | 100 | 2.65 | 3.86 | 20 of 1,598 |
+| 100,000 | opensearch | common (rank 10) | tenant 0.1 % | 100 | 2.47 | 4.34 | 15 of 15 |
+| 100,000 | opensearch | common (rank 10) | all tenants | 100 | 2.81 | 5.70 | 20 of 14,827 |
+| 100,000 | opensearch | medium (rank 100) | tenant 10 % | 100 | 2.01 | 3.43 | 20 of 246 |
+| 100,000 | opensearch | medium (rank 100) | tenant 0.1 % | 100 | 1.68 | 4.22 | 4 of 4 |
+| 100,000 | opensearch | medium (rank 100) | all tenants | 100 | 2.31 | 2.89 | 20 of 2,701 |
+| 100,000 | opensearch | rare (rank 3000) | tenant 10 % | 100 | 1.88 | 2.92 | 12 of 12 |
+| 100,000 | opensearch | rare (rank 3000) | tenant 0.1 % | 100 | 1.50 | 1.88 | 0 of 0 |
+| 100,000 | opensearch | rare (rank 3000) | all tenants | 100 | 2.03 | 2.49 | 20 of 100 |
+| 100,000 | opensearch | two words (100 & 300) | tenant 10 % | 100 | 1.90 | 2.79 | 7 of 7 |
+| 100,000 | opensearch | two words (100 & 300) | tenant 0.1 % | 100 | 1.71 | 2.35 | 0 of 0 |
+| 100,000 | opensearch | two words (100 & 300) | all tenants | 100 | 2.29 | 3.99 | 20 of 28 |
+| 100,000 | opensearch | prefix (4 letters of rank 500) | tenant 10 % | 100 | 2.43 | 13.18 | 20 of 719 |
+| 100,000 | opensearch | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 1.89 | 3.54 | 9 of 9 |
+| 100,000 | opensearch | prefix (4 letters of rank 500) | all tenants | 100 | 2.17 | 4.22 | 20 of 7,028 |
+| 100,000 | opensearch | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 4.71 | 10.33 | 20 of 259 |
+| 100,000 | opensearch | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 4.82 | 7.66 | 4 of 4 |
+| 100,000 | opensearch | typo (rank 300, 1 substitution) | all tenants | 100 | 5.33 | 8.27 | 20 of 2,836 |
+| 100,000 | opensearch | medium + counts per type | tenant 10 % | 100 | 2.47 | 5.55 | 20 of 246 |
+| 100,000 | opensearch | medium + counts per type | tenant 0.1 % | 100 | 1.47 | 5.78 | 4 of 4 |
+| 100,000 | opensearch | medium + counts per type | all tenants | 100 | 2.48 | 3.33 | 20 of 2,701 |
+| 100,000 | opensearch | medium + snippets | tenant 10 % | 100 | 2.40 | 3.12 | 20 of 246 |
+| 100,000 | opensearch | medium + snippets | tenant 0.1 % | 100 | 1.86 | 4.08 | 4 of 4 |
+| 100,000 | opensearch | medium + snippets | all tenants | 100 | 2.35 | 2.96 | 20 of 2,701 |
+INFO opensearch load 100,000 -> 1,000,000: 41.4 s, 21,727 docs/s (index maintained)
+INFO opensearch size at 1,000,000: 261 MB
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | opensearch | common (rank 10) | tenant 10 % | 100 | 7.01 | 9.17 | 20 of 14,788 |
+| 1,000,000 | opensearch | common (rank 10) | tenant 0.1 % | 100 | 2.33 | 3.34 | 20 of 146 |
+| 1,000,000 | opensearch | common (rank 10) | all tenants | 100 | 7.84 | 15.77 | 20 of 148,070 |
+| 1,000,000 | opensearch | medium (rank 100) | tenant 10 % | 100 | 3.00 | 4.01 | 20 of 2,730 |
+| 1,000,000 | opensearch | medium (rank 100) | tenant 0.1 % | 100 | 1.89 | 4.61 | 20 of 36 |
+| 1,000,000 | opensearch | medium (rank 100) | all tenants | 100 | 3.10 | 4.58 | 20 of 27,622 |
+| 1,000,000 | opensearch | rare (rank 3000) | tenant 10 % | 100 | 2.14 | 2.81 | 20 of 109 |
+| 1,000,000 | opensearch | rare (rank 3000) | tenant 0.1 % | 100 | 1.50 | 2.06 | 1 of 1 |
+| 1,000,000 | opensearch | rare (rank 3000) | all tenants | 100 | 2.04 | 4.20 | 20 of 1,029 |
+| 1,000,000 | opensearch | two words (100 & 300) | tenant 10 % | 100 | 2.57 | 3.70 | 20 of 25 |
+| 1,000,000 | opensearch | two words (100 & 300) | tenant 0.1 % | 100 | 1.95 | 2.97 | 0 of 0 |
+| 1,000,000 | opensearch | two words (100 & 300) | all tenants | 100 | 2.33 | 2.87 | 20 of 280 |
+| 1,000,000 | opensearch | prefix (4 letters of rank 500) | tenant 10 % | 100 | 3.84 | 13.00 | 20 of 6,957 |
+| 1,000,000 | opensearch | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 2.31 | 15.70 | 20 of 78 |
+| 1,000,000 | opensearch | prefix (4 letters of rank 500) | all tenants | 100 | 3.39 | 18.18 | 20 of 70,278 |
+| 1,000,000 | opensearch | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 5.92 | 9.77 | 20 of 2,879 |
+| 1,000,000 | opensearch | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 5.39 | 8.98 | 20 of 25 |
+| 1,000,000 | opensearch | typo (rank 300, 1 substitution) | all tenants | 100 | 6.74 | 20.55 | 20 of 28,862 |
+| 1,000,000 | opensearch | medium + counts per type | tenant 10 % | 100 | 3.66 | 5.74 | 20 of 2,730 |
+| 1,000,000 | opensearch | medium + counts per type | tenant 0.1 % | 100 | 2.37 | 3.66 | 20 of 36 |
+| 1,000,000 | opensearch | medium + counts per type | all tenants | 100 | 3.79 | 8.35 | 20 of 27,622 |
+| 1,000,000 | opensearch | medium + snippets | tenant 10 % | 100 | 3.40 | 4.69 | 20 of 2,730 |
+| 1,000,000 | opensearch | medium + snippets | tenant 0.1 % | 100 | 2.97 | 7.83 | 20 of 36 |
+| 1,000,000 | opensearch | medium + snippets | all tenants | 100 | 3.22 | 4.91 | 20 of 27,622 |
+INFO opensearch feeder upserts at 1,000,000: 20,000 changed docs in batches of 500: 4.0 s, 5,001 docs/s (each batch searchable on return)
+INFO opensearch rebuild of 1,000,000 into an empty index: 46.2 s, 21,639 docs/s
+INFO opensearch size after rebuild: 260 MB
+INFO container memory: tarol-search-os 2.786GiB / 15.71GiB (CPU 0.88%)
+INFO opensearch data directory on disk: 693 MB
+
