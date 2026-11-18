@@ -8,6 +8,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* Design of step 18, global search: `docs/architecture/search.md`, `docs/migration/search.md` (GS-0 … GS-12) and the probes under
+  `docs/migration/probes/search/` (PostgreSQL full-text search and `pg_trgm`, Meilisearch, Typesense, OpenSearch at 10k–1M
+  documents). No package code yet.
+
 * `IOutbox.Release` (default member) hands a claimed row back unrun and uncounted; `IPageCache.Clears` (default member) counts
   cache clears; `NpgsqlTracing.AutoPrepareUnlessSet`; `ViolationJsonConverter`.
 * Store schema version 4 (compatible from 1): the index `streams_retention` on `streams (type, updated_at)`.
