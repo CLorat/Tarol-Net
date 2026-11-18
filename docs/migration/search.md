@@ -532,3 +532,7 @@ double-counts).
 
 None.
 
+### 15.7 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **1,899 passed** (+3); `eng/aot-smoke.sh`
+**24 apps**, 0 IL warnings; pack 25 packages; `eng/verify-packages.sh` OK.
