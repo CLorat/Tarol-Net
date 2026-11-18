@@ -138,10 +138,18 @@ public sealed class ViolationJsonConverter : JsonConverter<Violation>
                 reader.Read();
                 switch (name)
                 {
-                    case 1: field = reader.GetString(); break;
-                    case 2: code = reader.GetString(); break;
-                    case 3: detail = reader.TokenType == JsonTokenType.Null ? null : reader.GetString(); break;
-                    default: reader.Skip(); break;
+                    case 1:
+                        field = reader.GetString();
+                        break;
+                    case 2:
+                        code = reader.GetString();
+                        break;
+                    case 3:
+                        detail = reader.TokenType == JsonTokenType.Null ? null : reader.GetString();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
                 }
             }
             try
