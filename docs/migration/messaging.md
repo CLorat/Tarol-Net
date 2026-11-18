@@ -917,3 +917,19 @@ nothing about a mismatch changes between attempts, so such a letter is now given
 
 Tests: `ConsumerTests.A_dead_letter_redriven_before_the_cause_is_fixed_is_dead_again_not_lost` and
 `A_dead_letter_of_a_source_mismatch_is_not_run_again_by_a_redrive` (both fail without the fix).
+
+## 22. Fix: one failed subscription no longer stays dead until a restart (2026-11-18)
+
+**Behaviour change.** `MessageConsumers.Run` returned `Task.WhenAll` over every subscription's `IMessageTransport.Consume`, and
+`MessagingHost` declares and consumes again only once that task ends. Each transport ends `Consume` with an exception when its
+subscription fails (the Npgsql bus on a claim error, RabbitMQ on a channel shutdown, NATS when the consumer cannot be fetched).
+The healthy subscriptions kept running, so the task never ended. The failed subscription was never consumed again and nothing was
+logged until shutdown, contrary to the restart the `NpgsqlBus.Consume` remarks promise.
+
+`Run` now stops the other subscriptions when the first one stops and throws its failure (or an `InvalidOperationException` naming
+the subscription when it ended without one). The host logs 11004 and, after `RestartDelay`, declares and consumes all of them
+again. A cancellation by the caller still stops everything and returns as before. The healthy subscriptions' in-flight handlers
+are cancelled with the restart, and their deliveries come back after the lease, as on any restart.
+
+Tests: `HostingTests.When_one_subscription_fails_the_others_are_stopped_and_the_failure_is_thrown` and
+`The_host_consumes_every_subscription_again_after_one_failed` (both fail without the fix).

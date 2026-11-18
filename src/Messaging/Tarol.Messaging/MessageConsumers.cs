@@ -88,14 +88,39 @@ public sealed partial class MessageConsumers
 
     internal Action<ConsumerAttempt>? Observed { get; set; }
 
-    /// <summary>Consumes every subscription on <paramref name="transport"/> until cancelled (after <see cref="IMessageTransport.Prepare"/>).</summary>
+    /// <summary>
+    /// Consumes every subscription on <paramref name="transport"/> until cancelled (after <see cref="IMessageTransport.Prepare"/>).
+    /// When one subscription stops (its transport failed), the others are stopped too and the failure is thrown, so the caller
+    /// (the <see cref="MessagingHost"/>) declares and consumes all of them again; a subscription never stays dead alone.
+    /// </summary>
     /// <param name="transport">The transport.</param>
     /// <param name="cancellationToken">Stops consuming.</param>
     /// <returns>A task that completes when every subscription stopped.</returns>
-    public Task Run(IMessageTransport transport, CancellationToken cancellationToken)
+    /// <exception cref="InvalidOperationException">A subscription stopped without a failure and without being cancelled.</exception>
+    public async Task Run(IMessageTransport transport, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(transport);
-        return Task.WhenAll(_set.Consumers.Select((c, i) => transport.Consume(Subscriptions[i], (incoming, ct) => Handle(c.Name, incoming, ct), cancellationToken)));
+        if (_set.Consumers.Count == 0)
+            return;
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var running = _set.Consumers.Select((c, i) => transport.Consume(Subscriptions[i], (incoming, ct) => Handle(c.Name, incoming, ct), stop.Token)).ToArray();
+        var first = await Task.WhenAny(running).ConfigureAwait(false);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            await Task.WhenAll(running).ConfigureAwait(false);                              // the caller stops them all
+            return;
+        }
+        await stop.CancelAsync().ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(running).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // the first stop is the cause; the others were stopped because of it
+        }
+        await first.ConfigureAwait(false);                                                  // throws its failure
+        throw new InvalidOperationException($"The transport stopped consuming {Subscriptions[Array.IndexOf(running, first)].Name} without a failure.");
     }
 
     /// <summary>
