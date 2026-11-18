@@ -267,7 +267,20 @@ public sealed partial class RabbitMqTransport : IMessageTransport, IAsyncDisposa
         }
         catch (Exception e) when (e is AlreadyClosedException or OperationInterruptedException or PublishException)
         {
-            AckFailed(_log, queue, e);                                                         // unacknowledged: delivered again
+            AckFailed(_log, queue, e);
+            // a refused retry copy (a nack, or returned as unroutable) leaves the channel open: without a nack the delivery
+            // would hold its prefetch slot until the broker's consumer timeout, and with a concurrency of 1 stall the queue
+            if (channel.IsOpen)
+            {
+                try
+                {
+                    await channel.BasicNackAsync(delivery.DeliveryTag, multiple: false, requeue: true, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception nack) when (nack is AlreadyClosedException or OperationInterruptedException)
+                {
+                    // the channel closed meanwhile: the broker delivers it again
+                }
+            }
         }
     }
 

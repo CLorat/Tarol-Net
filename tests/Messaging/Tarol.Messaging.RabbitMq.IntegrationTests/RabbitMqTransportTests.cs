@@ -64,6 +64,33 @@ public sealed class RabbitMqTransportTests(RabbitMq rabbit)
     }
 
     [Fact]
+    public async Task A_retry_copy_the_broker_refuses_is_delivered_again_instead_of_stalling_the_queue()
+    {
+        var prefix = "r" + Guid.NewGuid().ToString("N")[..8];
+        await using var transport = new RabbitMqTransport(new RabbitMqTransportOptions { Uri = new Uri(rabbit.Uri()), Prefix = prefix, StampUserId = false });
+        var subscription = new Subscription("t.Stuck", ["artflow.stuck"]);                       // concurrency 1: one prefetch slot
+        await transport.Prepare(["artflow.stuck"], [subscription], Ct);
+        var factory = new ConnectionFactory { Uri = new Uri(rabbit.Uri()) };
+        await using (var connection = await factory.CreateConnectionAsync(Ct))
+        await using (var channel = await connection.CreateChannelAsync(cancellationToken: Ct))
+            _ = await channel.QueueDeleteAsync(transport.QueueOf(subscription.Name) + ".retry", cancellationToken: Ct);   // the copy is unroutable
+        await transport.Publish(Raw("artflow.stuck"), Ct);
+
+        var attempts = new List<int>();
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        await transport.Consume(subscription, async (incoming, _) =>
+        {
+            attempts.Add(incoming.Attempt);
+            if (attempts.Count == 1)
+                return new Handled(Ack.Retry, TimeSpan.FromSeconds(1));                           // its copy is returned
+            await stop.CancelAsync();
+            return new Handled(Ack.Ack);
+        }, stop.Token);
+
+        attempts.ShouldBe([1, 2]);                                                              // nacked and redelivered, not stuck
+    }
+
+    [Fact]
     public async Task An_unroutable_message_is_logged_and_counts_as_delivered()
     {
         await using var transport = new RabbitMqTransport(new RabbitMqTransportOptions { Uri = new Uri(rabbit.Uri()), Prefix = "r" + Guid.NewGuid().ToString("N")[..8], StampUserId = false });

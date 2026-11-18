@@ -947,3 +947,18 @@ source the bus uses has no array support.
 
 Test: `NpgsqlBusTests.A_batch_that_outlived_half_its_lease_hands_its_tail_back_so_nothing_runs_twice` (fails without the fix, with
 an attempt-2 duplicate; passed 5 of 5 with it). It uses real time: a 4 s lease and 2.5 s handlers.
+
+## 24. Fix: a refused RabbitMQ retry copy no longer stalls the queue (2026-11-18)
+
+**Behaviour change.** A `Retry` answer acks the delivery after publishing a copy to `<queue>.retry` with `mandatory: true` and
+publisher confirms. When the broker refused the copy (a nack, or returned as unroutable: a `PublishException`), the failure was only
+logged (11302): the delivery was neither acked nor nacked and the channel stayed open. It held one prefetch slot (prefetch =
+concurrency) until the broker's consumer timeout (30 min by default), so with a concurrency of 1 the queue stopped. The delivery is
+now nacked with `requeue: true` when the channel is still open; the broker delivers it again (counted as a redelivery).
+
+Test: `RabbitMqTransportTests.A_retry_copy_the_broker_refuses_is_delivered_again_instead_of_stalling_the_queue` (deletes the
+retry queue; times out without the fix).
+
+Open: the shared `<queue>.retry` uses per-message TTLs, and RabbitMQ expires only the message at the head of a queue, so one long
+backoff holds back every shorter one behind it. Fixing that changes the queue topology (delay tiers or a delayed exchange) and is
+left for a decision.
