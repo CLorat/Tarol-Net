@@ -78,7 +78,7 @@ await test.Down(TimeSpan.FromDays(3)).Advance(TimeSpan.Zero);   // three nights 
 
 ## Observability
 
-Logs `LoggerMessage` 14001–14010 (retry, dead job, lease lost, schedule changed, missed occurrences skipped, rows synced),
+Logs `LoggerMessage` 14001–14012 (retry, dead job, lease lost, schedule changed, missed occurrences skipped, rows synced),
 `ActivitySource "Tarol.Jobs"`: one activity per occurrence, `job <name>`, tags `tarol.job`, `tarol.occurrence`, `tarol.tenant`,
 `tarol.attempt`, `tarol.verdict`; the job's commits store its `traceparent`, so reactions link to it.
 

@@ -127,6 +127,82 @@ public sealed class HostTests
     }
 
     [Fact]
+    public async Task A_failed_lease_extension_is_tried_again_and_the_run_keeps_its_claim()
+    {
+        var time = new FakeTimeProvider(Start);
+        var job = new GatedJob();
+        var (store, _, registry) = Worker(time, job);
+        var rows = new FlakyRows(store.Jobs) { Failures = 1 };                         // one blip, then the store answers
+        var worker = new JobWorker(rows, registry, EmptyProvider.Instance, time, new JobHostOptions(), NullLogger.Instance);
+        _ = await JobHost.Sync(registry, store.Jobs, null, time, NullLogger.Instance, Ct);
+        time.Advance(TimeSpan.FromMinutes(1));
+
+        var running = worker.RunOnce(Ct);
+        await job.Started.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+        await Pass(time, TimeSpan.FromMinutes(3));
+
+        rows.Extends.ShouldBeGreaterThan(2);                                            // it kept beating after the failure
+        (await store.Jobs.Claim(TimeSpan.FromMinutes(1), Ct)).ShouldBe(Option.None);      // the claim still holds
+        job.Release();
+        (await running).GetValueOrThrow().ShouldHaveSingleItem().Verdict.ShouldBe(Verdict.Done);
+        job.Cancelled.ShouldBeFalse();
+        job.Runs.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_run_whose_lease_cannot_be_extended_before_it_runs_out_is_cancelled()
+    {
+        var time = new FakeTimeProvider(Start);
+        var job = new GatedJob();
+        var (store, _, registry) = Worker(time, job);
+        var rows = new FlakyRows(store.Jobs) { Failures = int.MaxValue };              // the store stays unreachable
+        var worker = new JobWorker(rows, registry, EmptyProvider.Instance, time, new JobHostOptions(), NullLogger.Instance);
+        _ = await JobHost.Sync(registry, store.Jobs, null, time, NullLogger.Instance, Ct);
+        time.Advance(TimeSpan.FromMinutes(1));
+
+        var running = worker.RunOnce(Ct);
+        await job.Started.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+        await Pass(time, TimeSpan.FromMinutes(1));
+        var attempts = (await running.WaitAsync(TimeSpan.FromSeconds(10), Ct)).GetValueOrThrow();
+
+        job.Cancelled.ShouldBeTrue();                                                   // cancelled before another worker can claim it
+        attempts.ShouldBeEmpty();
+        job.Runs.ShouldBe(1);
+    }
+
+    /// <summary>The in-memory rows with <see cref="IJobRows.Extend"/> failing the first <see cref="Failures"/> times.</summary>
+    private sealed class FlakyRows(IJobRows inner) : IJobRows
+    {
+        public int Failures { get; set; }
+
+        public int Extends { get; private set; }
+
+        public Task<bool> Extend(JobRow row, TimeSpan lease, CancellationToken cancellationToken)
+        {
+            Extends++;
+            if (Failures > 0)
+            {
+                Failures--;
+                throw new TimeoutException("the store is unreachable");
+            }
+            return inner.Extend(row, lease, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<JobSyncChange>> Sync(IReadOnlyCollection<JobSchedule> jobs, CancellationToken cancellationToken) => inner.Sync(jobs, cancellationToken);
+        public Task<Option<JobRow>> Claim(TimeSpan lease, CancellationToken cancellationToken) => inner.Claim(lease, cancellationToken);
+        public Task<bool> Move(JobRow row, DateTimeOffset cursor, CancellationToken cancellationToken) => inner.Move(row, cursor, cancellationToken);
+        public Task<bool> Advance(JobRow row, DateTimeOffset cursor, CancellationToken cancellationToken) => inner.Advance(row, cursor, cancellationToken);
+        public Task<bool> Retry(JobRow row, DateTimeOffset retryAt, string reason, CancellationToken cancellationToken) => inner.Retry(row, retryAt, reason, cancellationToken);
+        public Task<bool> Bury(JobRow row, DateTimeOffset cursor, string reason, CancellationToken cancellationToken) => inner.Bury(row, cursor, reason, cancellationToken);
+        public Task<IReadOnlyList<DeadJob>> DeadJobs(int max, CancellationToken cancellationToken) => inner.DeadJobs(max, cancellationToken);
+        public Task<IReadOnlyList<DeadJob>> DeadJobs(DeadLetterQuery query, CancellationToken cancellationToken) => inner.DeadJobs(query, cancellationToken);
+        public Task<bool> Discard(long id, CancellationToken cancellationToken) => inner.Discard(id, cancellationToken);
+        public Task<bool> Redrive(long id, CancellationToken cancellationToken) => inner.Redrive(id, cancellationToken);
+        public Task<IReadOnlyList<JobState>> Rows(CancellationToken cancellationToken) => inner.Rows(cancellationToken);
+        public Task<Option<DateTimeOffset>> Overdue(CancellationToken cancellationToken) => inner.Overdue(cancellationToken);
+    }
+
+    [Fact]
     public async Task A_row_of_a_job_this_process_does_not_declare_is_left_for_another()
     {
         var time = new FakeTimeProvider(Start);

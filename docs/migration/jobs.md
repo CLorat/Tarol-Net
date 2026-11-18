@@ -779,3 +779,16 @@ At `3376a07` (the code of this PR), in a separate worktree, with Docker and the 
 * `samples/Sagas` through the Aspire AppHost: as in §17.4 (91 s).
 
 Step 14 overall: tests 1442 → 1591, AOT smoke apps 21 → 22.
+
+## 18. Fix: a failed lease extension no longer ends the heartbeat
+
+**Behaviour change.** `JobWorker.Beat` caught any exception from `IJobRows.Extend` outside its loop, so one transient store
+error (a network blip) stopped the heartbeat for good while the job kept running. After the lease (1 min by default) another
+worker claimed the row and ran the same occurrence alongside the first.
+
+The heartbeat now logs the failure (14011, Warning) and tries again at the next beat. When the lease would run out before that
+beat, it logs 14012 (Error) and cancels the run, as a lost claim already did, so the row comes back once the lease has expired
+and no two workers run one occurrence together. A run cancelled this way writes nothing, like a run that lost its claim.
+
+Tests: `HostTests.A_failed_lease_extension_is_tried_again_and_the_run_keeps_its_claim` and
+`A_run_whose_lease_cannot_be_extended_before_it_runs_out_is_cancelled` (both fail without the fix).

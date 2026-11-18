@@ -218,16 +218,37 @@ internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, ISe
         return (verdict, reason);
     }
 
-    /// <summary>Extends the lease every lease/3 while the row runs; on a lost claim it cancels the run.</summary>
+    /// <summary>
+    /// Extends the lease every lease/3 while the row runs; on a lost claim it cancels the run. A failed extension (the store
+    /// is briefly unreachable) is logged and tried again at the next beat; when the lease would run out before that beat, the
+    /// run is cancelled, so another worker that claims the expired row never runs the same occurrence alongside this one.
+    /// </summary>
     private async Task Beat(JobRow row, CancellationTokenSource lease)
     {
+        var interval = options.Lease / 3;
+        var held = time.GetUtcNow() + options.Lease;                                    // the claim was taken just before
         try
         {
             while (true)
             {
-                await Task.Delay(options.Lease / 3, time, lease.Token).ConfigureAwait(false);
-                if (!await rows.Extend(row, options.Lease, lease.Token).ConfigureAwait(false))
+                await Task.Delay(interval, time, lease.Token).ConfigureAwait(false);
+                try
                 {
+                    if (!await rows.Extend(row, options.Lease, lease.Token).ConfigureAwait(false))
+                    {
+                        await lease.CancelAsync().ConfigureAwait(false);
+                        return;
+                    }
+                    held = time.GetUtcNow() + options.Lease;
+                }
+                catch (Exception e) when (e is not OutOfMemoryException and not OperationCanceledException)
+                {
+                    if (time.GetUtcNow() + interval < held)
+                    {
+                        HeartbeatFailed(log, row.Name, held, e);                         // the lease still holds: try again
+                        continue;
+                    }
+                    HeartbeatGaveUp(log, row.Name, held, e);
                     await lease.CancelAsync().ConfigureAwait(false);
                     return;
                 }
@@ -235,10 +256,6 @@ internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, ISe
         }
         catch (OperationCanceledException)
         {
-        }
-        catch (Exception e) when (e is not OutOfMemoryException)
-        {
-            LoopFailed(log, e);                                                         // the lease may still hold; the claim decides
         }
     }
 
@@ -266,6 +283,12 @@ internal sealed partial class JobWorker(IJobRows rows, JobRegistry registry, ISe
 
     [LoggerMessage(EventId = 14008, Level = LogLevel.Warning, Message = "Job row {Job} is not declared in this process; it is left to a process that declares it")]
     private static partial void Undeclared(ILogger logger, string job);
+
+    [LoggerMessage(EventId = 14011, Level = LogLevel.Warning, Message = "Job {Job} could not extend its lease (held until {HeldUntil:O}); it tries again")]
+    private static partial void HeartbeatFailed(ILogger logger, string job, DateTimeOffset heldUntil, Exception exception);
+
+    [LoggerMessage(EventId = 14012, Level = LogLevel.Error, Message = "Job {Job} could not extend its lease before it runs out at {HeldUntil:O}; the run is cancelled")]
+    private static partial void HeartbeatGaveUp(ILogger logger, string job, DateTimeOffset heldUntil, Exception exception);
 
     [LoggerMessage(EventId = 14010, Level = LogLevel.Information, Message = "System job {Job} handled {Count} items")]
     private static partial void Maintained(ILogger logger, string job, int count);
