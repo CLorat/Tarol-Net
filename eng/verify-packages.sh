@@ -68,6 +68,15 @@ for pid, csproj in expected:
         if not f.startswith(("_rels/", "package/", "[Content_Types]")) and not f.endswith(".psmdcp"):
             print(f"    {f}")
 
+# RL-2: no symbol packages; the PDB is embedded in each DLL (its debug directory holds the 'MPDB' blob).
+for snupkg in glob.glob(os.path.join(feed, "*.snupkg")):
+    errors.append(f"unexpected symbol package {os.path.basename(snupkg)} (PDBs are embedded, RL-2)")
+for pid, (version, nupkg) in packages.items():
+    with zipfile.ZipFile(nupkg) as z:
+        dll = f"lib/net11.0/{pid}.dll"
+        if dll in z.namelist() and b"MPDB" not in z.read(dll):
+            errors.append(f"{pid} {version}: {dll} has no embedded PDB")
+
 if errors:
     print("\n".join("ERROR " + e for e in errors), file=sys.stderr)
     sys.exit(1)

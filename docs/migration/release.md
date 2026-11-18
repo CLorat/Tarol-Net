@@ -633,3 +633,49 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
   * `pack`: pack and verify (25 consumers), the version, `release.py check --dry-run`, the notes in the job summary, the
     artifact `release`;
   * `publish` skipped (not a tag).
+
+## 20. Implementation 17F: ship 0.1.0
+
+### 20.1 What changed
+
+* **Diagnostics**: all 83 rules of the 10 generators moved from `AnalyzerReleases.Unshipped.md` to `AnalyzerReleases.Shipped.md`
+  under `## Release 0.1.0` (moved by a script that asserts each step; the counts agree with §1). Every `Unshipped.md` keeps only
+  its header.
+* **`CHANGELOG.md`**:
+  * the `[Unreleased]` content became `## [0.1.0]`, and an empty `## [Unreleased]` sits above it;
+  * a short introduction, and "Upgrade notes" (§8): schema version 3, DP-10's rolling-deploy rule, `SealHistory<T>` only
+    explicitly, the backup note from `docs/data-protection/README.md`, the licence.
+* **Symbols** (RL-2): `DebugType=embedded` replaces `IncludeSymbols`/`snupkg` in `src/Directory.Build.props`.
+  `eng/verify-packages.sh` fails on any `.snupkg` and on a DLL without an embedded PDB (its `MPDB` blob).
+* The public API was shipped by 17B already: `eng/public-api.py check-shipped` passes.
+* `eng/release.py check 0.1.0` and `check 0.1.0-preview.1` pass; `notes 0.1.0-preview.1` writes the notes of the first tag.
+
+### 20.2 Public API and behaviour
+
+The packages carry their PDB inside the DLL, and no `.snupkg` is produced. Nothing else changes.
+
+### 20.3 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (the first run failed `PushTests.After_a_reconnect_the_subscriptions_are_replayed` once, as on `main` before step 17; §4 item 5, §21);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK (no `.snupkg`; every DLL carries its PDB).
+* **The release dry run with everything shipped** (#70, run 44275476672): `ci / build`, `ci / integration`, `ci / aot-smoke`, then
+  `pack` green, `publish` skipped. On a branch MinVer makes `0.0.0-alpha.0.<height>`, which has no CHANGELOG section, so
+  `release.py check --dry-run` warns about that alone. The tag's own check (`0.1.0-preview.1`) passes locally (§20.1). An earlier run on the previous commit (44275336687) failed
+  one test of `Tarol.Messaging.SignalR.Tests` in the called CI. That is the flake of §21 item 1, fixed by #71.
+
+## 21. Open after 17A–17F
+
+1. **The SignalR reconnect test is a real flake, in `main`'s code.** `PushTests.After_a_reconnect_the_subscriptions_are_replayed`
+   failed twice in this session's runs (§4 item 5, §20.3), each time `client.State` `Disconnected` after 60 s; it passed alone 12 of
+   12 and in each rerun. A likely cause, **[verified by reading]**, not reproduced: in `MessagePushClient.OnClosed`, the restart
+   loop's inner `catch` excludes every `OperationCanceledException`. A `TaskCanceledException` from an HTTP timeout during
+   `StartAsync` under load therefore reaches the outer `catch` and ends the loop for good, although the client was not stopped.
+   **Reproduced and fixed in #71** (off `main`; messaging.md §20): a test that injects such a timeout left the client
+   `Disconnected` after 60 s before the fix, and passes 10 of 10 after it.
+2. **The first tag** `v0.1.0-preview.1` is the owner's to create, after the stack is merged and the environment `release` and the
+   tag ruleset exist (§19.3). The first real run answers §13 items 1 and 2: `.snupkg` no longer matters (RL-2); whether a new
+   package starts public is checked after the push.
