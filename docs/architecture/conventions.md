@@ -268,7 +268,7 @@ Workflow `.github/workflows/ci.yml` on every push and pull request:
 * Every .NET security rule is an error (`AnalysisLevelSecurity=latest-all`), except CA2100 and CA5394 (root `.editorconfig`,
   with reasons; RL-10).
 
-Release (tag `v*`), CodeQL and Dependabot are described in [the migration plan](../migration/plan.md#ci-and-release).
+Release (`release.yml`, tag `v*`; [release.md](release.md) §2), CodeQL and Dependabot are described in [the migration plan](../migration/plan.md#ci-and-release).
 
 ## 8. Per-package checklist (definition of done for every migration step)
 

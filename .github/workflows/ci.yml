@@ -63,6 +63,9 @@ jobs:
           --results-directory artifacts/test-results
           -- --filter-not-trait "Category=Integration" --ignore-exit-code 8
 
+      - name: Tests of the release scripts
+        run: python3 -m unittest discover -s eng/tests -v
+
       - name: Pack and verify packages
         run: eng/verify-packages.sh
 
