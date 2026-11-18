@@ -77,6 +77,11 @@ public sealed class StoreLookups
     /// <returns><see langword="true"/> for a personal lookup.</returns>
     public bool IsPersonal(string streamType, string name) => _personalByStream.Contains((streamType, name));
 
+    /// <summary>The personal lookups of a stream type.</summary>
+    /// <param name="streamType">The stream type.</param>
+    /// <returns>Their names.</returns>
+    public IReadOnlyCollection<string> PersonalOf(string streamType) => [.. _personalByStream.Where(p => p.Item1 == streamType).Select(static p => p.Item2)];
+
     /// <summary>Whether <typeparamref name="T"/> has a personal lookup.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
     /// <returns><see langword="true"/> when it has one.</returns>

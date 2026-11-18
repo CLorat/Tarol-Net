@@ -64,7 +64,7 @@ internal static class PersonalJson
 
     /// <summary>Writes <paramref name="json"/> with every non-null personal value of <paramref name="shape"/> sealed.</summary>
     /// <returns>Whether anything was sealed (<see langword="false"/>: <paramref name="json"/> was copied as it is).</returns>
-    public static bool Seal(ResolvedShape shape, ReadOnlySpan<byte> json, Guid stream, KeyRing keys, IBufferWriter<byte> output)
+    public static bool Seal(ResolvedShape shape, ReadOnlySpan<byte> json, Guid stream, KeyRing keys, IBufferWriter<byte> output, bool nullErased = false)
     {
         var fields = Fields(shape, json, stream);
         var copied = 0;
@@ -72,6 +72,13 @@ internal static class PersonalJson
         {
             Write(output, json[copied..start]);
             var key = keys.Get(subject);
+            if (key.IsErased && nullErased)
+            {
+                Write(output, "null"u8);
+                copied = end;
+                continue;
+            }
+
             if (key.IsErased)
                 throw new SubjectErasedException(keys.Tenant, subject);
             var value = json[start..end];

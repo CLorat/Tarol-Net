@@ -66,4 +66,12 @@ public sealed record NpgsqlStoreOptions
 
     /// <summary>The unique lookups; share one instance with the in-memory store of your tests.</summary>
     public StoreLookups Lookups { get; init; } = new();
+
+    /// <summary>
+    /// The key store (step 16, DP-1): with it, the <c>[PersonalData]</c> fields of events and state are sealed on
+    /// <c>Append</c> and opened on every read (loads, the feed, the outbox), personal lookups keep blind indexes, and the
+    /// store raises the schema's <c>compatible_from</c> to 3 on <c>EnsureSchema</c> so code from before sealing refuses the
+    /// schema. Usually an <see cref="NpgsqlKeyStore"/> on the same database. Aggregates without personal data are unaffected.
+    /// </summary>
+    public IKeyStore? Keys { get; init; }
 }

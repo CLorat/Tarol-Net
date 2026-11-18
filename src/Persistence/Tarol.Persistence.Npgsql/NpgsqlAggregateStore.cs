@@ -56,6 +56,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     private readonly ILogger? _log;
     private readonly SchemaMode _schemaMode;
     private readonly TimeSpan _schemaLockTimeout;
+    private readonly IKeyStore? _keys;
 
     /// <summary>Creates a store.</summary>
     /// <param name="dataSource">The data source (with arrays enabled).</param>
@@ -74,15 +75,16 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         _time = time;
         _stateOptions = options.StateOptions ?? codec.Options;
         _lookups = options.Lookups ?? new StoreLookups();
-        _sql = new Sql(options.Schema);
+        _sql = new Sql(options.Schema, sealing: options.Keys is not null);
         _reactions = options.Reactions;
         _notify = options.Notify;
         _notifyFeed = options.NotifyFeed;
         _log = logger;
         _schemaMode = options.SchemaMode;
         _schemaLockTimeout = options.SchemaLockTimeout;
+        _keys = options.Keys;
         FeedChannel = options.Schema + "_feed";
-        Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema, options.Reactions, options.Notify);
+        Outbox = new NpgsqlOutbox(dataSource, codec, time, options.Schema, options.Reactions, options.Notify, options.Keys);
         Jobs = new NpgsqlJobRows(dataSource, time, options.Schema);
     }
 
@@ -128,6 +130,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     {
         var state = await new NpgsqlSchemaUpgrader(_db, NpgsqlSchema.Definition(Schema), _log) { LockTimeout = _schemaLockTimeout }
             .Ensure(mode, cancellationToken).ConfigureAwait(false);
+        if (_keys is not null && mode == SchemaMode.Upgrade && state.CompatibleFrom < NpgsqlSchema.SealingVersion)
+        {
+            // a store that seals: code from before sealing (version 2) would read envelopes as values, so it must refuse (§14 item 1)
+            await using var raise = _db.CreateCommand(_sql.RaiseCompatibility);
+            raise.Parameters.Add(new NpgsqlParameter { Value = NpgsqlSchema.SealingVersion });
+            await raise.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            state = state with { CompatibleFrom = NpgsqlSchema.SealingVersion };
+        }
         Ensured = state;
         return state;
     }
@@ -145,6 +155,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         cancellationToken.ThrowIfCancellationRequested();
         var type = _codec.StreamTypeOf<T>();
         var tenant = TenantOf(context.Tenant);
+        byte[]? state = null;
         var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using (connection.ConfigureAwait(false))
         {
@@ -156,10 +167,17 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                 {
                     if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                         return Option.None;
-                    if (T.StateSchema != 0 && reader.GetInt32(0) == T.StateSchema && !reader.IsDBNull(1)
-                        && ReadState(id, reader.GetFieldValue<byte[]>(1)).TryGetValue(out T? stored))
-                        return stored;
+                    if (T.StateSchema != 0 && reader.GetInt32(0) == T.StateSchema && !reader.IsDBNull(1))
+                        state = reader.GetFieldValue<byte[]>(1);
                 }
+            }
+
+            if (state is not null)
+            {
+                if (_keys is not null && EventCodec.IsSealed(state))
+                    state = await OpenState(tenant, state, cancellationToken).ConfigureAwait(false);
+                if (ReadState(id, state).TryGetValue(out T? stored))
+                    return stored;
             }
 
             var history = await ReadStream(connection, tenant, type, id.Value, cancellationToken).ConfigureAwait(false);
@@ -181,21 +199,46 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         }
     }
 
+    private async Task<byte[]> OpenState(Guid tenant, byte[] state, CancellationToken cancellationToken)
+    {
+        var subjects = new List<Guid>();
+        EventCodec.SealedSubjects(state, subjects);
+        var keys = await _keys!.Keys(tenant, subjects, create: false, cancellationToken).ConfigureAwait(false);
+        var opened = new ArrayBufferWriter<byte>(state.Length);
+        EventCodec.OpenState(state, keys, opened);
+        return opened.WrittenSpan.ToArray();
+    }
+
     private async Task<StreamEvent[]> ReadStream(NpgsqlConnection connection, Guid tenant, string type, Guid id, CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand(_sql.LoadEvents, connection);
-        Add(command, tenant, type, id);
-        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        await using (reader.ConfigureAwait(false))
+        var rows = new List<(long Version, Guid Entity, Guid Parent, EventType Type, byte[] Payload)>();
+        await using (var command = new NpgsqlCommand(_sql.LoadEvents, connection))
         {
-            var events = new List<StreamEvent>();
-            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            Add(command, tenant, type, id);
+            var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            await using (reader.ConfigureAwait(false))
             {
-                var domainEvent = _codec.Decode(type, new EventType(reader.GetString(3), reader.GetInt32(4)), reader.GetFieldValue<byte[]>(5));
-                events.Add(new StreamEvent(reader.GetInt64(0), reader.GetGuid(1), reader.IsDBNull(2) ? Guid.Empty : reader.GetGuid(2), domainEvent));
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    rows.Add((reader.GetInt64(0), reader.GetGuid(1), reader.IsDBNull(2) ? Guid.Empty : reader.GetGuid(2),
+                        new EventType(reader.GetString(3), reader.GetInt32(4)), reader.GetFieldValue<byte[]>(5)));
+                }
             }
-            return [.. events];
         }
+
+        var rings = await RecordedEvents.Rings(rows.Select(r => (tenant, r.Payload)), _keys, cancellationToken).ConfigureAwait(false);
+        rings.TryGetValue(tenant, out var ring);
+        var events = new StreamEvent[rows.Count];
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            var domainEvent = ring is not null && EventCodec.IsSealed(row.Payload)
+                ? _codec.Decode(type, row.Type, row.Payload, ring)
+                : _codec.Decode(type, row.Type, row.Payload);
+            events[i] = new StreamEvent(row.Version, row.Entity, row.Parent, domainEvent);
+        }
+
+        return events;
     }
 
     /// <inheritdoc />
@@ -208,6 +251,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         cancellationToken.ThrowIfCancellationRequested();
         if (!_lookups.IsDefined<T>(lookup))
             throw new InvalidOperationException($"No lookup '{lookup}' is defined for {typeof(T).Name}; define it on the StoreLookups of the store's options.");
+        if (_lookups.IsPersonal<T>(lookup))
+        {
+            var keys = _keys ?? throw new InvalidOperationException($"The personal lookup '{lookup}' needs a key store: set NpgsqlStoreOptions.Keys.");
+            if (await keys.BlindIndex(TenantOf(context.Tenant), lookup, key, create: false, cancellationToken).ConfigureAwait(false) is not { } index)
+                return Option.None;
+            key = index;
+        }
+
         await using var command = _db.CreateCommand(_sql.Find);
         Add(command, TenantOf(context.Tenant), _codec.StreamTypeOf<T>(), lookup, key);
         return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is Guid id ? (Id<T>)id : Option.None;
@@ -252,7 +303,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         var version = changes[^1].Version;
         var at = _time.GetUtcNow();
         var schema = T.StateSchema;
-        var state = schema != 0 ? Encoding.UTF8.GetString(AggregateState.Write(aggregate, _stateOptions)) : null;
+        var stateBytes = schema != 0 ? AggregateState.Write(aggregate, _stateOptions) : null;
+        var sealing = _keys is not null && _codec.HasPersonalData<T>();
 
         var versions = new long[changes.Length];
         var eventIds = new Guid[changes.Length];
@@ -261,6 +313,9 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         var entities = new Guid[changes.Length];
         var parents = new Guid[changes.Length];
         var payloads = new string[changes.Length];
+        var eventSubjects = new string?[changes.Length];
+        Guid[]? stateSubjects = null;
+        var plain = sealing ? new byte[changes.Length][] : null;
         var buffer = new ArrayBufferWriter<byte>(256);
         for (var i = 0; i < changes.Length; i++)
         {
@@ -272,8 +327,54 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             aliasVersions[i] = stored.Version;
             entities[i] = changes[i].EntityId;
             parents[i] = changes[i].ParentId;
-            payloads[i] = Encoding.UTF8.GetString(buffer.WrittenSpan);
+            if (plain is not null)
+                plain[i] = buffer.WrittenSpan.ToArray();
+            else
+                payloads[i] = Encoding.UTF8.GetString(buffer.WrittenSpan);
         }
+
+        if (plain is not null)
+        {
+            // DP-2: seal after the serializer, with the keys of every subject (created when new: before the commit, so a
+            // failed commit leaves an unused key, never an event without one)
+            var subjects = new List<Guid>[changes.Length];
+            var all = new List<Guid>();
+            for (var i = 0; i < changes.Length; i++)
+            {
+                subjects[i] = [];
+                _codec.SubjectsOf<T>(new EventType(aliases[i], aliasVersions[i]), plain[i], id, subjects[i]);
+                all.AddRange(subjects[i]);
+            }
+            var stateList = new List<Guid>();
+            if (stateBytes is not null)
+                _codec.StateSubjectsOf<T>(stateBytes, id, stateList);
+            all.AddRange(stateList);
+            var ring = await _keys!.Keys(tenant, [.. all.Distinct()], create: true, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                for (var i = 0; i < changes.Length; i++)
+                {
+                    buffer.ResetWrittenCount();
+                    payloads[i] = _codec.Seal<T>(new EventType(aliases[i], aliasVersions[i]), plain[i], id, ring, buffer)
+                        ? Encoding.UTF8.GetString(buffer.WrittenSpan) : Encoding.UTF8.GetString(plain[i]);
+                    eventSubjects[i] = subjects[i].Count == 0 ? null : "{" + string.Join(",", subjects[i].Distinct()) + "}";
+                }
+                if (stateBytes is not null && stateList.Count > 0)
+                {
+                    buffer.ResetWrittenCount();
+                    if (_codec.SealState<T>(stateBytes, id, ring, buffer))
+                        stateBytes = buffer.WrittenSpan.ToArray();
+                    stateSubjects = [.. stateList.Distinct()];
+                }
+            }
+            catch (SubjectErasedException e)
+            {
+                return DataProtectionErrors.SubjectErased(e.Subject);
+            }
+        }
+
+        var state = stateBytes is null ? null : Encoding.UTF8.GetString(stateBytes);
+        var lookupKeys = await LookupKeys(aggregate, tenant, cancellationToken).ConfigureAwait(false);
 
         var actor = context.Actor;
         var batch = new NpgsqlBatch();
@@ -286,6 +387,11 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                 Activity.Current is { IdFormat: ActivityIdFormat.W3C } activity ? activity.Id : null,
                 versions, eventIds, aliases, aliasVersions, entities, parents, Jsonb(payloads, NpgsqlDbType.Array | NpgsqlDbType.Jsonb),
                 version, schema, Jsonb(state, NpgsqlDbType.Jsonb), expectedVersion);
+            if (_keys is not null)
+            {
+                events.Parameters.Add(Jsonb(eventSubjects, NpgsqlDbType.Array | NpgsqlDbType.Text));
+                events.Parameters.Add(Jsonb(stateSubjects, NpgsqlDbType.Array | NpgsqlDbType.Uuid));
+            }
 
             // 2. everything else only if this commit's first event exists
             NpgsqlBatchCommand? keyCommand = null;
@@ -293,7 +399,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                 keyCommand = Command(batch, _sql.StoreKey, TenantOf(idempotency.Tenant), idempotency.Scope, idempotency.Key, id, version, changes.Length, at, eventIds[0],
                     new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = idempotency.Fingerprint.TryGetValue(out string? fingerprint) ? fingerprint : DBNull.Value });
             var lookupCommands = new List<(NpgsqlBatchCommand Command, string Lookup, string Key)>();
-            foreach (var (lookup, lookupKey) in _lookups.KeysOf(aggregate))
+            foreach (var (lookup, lookupKey) in lookupKeys)
             {
                 _ = Command(batch, _sql.ReleaseLookup, tenant, type, lookup, id, lookupKey, eventIds[0]);
                 if (lookupKey is not null)
@@ -371,6 +477,25 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         }
     }
 
+    /// <summary>The lookup keys of a commit; a personal lookup's key is its blind index (DP-5).</summary>
+    private async ValueTask<IReadOnlyList<(string Lookup, string? Key)>> LookupKeys<T>(T aggregate, Guid tenant, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        var keys = _lookups.KeysOf(aggregate);
+        if (!_lookups.HasPersonal<T>())
+            return keys;
+        var store = _keys ?? throw new InvalidOperationException($"A personal lookup of {typeof(T).Name} needs a key store: set NpgsqlStoreOptions.Keys.");
+        var hashed = new (string, string?)[keys.Count];
+        for (var i = 0; i < keys.Count; i++)
+        {
+            var (lookup, value) = keys[i];
+            hashed[i] = (lookup, value is not null && _lookups.IsPersonal<T>(lookup)
+                ? await store.BlindIndex(tenant, lookup, value, create: true, cancellationToken).ConfigureAwait(false)
+                : value);
+        }
+        return hashed;
+    }
+
     // Defensive: the guarded statements avoid these, but a constraint is the last word.
     private async Task<Result<GlobalPosition>> UniqueViolation(PostgresException e, long expected, Option<IdempotencyKey> key, Guid tenant, string type, Guid id,
         CancellationToken cancellationToken)
@@ -399,12 +524,314 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
         await using var command = _db.CreateCommand(_sql.ReadAll);
         Add(command, after.Transaction.ToString(CultureInfo.InvariantCulture), after.Position, limit);
+        var rows = new List<RecordedEvents.Raw>(Math.Min(limit, 1024));
         var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await using (reader.ConfigureAwait(false))
         {
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-                yield return RecordedEvents.Read(reader, 0, _codec);
+                rows.Add(RecordedEvents.ReadRaw(reader, 0));
         }
+
+        // one key query per tenant of the page, for the keys the cache lacks (data-protection.md §6.3)
+        foreach (var e in await RecordedEvents.Decode(rows, _codec, _keys, cancellationToken).ConfigureAwait(false))
+            yield return e;
+    }
+
+    // ------------------------------------------------------------------------------------------------- data protection
+
+    /// <summary>
+    /// One stream's recorded events, opened with the current keys (an erased subject's fields read as <c>null</c>): what an
+    /// erasure re-folds into a projection (DP-5). Positions are the feed's.
+    /// </summary>
+    /// <param name="stream">The stream.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The events from version 1; empty when the stream does not exist.</returns>
+    public async Task<IReadOnlyList<PositionedEvent>> ReadStream(StreamRef stream, CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(_sql.ReadStream);
+        Add(command, stream.Tenant, stream.StreamType, stream.Id);
+        return await ReadPage(command, _keys, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The streams whose events hold sealed data of a subject (through the GIN index on <c>events.subjects</c>).</summary>
+    /// <param name="tenant">The tenant.</param>
+    /// <param name="subject">The subject.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The streams, ordered by type and id.</returns>
+    public async Task<IReadOnlyList<StreamRef>> StreamsOf(Guid tenant, Guid subject, CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(_sql.StreamsOf);
+        Add(command, tenant, new[] { subject });
+        var streams = new List<StreamRef>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                streams.Add(new StreamRef(tenant, reader.GetString(0), reader.GetGuid(1)));
+        return streams;
+    }
+
+    /// <summary>
+    /// Every event that holds sealed data of a subject, in feed order, opened with <b>that subject's key only</b>: other
+    /// subjects' fields in the same events read as <c>null</c> (an export, DP-6).
+    /// </summary>
+    /// <param name="tenant">The tenant.</param>
+    /// <param name="subject">The subject.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The events.</returns>
+    public async Task<IReadOnlyList<PositionedEvent>> EventsOf(Guid tenant, Guid subject, CancellationToken cancellationToken)
+    {
+        var keys = _keys ?? throw new InvalidOperationException("An export needs a key store: set NpgsqlStoreOptions.Keys.");
+        await using var command = _db.CreateCommand(_sql.EventsOf);
+        Add(command, tenant, new[] { subject });
+        return await ReadPage(command, new OnlySubject(keys, subject), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The current stored state of a stream, opened with that subject's key only (an export); <see langword="null"/> without one.</summary>
+    /// <param name="stream">The stream.</param>
+    /// <param name="subject">The subject whose fields are opened.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The state's JSON.</returns>
+    public async Task<byte[]?> StateOf(StreamRef stream, Guid subject, CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(_sql.LoadState);
+        Add(command, stream.Tenant, stream.StreamType, stream.Id);
+        byte[]? state = null;
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false) && !reader.IsDBNull(1))
+                state = reader.GetFieldValue<byte[]>(1);
+        if (state is null || !EventCodec.IsSealed(state) || _keys is null)
+            return state;
+        var subjects = new List<Guid>();
+        EventCodec.SealedSubjects(state, subjects);
+        var ring = await new OnlySubject(_keys, subject).Keys(stream.Tenant, subjects, create: false, cancellationToken).ConfigureAwait(false);
+        var opened = new ArrayBufferWriter<byte>(state.Length);
+        EventCodec.OpenState(state, ring, opened);
+        return opened.WrittenSpan.ToArray();
+    }
+
+    /// <summary>Deletes the personal lookups (<see cref="StoreLookups.DefinePersonal{T}"/>) of the given streams (an erasure, DP-5).</summary>
+    /// <param name="tenant">The tenant.</param>
+    /// <param name="streams">The streams (of <paramref name="tenant"/>).</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>How many lookup rows were deleted.</returns>
+    public async Task<int> DeletePersonalLookups(Guid tenant, IReadOnlyCollection<StreamRef> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        var deleted = 0;
+        foreach (var group in streams.Where(s => s.Tenant == tenant).GroupBy(static s => s.StreamType))
+        {
+            var personal = _lookups.PersonalOf(group.Key);
+            if (personal.Count == 0)
+                continue;
+            await using var command = _db.CreateCommand(_sql.DeleteLookups);
+            Add(command, tenant, group.Key, personal.ToArray(), group.Select(static s => s.Id).ToArray());
+            deleted += await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        return deleted;
+    }
+
+    /// <summary>
+    /// Deletes whole streams of a type whose last commit is older than <paramref name="olderThan"/>: events, state and
+    /// lookups, at most <paramref name="batch"/> per call, skipping streams with pending outbox rows (DP-7, the retention).
+    /// </summary>
+    /// <param name="streamType">The stream type.</param>
+    /// <param name="olderThan">The cut-off (now − the retention).</param>
+    /// <param name="batch">The most streams per statement (500 in <c>tarol.retention</c>).</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The deleted streams; call again while it returns <paramref name="batch"/> streams.</returns>
+    public async Task<IReadOnlyList<StreamRef>> DeleteStreams(string streamType, DateTimeOffset olderThan, int batch, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(streamType);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batch);
+        await using var command = _db.CreateCommand(_sql.DeleteStreams);
+        Add(command, streamType, olderThan, batch);
+        var deleted = new List<StreamRef>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                deleted.Add(new StreamRef(reader.GetGuid(0), streamType, reader.GetGuid(1)));
+        return deleted;
+    }
+
+    /// <summary>
+    /// Seals the personal fields of <typeparamref name="T"/>'s events and states written before they were marked (or
+    /// before the store had keys): the one physical rewrite of <c>events</c> Tarol does, never automatic (§14 item 1).
+    /// Pages of <paramref name="batch"/> events, one transaction each, in position order; a field of an already erased
+    /// subject becomes <c>null</c>. Safe to rerun and to run while writers commit.
+    /// </summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <param name="batch">Events per transaction (e.g. 500).</param>
+    /// <param name="cancellationToken">Cancels the rewrite between pages.</param>
+    /// <returns>How many events and states were rewritten.</returns>
+    /// <exception cref="InvalidOperationException">The store has no key store.</exception>
+    public async Task<(long Events, long States)> SealHistory<T>(int batch, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batch);
+        var keys = _keys ?? throw new InvalidOperationException("Sealing the history needs a key store: set NpgsqlStoreOptions.Keys.");
+        var type = _codec.StreamTypeOf<T>();
+        var personal = EventCodec.PersonalEventTypes<T>();
+        long events = 0, states = 0;
+        if (personal.Count > 0)
+        {
+            var aliases = personal.Select(static t => t.Alias).Distinct().ToArray();
+            // keyset over the primary key (tenant, type, stream_id, version): events has no index on position
+            var (lastTenant, lastStream, lastVersion) = (Guid.Empty, Guid.Empty, 0L);
+            while (true)
+            {
+                var page = new List<(Guid Tenant, Guid Stream, long Version, EventType Type, byte[] Payload)>();
+                await using (var select = _db.CreateCommand(_sql.UnsealedEvents))
+                {
+                    Add(select, type, lastTenant, lastStream, lastVersion, aliases, batch);
+                    var reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                    await using (reader.ConfigureAwait(false))
+                        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                            page.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetInt64(2), new EventType(reader.GetString(3), reader.GetInt32(4)), reader.GetFieldValue<byte[]>(5)));
+                }
+                if (page.Count == 0)
+                    break;
+                (lastTenant, lastStream, lastVersion, _, _) = page[^1];
+                var tenants = new List<Guid>();
+                var streamIds = new List<Guid>();
+                var versions = new List<long>();
+                var payloads = new List<string>();
+                var subjects = new List<string?>();
+                var buffer = new ArrayBufferWriter<byte>(512);
+                foreach (var group in page.Where(static r => !EventCodec.IsSealed(r.Payload)).GroupBy(static r => r.Tenant))
+                {
+                    var perEvent = group.Select(r =>
+                    {
+                        var list = new List<Guid>();
+                        _codec.SubjectsOf<T>(r.Type, r.Payload, r.Stream, list);
+                        return (Row: r, Subjects: list);
+                    }).Where(static x => x.Subjects.Count > 0).ToArray();
+                    if (perEvent.Length == 0)
+                        continue;
+                    var ring = await keys.Keys(group.Key, [.. perEvent.SelectMany(static x => x.Subjects).Distinct()], create: true, cancellationToken).ConfigureAwait(false);
+                    foreach (var (row, list) in perEvent)
+                    {
+                        buffer.ResetWrittenCount();
+                        _codec.SealStored<T>(row.Type, row.Payload, row.Stream, ring, buffer);
+                        tenants.Add(row.Tenant);
+                        streamIds.Add(row.Stream);
+                        versions.Add(row.Version);
+                        payloads.Add(Encoding.UTF8.GetString(buffer.WrittenSpan));
+                        subjects.Add("{" + string.Join(",", list.Distinct()) + "}");
+                    }
+                }
+                if (versions.Count > 0)
+                {
+                    await using var update = _db.CreateCommand(_sql.SealEvents);
+                    Add(update, type, tenants.ToArray(), streamIds.ToArray(), versions.ToArray(), Jsonb(payloads.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text), Jsonb(subjects.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text));
+                    events += await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        if (T.StateSchema != 0 && _codec.HasPersonalData<T>())
+        {
+            var (lastTenant, lastId) = (Guid.Empty, Guid.Empty);
+            while (true)
+            {
+                var page = new List<(Guid Tenant, Guid Id, long Version, byte[] State)>();
+                await using (var select = _db.CreateCommand(_sql.UnsealedStates))
+                {
+                    Add(select, type, lastTenant, lastId, batch);
+                    var reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                    await using (reader.ConfigureAwait(false))
+                        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                            page.Add((reader.GetGuid(0), reader.GetGuid(1), reader.GetInt64(2), reader.GetFieldValue<byte[]>(3)));
+                }
+                if (page.Count == 0)
+                    break;
+                (lastTenant, lastId, _, _) = page[^1];
+                var tenants = new List<Guid>();
+                var ids = new List<Guid>();
+                var versions = new List<long>();
+                var sealedStates = new List<string>();
+                var subjects = new List<string>();
+                foreach (var (tenant, id, version, state) in page)
+                {
+                    if (EventCodec.IsSealed(state))
+                        continue;
+                    var list = new List<Guid>();
+                    _codec.StateSubjectsOf<T>(state, id, list);
+                    if (list.Count == 0)
+                        continue;
+                    var ring = await keys.Keys(tenant, list, create: true, cancellationToken).ConfigureAwait(false);
+                    var buffer = new ArrayBufferWriter<byte>(state.Length * 2);
+                    if (!SealStoredState<T>(state, id, ring, buffer))
+                        continue;
+                    tenants.Add(tenant);
+                    ids.Add(id);
+                    versions.Add(version);
+                    sealedStates.Add(Encoding.UTF8.GetString(buffer.WrittenSpan));
+                    subjects.Add("{" + string.Join(",", list.Distinct()) + "}");
+                }
+
+                if (ids.Count > 0)
+                {
+                    await using var update = _db.CreateCommand(_sql.SealStates);
+                    Add(update, type, tenants.ToArray(), ids.ToArray(), versions.ToArray(),
+                        Jsonb(sealedStates.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text), Jsonb(subjects.ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text));
+                    states += await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        return (events, states);
+    }
+
+    // a state whose subject is erased has nothing to keep: its personal members become null, as the events' do
+    private bool SealStoredState<T>(byte[] state, Guid id, KeyRing ring, ArrayBufferWriter<byte> output)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        try
+        {
+            return _codec.SealState<T>(state, id, ring, output);
+        }
+        catch (SubjectErasedException)
+        {
+            return false; // replayed on the next load (the events read null), rewritten by the next commit
+        }
+    }
+
+    private async Task<IReadOnlyList<PositionedEvent>> ReadPage(NpgsqlCommand command, IKeyStore? keys, CancellationToken cancellationToken)
+    {
+        var rows = new List<RecordedEvents.Raw>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                rows.Add(RecordedEvents.ReadRaw(reader, 0));
+        return await RecordedEvents.Decode(rows, _codec, keys, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>A key store that hands out only one subject's key; every other subject reads as erased (exports).</summary>
+    private sealed class OnlySubject(IKeyStore inner, Guid subject) : IKeyStore
+    {
+        public event EventHandler<KeyErasedEventArgs>? Erased
+        {
+            add => inner.Erased += value;
+            remove => inner.Erased -= value;
+        }
+
+        public async ValueTask<KeyRing> Keys(Guid tenant, IReadOnlyCollection<Guid> subjects, bool create, CancellationToken cancellationToken)
+        {
+            var found = await inner.Keys(tenant, subjects.Contains(subject) ? [subject] : [], create: false, cancellationToken).ConfigureAwait(false);
+            var ring = new KeyRing(tenant);
+            foreach (var s in subjects)
+                ring.Add(s == subject && found.TryGet(s, out var key) ? key : SubjectKey.Erased(tenant, s));
+            return ring;
+        }
+
+        public ValueTask<bool> EraseSubject(Guid tenant, Guid subject, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<bool> EraseTenant(Guid tenant, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<string?> BlindIndex(Guid tenant, string lookup, string value, bool create, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<int> Rewrap(CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     // ------------------------------------------------------------------------------------------------------ maintenance
@@ -445,13 +872,32 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                 {
                     var history = await ReadStream(connection, tenant, type, id, cancellationToken).ConfigureAwait(false);
                     var aggregate = Replay((Id<T>)id, history);
+                    var (rewritten, subjects) = await SealedState(aggregate, tenant, cancellationToken).ConfigureAwait(false);
                     await using var update = new NpgsqlCommand(_sql.RewriteState, connection);
-                    Add(update, tenant, type, id, T.StateSchema, Jsonb(Encoding.UTF8.GetString(AggregateState.Write(aggregate, _stateOptions)), NpgsqlDbType.Jsonb), version);
+                    Add(update, tenant, type, id, T.StateSchema, Jsonb(Encoding.UTF8.GetString(rewritten), NpgsqlDbType.Jsonb), version);
+                    if (_keys is not null)
+                        update.Parameters.Add(Jsonb(subjects, NpgsqlDbType.Array | NpgsqlDbType.Uuid));
                     rebuilt += await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 }
                 (lastTenant, lastId, _) = stale[^1];
             }
         }
+    }
+
+    /// <summary>An aggregate's state as it is stored: sealed when it holds personal data and the store has keys.</summary>
+    private async Task<(byte[] State, Guid[]? Subjects)> SealedState<T>(T aggregate, Guid tenant, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        var state = AggregateState.Write(aggregate, _stateOptions);
+        if (_keys is null || !_codec.HasPersonalData<T>())
+            return (state, null);
+        var subjects = new List<Guid>();
+        _codec.StateSubjectsOf<T>(state, aggregate.Id.Value, subjects);
+        if (subjects.Count == 0)
+            return (state, null);
+        var ring = await _keys.Keys(tenant, subjects, create: false, cancellationToken).ConfigureAwait(false);
+        var sealedState = new ArrayBufferWriter<byte>(state.Length * 2);
+        return _codec.SealState<T>(state, aggregate.Id.Value, ring, sealedState) ? (sealedState.WrittenSpan.ToArray(), [.. subjects]) : (state, null);
     }
 
     /// <summary>Deletes idempotency keys stored before <paramref name="olderThan"/>, at most <paramref name="batch"/> per call (P-11).</summary>
@@ -523,29 +969,31 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     }
 
     /// <summary>Every statement, built once per schema name.</summary>
-    private sealed class Sql(string schema)
+    /// <remarks>Only a sealing store writes the <c>subjects</c> columns (version 3): a store without keys runs, as before, on older schemas.</remarks>
+    private sealed class Sql(string schema, bool sealing)
     {
         public string Schema => schema;
 
+        // $22: per event, its sealed subjects as a uuid[] literal (NULL when nothing of it is sealed); $23: the state's
         private string Events => $"""
             INSERT INTO {schema}.events (tenant, type, stream_id, version, event_id, alias, alias_version, entity_id, parent_id, payload,
-                                         recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, traceparent)
-            SELECT $1, $2, $3, v, e, a, av, en, NULLIF(p, '00000000-0000-0000-0000-000000000000'::uuid), pl, $4, $5, $6, $7, $8, $9, $10
-            FROM unnest($11::bigint[], $12::uuid[], $13::text[], $14::int[], $15::uuid[], $16::uuid[], $17::jsonb[]) AS u(v, e, a, av, en, p, pl)
+                                         recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, traceparent{(sealing ? ", subjects" : "")})
+            SELECT $1, $2, $3, v, e, a, av, en, NULLIF(p, '00000000-0000-0000-0000-000000000000'::uuid), pl, $4, $5, $6, $7, $8, $9, $10{(sealing ? ", sj::uuid[]" : "")}
+            FROM unnest($11::bigint[], $12::uuid[], $13::text[], $14::int[], $15::uuid[], $16::uuid[], $17::jsonb[]{(sealing ? ", $22::text[]" : "")}) AS u(v, e, a, av, en, p, pl{(sealing ? ", sj" : "")})
             WHERE EXISTS (SELECT 1 FROM g)
             """;
 
         private string Ours(string eventId) => $"EXISTS (SELECT 1 FROM {schema}.events WHERE event_id = {eventId})";
 
         public string CreateStream => $"""
-            WITH g AS (INSERT INTO {schema}.streams (tenant, type, id, version, schema, state, updated_at)
-                       VALUES ($1, $2, $3, $18, $19, $20, $4) ON CONFLICT (tenant, type, id) DO NOTHING
+            WITH g AS (INSERT INTO {schema}.streams (tenant, type, id, version, schema, state, updated_at{(sealing ? ", subjects" : "")})
+                       VALUES ($1, $2, $3, $18, $19, $20, $4{(sealing ? ", $23::uuid[]" : "")}) ON CONFLICT (tenant, type, id) DO NOTHING
                        RETURNING 1)
             {Events} AND $21::bigint = 0
             """;
 
         public string AppendStream => $"""
-            WITH g AS (UPDATE {schema}.streams SET version = $18, schema = $19, state = $20, updated_at = $4
+            WITH g AS (UPDATE {schema}.streams SET version = $18, schema = $19, state = $20, updated_at = $4{(sealing ? ", subjects = $23::uuid[]" : "")}
                        WHERE tenant = $1 AND type = $2 AND id = $3 AND version = $21
                        RETURNING 1)
             {Events}
@@ -625,9 +1073,68 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             """;
 
         public string RewriteState => $"""
-            UPDATE {schema}.streams SET schema = $4, state = $5
+            UPDATE {schema}.streams SET schema = $4, state = $5{(sealing ? ", subjects = $7::uuid[]" : "")}
             WHERE tenant = $1 AND type = $2 AND id = $3 AND version = $6
             """;
+
+        public string ReadStream => $"""
+            SELECT {RecordedEvents.Columns("events")} FROM {schema}.events
+            WHERE tenant = $1 AND type = $2 AND stream_id = $3 ORDER BY version
+            """;
+
+        public string StreamsOf => $"""
+            SELECT DISTINCT type, stream_id FROM {schema}.events WHERE tenant = $1 AND subjects @> $2::uuid[] ORDER BY type, stream_id
+            """;
+
+        public string EventsOf => $"""
+            SELECT {RecordedEvents.Columns("events")} FROM {schema}.events
+            WHERE tenant = $1 AND subjects @> $2::uuid[] ORDER BY events.tx_id, events.position
+            """;
+
+        public string DeleteLookups => $"""
+            DELETE FROM {schema}.lookups WHERE tenant = $1 AND type = $2 AND lookup = ANY($3::text[]) AND stream_id = ANY($4::uuid[])
+            """;
+
+        // the oldest expired streams without pending reactions, locked (a racing commit waits, then finds no stream row);
+        // their events, lookups and the stream rows go in one statement
+        public string DeleteStreams => $"""
+            WITH d AS (SELECT s.tenant, s.id FROM {schema}.streams s
+                       WHERE s.type = $1 AND s.updated_at < $2
+                         AND NOT EXISTS (SELECT 1 FROM {schema}.outbox o WHERE o.tenant = s.tenant AND o.type = s.type AND o.stream_id = s.id)
+                       ORDER BY s.updated_at LIMIT $3
+                       FOR UPDATE SKIP LOCKED),
+                 e AS (DELETE FROM {schema}.events x USING d WHERE x.tenant = d.tenant AND x.type = $1 AND x.stream_id = d.id),
+                 l AS (DELETE FROM {schema}.lookups x USING d WHERE x.tenant = d.tenant AND x.type = $1 AND x.stream_id = d.id)
+            DELETE FROM {schema}.streams x USING d WHERE x.tenant = d.tenant AND x.type = $1 AND x.id = d.id
+            RETURNING x.tenant, x.id
+            """;
+
+        public string UnsealedEvents => $"""
+            SELECT tenant, stream_id, version, alias, alias_version, payload FROM {schema}.events
+            WHERE (tenant, type, stream_id, version) > ($2, $1, $3, $4) AND type = $1 AND subjects IS NULL AND alias = ANY($5::text[])
+            ORDER BY tenant, type, stream_id, version LIMIT $6
+            """;
+
+        public string SealEvents => $"""
+            UPDATE {schema}.events e SET payload = u.p::jsonb, subjects = u.sj::uuid[]
+            FROM unnest($2::uuid[], $3::uuid[], $4::bigint[], $5::text[], $6::text[]) AS u(t, s, v, p, sj)
+            WHERE e.tenant = u.t AND e.type = $1 AND e.stream_id = u.s AND e.version = u.v AND e.subjects IS NULL
+            """;
+
+        public string UnsealedStates => $"""
+            SELECT tenant, id, version, state FROM {schema}.streams
+            WHERE (tenant, type, id) > ($2, $1, $3) AND type = $1 AND subjects IS NULL AND state IS NOT NULL
+            ORDER BY tenant, type, id LIMIT $4
+            """;
+
+        // a commit that moved the stream meanwhile wrote a sealed state itself: skipped by the version guard
+        public string SealStates => $"""
+            UPDATE {schema}.streams x SET state = u.st::jsonb, subjects = u.sj::uuid[]
+            FROM unnest($2::uuid[], $3::uuid[], $4::bigint[], $5::text[], $6::text[]) AS u(t, i, v, st, sj)
+            WHERE x.tenant = u.t AND x.type = $1 AND x.id = u.i AND x.version = u.v AND x.subjects IS NULL
+            """;
+
+        public string RaiseCompatibility => $"UPDATE {schema}.schema_version SET compatible_from = greatest(compatible_from, $1)";
 
         public string PurgeKeys => $"""
             DELETE FROM {schema}.idempotency_keys k USING (

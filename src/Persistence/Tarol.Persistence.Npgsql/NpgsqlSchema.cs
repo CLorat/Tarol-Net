@@ -10,7 +10,13 @@ namespace Tarol.Persistence.Npgsql;
 public static partial class NpgsqlSchema
 {
     /// <summary>The version this package knows; stored in <c>&lt;schema&gt;.schema_version</c> with <c>compatible_from</c>.</summary>
-    public const int Version = 2;
+    public const int Version = 3;
+
+    /// <summary>
+    /// The version a store that seals personal data requires (step 16): <c>EnsureSchema</c> with a key store raises the
+    /// schema's <c>compatible_from</c> to it, so code from before sealing refuses the schema instead of reading envelopes.
+    /// </summary>
+    public const int SealingVersion = 3;
 
     /// <summary>The default schema name.</summary>
     public const string DefaultSchema = "tarol";
@@ -154,7 +160,9 @@ public static partial class NpgsqlSchema
     /// <summary>
     /// The steps after version 1, additive only (no volatile defaults, no plain <c>CREATE INDEX</c>, no drops or renames within a
     /// major version). Version 2: <c>operations_audit</c>, and the <c>dead_at</c> indexes of <c>outbox_dead</c> and
-    /// <c>jobs_dead</c> built concurrently (the retention of step 15).
+    /// <c>jobs_dead</c> built concurrently (the retention of step 15). Version 3 (compatible from 1; a sealing store raises it to 3): <c>tenant_keys</c>,
+    /// <c>subject_keys</c>, the nullable <c>subjects</c> columns of <c>events</c> and <c>streams</c>, and the GIN index
+    /// <c>events_subjects</c> built concurrently (data protection, step 16).
     /// </summary>
     /// <param name="schema">The PostgreSQL schema name.</param>
     /// <returns>The steps, in order.</returns>
@@ -168,6 +176,29 @@ public static partial class NpgsqlSchema
             new(2, 1, AuditScript(s)),
             new(2, 1, $"CREATE INDEX CONCURRENTLY IF NOT EXISTS outbox_dead_at ON {s}.outbox_dead (dead_at)", Concurrently: true, Index: "outbox_dead_at"),
             new(2, 1, $"CREATE INDEX CONCURRENTLY IF NOT EXISTS jobs_dead_at ON {s}.jobs_dead (dead_at)", Concurrently: true, Index: "jobs_dead_at"),
+            // version 3 (step 16, DP-1): the key tables and the subjects of every sealed row; additive, so older code still runs on it
+            // until a store that seals raises compatible_from to SealingVersion
+            new(3, 1, $"""
+                CREATE TABLE IF NOT EXISTS {s}.tenant_keys (
+                    tenant      uuid        PRIMARY KEY,
+                    key_id      text        NULL,          -- the master key it is wrapped under; NULL once erased
+                    wrapped     bytea       NULL,          -- NULL = erased (offboarded): no data key of the tenant opens
+                    created_at  timestamptz NOT NULL,
+                    erased_at   timestamptz NULL)
+                """),
+            new(3, 1, $"""
+                CREATE TABLE IF NOT EXISTS {s}.subject_keys (
+                    tenant      uuid        NOT NULL,
+                    subject     uuid        NOT NULL,
+                    version     integer     NOT NULL,
+                    wrapped     bytea       NULL,          -- NULL = the tombstone of an erased subject
+                    created_at  timestamptz NOT NULL,
+                    erased_at   timestamptz NULL,
+                    PRIMARY KEY (tenant, subject))
+                """),
+            new(3, 1, $"ALTER TABLE {s}.events ADD COLUMN IF NOT EXISTS subjects uuid[] NULL"),
+            new(3, 1, $"ALTER TABLE {s}.streams ADD COLUMN IF NOT EXISTS subjects uuid[] NULL"),
+            new(3, 1, $"CREATE INDEX CONCURRENTLY IF NOT EXISTS events_subjects ON {s}.events USING gin (subjects)", Concurrently: true, Index: "events_subjects"),
         ];
     }
 

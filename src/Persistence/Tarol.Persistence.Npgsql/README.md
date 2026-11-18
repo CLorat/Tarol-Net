@@ -96,6 +96,15 @@ Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for yo
 * Dead letters: paged queries, `Discard`, and the audited `IDeadLetterSource` acts (`operations_audit` in the same
   statement as the re-drive or discard).
 
+## Personal data (step 16)
+
+Schema version 3 adds `tenant_keys`, `subject_keys`, nullable `subjects` columns and a GIN index (built concurrently).
+`NpgsqlKeyStore` caches unwrapped keys per process. An erasure writes the tombstone and a `NOTIFY` in one statement, and
+every process evicts the key. With `NpgsqlStoreOptions.Keys`, `[PersonalData]` is sealed on `Append` and opened on every
+read, personal lookups keep blind indexes, and `EnsureSchema` raises `compatible_from` to 3. `SealHistory<T>` seals
+plaintext written before. `StreamsOf`, `EventsOf`, `StateOf`, `DeletePersonalLookups` and `DeleteStreams` serve
+`Tarol.DataProtection`. Logs 8006–8008 (Debug).
+
 ## AOT
 
 No reflection: SQL is plain text, JSON goes through your source-generated context and the generated state code. Use

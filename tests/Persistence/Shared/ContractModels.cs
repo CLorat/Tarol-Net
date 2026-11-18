@@ -43,12 +43,12 @@ public partial class Member : AggregateRoot<Member>
     public string? LeftFor { get; private set; }
 }
 
-/// <summary>A child of <see cref="Member"/>.</summary>
+/// <summary>A child of <see cref="Member"/>; its name is personal data, so a store with keys seals the member (step 16).</summary>
 public partial class Badge : Entity<Member, Badge>
 {
-    public string Name { get; private set; } = "";
+    [PersonalData] public string? Name { get; private set; }
 
-    public sealed record Awarded(string Name) : Created;
+    public sealed record Awarded([property: PersonalData] string? Name) : Created;
 
     private void On(Awarded e) => Name = e.Name;
 }

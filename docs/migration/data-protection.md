@@ -551,7 +551,7 @@ Docs and probes only; the package code is `main` at `eabacb5` (step 15 done).
 
 ## 14. Open items
 
-1. **Rolling deploy into sealing; existing plaintext** (16B; §5 item 7). Recommended: the version 3 steps keep `compatible_from` 2
+1. **Rolling deploy into sealing; existing plaintext**: **decided, DP-10 (§16.3)**. As recommended (16B; §5 item 7), except that the version 3 steps are compatible from 1, not 2 (§16.2 item 4). The recommendation read: the version 3 steps keep `compatible_from` 2
    (old code runs on the new schema). A store that seals raises `compatible_from` to 3 on its first `EnsureSchema` with sealing
    on, so pre-16B pods refuse instead of showing envelopes as values. Existing plaintext fields are sealed by an explicit
    `SealHistory<T>()` (batched, like `RebuildStates`), the one physical rewrite of `events` Tarol does; it is never automatic.
@@ -723,3 +723,146 @@ answered 429):
   (the Primitives and Persistence apps with the new checks);
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK (the updated skills are in the packages);
 * `DataProtectionCodecTests.One_Subject_Key_Serves_Four_Threads` alone in Release: 25 of 25.
+
+## 16. Implementation 16B: key tables, `subjects` columns, a sealed store (schema version 3)
+
+PR 16B builds §6.3 on top of 16A.
+
+### 16.1 Public API
+
+`Tarol.Persistence.Npgsql`:
+* `NpgsqlSchema.Version = 3`, `NpgsqlSchema.SealingVersion = 3`. The version 3 steps are `tenant_keys`, `subject_keys`,
+  `events.subjects` and `streams.subjects` (`uuid[] NULL`), and the GIN index `events_subjects`, built `CONCURRENTLY`
+  with the upgrader's invalid-index cleanup and `lock_timeout` (O-4).
+* `NpgsqlKeyStore : IKeyStore, IAsyncDisposable` and `NpgsqlKeyStoreOptions` (`Schema`, `MaxCachedKeys` = 100,000,
+  `IdleTime` = 1 h). It also has `StartListening`, `Channel` (`<schema>_erased`), `ClearCache`, `CachedKeys` and
+  `KeyQueries`. Logs 8006–8008 (Debug).
+* `NpgsqlStoreOptions.Keys`. With it the store:
+  * seals on `Append` and opens on `Load`, `ReadAll`, the outbox claim, `RebuildStates` and `ReadStream`;
+  * stores blind indexes for personal lookups;
+  * raises `compatible_from` to 3 on `EnsureSchema`.
+* `NpgsqlAggregateStore` gains:
+  * `ReadStream(StreamRef)`, `StreamsOf(tenant, subject)`;
+  * `EventsOf(tenant, subject)` and `StateOf(stream, subject)`, opened with that subject's key only;
+  * `DeletePersonalLookups(tenant, streams)`, `DeleteStreams(type, olderThan, batch)`;
+  * `SealHistory<T>(batch)`.
+* `NpgsqlTarolBuilderExtensions.UseNpgsqlKeyStore`. `UseNpgsqlStore` takes the container's `IKeyStore` when the options
+  set none.
+
+`Tarol.Persistence` (16A's package, needed here):
+* `EventCodec.SealStored<T>`: a history rewrite, in which an erased subject's field becomes `null`;
+* `EventCodec.PersonalEventTypes<T>`;
+* `StoreLookups.PersonalOf(streamType)`.
+
+### 16.2 Deliberate differences from §6.3 and §11
+
+1. **New subject keys are created just before the commit, not in its batch.** `IKeyStore.Keys(create: true)` inserts them
+   with `ON CONFLICT DO NOTHING` and reads them back. A key needs the tenant key to be wrapped and the ring needs it to
+   seal, so it must exist before the payload is sealed. In the batch, a concurrent creation of the same subject would
+   seal under a key that lost the race. A failed commit leaves an unused key (harmless, §2.1). A cached subject costs
+   nothing; a new one costs one round trip more.
+2. **The subjects of a sealed payload are read from its envelopes** (`EventCodec.SealedSubjects`, about 0.2 µs per event,
+   §4.2) rather than from the `subjects` column. The column is what the subject queries and the GIN index use.
+3. **Only a store with keys writes the `subjects` columns.** A store without keys runs the SQL of version 2. It keeps
+   working on a schema that is not upgraded yet (the existing test "a populated version 1 database is upgraded while
+   writers commit" commits before `EnsureSchema`), and it stores rows exactly as before.
+4. **The version 3 steps are compatible from 1, not 2** (§14 item 1 said "keep `compatible_from` 2"). The steps are
+   additive, and code of version 1 and 2 never touches the new tables or columns, so it runs on a version 3 schema that
+   does not seal. A sealing store raises it to 3. The owner confirmed this (DP-10, §16.3).
+5. **`ReadStream` returns `PositionedEvent`s** (with the `RecordedEvent`'s context and position) instead of
+   `StreamEvent`s, so a projection re-fold (16C) can call its `When(event, recorded)` methods.
+6. **`DeleteStreams` uses `streams.updated_at`** (the last commit's time) for "older than", and locks the expired stream
+   rows `FOR UPDATE SKIP LOCKED`: a racing commit waits, then finds no stream row and reports a version conflict.
+
+### 16.3 Owner's answers (2026-11-18)
+
+Asked with the measurement §14 item 1 required **[verified]** ([`SealHistoryBench.cs.txt`](probes/data-protection/SealHistoryBench.cs.txt),
+[`sealhistory-output.txt`](probes/data-protection/sealhistory-output.txt); 4 cores, PostgreSQL 17 in Docker on the same host,
+JIT Release). The setup: 250,000 customers with 4 plaintext events each (1,000,000 events, 250,000 states), then
+`SealHistory<T>(500)` while 4 writers committed new sealed customers.
+
+| | value |
+|---|---|
+| `SealHistory`: 1,000,004 events + 250,001 states | **264 s** (3,787 events/s), 0 left unsealed |
+| writers alone (20 s, 16,795 commits) | p50 4.43 ms, p99 10.3 ms, max 67 ms |
+| writers during `SealHistory` (190,047 commits) | p50 4.92 ms, p99 13.3 ms, **max 353 ms** |
+| events table afterwards (1,206,846 rows) | 789 MB |
+
+The first run of the benchmark found two faults, both fixed before the recorded run:
+* the key cache's bound crashed under concurrent writers (§16.4);
+* `SealHistory` paged and updated by `position`, which has no index, so every page scanned the table: about 770
+  events/s at 780,000 events, and slower as the writers grew the table. It now pages by the primary key and writes one
+  update per page.
+
+| # | Question (with the numbers it was asked with) | Answer |
+|---|---|---|
+| DP-10 | §14 item 1: the rolling deploy into sealing, and existing plaintext (the table above; the version 3 steps are additive, so 16B makes them compatible from 1 where the design said 2) | **Raise on seal + explicit** (recommended): the version 3 steps are compatible from 1, so code of version 1 and 2 keeps running on a schema that does not seal; a store with keys raises `compatible_from` to 3 on its first `EnsureSchema`, so pods from before 16B refuse instead of showing envelopes as values; existing plaintext is sealed only by an explicit, batched `SealHistory<T>()`, never automatically. |
+
+### 16.4 Changes against steps 7–15 and 16A
+
+* Schema version 3. Every integration test that pinned version 2 now reads `NpgsqlSchema.Version`.
+* The outbox claim decodes the claimed page with keys: reactions see the events opened, as a load does.
+* `RecordedEvents` reads raw rows and decodes a page with one key call per tenant.
+* The shared contract model `Badge.Name` is `[PersonalData] string?`. `Member` is therefore a sealed aggregate wherever a
+  store has keys, and an unmarked one elsewhere.
+* `SealHistory` pages and updates by the primary key (§16.3: the first version, by `position`, scanned the table on every page).
+* A bug that measurement found: the key cache's bound evicted by ordering the live `ConcurrentDictionary` while other
+  threads added keys, which throws. It now orders a snapshot. A regression test with a bound of 50 and four writers
+  passes; the race is timing-dependent, and the test has not been shown to fail on the old code.
+
+### 16.5 Tests
+
+`Tarol.Persistence.Npgsql.IntegrationTests` (+19 data-protection tests and +34 sealed contract tests, 157 → 210);
+`Tarol.Persistence.Tests` (+22, the in-memory sealed store contract). The data-protection tests:
+* the probe's scenarios on the real store:
+  * no plaintext in `payload` or `state`, plain fields queryable, `subjects` recorded;
+  * another process opens every field, and an order opens with the customer's key;
+  * a cached key costs no key query;
+  * a relabelled envelope throws;
+  * opening runs before upcasting;
+  * the `NOTIFY` evicts the key in another process, bounded by the notification;
+  * after erasure the customer loads with personal fields `null`, the order keeps its total, other subjects are intact,
+    and the tombstone holds no key;
+  * new personal data is refused on the subject's own stream and on an order, while a non-personal commit is accepted;
+  * the subject's streams and events are found and opened with its key only;
+  * the blind index of a personal lookup: `Find`, uniqueness, deletion, other tenants;
+  * a tenant erasure;
+* one key query for a feed page of 50 subjects;
+* `DeleteStreams` removes expired streams with their events and lookups, and skips a stream with a pending reaction;
+* an unmarked aggregate is stored byte-identically by a sealing and a plain store (`payload` and `subjects` NULL);
+* the rolling-deploy rule: version 2 code runs on a plain version 3 schema and refuses one a sealing store raised;
+* a version 2 database upgraded to 3 while four "version 2 writers" insert: no error, the GIN index valid;
+* `SealHistory` seals events and states written by a plain store, a rerun finds nothing, and erasure then reaches them;
+* four writers seal concurrently;
+* the key cache stays bounded under four writers.
+
+Contract runs with sealed aggregates: `SealedStoreContractTests` and `SealedOutboxContractTests` (PostgreSQL) and
+`InMemorySealedStoreContractTests`. The unsealed runs are unchanged.
+
+`Tarol.Persistence.Npgsql.AotSmoke`: a sealing store raises `compatible_from`, stores no plaintext, opens, erases, and
+reads the erased field as `null`, natively (0 IL warnings).
+
+### 16.6 Skill checklist (`tarol-persistence-npgsql`, updated)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| seal personal data in PostgreSQL | `NpgsqlKeyStore` + `NpgsqlStoreOptions.Keys` (or `UseNpgsqlKeyStore()` with an `IKeyEncryptionKey`) | a key store on another schema; encrypting in the app |
+| marked a member of an existing aggregate | `SealHistory<T>(500, ct)` once | expecting old events to be sealed by themselves |
+| erase by hand in SQL | none: `IDataSubjects.EraseSubject` | `UPDATE subject_keys SET wrapped = NULL` (no `NOTIFY`, no forgetting, no audit) |
+| a rolling deploy into sealing | deploy, then let a sealing pod run `EnsureSchema` (old pods then refuse) | turning keys on while pods from before 16B still serve |
+
+### 16.7 Suppressions
+
+None.
+
+### 16.8 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4 from `mirror.gcr.io`):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean. The first run found whitespace in `DataProtectionTests.cs`, fixed;
+* `dotnet test --solution Tarol.slnx`: **1843 of 1843** (16A's 1768 + 75). The first full run had 1809: the two sealed
+  PostgreSQL contract classes had not landed in their file. They were added, the 34 tests passed, and the suite was rerun;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **23 apps, 0 IL warnings**, all checks passed (the
+  Npgsql app with a sealing store), run at `11920d9` (no package code changed afterwards);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the `SealHistory` measurement: §16.3.

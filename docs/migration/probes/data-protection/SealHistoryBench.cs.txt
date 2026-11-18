@@ -1,0 +1,108 @@
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Npgsql;
+using Tarol.Kernel;
+using Tarol.Options;
+using Tarol.Persistence;
+using Tarol.Persistence.Npgsql;
+using Tarol.Primitives;
+using Tarol.StronglyTypedId;
+
+var cs = Environment.GetEnvironmentVariable("TAROL_PG") ?? "Host=localhost;Port=5432;Username=postgres;Password=smoke";
+var streams = int.Parse(args.Length > 0 ? args[0] : "250000");
+var db = new NpgsqlSlimDataSourceBuilder(cs + ";Maximum Pool Size=50").EnableArrays().Build();
+var codec = new EventCodec(new JsonSerializerOptions(BenchJson.Default.Options)).Add<Patron>();
+const string schema = "seal_bench";
+async Task Exec(string sql) { await using var c = db.CreateCommand(sql); c.CommandTimeout = 0; await c.ExecuteNonQueryAsync(); }
+await Exec($"DROP SCHEMA IF EXISTS {schema} CASCADE");
+var plain = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = schema });
+await plain.EnsureSchema(default);
+var tenant = Guid.CreateVersion7();
+var ctx = OperationContext.Start(Actor.User("bench"), (Id<ITenant>)tenant, TimeProvider.System);
+// one real patron with four events gives the shapes; the rest are copies with their own ids and values
+var proto = Patron.Register(Id<Patron>.New(), "Proto Name", "proto@example.org", "1 Proto Street", "Berlin");
+proto.ChangeEmail("p2@example.org"); proto.ChangeEmail("p3@example.org"); proto.ChangeEmail("p4@example.org");
+(await plain.Append(proto, 0, ctx, Option.None, default)).IsSuccess.ToString();
+var sw = Stopwatch.StartNew();
+await Exec($"""
+    INSERT INTO {schema}.streams (tenant, type, id, version, schema, state, updated_at)
+    SELECT s.tenant, s.type, g.id, s.version, s.schema,
+           jsonb_set(jsonb_set(jsonb_set(s.state, ARRAY['id'], to_jsonb(g.id::text)), ARRAY['name'], to_jsonb('Name ' || g.n)), ARRAY['email'], to_jsonb('e' || g.n || '@example.org')),
+           s.updated_at
+    FROM {schema}.streams s, (SELECT gen_random_uuid() AS id, n FROM generate_series(1, {streams}) n) g
+    WHERE s.id = '{proto.Id.Value}';
+    INSERT INTO {schema}.events (tenant, type, stream_id, version, event_id, alias, alias_version, entity_id, parent_id, payload, recorded_at,
+                                 actor_kind, actor_id, on_behalf_of, correlation_id, causation_id)
+    SELECT e.tenant, e.type, s.id, e.version, gen_random_uuid(), e.alias, e.alias_version, s.id, NULL,
+           CASE WHEN e.payload ? 'name' THEN jsonb_set(jsonb_set(e.payload, ARRAY['name'], to_jsonb(s.state->>'name')), ARRAY['email'], to_jsonb(s.state->>'email'))
+                ELSE jsonb_set(e.payload, ARRAY['email'], to_jsonb(e.version || '.' || (s.state->>'email'))) END,
+           e.recorded_at, e.actor_kind, e.actor_id, e.on_behalf_of, e.correlation_id, e.causation_id
+    FROM {schema}.events e JOIN {schema}.streams s ON s.id <> e.stream_id AND s.type = e.type
+    WHERE e.stream_id = '{proto.Id.Value}';
+    ANALYZE {schema}.events; ANALYZE {schema}.streams;
+    """);
+Console.WriteLine($"seeded {streams} streams, {streams * 4} events in {sw.Elapsed.TotalSeconds:0.0} s");
+
+var keys = new NpgsqlKeyStore(db, new ConfiguredKeyEncryptionKey("k", System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)), TimeProvider.System, new() { Schema = schema });
+var sealing = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = schema, Keys = keys });
+await sealing.EnsureSchema(default);
+
+async Task<List<double>> Writers(CancellationToken stop)
+{
+    var all = new List<double>();
+    var tasks = Enumerable.Range(0, 4).Select(w => Task.Run(async () =>
+    {
+        var mine = new List<double>();
+        var i = 0;
+        while (!stop.IsCancellationRequested)
+        {
+            var p = Patron.Register(Id<Patron>.New(), $"W{w} {i}", $"w{w}.{i}@example.org", "x", "y");
+            var t = Stopwatch.GetTimestamp();
+            var r = await sealing.Append(p, 0, ctx, Option.None, default);
+            mine.Add(Stopwatch.GetElapsedTime(t).TotalMilliseconds);
+            if (!r.IsSuccess) throw new InvalidOperationException("commit failed");
+            i++;
+        }
+        return mine;
+    })).ToArray();
+    foreach (var m in await Task.WhenAll(tasks)) all.AddRange(m);
+    all.Sort();
+    return all;
+}
+string Stats(List<double> l) => $"n={l.Count} p50 {l[l.Count / 2]:0.00} ms, p99 {l[(int)(l.Count * 0.99)]:0.00} ms, max {l[^1]:0.0} ms";
+
+using (var quiet = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+    Console.WriteLine($"writers alone (20 s):        {Stats(await Writers(quiet.Token))}");
+
+using var during = new CancellationTokenSource();
+var writing = Writers(during.Token);
+sw.Restart();
+var (events, states) = await sealing.SealHistory<Patron>(500, default);
+var took = sw.Elapsed;
+await during.CancelAsync();
+Console.WriteLine($"SealHistory: {events} events, {states} states in {took.TotalSeconds:0.0} s ({events / took.TotalSeconds:0} events/s)");
+Console.WriteLine($"writers during SealHistory:  {Stats(await writing)}");
+await Exec($"SELECT count(*) FROM {schema}.events WHERE subjects IS NULL");
+await using (var c = db.CreateCommand($"SELECT count(*) FILTER (WHERE subjects IS NULL), count(*) FROM {schema}.events"))
+await using (var r = await c.ExecuteReaderAsync()) { await r.ReadAsync(); Console.WriteLine($"unsealed afterwards: {r.GetInt64(0)} of {r.GetInt64(1)}"); }
+await using (var c = db.CreateCommand($"SELECT pg_size_pretty(pg_total_relation_size('{schema}.events'))"))
+    Console.WriteLine($"events table: {await c.ExecuteScalarAsync()}");
+await keys.DisposeAsync();
+
+public partial class Patron : AggregateRoot<Patron>
+{
+    [PersonalData] public string? Name { get; private set; }
+    [PersonalData] public string? Email { get; private set; }
+    [PersonalData] public string? Street { get; private set; }
+    public string City { get; private set; } = "";
+    public static Patron Register(Id<Patron> id, string name, string email, string street, string city) { var p = new Patron(id); p.Raise(new Registered(name, email, street, city)); return p; }
+    public Tarol.Results.Success ChangeEmail(string email) => Raise(new EmailChanged(email));
+    public sealed record Registered([property: PersonalData] string? Name, [property: PersonalData] string? Email, [property: PersonalData] string? Street, string City) : Event;
+    public sealed record EmailChanged([property: PersonalData] string? Email) : Event;
+    private void On(Registered e) { Name = e.Name; Email = e.Email; Street = e.Street; City = e.City; }
+    private void On(EmailChanged e) => Email = e.Email;
+}
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(Patron.Registered))][JsonSerializable(typeof(Patron.EmailChanged))]
+internal partial class BenchJson : JsonSerializerContext;
