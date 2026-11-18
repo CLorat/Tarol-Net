@@ -110,95 +110,7 @@ INFO no  accents folded: 'cafe muller' finds 'Café Müller'  (0 hits)
 INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
 ALL 11 CHECKS PASSED (selftest opensearch, JIT)
 
-## 3. Bench pg alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
-# bench pg fts (gin) (JIT), sizes 10000 / 100000 / 1000000
-INFO pg fts (gin) load 0 -> 10,000: 0.5 s, 20,169 docs/s (empty index)
-INFO pg index build after the first load (gin + trgm): 0.3 s
-INFO pg fts (gin) size at 10,000: 13 MB (table+toast 9 MB, gin 2 MB, title trgm 1 MB)
-| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
-|---|---|---|---|---|---|---|---|
-| 10,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 1.17 | 1.53 | 20 |
-| 10,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 0.88 | 1.56 | 1 |
-| 10,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 2.28 | 3.59 | 20 |
-| 10,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 1.01 | 1.29 | 20 |
-| 10,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.57 | 0.85 | 0 |
-| 10,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 0.96 | 1.20 | 20 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 0.59 | 3.05 | 0 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.39 | 0.61 | 0 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 0.38 | 0.63 | 7 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 0.36 | 0.60 | 0 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.37 | 0.59 | 0 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 0.43 | 0.53 | 1 |
-| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 1.06 | 3.11 | 20 |
-| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.51 | 0.80 | 1 |
-| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | all tenants | 100 | 1.04 | 4.64 | 20 |
-| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.41 | 0.61 | 0 |
-| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.44 | 0.74 | 0 |
-| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.28 | 0.59 | 0 |
-| 10,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 1.42 | 1.97 | 20 of 25 |
-| 10,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 0.89 | 1.34 | 0 of 0 |
-| 10,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 1.49 | 1.97 | 20 of 266 |
-| 10,000 | pg fts (gin) | medium + snippets | tenant 10 % | 100 | 1.37 | 2.17 | 20 |
-| 10,000 | pg fts (gin) | medium + snippets | tenant 0.1 % | 100 | 0.44 | 0.72 | 0 |
-| 10,000 | pg fts (gin) | medium + snippets | all tenants | 100 | 1.60 | 2.20 | 20 |
-INFO pg switch to btree_gin (tenant, tsv): 0.2 s
-INFO pg fts (gin) size at 10,000: 13 MB (table+toast 9 MB, btree_gin 3 MB, title trgm 1 MB)
-| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
-|---|---|---|---|---|---|---|---|
-| 10,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 0.84 | 1.11 | 20 |
-| 10,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 0.39 | 0.54 | 1 |
-| 10,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 2.07 | 2.64 | 20 |
-| 10,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 0.46 | 0.62 | 20 |
-| 10,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.35 | 0.51 | 0 |
-| 10,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 0.85 | 1.18 | 20 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 0.37 | 0.59 | 0 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.40 | 0.99 | 0 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 0.40 | 0.64 | 7 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 0.38 | 0.68 | 0 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.36 | 0.58 | 0 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 0.35 | 0.49 | 1 |
-| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 0.66 | 1.64 | 20 |
-| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.52 | 0.85 | 1 |
-| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | all tenants | 100 | 1.28 | 6.45 | 20 |
-| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.35 | 0.50 | 0 |
-| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.34 | 0.55 | 0 |
-| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.31 | 0.53 | 0 |
-| 10,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 1.01 | 1.36 | 20 of 25 |
-| 10,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 0.74 | 1.19 | 0 of 0 |
-| 10,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 1.70 | 2.97 | 20 of 266 |
-| 10,000 | pg fts (gin) | medium + snippets | tenant 10 % | 100 | 1.26 | 1.77 | 20 |
-| 10,000 | pg fts (gin) | medium + snippets | tenant 0.1 % | 100 | 0.43 | 0.62 | 0 |
-| 10,000 | pg fts (gin) | medium + snippets | all tenants | 100 | 1.60 | 2.38 | 20 |
-| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
-|---|---|---|---|---|---|---|---|
-| 10,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 0.84 | 1.06 | 20 |
-| 10,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 0.38 | 0.61 | 1 |
-| 10,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 2.10 | 2.66 | 20 |
-| 10,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 0.46 | 0.63 | 20 |
-| 10,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.32 | 0.49 | 0 |
-| 10,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 0.88 | 1.30 | 20 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 0.53 | 0.71 | 0 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.33 | 0.49 | 0 |
-| 10,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 0.36 | 0.57 | 7 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 0.41 | 0.70 | 0 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.46 | 0.66 | 0 |
-| 10,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 0.45 | 0.63 | 1 |
-| 10,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 1.01 | 1.38 | 20 of 25 |
-| 10,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 0.69 | 0.97 | 0 of 0 |
-| 10,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 1.64 | 2.24 | 20 of 266 |
-| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
-|---|---|---|---|---|---|---|---|
-Unhandled exception. System.InvalidCastException: Reading as 'System.Single' is not supported for fields having DataTypeName 'numeric'
-   at Npgsql.Internal.AdoSerializerHelpers.<GetTypeInfoForReading>g__ThrowReadingNotSupported|0_0(Type type, PgSerializerOptions options, PgTypeId pgTypeId, Exception inner)
-INFO container memory: tarol-search-pg 100.6MiB / 15.71GiB (CPU 0.18%)
-INFO pg data directory on disk: 72 MB
-
-| engine | write | n | p50 ms | p99 ms | max ms |
-|---|---|---|---|---|---|
-| pg fts (gin) | upsert | 50 | 1.8 | 225.2 | 225.2 |
-| pg fts (gin) | delete | 50 | 1.5 | 2.0 | 2.0 |
-
-## 4. Bench meili alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
+## 3. (first run crashed after the 10k stage: the trigram prefix score was read as float; rerun below after the fix)
 
 ## 4. Bench meili alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
 # bench meilisearch (JIT), sizes 10000 / 100000 / 1000000
@@ -601,3 +513,5 @@ INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english 
 ALL 11 CHECKS PASSED (selftest opensearch, Native AOT)
 
 ## done 21:49
+
+## 3. Bench pg alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable

@@ -34,11 +34,13 @@ only() {   # run one engine alone: unpause/start it, pause the others
 mem() { docker stats --no-stream --format '{{.Name}} {{.MemUsage}} (CPU {{.CPUPerc}})' "$(name $1)" | sed 's/^/INFO container memory: /'; }
 disk() { docker exec "$(name $1)" sh -c "du -sb $2 2>/dev/null | cut -f1" | awk -v e="$1" '{printf "INFO %s data directory on disk: %.0f MB\n", e, $1/1e6}'; }
 app="$w/a/src/Search"; native="$w/c/out/Probe.Search"
-J() { (cd "$app" && timeout 7200 dotnet run --no-build -- "$@" 2>&1) | show; }
+failed=0
+J() { (cd "$app" && timeout 7200 dotnet run --no-build -- "$@" 2>&1) > "$w/last.log"; grep -q "Unhandled exception" "$w/last.log" && failed=1; show < "$w/last.log"; }
 N() { (PROBE_RUNTIME="Native AOT" timeout 3600 "$native" "$@" 2>&1) | show; }
 sec() { [ -f "$w/$1.ok" ] && return 1; echo; echo "## $1. $2"; return 0; }
-ok() { touch "$w/$1.ok"; }
+ok() { if [ "$failed" = 0 ]; then touch "$w/$1.ok"; else echo "SECTION $1 NOT MARKED DONE: a probe crashed (rerun resumes here)"; failed=0; fi; }
 {
+[ -f "$w/1.ok" ] && "$here/run.sh" "$w/a" Search build > "$w/a.log" 2>&1   # a resumed run builds today's probe sources
 if sec 1 "Environment, build, licences"; then
   echo "# SDK $(dotnet --version), $(date -u +%Y-%m-%d), $(uname -m), $(nproc) cores, $(free -g | awk '/Mem/{print $2}') GB, Docker $(docker version -f '{{.Server.Version}}')"
   "$here/run.sh" "$w/a" Search build > "$w/a.log" 2>&1; grep -E ' error |Build succeeded' "$w/a.log" | clean | sort -u
@@ -81,6 +83,19 @@ if sec 8 "Native AOT: publish (IL warnings), the contract natively against every
   only pg; N selftest pg; N feeder
   for e in meili typesense opensearch; do only $e; N selftest $e; done
   ok 8
+fi
+if sec 9 "The extensions as a non-superuser that owns its database (managed PostgreSQL), in a fresh postgres:17"; then
+  docker rm -f tarol-ext-check >/dev/null 2>&1
+  docker run -d --name tarol-ext-check -e POSTGRES_PASSWORD=probe $img/postgres:17 >/dev/null
+  until docker exec tarol-ext-check pg_isready -q 2>/dev/null; do sleep 1; done; sleep 2
+  docker exec tarol-ext-check psql -U postgres -q -c "CREATE ROLE app LOGIN PASSWORD 'x'" -c "CREATE DATABASE appdb OWNER app"
+  docker exec -e PGPASSWORD=x tarol-ext-check psql -h localhost -U app -d appdb -At -c "SELECT 'INFO superuser: ' || rolsuper FROM pg_roles WHERE rolname = current_user" \
+    -c "CREATE EXTENSION pg_trgm" -c "CREATE EXTENSION btree_gin" -c "CREATE EXTENSION unaccent" -c "CREATE EXTENSION vector" \
+    -c "SELECT 'INFO created as app: ' || string_agg(extname || ' ' || extversion, ', ' ORDER BY extname) FROM pg_extension" 2>&1 | sed 's/^ERROR/INFO ERROR/; s/^CREATE EXTENSION/INFO CREATE EXTENSION ok/'
+  docker rm -f tarol-ext-check >/dev/null; ok 9
+fi
+if sec 10 "Meilisearch write -> searchable again, searching the token as a phrase (section 4's query was typo-tolerant and found the previous sample)"; then
+  only meili; J lag meili; ok 10
 fi
 echo; echo "## done $(date -u +%H:%M)"
 } 2>&1 | tee -a "$out"
