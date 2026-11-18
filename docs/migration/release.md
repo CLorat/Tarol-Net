@@ -244,6 +244,31 @@ O-, P-, Q-, QR-, R-, S-, T-).
 | RL-3 | The first version | **`0.1.0`, first tagged `v0.1.0-preview.1`** (recommended). |
 | RL-4 | Meta-package (generators flow already) | **`Tarol` = everything except the specific implementations** (owner's words: "Make Tarol everything but not the specific impl like rabbitmq and so"). Which packages count as specific: §9.2, asked in round 2. |
 
+Round 2 (2026-11-18):
+
+| # | Question | Answer |
+|---|---|---|
+| RL-1 (licence) | Which licence replaces `LICENSE`: PolyForm Noncommercial 1.0.0, PolyForm + an "open-source projects only" clause, BUSL-1.1, AGPL-3.0 + a commercial licence | **Open.** The owner asked first: can PolyForm be switched to AGPL-3.0 later; can AGPL-3.0 be used without a commercial offer yet; what support each requires; how liability for an incident caused by the library is covered. Answered in the chat (§9.1), asked again in round 3. |
+| RL-4 (members) | Which packages does `Tarol` hold (the brokers, the Npgsql bus, SignalR and Zitadel are out in every option)? | **17 packages, ASP.NET Core included, Npgsql not** (recommended): Options, Results, StronglyTypedId, Kernel, Validations, Primitives, Persistence, Changes, Changes.AspNetCore, Queries, Caching, Sagas, Messaging, Jobs, Security, Operations, DataProtection. `Tarol.Persistence.Npgsql`, `Tarol.Queries.Npgsql` and the transports are referenced separately. |
+| RL-9 | Who installs the packages, now that the repository stays public? | **Public on GitHub Packages** (recommended): the packages follow the repository; nuget.org stays excluded (a decision of its own). |
+| RL-5 | RS0026/RS0027 (12 overload pairs), RS0041 (30 oblivious symbols) | **Configure off with reasons** (recommended): `.editorconfig` severity `none` for the three rules, each with its reason; RS0016/RS0017 stay errors. |
+
+### 9.1 The licence questions (answered in the chat, 2026-11-18; not legal advice)
+
+* **PolyForm now, AGPL-3.0 later?** Yes. As the only copyright holder the owner can license later versions under any licence.
+  Versions already released stay usable under the licence they came with. Once others contribute code, relicensing needs their
+  consent, so contributions need a contributor licence agreement (CLA) from the start.
+* **AGPL-3.0 with no commercial offer yet?** Yes; AGPL-3.0 stands on its own, and a commercial licence can be offered at any time.
+  But AGPL-3.0 allows commercial use by anyone who publishes their whole application's source, so it does not forbid business use.
+* **Support**: neither licence obliges the owner to support, maintain, fix or answer. Support exists only where a contract
+  (e.g. a paid commercial licence) promises it.
+* **Liability**: both disclaim warranty and liability "as far as the law allows". Under German and EU law a gratuitous licence
+  still cannot exclude liability for intent and gross negligence. The new EU Product Liability Directive (2024/2853) treats
+  software as a product but excludes free and open-source software supplied outside a commercial activity. The Cyber
+  Resilience Act likewise applies to products made available in the course of a commercial activity. Selling commercial
+  licences can therefore bring those versions into scope. Cover in practice: the licence's disclaimer, a liability cap in every
+  commercial contract, and IT liability insurance; a lawyer for the commercial terms.
+
 ## 10. Changes against steps 1–16
 
 None in this PR. 17B adds two files per package and three `.editorconfig` entries (RL-5); 17D may change the symbol format
