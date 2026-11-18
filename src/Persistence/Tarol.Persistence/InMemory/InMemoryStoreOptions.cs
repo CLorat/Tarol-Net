@@ -23,6 +23,13 @@ public sealed record InMemoryStoreOptions
     /// </summary>
     public IOutboxReactions? Reactions { get; init; }
 
+    /// <summary>
+    /// The key store (DP-1): with it and a <see cref="Codec"/>, the <c>[PersonalData]</c> fields of events and state are sealed
+    /// on append and opened on every read, so a test sees them read as <c>null</c> after an erasure and sees new data for an
+    /// erased subject refused (<see cref="DataProtectionErrors.SubjectErased"/>). Aggregates without personal data are unaffected.
+    /// </summary>
+    public IKeyStore? Keys { get; init; }
+
     /// <summary>The unique lookups; share one instance with the production store.</summary>
     public StoreLookups Lookups { get; init; } = new();
 }

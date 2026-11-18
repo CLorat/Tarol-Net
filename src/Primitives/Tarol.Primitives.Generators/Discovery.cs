@@ -129,13 +129,42 @@ internal static class Discovery
 
         // A root's Alias slot carries its stream type ([StreamType] or the snake-cased name, P-13).
         var streamType = kind == TypeKind.Root ? StreamTypeOf(type, location, diagnostics) : "";
+        if (stored)
+            MarkPersonal(type, state);
 
         return new TypeModel(
             kind, Symbols.FullName(root), Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
             Containers(type, ct), canEmit,
             Array(members), Array(handlers), Array(invariants), hasIdConstructor,
             Array(state), !stored, Array(lifecycle.Select(static f => f.Model).ToList()),
-            EventKind.None, null, null, type.IsAbstract, default, streamType, 0, location, Array(diagnostics));
+            EventKind.None, null, null, type.IsAbstract, default, streamType, 0, location, Array(diagnostics),
+            RetentionDays: kind == TypeKind.Root ? PersonalDiscovery.RetentionDays(type) : 0);
+    }
+
+    /// <summary>Marks the stored fields of <paramref name="type"/> whose member is <c>[PersonalData]</c> (valid marks only; TPRM030/031 report the rest).</summary>
+    private static void MarkPersonal(INamedTypeSymbol type, List<StateField> state)
+    {
+        for (var i = 0; i < state.Count; i++)
+        {
+            var field = state[i];
+            var member = (ISymbol?)type.GetMembers(field.Member).FirstOrDefault(static m => m is IPropertySymbol or IFieldSymbol)
+                         ?? type.GetMembers(field.Field).FirstOrDefault();
+            if (member is null)
+                continue;
+            var mark = PersonalDiscovery.Mark(member);
+            if (mark is null && member is IPropertySymbol && type.GetMembers(field.Field).FirstOrDefault() is { } backing)
+                mark = PersonalDiscovery.Mark(backing);
+            if (mark is null || PersonalDiscovery.TypeOf(member) is not { } memberType || !PersonalDiscovery.IsNullable(memberType))
+                continue;
+            var subject = PersonalDiscovery.SubjectOf(mark);
+            if (subject is not null
+                && (subject != "Id" && !state.Any(f => f.Member == subject)
+                    || PersonalDiscovery.FindMember(type, subject) is not { } subjectMember
+                    || !PersonalDiscovery.IsSubjectType(PersonalDiscovery.TypeOf(subjectMember))))
+                continue;
+
+            state[i] = field with { Personal = true, Subject = subject };
+        }
     }
 
     private static TypeModel? Event(INamedTypeSymbol type, CancellationToken ct)
@@ -151,7 +180,8 @@ internal static class Discovery
                     TypeKind.Event, Symbols.FullName(root!), Symbols.FullName(type), type.Name, HintName(type), NamespaceOf(type),
                     default, true, default, default, default, false, default, false, default,
                     kind, Symbols.FullName(target!), parent is null ? null : Symbols.FullName(parent), type.IsAbstract,
-                    new EquatableArray<string>(bases.ToImmutableArray()), alias, version, LocationOf(type), default);
+                    new EquatableArray<string>(bases.ToImmutableArray()), alias, version, LocationOf(type), default,
+                    Personal: PersonalDiscovery.OfEvent(type));
             }
 
             if (Symbols.Is(current, "DomainEvent"))

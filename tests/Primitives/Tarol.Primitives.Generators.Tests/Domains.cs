@@ -191,4 +191,54 @@ internal static class Domains
             private void On(Raised e) => Amount = e.Amount;
         }
         """;
+
+    /// <summary>Step 16A: personal data in events (stream id, a Guid and an Id&lt;T&gt; subject, a pinned JSON name), in the root's and entities' state, and a retention.</summary>
+    public const string Personal = """
+        using System;
+        using System.Collections.Generic;
+        using System.Text.Json.Serialization;
+        using Tarol.Primitives;
+        using Tarol.StronglyTypedId;
+
+        namespace Crm;
+
+        public sealed record Address(string Street, string City);
+
+        [Retention(Days = 365)]
+        public partial class Customer : AggregateRoot<Customer>
+        {
+            public EntitySet<Contact> Contacts { get; } = [];
+            public EntityRef<Card> Card { get; } = new();
+            [PersonalData] public string? Name { get; private set; }
+            [PersonalData] public Address? Home { get; private set; }
+            public string Country { get; private set; } = "";
+            public Guid Referrer { get; private set; }
+            [PersonalData(Subject = nameof(Referrer))] public string? ReferrerNote { get; private set; }
+
+            public sealed record Registered([property: PersonalData] string? Name, [property: PersonalData, JsonPropertyName("addr")] Address? Home, string Country) : Event;
+            public sealed record Referred(Guid By, [property: PersonalData(Subject = nameof(Referred.By))] string? Note) : Event;
+            public sealed record Tagged([PersonalData] List<string>? Tags, Id<Customer> Partner, [property: PersonalData(Subject = nameof(Tagged.Partner))] string? PartnerNote) : Event;
+            public sealed record Renamed(string Plain) : Event;
+
+            private void On(Registered e) { Name = e.Name; Home = e.Home; Country = e.Country; }
+            private void On(Referred e) { Referrer = e.By; ReferrerNote = e.Note; }
+            private void On(Tagged e) { }
+            private void On(Renamed e) { }
+        }
+
+        public partial class Contact : Entity<Customer, Contact>
+        {
+            [PersonalData] public string? Phone { get; private set; }
+            public string Kind { get; private set; } = "";
+            public sealed record Added([property: PersonalData] string? Phone, string Kind) : Created;
+            private void On(Added e) { Phone = e.Phone; Kind = e.Kind; }
+        }
+
+        public partial class Card : Entity<Customer, Card>
+        {
+            [PersonalData] private string? _number;
+            public sealed record Issued([property: PersonalData] string? Number) : Created;
+            private void On(Issued e) => _number = e.Number;
+        }
+        """;
 }

@@ -6,7 +6,8 @@ description: >-
   methods that return Result and take now, [Invariant], Rehydrate/StreamEvent, AggregateChanges.Prepare/Committed, the
   AggregateTest given/when/then helper, the stored state (StateSchema, WriteState/ReadState, AggregateState,
   [LoadByReplay], [StateName], [Transient], StoredStateMatchesReplay), lifecycles ([Lifecycle], [To], [Transition<T>],
-  <Enum>Lifecycle, CanTransitionTo/RequireTransitionTo, Lifecycle.ForbiddenStep), and fixing TPRM001-TPRM027.
+  <Enum>Lifecycle, CanTransitionTo/RequireTransitionTo, Lifecycle.ForbiddenStep), personal data ([PersonalData],
+  Subject = nameof(…)) and [Retention(Days)], and fixing TPRM001-TPRM033.
   Do not decompile or web-search, do not hand-write a dispatch switch or a state serializer, do not use the old
   DomainEvent<TRoot,TEntity>/CreateDomainEvent/DomainClock/ToSnapshot/[SnapshotIgnore] API.
 ---
@@ -123,6 +124,38 @@ public partial class Job : AggregateRoot<Job>
 }
 ```
 
+## Personal data and retention (step 16)
+
+* `[PersonalData]` on a member of an event (`[property: PersonalData]` on a positional record), of the stored state of a
+  root or entity, or of a projection row: the store seals its whole JSON value with the subject's key, and once the
+  subject is erased it reads as `null`. The member must be nullable (TPRM030).
+* The subject is the stream id. `Subject = "…"` names a non-nullable `Guid` or `Id<T>` member of the same type
+  (TPRM031). In a positional record write `nameof(Placed.Customer)`: a bare `nameof(Customer)` compiles only when a type
+  of that name happens to be in scope.
+* Mark the event **and** the state member: an unmarked state member stores the value in plain JSON.
+* `[Retention(Days = 3650)]` on the root: `tarol.retention` deletes the whole stream that many days after its last event
+  (TPRM033 for a non-root or `Days < 1`).
+* The generator puts the marks on `T.EventTypes` (`EventCatalogEntry.Personal`, `EventCatalog.State`,
+  `RetentionDays`); marking a member does not change `StateSchema`.
+
+```csharp
+[Retention(Days = 3650)]
+public partial class Customer : AggregateRoot<Customer>
+{
+    [PersonalData] public string? Email { get; private set; }
+    public string Country { get; private set; } = "";
+    public sealed record Registered([property: PersonalData] string? Email, string Country) : Event;
+    private void On(Registered e) { Email = e.Email; Country = e.Country; }
+}
+public partial class Order : AggregateRoot<Order>
+{
+    public Guid Customer { get; private set; }
+    [PersonalData(Subject = nameof(Customer))] public string? ShipTo { get; private set; }
+    public sealed record Placed(Guid Customer, [property: PersonalData(Subject = nameof(Placed.Customer))] string? ShipTo) : Event;
+    private void On(Placed e) { Customer = e.Customer; ShipTo = e.ShipTo; }
+}
+```
+
 ## Common mistakes
 
 | Mistake | Result |
@@ -149,6 +182,11 @@ public partial class Job : AggregateRoot<Job>
 | state no `On` assigns; `On` not assigning its `[Transition]`'s `To` | TPRM022; TPRM023 (Warnings) |
 | calling/overriding `ApplyLive`, `ApplyRaised`, `ForbiddenStep` | TPRM015 |
 | a member type missing from the JSON context | `NotSupportedException` from `WriteState`/`ReadState` naming the member |
+| `[PersonalData] string Email` (not nullable) | TPRM030 |
+| `Subject` naming a `string`, a `Guid?`, a missing member or itself | TPRM031 |
+| `[PersonalData]` inside a value object, on a `[Transient]`/static/computed member, in a `[LoadByReplay]` state | TPRM032: mark the member that holds the value |
+| `[Retention]` on an entity or with `Days = 0` | TPRM033 |
+| the order's own id as the subject of the customer's address | erasing the customer misses it: `Subject = nameof(Placed.Customer)` |
 
 ## AOT
 

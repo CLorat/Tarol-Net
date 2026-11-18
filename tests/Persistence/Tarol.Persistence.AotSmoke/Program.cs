@@ -70,6 +70,25 @@ Check("job row claimed once", (await jobs.Claim(TimeSpan.FromMinutes(1), default
                               && (await jobs.Claim(TimeSpan.FromMinutes(1), default)).TryGetValue(out None _));
 Check("job row advanced with its claim", await jobs.Advance(job!, due.AddDays(1), default) && (await jobs.Rows(default))[0].NextAt == due.AddDays(1));
 
+// step 16A: sealed personal data, the key store and erasure, natively
+var keyStore = InMemoryKeyStore.Create();
+var sealing = new InMemoryAggregateStore(TimeProvider.System, new InMemoryStoreOptions
+{
+    Codec = new EventCodec(new System.Text.Json.JsonSerializerOptions(PatientJson.Default.Options)).Add<Patient>(),
+    Keys = keyStore,
+});
+var patient = Patient.Admit("Ada", "B2");
+Check("append sealed", (await sealing.Append(patient, 0, context, Option.None, default)).IsSuccess);
+Check("load opens", (await sealing.Load(patient.Id, context, default)).GetValueOrThrow().Name == "Ada");
+var tenantId = context.Tenant.GetValueOrThrow().Value;
+Check("erase", await keyStore.EraseSubject(tenantId, patient.Id.Value, default));
+var erased = (await sealing.Load(patient.Id, context, default)).GetValueOrThrow();
+Check("erased reads null, the rest stays", erased.Name is null && erased.Ward == "B2");
+_ = erased.Rename("Ada again");
+Check("new data for the erased subject is refused",
+    (await sealing.Append(erased, erased.Version - 1, context, Option.None, default)).TryGetValue(out Tarol.Results.Violation? v)
+    && v is Tarol.Results.Error { Code: DataProtectionErrors.SubjectErasedCode });
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
 

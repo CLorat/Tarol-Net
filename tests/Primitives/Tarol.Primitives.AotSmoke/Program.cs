@@ -115,6 +115,12 @@ static StreamEvent[] History2(Lot lot)
     ];
 }
 
+// step 16A: the generated personal-data metadata and the retention, natively
+var registered = Member.EventTypes.Events.Single(e => e.ClrType == typeof(Member.Joined)).Personal;
+Check("personal members of an event", registered is { Members: [{ Name: "Email", Subject: null }, { Name: "Sponsor", Subject: "SponsorId" }] });
+Check("personal members of the state", Member.EventTypes.State is { Members: [{ JsonName: "email" }] });
+Check("retention days", Member.EventTypes.RetentionDays == 30 && Member.EventTypes.HasPersonalData && !Gallery.EventTypes.HasPersonalData);
+
 Console.WriteLine(failures == 0 ? "ALL CHECKS PASSED" : $"{failures} CHECK(S) FAILED");
 return failures == 0 ? 0 : 1;
 
@@ -288,6 +294,16 @@ namespace Tarol.Primitives.AotSmoke
             _ = e;
             Status = BidStatus.Withdrawn;
         }
+    }
+
+    [Retention(Days = 30)]
+    public partial class Member : AggregateRoot<Member>
+    {
+        [PersonalData] public string? Email { get; private set; }
+
+        public sealed record Joined([property: PersonalData] string? Email, Guid SponsorId, [property: PersonalData(Subject = nameof(Joined.SponsorId))] string? Sponsor) : Event;
+
+        private void On(Joined e) => Email = e.Email;
     }
 
     [JsonSerializable(typeof(Artwork.Repriced))]

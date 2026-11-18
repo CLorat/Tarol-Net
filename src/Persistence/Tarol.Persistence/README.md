@@ -119,6 +119,16 @@ the oldest occurrence not yet run, claimed by the job host of `Tarol.Jobs` (docs
 Every call after a claim returns `false` once the claim is lost. Times are whole seconds (an occurrence must survive
 `timestamptz`); other times throw.
 
+## Personal data (step 16)
+
+`[PersonalData]` fields are sealed in the `EventCodec` after the serializer, as `"tdp1.…"` envelopes (AES-256-GCM, bound
+to tenant and subject), and opened before the upcasters. Unmarked aggregates are stored byte for byte as before. Keys
+come from the `IKeyStore` port: a data key per (tenant, subject), wrapped by the tenant key, wrapped by the master key
+(`IKeyEncryptionKey`, `ConfiguredKeyEncryptionKey`). `InMemoryKeyStore` and `InMemoryStoreOptions.Keys` let tests see
+erasure: the fields read as `null`, and new data for the subject fails with `DataProtection.SubjectErased`.
+`StoreLookups.DefinePersonal` keeps a blind index (HMAC-SHA256 under the tenant's lookup key) instead of the value. The
+contracts `IDataSubjects`, `ErasureParticipant` and `RetentionPolicy` are implemented by `Tarol.DataProtection`.
+
 ## Operations contracts (step 15)
 
 `OperationsSignal` (one number of the snapshot `Tarol.Operations` polls), `IDeadLetterSource` (a kind of dead letters the

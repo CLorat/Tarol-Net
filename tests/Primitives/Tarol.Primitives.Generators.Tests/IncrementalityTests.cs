@@ -141,4 +141,25 @@ public class IncrementalityTests
         Incrementality.RegeneratedOutputs(edited).Count.ShouldBe(1);
         edited.Generated("LotLifecycle.g.cs").ShouldContain("Listed --> Sold : LotSold");
     }
+
+    [Fact]
+    public void Marking_A_Member_Personal_Regenerates_The_Aggregate_And_Moving_Text_Does_Not()
+    {
+        var compilation = GeneratorTestHost.Compile(Domains.Personal, Domains.Orders);
+        var driver = GeneratorTestHost.Run(compilation);
+
+        var marked = compilation.ReplaceSyntaxTree(compilation.SyntaxTrees.First(),
+            CSharpSyntaxTree.ParseText(Domains.Personal.Replace("public string Country { get; private set; } = \"\";", "[PersonalData] public string? Country { get; private set; } = \"\";", StringComparison.Ordinal)
+                    .Replace("string Country) : Event;", "[property: PersonalData] string? Country) : Event;", StringComparison.Ordinal),
+                GeneratorTestHost.Parse, path: "Source0.cs", cancellationToken: TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(marked, TestContext.Current.CancellationToken);
+        Incrementality.RegeneratedOutputs(driver).Count.ShouldBe(1);
+        driver.Generated("Crm.Customer.Aggregate.g.cs").ShouldContain("new(\"Country\", \"country\", null, null)");
+
+        var moved = marked.ReplaceSyntaxTree(marked.SyntaxTrees.First(),
+            CSharpSyntaxTree.ParseText("// a comment moves every location\n" + marked.SyntaxTrees.First().ToString(),
+                GeneratorTestHost.Parse, path: "Source0.cs", cancellationToken: TestContext.Current.CancellationToken));
+        driver = driver.RunGenerators(moved, TestContext.Current.CancellationToken);
+        Incrementality.RegeneratedOutputs(driver).ShouldBeEmpty();
+    }
 }

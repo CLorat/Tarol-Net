@@ -209,12 +209,57 @@ internal sealed partial class Emitter
         Line();
         Line($"/// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>");
         var events = _model.Events.Where(static e => !e.IsAbstract).OrderBy(static e => e.FullName, System.StringComparer.Ordinal).ToList();
-        Line($"public static {P}EventCatalog EventTypes {{ get; }} = new({Literal(_root.Alias)}{(events.Count == 0 ? ");" : ",")}");
+        var state = _root.LoadByReplay ? null : PersonalStateShape(_root, 0);
+        var extras = new List<string>();
+        if (state is not null)
+            extras.Add($"State = {state},");
+        if (_root.RetentionDays > 0)
+            extras.Add($"RetentionDays = {_root.RetentionDays.ToString(System.Globalization.CultureInfo.InvariantCulture)},");
+        var end = extras.Count == 0 ? ");" : ")";
+        Line($"public static {P}EventCatalog EventTypes {{ get; }} = new({Literal(_root.Alias)}{(events.Count == 0 ? end : ",")}");
         _indent++;
         for (var i = 0; i < events.Count; i++)
-            Line($"new {P}EventCatalogEntry(new({Literal(events[i].Alias)}, {events[i].AliasVersion}), typeof({events[i].FullName})){(i == events.Count - 1 ? ");" : ",")}");
+        {
+            var personal = events[i].Personal.Count == 0 ? "" : $" {{ Personal = {Shape(events[i].Personal, "")} }}";
+            Line($"new {P}EventCatalogEntry(new({Literal(events[i].Alias)}, {events[i].AliasVersion}), typeof({events[i].FullName})){personal}{(i == events.Count - 1 ? end : ",")}");
+        }
         _indent--;
+        if (extras.Count > 0)
+        {
+            Line("{");
+            _indent++;
+            foreach (var extra in extras)
+                Line(extra);
+            _indent--;
+            Line("};");
+        }
+
         Line();
+    }
+
+    /// <summary>A <c>PersonalShape</c> expression over <paramref name="members"/> and the <paramref name="children"/> expressions.</summary>
+    private static string Shape(IEnumerable<PersonalModel> members, string children)
+        => $"new {P}PersonalShape([{string.Join(", ", members.Select(static m => $"new({Literal(m.Name)}, {Nullable(m.JsonName)}, {Nullable(m.Subject)}, {Nullable(m.SubjectJsonName)})"))}]{children})";
+
+    private static string Nullable(string? text) => text is null ? "null" : Literal(text);
+
+    /// <summary>The state shape of a root or entity with its children, or <see langword="null"/> when nothing in it is personal.</summary>
+    private string? PersonalStateShape(TypeModel owner, int depth)
+    {
+        if (depth > 8)
+            return null;
+        var members = owner.StateFields.Where(static f => f.Personal)
+            .Select(f => new PersonalModel(f.Member, f.Name, f.Subject,
+                f.Subject is null ? null : f.Subject == "Id" ? "id" : owner.StateFields.First(s => s.Member == f.Subject).Name))
+            .ToList();
+        var children = new List<string>();
+        foreach (var member in owner.Members.OrderBy(static m => m.StateName, System.StringComparer.Ordinal))
+        {
+            if (_model.Entities.FirstOrDefault(e => e.FullName == member.Child) is { } child && PersonalStateShape(child, depth + 1) is { } shape)
+                children.Add($"new {P}PersonalChild({Literal(member.StateName)}, {shape})");
+        }
+
+        return members.Count == 0 && children.Count == 0 ? null : Shape(members, children.Count == 0 ? "" : ", " + string.Join(", ", children));
     }
 
     private void EmitEventTypeOf()

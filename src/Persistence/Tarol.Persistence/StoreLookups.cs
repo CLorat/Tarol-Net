@@ -14,6 +14,8 @@ public sealed class StoreLookups
 {
     private readonly Lock _gate = new();
     private volatile Dictionary<Type, (string Name, Func<object, string?> KeyOf)[]> _byType = [];
+    private volatile HashSet<(Type, string)> _personal = [];
+    private volatile HashSet<(string, string)> _personalByStream = [];
 
     /// <summary>Defines a unique lookup of <typeparamref name="T"/>.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
@@ -38,6 +40,49 @@ public sealed class StoreLookups
         }
         return this;
     }
+
+    /// <summary>
+    /// Defines a unique lookup over a personal value (an email, a phone number; DP-5): the store keeps a blind index, an
+    /// HMAC-SHA256 of the key under the tenant's lookup key (<see cref="IKeyStore.BlindIndex"/>), never the value, and
+    /// <c>Find</c> hashes the same way. Erasing the tenant makes it unfindable; erasing a subject deletes its rows.
+    /// </summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <param name="name">The lookup's name.</param>
+    /// <param name="key">The key of an aggregate, normalized as callers of <c>Find</c> will pass it (e.g. lowercase), or <see langword="null"/>.</param>
+    /// <returns>These lookups.</returns>
+    /// <exception cref="InvalidOperationException">A lookup of that name is defined for <typeparamref name="T"/> already.</exception>
+    public StoreLookups DefinePersonal<T>(string name, Func<T, string?> key)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        Define(name, key);
+        lock (_gate)
+        {
+            _personal = [.. _personal, (typeof(T), name)];
+            _personalByStream = [.. _personalByStream, (T.StreamType, name)];
+        }
+        return this;
+    }
+
+    /// <summary>Whether a lookup was defined with <see cref="DefinePersonal{T}"/> (its keys are blind indexes).</summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <param name="name">The lookup's name.</param>
+    /// <returns><see langword="true"/> for a personal lookup.</returns>
+    public bool IsPersonal<T>(string name)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => _personal.Contains((typeof(T), name));
+
+    /// <summary>Whether a lookup of a stream type was defined with <see cref="DefinePersonal{T}"/>.</summary>
+    /// <param name="streamType">The stream type.</param>
+    /// <param name="name">The lookup's name.</param>
+    /// <returns><see langword="true"/> for a personal lookup.</returns>
+    public bool IsPersonal(string streamType, string name) => _personalByStream.Contains((streamType, name));
+
+    /// <summary>Whether <typeparamref name="T"/> has a personal lookup.</summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <returns><see langword="true"/> when it has one.</returns>
+    public bool HasPersonal<T>()
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => _personal.Any(static p => p.Item1 == typeof(T));
 
     /// <summary>Whether <paramref name="name"/> is defined for <typeparamref name="T"/>.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
