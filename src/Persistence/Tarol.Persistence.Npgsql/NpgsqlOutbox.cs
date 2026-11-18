@@ -74,18 +74,51 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
         }
 
         // the reactions see the events opened, as a load does (step 16)
-        var events = await RecordedEvents.Decode([.. claimed.Select(static c => c.Event)], _codec, _keys, cancellationToken).ConfigureAwait(false);
+        PositionedEvent?[] events;
+        try
+        {
+            events = await RecordedEvents.Decode([.. claimed.Select(static c => c.Event)], _codec, _keys, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException && !cancellationToken.IsCancellationRequested)
+        {
+            // one row the codec cannot read (an alias of a newer version during a rolling deploy, a key store that is down) must
+            // not hold back its batch: decode them one by one and release only the rows that fail, without counting the claim
+            events = new PositionedEvent?[claimed.Count];
+            for (var i = 0; i < claimed.Count; i++)
+            {
+                try
+                {
+                    events[i] = (await RecordedEvents.Decode([claimed[i].Event], _codec, _keys, cancellationToken).ConfigureAwait(false))[0];
+                }
+                catch (Exception one) when (one is not OutOfMemoryException && !cancellationToken.IsCancellationRequested)
+                {
+                    await Release(claimed[i].Id, claimed[i].ClaimId, now + lease, Undecodable + one.GetType().Name + ": " + one.Message).ConfigureAwait(false);
+                }
+            }
+        }
         var rows = new List<OutboxRow>(claimed.Count);
         for (var i = 0; i < claimed.Count; i++)
         {
+            if (events[i] is not { } recorded)
+                continue;
             var c = claimed[i];
-            var recorded = events[i];
             rows.Add(new OutboxRow(c.Id, c.ClaimId, c.Reaction, recorded.Event.Context.Tenant, c.Attempts,
                 c.LastError is null ? Option.None : c.LastError, recorded, c.TraceParent is null ? Option.None : c.TraceParent)
             { DueAt = c.DueAt });
         }
 
         return rows;
+    }
+
+    /// <summary>The <c>last_error</c> prefix of a row the store released because its event could not be decoded.</summary>
+    internal const string Undecodable = "Outbox.Undecodable: ";
+
+    /// <summary>Hands a claimed row back for <paramref name="retryAt"/> without counting the claim as an attempt of its reaction.</summary>
+    private async Task Release(long id, Guid claimId, DateTimeOffset retryAt, string reason)
+    {
+        await using var command = _db.CreateCommand(_sql.Release);
+        Add(command, id, claimId, retryAt, reason);
+        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -384,6 +417,11 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
             """;
 
         public string Retry => $"UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4 WHERE id = $1 AND claim_id = $2";
+
+        public string Release => $"""
+            UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4, attempts = greatest(attempts - 1, 0)
+            WHERE id = $1 AND claim_id = $2
+            """;
 
         public string Bury => $"""
             WITH d AS (DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2

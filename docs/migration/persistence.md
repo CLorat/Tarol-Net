@@ -661,3 +661,18 @@ complete, natively.
 ### 22.6 Suppressions and analyzer configuration
 
 None.
+
+## 23. Fix: an undecodable outbox row no longer stalls its batch (2026-11-18)
+
+**Behaviour change.** `NpgsqlOutbox.Claim` commits the lease and `attempts + 1` for up to `Batch` rows, then decodes their
+events together. When one payload could not be decoded (an alias of a newer version during a rolling deploy, a key store that is
+down), the whole call threw: the reaction worker logged it and claimed the same batch again after the lease, over and over.
+`Handle` never ran, so no row of the batch progressed, and every row's `attempts` grew past `MaxAttempts`. Once a worker could
+decode them, the healthy rows were buried at their first ordinary failure.
+
+Now a failed batch decode falls back to decoding row by row. A row that still fails is released for one lease with
+`last_error = 'Outbox.Undecodable: …'` and its claim not counted (`attempts - 1`); the other rows are returned and run. The
+released row comes back once the lease has passed and runs when the event can be decoded. A cancellation still throws, as before.
+
+Test: `NpgsqlOutboxTests.A_row_whose_event_cannot_be_decoded_is_released_alone_and_does_not_hold_back_its_batch` (fails without the
+fix). The in-memory outbox does not decode, so the unit tests cannot show it.
