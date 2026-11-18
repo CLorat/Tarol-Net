@@ -1046,4 +1046,13 @@ No new skill. `tarol-data-protection` (16C) is what the guide's tasks map to (§
 
 None.
 
-### 18.6 Verification
+### 18.6 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors. `dotnet build samples/Sagas/AppHost`: 0 errors; the warning ASPIRE010
+  comes from the Aspire SDK's own targets;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (no test added: docs and the sample);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**, all checks passed;
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the AppHost run: §18.3.
