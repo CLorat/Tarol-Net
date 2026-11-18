@@ -640,3 +640,8 @@ None.
 Tests: `ZitadelClaimsTests.The_generic_roles_claim_of_the_clients_own_project_is_not_read`,
 `A_role_granted_in_another_organisation_is_not_a_role_in_the_users_tenant`,
 `The_users_organisation_replaces_a_tenant_claim_in_the_token` (all three fail without the fix).
+
+Follow-up (same day): `Tarol.Security.Zitadel.AotSmoke` granted its roles in organisation `"1"` while the user belonged to
+`399724476671000579`, a shape Zitadel does not issue (the probe token and the Zitadel integration test key the roles by the user's
+organisation). With the organisation check it failed two checks; its token now uses the user's organisation, as real tokens do.
+`eng/aot-smoke.sh` caught it; the unit tests did not.
