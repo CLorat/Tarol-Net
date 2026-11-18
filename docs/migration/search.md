@@ -532,3 +532,68 @@ double-counts).
 
 None.
 
+## 16. Implementation: PR 18B (2026-11-18)
+
+`search: Tarol.Search — attributes, generator, host, in-memory index` (new package, generator inside).
+
+### 16.1 Public API (`eng/public-api.py update`; 333 lines, most of them record members)
+
+* Attributes: `SearchableAttribute` (class: label; property: `SearchWeight`, `Exact`), `SearchTitleAttribute`,
+  `SearchAudienceAttribute`, `SearchLanguageAttribute`; `enum SearchWeight { A, B, C, D }`.
+* Generated contract: `ISearchable<T>` (`static abstract SearchShape Shape`, `static abstract void Documents(T, ICollection<SearchDocument>)`);
+  `SearchShape` (`Of<T>(label, fingerprint, entities)`), `SearchType(Type, Label, Aggregate)`, `SearchDocument` (type, id,
+  aggregate, title; `A`–`D`, `Exact`, `Audience`, `Language`), `SearchDocuments` (helpers the generated code calls).
+* The port: `ISearchIndex` (`Prepare`, `Checkpoint`, `Write`, `Replace`, `Search`, `Documents`), `SearchIndexDefinition`,
+  `StreamDocuments`, `SearchBatch`, `SearchRequest`, `SearchHit`, `SearchPage` (with the answering `Version`, `Position` and
+  `State`), `SearchLimits` (page 50, depth and rank 1,000, counts 1,000, text 256).
+* `SearchText` (normalise, words, the web-search parser, validation, the cursor), `SearchClause`.
+* `InMemorySearchIndex`; `SearchHost : ProjectionHost` (name `search`, `Reindex`, `Remove`, meter `Tarol.Search`);
+  `SearchRegistry` (`Add<T>`, `Version`, `Loaders` = 4, `Projection`, `Definition()`); `SearchTokens` (blind tokens through
+  `IKeyStore.BlindIndex`, lookup `tarol.search`); `ISearch`, `SearchQuery`, `SearchService`; `SearchEraser : ErasureParticipant`
+  (and `Documents(tenant, subject)` for an export); `SearchTest`.
+* Registration: `AddSearch(configure)`, `UseInMemorySearch()`.
+* Diagnostics: TSRCH001 (declaration), TSRCH002 (member type), TSRCH003 (personal data as text), TSRCH004 (placement),
+  TSRCH005 (warning: nothing searchable); `AnalyzerReleases.Unshipped.md`.
+
+### 16.2 Deliberate differences from §6 and §11
+
+* **The typo fallback matches the weight-A text, not the display title.** An entity's display title is its aggregate's (§6);
+  matching it found an edition for a misspelt word that the correctly spelt word did not find (the AOT smoke caught it). Weight A
+  holds the document's own titles and names. 18C indexes `(tenant, a gin_trgm_ops)` accordingly.
+* `AddSearch(configure)` takes the version inside the registry (`s.Version = 2`) instead of a second argument.
+* Without a key store, an exact value's token is an unkeyed SHA-256 of (tenant, normalised value): never text, but guessable for
+  short values; the skill says to register a key store before marking personal members.
+* Nested entities are `Entity<Root, Self>` in Tarol (TPRM012); their type is `<stream type>.<entity>.<child>`.
+* The export lists the subject's documents through `SearchEraser.Documents(tenant, subject)`; `IDataSubjects.Export` is not
+  changed (§10.3's fallback).
+
+### 16.3 Changes against steps 7–17
+
+* The meta-package `Tarol` references `Tarol.Search` (18 included packages; its consumer test expects `Tarol.Search.Generators`).
+
+### 16.4 Tests **[verified]**
+
+* `Tarol.Search.Tests` (36): the **contract suite** on the in-memory index (17: tenant first, other stream types, an entity through
+  its aggregate, the type filter and exact counts, ranking and AND, phrases/exclusions/OR and hostile input, prefix, typo,
+  snippets, cursor pages and refused cursors, re-index on change, audience, blind tokens, erasure after the participant (and not
+  before), retention and export, the fingerprint guard, the checkpoint guard), `SearchText` (normalise, words, parse, cursor,
+  limits), the registry (generated shape, documents with audience/language/exact, fingerprint independent of order),
+  `AddSearch` in a container with the meter, and the missing-index message.
+* `Tarol.Search.Generators.Tests` (18): snapshots (an aggregate with nested entities, an `EntityRef`, every member kind, audience
+  from a string and from `List<Guid>`, a nested containing type), compile-clean with the Primitives generator and under C# 12,
+  TSRCH001–TSRCH005, incrementality (an unrelated file and an apply body regenerate nothing, a new weight does).
+* `Tarol.Search.AotSmoke`: 0 IL warnings, 13 checks natively. `Tarol.Search.PackageTests`: the packed package, its generator.
+
+### 16.5 Skill evaluation checklist (`tarol-search`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| make an aggregate and an entity searchable | `[Searchable("Label")]` on the class, `[SearchTitle, Searchable(SearchWeight.A)]`, `[Searchable]` | marking the entity class (TSRCH001: only aggregates) |
+| make a personal field findable | `[PersonalData, Searchable(Exact = true)]` | plain `[Searchable]` (TSRCH003) |
+| register and search in a test | `SearchTest.Create(s => s.Add<T>())`, `Given`, `CatchUp`, `Find` | putting a tenant in `SearchQuery` (it has none) |
+| change a weight | raise `s.Version` | forgetting it (start refused: "raise the version") |
+
+### 16.6 Suppressions and analyzer configuration
+
+None.
+

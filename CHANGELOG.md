@@ -8,6 +8,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol.Search` (step 18B): global search over aggregates and their entities: `[Searchable]`, `[SearchTitle]`,
+  `[SearchAudience]`, `[SearchLanguage]` with a generator (TSRCH001–TSRCH005), the port `ISearchIndex`, `SearchHost` on the
+  projection machinery, `ISearch`, the in-memory index, `SearchTest`, `SearchEraser` (erasure, retention, export); in the
+  meta-package `Tarol`.
 * Design of step 18, global search: `docs/architecture/search.md`, `docs/migration/search.md` (GS-0 … GS-12) and the probes under
   `docs/migration/probes/search/` (PostgreSQL full-text search and `pg_trgm`, Meilisearch, Typesense, OpenSearch at 10k–1M
   documents). No package code yet.

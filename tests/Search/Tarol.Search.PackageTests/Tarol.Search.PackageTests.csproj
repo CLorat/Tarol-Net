@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Search package (no ProjectReference). Proves that the package works, that its bundled
+    generator implements ISearchable on a consumer's aggregate, and that the Primitives generator flows from its dependencies.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Search" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckSearchAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolSearchGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Search.Generators'" />
+      <_TarolPrimitivesGenerator Include="@(Analyzer)" Condition="'%(Filename)' == 'Tarol.Primitives.Generators'" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolSearchGenerator)' == '' or '@(_TarolPrimitivesGenerator)' == ''" Text="The Search / Primitives generators did not flow from Tarol.Search." />
+    <Message Importance="high" Text="Tarol.Search analyzers: @(_TarolSearchGenerator);@(_TarolPrimitivesGenerator)" />
+  </Target>
+</Project>

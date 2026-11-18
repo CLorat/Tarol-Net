@@ -13,7 +13,7 @@ page cache, reactions and sagas, messaging, jobs, security, operations and data 
 
 | Included | Not included (reference it when you use it) |
 |---|---|
-| Tarol.Options, Tarol.Results, Tarol.StronglyTypedId, Tarol.Kernel, Tarol.Validations, Tarol.Primitives, Tarol.Persistence, Tarol.Changes, Tarol.Changes.AspNetCore, Tarol.Queries, Tarol.Caching, Tarol.Sagas, Tarol.Messaging, Tarol.Jobs, Tarol.Security, Tarol.Operations, Tarol.DataProtection | Tarol.Persistence.Npgsql, Tarol.Queries.Npgsql, Tarol.Messaging.Npgsql, Tarol.Messaging.Nats, Tarol.Messaging.RabbitMq, Tarol.Messaging.SignalR, Tarol.Security.Zitadel |
+| Tarol.Options, Tarol.Results, Tarol.StronglyTypedId, Tarol.Kernel, Tarol.Validations, Tarol.Primitives, Tarol.Persistence, Tarol.Changes, Tarol.Changes.AspNetCore, Tarol.Queries, Tarol.Caching, Tarol.Search, Tarol.Sagas, Tarol.Messaging, Tarol.Jobs, Tarol.Security, Tarol.Operations, Tarol.DataProtection | Tarol.Persistence.Npgsql, Tarol.Queries.Npgsql, Tarol.Search.Npgsql, Tarol.Messaging.Npgsql, Tarol.Messaging.Nats, Tarol.Messaging.RabbitMq, Tarol.Messaging.SignalR, Tarol.Security.Zitadel |
 
 * The package has no code. Every included package's generators and analyzers run in your project.
 * `Tarol.Changes.AspNetCore`, `Tarol.Security` and `Tarol.Operations` bring the ASP.NET Core shared framework. A worker service

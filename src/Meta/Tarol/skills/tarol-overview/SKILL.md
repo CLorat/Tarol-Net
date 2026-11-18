@@ -26,7 +26,8 @@ description: >-
 | aggregates, events, entities, invariants, lifecycles | Tarol.Primitives | `tarol-primitives` |
 | storing and loading aggregates, upcasters, `[PersonalData]` sealing | Tarol.Persistence, Tarol.Persistence.Npgsql | `tarol-persistence`, `tarol-persistence-npgsql` |
 | a change (command) and its pipeline; HTTP entries | Tarol.Changes, Tarol.Changes.AspNetCore | `tarol-changes`, `tarol-endpoints` |
-| projections, lists, search, the page cache | Tarol.Queries, Tarol.Queries.Npgsql, Tarol.Caching | `tarol-queries`, `tarol-queries-npgsql`, `tarol-caching` |
+| projections, lists, the page cache | Tarol.Queries, Tarol.Queries.Npgsql, Tarol.Caching | `tarol-queries`, `tarol-queries-npgsql`, `tarol-caching` |
+| global search over aggregates and entities | Tarol.Search (+ Tarol.Search.Npgsql) | `tarol-search` |
 | reacting to own events, sagas | Tarol.Sagas | `tarol-sagas` |
 | consuming and publishing messages, effects | Tarol.Messaging (+ a transport) | `tarol-messaging` |
 | scheduled jobs | Tarol.Jobs | `tarol-jobs` |

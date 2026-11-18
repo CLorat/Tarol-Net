@@ -1,0 +1,334 @@
+#nullable enable
+Tarol.Search.ISearch
+Tarol.Search.ISearch.Search(Tarol.Search.SearchQuery! query, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.ISearch.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
+Tarol.Search.ISearchIndex
+Tarol.Search.ISearchIndex.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Search.ISearchIndex.Documents(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! aggregates, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>
+Tarol.Search.ISearchIndex.Prepare(Tarol.Search.SearchIndexDefinition! definition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.ISearchIndex.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Search.StreamDocuments!>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.ISearchIndex.Search(Tarol.Search.SearchRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.ISearchIndex.Write(Tarol.Search.SearchBatch! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.ISearchable<T>
+Tarol.Search.ISearchable<T>.Documents(T! aggregate, System.Collections.Generic.ICollection<Tarol.Search.SearchDocument!>! into) -> void
+Tarol.Search.ISearchable<T>.Shape.get -> Tarol.Search.SearchShape!
+Tarol.Search.InMemorySearchIndex
+Tarol.Search.InMemorySearchIndex.All.get -> System.Collections.Generic.IReadOnlyList<(System.Guid Tenant, Tarol.Search.SearchDocument! Document)>!
+Tarol.Search.InMemorySearchIndex.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Search.InMemorySearchIndex.Documents(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! aggregates, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>
+Tarol.Search.InMemorySearchIndex.InMemorySearchIndex() -> void
+Tarol.Search.InMemorySearchIndex.Prepare(Tarol.Search.SearchIndexDefinition! definition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.InMemorySearchIndex.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Search.StreamDocuments!>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.InMemorySearchIndex.Search(Tarol.Search.SearchRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.InMemorySearchIndex.Write(Tarol.Search.SearchBatch! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.SearchAudienceAttribute
+Tarol.Search.SearchAudienceAttribute.SearchAudienceAttribute() -> void
+Tarol.Search.SearchBatch
+Tarol.Search.SearchBatch.<Clone>$() -> Tarol.Search.SearchBatch!
+Tarol.Search.SearchBatch.Deconstruct(out System.Collections.Generic.IReadOnlyList<Tarol.Search.StreamDocuments!>! Streams, out Tarol.Persistence.GlobalPosition From, out Tarol.Persistence.GlobalPosition To, out Tarol.Queries.ProjectionState State) -> void
+Tarol.Search.SearchBatch.Equals(Tarol.Search.SearchBatch? other) -> bool
+Tarol.Search.SearchBatch.From.get -> Tarol.Persistence.GlobalPosition
+Tarol.Search.SearchBatch.From.init -> void
+Tarol.Search.SearchBatch.SearchBatch(System.Collections.Generic.IReadOnlyList<Tarol.Search.StreamDocuments!>! Streams, Tarol.Persistence.GlobalPosition From, Tarol.Persistence.GlobalPosition To, Tarol.Queries.ProjectionState State) -> void
+Tarol.Search.SearchBatch.State.get -> Tarol.Queries.ProjectionState
+Tarol.Search.SearchBatch.State.init -> void
+Tarol.Search.SearchBatch.Streams.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.StreamDocuments!>!
+Tarol.Search.SearchBatch.Streams.init -> void
+Tarol.Search.SearchBatch.To.get -> Tarol.Persistence.GlobalPosition
+Tarol.Search.SearchBatch.To.init -> void
+Tarol.Search.SearchClause
+Tarol.Search.SearchClause.<Clone>$() -> Tarol.Search.SearchClause!
+Tarol.Search.SearchClause.Alternatives.get -> System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>!
+Tarol.Search.SearchClause.Alternatives.init -> void
+Tarol.Search.SearchClause.Deconstruct(out System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>! Alternatives, out bool Excluded) -> void
+Tarol.Search.SearchClause.Equals(Tarol.Search.SearchClause? other) -> bool
+Tarol.Search.SearchClause.Excluded.get -> bool
+Tarol.Search.SearchClause.Excluded.init -> void
+Tarol.Search.SearchClause.SearchClause(System.Collections.Generic.IReadOnlyList<System.Collections.Generic.IReadOnlyList<string!>!>! Alternatives, bool Excluded) -> void
+Tarol.Search.SearchDocument
+Tarol.Search.SearchDocument.<Clone>$() -> Tarol.Search.SearchDocument!
+Tarol.Search.SearchDocument.A.get -> string?
+Tarol.Search.SearchDocument.A.init -> void
+Tarol.Search.SearchDocument.Aggregate.get -> System.Guid
+Tarol.Search.SearchDocument.Aggregate.init -> void
+Tarol.Search.SearchDocument.Audience.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Search.SearchDocument.Audience.init -> void
+Tarol.Search.SearchDocument.B.get -> string?
+Tarol.Search.SearchDocument.B.init -> void
+Tarol.Search.SearchDocument.C.get -> string?
+Tarol.Search.SearchDocument.C.init -> void
+Tarol.Search.SearchDocument.D.get -> string?
+Tarol.Search.SearchDocument.D.init -> void
+Tarol.Search.SearchDocument.Deconstruct(out string! Type, out System.Guid Id, out System.Guid Aggregate, out string! Title) -> void
+Tarol.Search.SearchDocument.Equals(Tarol.Search.SearchDocument? other) -> bool
+Tarol.Search.SearchDocument.Exact.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Search.SearchDocument.Exact.init -> void
+Tarol.Search.SearchDocument.Id.get -> System.Guid
+Tarol.Search.SearchDocument.Id.init -> void
+Tarol.Search.SearchDocument.Language.get -> string?
+Tarol.Search.SearchDocument.Language.init -> void
+Tarol.Search.SearchDocument.SearchDocument(string! Type, System.Guid Id, System.Guid Aggregate, string! Title) -> void
+Tarol.Search.SearchDocument.Title.get -> string!
+Tarol.Search.SearchDocument.Title.init -> void
+Tarol.Search.SearchDocument.Type.get -> string!
+Tarol.Search.SearchDocument.Type.init -> void
+Tarol.Search.SearchDocuments
+Tarol.Search.SearchEraser
+Tarol.Search.SearchEraser.Documents(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>!
+Tarol.Search.SearchEraser.SearchEraser(System.IServiceProvider! services) -> void
+Tarol.Search.SearchHit
+Tarol.Search.SearchHit.<Clone>$() -> Tarol.Search.SearchHit!
+Tarol.Search.SearchHit.Aggregate.get -> System.Guid
+Tarol.Search.SearchHit.Aggregate.init -> void
+Tarol.Search.SearchHit.Deconstruct(out string! Type, out System.Guid Id, out System.Guid Aggregate, out string! Title, out double Score, out string? Snippet) -> void
+Tarol.Search.SearchHit.Equals(Tarol.Search.SearchHit? other) -> bool
+Tarol.Search.SearchHit.Id.get -> System.Guid
+Tarol.Search.SearchHit.Id.init -> void
+Tarol.Search.SearchHit.Score.get -> double
+Tarol.Search.SearchHit.Score.init -> void
+Tarol.Search.SearchHit.SearchHit(string! Type, System.Guid Id, System.Guid Aggregate, string! Title, double Score, string? Snippet = null) -> void
+Tarol.Search.SearchHit.Snippet.get -> string?
+Tarol.Search.SearchHit.Snippet.init -> void
+Tarol.Search.SearchHit.Title.get -> string!
+Tarol.Search.SearchHit.Title.init -> void
+Tarol.Search.SearchHit.Type.get -> string!
+Tarol.Search.SearchHit.Type.init -> void
+Tarol.Search.SearchHost
+Tarol.Search.SearchHost.Index.get -> Tarol.Search.ISearchIndex!
+Tarol.Search.SearchHost.Reindex(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Search.SearchHost.Remove(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Search.SearchHost.SearchHost(Tarol.Search.SearchRegistry! registry, Tarol.Search.ISearchIndex! index, Tarol.Persistence.IEventFeed! feed, Tarol.Persistence.IAggregateReader! reader, Tarol.Search.SearchTokens? tokens = null, System.TimeProvider? time = null, Microsoft.Extensions.Logging.ILogger<Tarol.Search.SearchHost!>? logger = null, Tarol.Queries.IFeedSignal? signal = null, Tarol.Queries.IProjectionGate? gate = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Search.SearchIndexDefinition
+Tarol.Search.SearchIndexDefinition.<Clone>$() -> Tarol.Search.SearchIndexDefinition!
+Tarol.Search.SearchIndexDefinition.Deconstruct(out int Version, out string! Fingerprint, out System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>! Types) -> void
+Tarol.Search.SearchIndexDefinition.Equals(Tarol.Search.SearchIndexDefinition? other) -> bool
+Tarol.Search.SearchIndexDefinition.Fingerprint.get -> string!
+Tarol.Search.SearchIndexDefinition.Fingerprint.init -> void
+Tarol.Search.SearchIndexDefinition.SearchIndexDefinition(int Version, string! Fingerprint, System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>! Types) -> void
+Tarol.Search.SearchIndexDefinition.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
+Tarol.Search.SearchIndexDefinition.Types.init -> void
+Tarol.Search.SearchIndexDefinition.Version.get -> int
+Tarol.Search.SearchIndexDefinition.Version.init -> void
+Tarol.Search.SearchLanguageAttribute
+Tarol.Search.SearchLanguageAttribute.SearchLanguageAttribute() -> void
+Tarol.Search.SearchLimits
+Tarol.Search.SearchPage
+Tarol.Search.SearchPage.<Clone>$() -> Tarol.Search.SearchPage!
+Tarol.Search.SearchPage.Counts.get -> System.Collections.Generic.IReadOnlyDictionary<string!, long>?
+Tarol.Search.SearchPage.Counts.init -> void
+Tarol.Search.SearchPage.CountsCapped.get -> bool
+Tarol.Search.SearchPage.CountsCapped.init -> void
+Tarol.Search.SearchPage.Deconstruct(out System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>! Items, out string? Next, out System.Collections.Generic.IReadOnlyDictionary<string!, long>? Counts, out bool CountsCapped, out int Version, out Tarol.Persistence.GlobalPosition Position, out Tarol.Queries.ProjectionState State) -> void
+Tarol.Search.SearchPage.Equals(Tarol.Search.SearchPage? other) -> bool
+Tarol.Search.SearchPage.Items.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!
+Tarol.Search.SearchPage.Items.init -> void
+Tarol.Search.SearchPage.Next.get -> string?
+Tarol.Search.SearchPage.Next.init -> void
+Tarol.Search.SearchPage.Position.get -> Tarol.Persistence.GlobalPosition
+Tarol.Search.SearchPage.Position.init -> void
+Tarol.Search.SearchPage.SearchPage(System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>! Items, string? Next, System.Collections.Generic.IReadOnlyDictionary<string!, long>? Counts, bool CountsCapped, int Version, Tarol.Persistence.GlobalPosition Position, Tarol.Queries.ProjectionState State) -> void
+Tarol.Search.SearchPage.State.get -> Tarol.Queries.ProjectionState
+Tarol.Search.SearchPage.State.init -> void
+Tarol.Search.SearchPage.Version.get -> int
+Tarol.Search.SearchPage.Version.init -> void
+Tarol.Search.SearchQuery
+Tarol.Search.SearchQuery.<Clone>$() -> Tarol.Search.SearchQuery!
+Tarol.Search.SearchQuery.After.get -> string?
+Tarol.Search.SearchQuery.After.init -> void
+Tarol.Search.SearchQuery.Audience.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Search.SearchQuery.Audience.init -> void
+Tarol.Search.SearchQuery.Counts.get -> bool
+Tarol.Search.SearchQuery.Counts.init -> void
+Tarol.Search.SearchQuery.Deconstruct(out string! Text) -> void
+Tarol.Search.SearchQuery.Equals(Tarol.Search.SearchQuery? other) -> bool
+Tarol.Search.SearchQuery.Language.get -> string?
+Tarol.Search.SearchQuery.Language.init -> void
+Tarol.Search.SearchQuery.Limit.get -> int
+Tarol.Search.SearchQuery.Limit.init -> void
+Tarol.Search.SearchQuery.Prefix.get -> bool
+Tarol.Search.SearchQuery.Prefix.init -> void
+Tarol.Search.SearchQuery.SearchQuery(string! Text) -> void
+Tarol.Search.SearchQuery.Snippets.get -> bool
+Tarol.Search.SearchQuery.Snippets.init -> void
+Tarol.Search.SearchQuery.Text.get -> string!
+Tarol.Search.SearchQuery.Text.init -> void
+Tarol.Search.SearchQuery.Types.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Search.SearchQuery.Types.init -> void
+Tarol.Search.SearchRegistry
+Tarol.Search.SearchRegistry.Add<T>() -> Tarol.Search.SearchRegistry!
+Tarol.Search.SearchRegistry.Definition() -> Tarol.Search.SearchIndexDefinition!
+Tarol.Search.SearchRegistry.Loaders.get -> int
+Tarol.Search.SearchRegistry.Loaders.set -> void
+Tarol.Search.SearchRegistry.Projection.get -> Tarol.Queries.ProjectionOptions!
+Tarol.Search.SearchRegistry.SearchRegistry() -> void
+Tarol.Search.SearchRegistry.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
+Tarol.Search.SearchRegistry.Version.get -> int
+Tarol.Search.SearchRegistry.Version.set -> void
+Tarol.Search.SearchRequest
+Tarol.Search.SearchRequest.<Clone>$() -> Tarol.Search.SearchRequest!
+Tarol.Search.SearchRequest.After.get -> string?
+Tarol.Search.SearchRequest.After.init -> void
+Tarol.Search.SearchRequest.Audience.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Search.SearchRequest.Audience.init -> void
+Tarol.Search.SearchRequest.Counts.get -> bool
+Tarol.Search.SearchRequest.Counts.init -> void
+Tarol.Search.SearchRequest.Deconstruct(out System.Guid Tenant, out string! Text) -> void
+Tarol.Search.SearchRequest.Equals(Tarol.Search.SearchRequest? other) -> bool
+Tarol.Search.SearchRequest.ExactToken.get -> string?
+Tarol.Search.SearchRequest.ExactToken.init -> void
+Tarol.Search.SearchRequest.Language.get -> string?
+Tarol.Search.SearchRequest.Language.init -> void
+Tarol.Search.SearchRequest.Limit.get -> int
+Tarol.Search.SearchRequest.Limit.init -> void
+Tarol.Search.SearchRequest.Prefix.get -> bool
+Tarol.Search.SearchRequest.Prefix.init -> void
+Tarol.Search.SearchRequest.SearchRequest(System.Guid Tenant, string! Text) -> void
+Tarol.Search.SearchRequest.Snippets.get -> bool
+Tarol.Search.SearchRequest.Snippets.init -> void
+Tarol.Search.SearchRequest.Tenant.get -> System.Guid
+Tarol.Search.SearchRequest.Tenant.init -> void
+Tarol.Search.SearchRequest.Text.get -> string!
+Tarol.Search.SearchRequest.Text.init -> void
+Tarol.Search.SearchRequest.Types.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Search.SearchRequest.Types.init -> void
+Tarol.Search.SearchService
+Tarol.Search.SearchService.Search(Tarol.Search.SearchQuery! query, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.SearchService.SearchService(Tarol.Search.SearchRegistry! registry, Tarol.Search.ISearchIndex! index, Tarol.Search.SearchTokens? tokens = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Search.SearchService.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
+Tarol.Search.SearchShape
+Tarol.Search.SearchShape.Fingerprint.get -> string!
+Tarol.Search.SearchShape.SearchShape(string! streamType, System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>! types, string! fingerprint) -> void
+Tarol.Search.SearchShape.StreamType.get -> string!
+Tarol.Search.SearchShape.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
+Tarol.Search.SearchTarolBuilderExtensions
+Tarol.Search.SearchTest
+Tarol.Search.SearchTest.CatchUp() -> System.Threading.Tasks.Task<long>!
+Tarol.Search.SearchTest.Find(Tarol.Search.SearchQuery! query, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.SearchTest.Find(string! text, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.SearchTest.Given<T>(T! aggregate, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> Tarol.Search.SearchTest!
+Tarol.Search.SearchTest.Host.get -> Tarol.Search.SearchHost!
+Tarol.Search.SearchTest.Index.get -> Tarol.Search.ISearchIndex!
+Tarol.Search.SearchTest.Registry.get -> Tarol.Search.SearchRegistry!
+Tarol.Search.SearchTest.Search.get -> Tarol.Search.ISearch!
+Tarol.Search.SearchTest.Store.get -> Tarol.Persistence.InMemoryAggregateStore!
+Tarol.Search.SearchTest.Tokens.get -> Tarol.Search.SearchTokens!
+Tarol.Search.SearchText
+Tarol.Search.SearchTitleAttribute
+Tarol.Search.SearchTitleAttribute.SearchTitleAttribute() -> void
+Tarol.Search.SearchTokens
+Tarol.Search.SearchTokens.SearchTokens(Tarol.Persistence.IKeyStore? keys = null) -> void
+Tarol.Search.SearchTokens.Token(System.Guid tenant, string! value, bool create, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+Tarol.Search.SearchType
+Tarol.Search.SearchType.<Clone>$() -> Tarol.Search.SearchType!
+Tarol.Search.SearchType.Aggregate.get -> string!
+Tarol.Search.SearchType.Aggregate.init -> void
+Tarol.Search.SearchType.Deconstruct(out string! Type, out string! Label, out string! Aggregate) -> void
+Tarol.Search.SearchType.Equals(Tarol.Search.SearchType? other) -> bool
+Tarol.Search.SearchType.Label.get -> string!
+Tarol.Search.SearchType.Label.init -> void
+Tarol.Search.SearchType.SearchType(string! Type, string! Label, string! Aggregate) -> void
+Tarol.Search.SearchType.Type.get -> string!
+Tarol.Search.SearchType.Type.init -> void
+Tarol.Search.SearchWeight
+Tarol.Search.SearchWeight.A = 0 -> Tarol.Search.SearchWeight
+Tarol.Search.SearchWeight.B = 1 -> Tarol.Search.SearchWeight
+Tarol.Search.SearchWeight.C = 2 -> Tarol.Search.SearchWeight
+Tarol.Search.SearchWeight.D = 3 -> Tarol.Search.SearchWeight
+Tarol.Search.SearchableAttribute
+Tarol.Search.SearchableAttribute.Exact.get -> bool
+Tarol.Search.SearchableAttribute.Exact.init -> void
+Tarol.Search.SearchableAttribute.Label.get -> string?
+Tarol.Search.SearchableAttribute.SearchableAttribute() -> void
+Tarol.Search.SearchableAttribute.SearchableAttribute(Tarol.Search.SearchWeight weight) -> void
+Tarol.Search.SearchableAttribute.SearchableAttribute(string! label) -> void
+Tarol.Search.SearchableAttribute.Weight.get -> Tarol.Search.SearchWeight
+Tarol.Search.StreamDocuments
+Tarol.Search.StreamDocuments.<Clone>$() -> Tarol.Search.StreamDocuments!
+Tarol.Search.StreamDocuments.Aggregate.get -> System.Guid
+Tarol.Search.StreamDocuments.Aggregate.init -> void
+Tarol.Search.StreamDocuments.Deconstruct(out System.Guid Tenant, out System.Guid Aggregate, out long Version, out System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchDocument!>! Documents) -> void
+Tarol.Search.StreamDocuments.Documents.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchDocument!>!
+Tarol.Search.StreamDocuments.Documents.init -> void
+Tarol.Search.StreamDocuments.Equals(Tarol.Search.StreamDocuments? other) -> bool
+Tarol.Search.StreamDocuments.StreamDocuments(System.Guid Tenant, System.Guid Aggregate, long Version, System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchDocument!>! Documents) -> void
+Tarol.Search.StreamDocuments.Tenant.get -> System.Guid
+Tarol.Search.StreamDocuments.Tenant.init -> void
+Tarol.Search.StreamDocuments.Version.get -> long
+Tarol.Search.StreamDocuments.Version.init -> void
+const Tarol.Search.SearchHost.MeterName = "Tarol.Search" -> string!
+const Tarol.Search.SearchIndexDefinition.Name = "search" -> string!
+const Tarol.Search.SearchLimits.CountCap = 1000 -> int
+const Tarol.Search.SearchLimits.DefaultLimit = 20 -> int
+const Tarol.Search.SearchLimits.MaxDepth = 1000 -> int
+const Tarol.Search.SearchLimits.MaxLimit = 50 -> int
+const Tarol.Search.SearchLimits.MaxText = 256 -> int
+const Tarol.Search.SearchTokens.Lookup = "tarol.search" -> string!
+override Tarol.Search.SearchBatch.Equals(object? obj) -> bool
+override Tarol.Search.SearchBatch.GetHashCode() -> int
+override Tarol.Search.SearchBatch.ToString() -> string!
+override Tarol.Search.SearchClause.Equals(object? obj) -> bool
+override Tarol.Search.SearchClause.GetHashCode() -> int
+override Tarol.Search.SearchClause.ToString() -> string!
+override Tarol.Search.SearchDocument.Equals(object? obj) -> bool
+override Tarol.Search.SearchDocument.GetHashCode() -> int
+override Tarol.Search.SearchDocument.ToString() -> string!
+override Tarol.Search.SearchEraser.Deleted(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Search.SearchEraser.Forget(System.Guid tenant, System.Guid subject, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Search.SearchEraser.ForgetTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+override Tarol.Search.SearchEraser.Name.get -> string!
+override Tarol.Search.SearchHit.Equals(object? obj) -> bool
+override Tarol.Search.SearchHit.GetHashCode() -> int
+override Tarol.Search.SearchHit.ToString() -> string!
+override Tarol.Search.SearchIndexDefinition.Equals(object? obj) -> bool
+override Tarol.Search.SearchIndexDefinition.GetHashCode() -> int
+override Tarol.Search.SearchIndexDefinition.ToString() -> string!
+override Tarol.Search.SearchPage.Equals(object? obj) -> bool
+override Tarol.Search.SearchPage.GetHashCode() -> int
+override Tarol.Search.SearchPage.ToString() -> string!
+override Tarol.Search.SearchQuery.Equals(object? obj) -> bool
+override Tarol.Search.SearchQuery.GetHashCode() -> int
+override Tarol.Search.SearchQuery.ToString() -> string!
+override Tarol.Search.SearchRequest.Equals(object? obj) -> bool
+override Tarol.Search.SearchRequest.GetHashCode() -> int
+override Tarol.Search.SearchRequest.ToString() -> string!
+override Tarol.Search.SearchType.Equals(object? obj) -> bool
+override Tarol.Search.SearchType.GetHashCode() -> int
+override Tarol.Search.SearchType.ToString() -> string!
+override Tarol.Search.StreamDocuments.Equals(object? obj) -> bool
+override Tarol.Search.StreamDocuments.GetHashCode() -> int
+override Tarol.Search.StreamDocuments.ToString() -> string!
+static Tarol.Search.SearchBatch.operator !=(Tarol.Search.SearchBatch? left, Tarol.Search.SearchBatch? right) -> bool
+static Tarol.Search.SearchBatch.operator ==(Tarol.Search.SearchBatch? left, Tarol.Search.SearchBatch? right) -> bool
+static Tarol.Search.SearchClause.operator !=(Tarol.Search.SearchClause? left, Tarol.Search.SearchClause? right) -> bool
+static Tarol.Search.SearchClause.operator ==(Tarol.Search.SearchClause? left, Tarol.Search.SearchClause? right) -> bool
+static Tarol.Search.SearchDocument.operator !=(Tarol.Search.SearchDocument? left, Tarol.Search.SearchDocument? right) -> bool
+static Tarol.Search.SearchDocument.operator ==(Tarol.Search.SearchDocument? left, Tarol.Search.SearchDocument? right) -> bool
+static Tarol.Search.SearchDocuments.Audience(System.Collections.Generic.IEnumerable<string?>? values) -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tarol.Search.SearchDocuments.Exact(params System.ReadOnlySpan<string?> values) -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tarol.Search.SearchDocuments.Join(params System.ReadOnlySpan<string?> values) -> string?
+static Tarol.Search.SearchDocuments.StreamTypeOf<T>() -> string!
+static Tarol.Search.SearchDocuments.Text(System.Collections.Generic.IEnumerable<string?>? values) -> string?
+static Tarol.Search.SearchHit.operator !=(Tarol.Search.SearchHit? left, Tarol.Search.SearchHit? right) -> bool
+static Tarol.Search.SearchHit.operator ==(Tarol.Search.SearchHit? left, Tarol.Search.SearchHit? right) -> bool
+static Tarol.Search.SearchIndexDefinition.operator !=(Tarol.Search.SearchIndexDefinition? left, Tarol.Search.SearchIndexDefinition? right) -> bool
+static Tarol.Search.SearchIndexDefinition.operator ==(Tarol.Search.SearchIndexDefinition? left, Tarol.Search.SearchIndexDefinition? right) -> bool
+static Tarol.Search.SearchPage.operator !=(Tarol.Search.SearchPage? left, Tarol.Search.SearchPage? right) -> bool
+static Tarol.Search.SearchPage.operator ==(Tarol.Search.SearchPage? left, Tarol.Search.SearchPage? right) -> bool
+static Tarol.Search.SearchQuery.operator !=(Tarol.Search.SearchQuery? left, Tarol.Search.SearchQuery? right) -> bool
+static Tarol.Search.SearchQuery.operator ==(Tarol.Search.SearchQuery? left, Tarol.Search.SearchQuery? right) -> bool
+static Tarol.Search.SearchRequest.operator !=(Tarol.Search.SearchRequest? left, Tarol.Search.SearchRequest? right) -> bool
+static Tarol.Search.SearchRequest.operator ==(Tarol.Search.SearchRequest? left, Tarol.Search.SearchRequest? right) -> bool
+static Tarol.Search.SearchShape.Of<T>(string! label, string! fingerprint, params (string! Suffix, string! Label)[]! entities) -> Tarol.Search.SearchShape!
+static Tarol.Search.SearchTarolBuilderExtensions.AddSearch(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Search.SearchRegistry!>! configure) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Search.SearchTarolBuilderExtensions.UseInMemorySearch(this Tarol.Persistence.TarolBuilder! builder) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Search.SearchTest.Create(System.Action<Tarol.Search.SearchRegistry!>! configure, Tarol.Search.ISearchIndex? index = null, Tarol.Persistence.IKeyStore? keys = null, Tarol.Persistence.EventCodec? codec = null, System.TimeProvider? time = null) -> Tarol.Search.SearchTest!
+static Tarol.Search.SearchText.Cursor(Tarol.Search.SearchRequest! request, int version, int offset) -> string?
+static Tarol.Search.SearchText.Normalize(string? text) -> string!
+static Tarol.Search.SearchText.Offset(Tarol.Search.SearchRequest! request, int version, out int offset) -> Tarol.Results.Invalid?
+static Tarol.Search.SearchText.Parse(string? text) -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchClause!>!
+static Tarol.Search.SearchText.Validate(Tarol.Search.SearchRequest! request) -> Tarol.Results.Invalid?
+static Tarol.Search.SearchText.Words(string? text) -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tarol.Search.SearchType.operator !=(Tarol.Search.SearchType? left, Tarol.Search.SearchType? right) -> bool
+static Tarol.Search.SearchType.operator ==(Tarol.Search.SearchType? left, Tarol.Search.SearchType? right) -> bool
+static Tarol.Search.StreamDocuments.operator !=(Tarol.Search.StreamDocuments? left, Tarol.Search.StreamDocuments? right) -> bool
+static Tarol.Search.StreamDocuments.operator ==(Tarol.Search.StreamDocuments? left, Tarol.Search.StreamDocuments? right) -> bool

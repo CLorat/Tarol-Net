@@ -7,7 +7,7 @@
     Its package id is the product name, the one exception to Tarol.<Family>[.<Part>] (conventions §2).
   -->
   <PropertyGroup>
-    <Description>Everything Tarol offers in-process, in one reference: aggregates and events, changes and their HTTP entries, queries and the page cache, reactions and sagas, messaging, jobs, security, operations and data protection, with every generator. Add a store (Tarol.Persistence.Npgsql, Tarol.Queries.Npgsql) and a transport (Tarol.Messaging.Npgsql, .Nats, .RabbitMq) as you need them.</Description>
+    <Description>Everything Tarol offers in-process, in one reference: aggregates and events, changes and their HTTP entries, queries and the page cache, global search, reactions and sagas, messaging, jobs, security, operations and data protection, with every generator. Add a store (Tarol.Persistence.Npgsql, Tarol.Queries.Npgsql) and a transport (Tarol.Messaging.Npgsql, .Nats, .RabbitMq) as you need them.</Description>
     <PackageTags>tarol;ddd;event-sourcing;cqrs;meta-package;aot</PackageTags>
     <!-- No code of its own: the empty assembly is not packed, and lib/net11.0/_._ marks the framework (NU5128). -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
@@ -30,6 +30,7 @@
     <ProjectReference Include="../../Changes/Tarol.Changes/Tarol.Changes.csproj" />
     <ProjectReference Include="../../Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
     <ProjectReference Include="../../Queries/Tarol.Queries/Tarol.Queries.csproj" />
+    <ProjectReference Include="../../Search/Tarol.Search/Tarol.Search.csproj" />
     <ProjectReference Include="../../Caching/Tarol.Caching/Tarol.Caching.csproj" />
     <ProjectReference Include="../../Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
     <ProjectReference Include="../../Messaging/Tarol.Messaging/Tarol.Messaging.csproj" />
