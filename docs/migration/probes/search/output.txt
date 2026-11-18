@@ -298,3 +298,100 @@ INFO meili data directory on disk: 3543 MB
 | meilisearch | delete | 50 | 270.4 | 320.2 | 320.2 |
 
 ## 5. Bench typesense alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
+# bench typesense (JIT), sizes 10000 / 100000 / 1000000
+INFO typesense load 0 -> 10,000: 1.2 s, 8,660 docs/s (empty index)
+INFO typesense size at 10,000: 68 MB
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | typesense | common (rank 10) | tenant 10 % | 100 | 1.82 | 5.15 | 20 of 153 |
+| 10,000 | typesense | common (rank 10) | tenant 0.1 % | 100 | 0.57 | 0.97 | 1 of 1 |
+| 10,000 | typesense | common (rank 10) | all tenants | 100 | 1.99 | 3.94 | 20 of 1,445 |
+| 10,000 | typesense | medium (rank 100) | tenant 10 % | 100 | 1.62 | 2.51 | 20 of 25 |
+| 10,000 | typesense | medium (rank 100) | tenant 0.1 % | 100 | 0.70 | 1.66 | 0 of 0 |
+| 10,000 | typesense | medium (rank 100) | all tenants | 100 | 1.62 | 3.40 | 20 of 266 |
+| 10,000 | typesense | rare (rank 3000) | tenant 10 % | 100 | 0.90 | 1.46 | 0 of 0 |
+| 10,000 | typesense | rare (rank 3000) | tenant 0.1 % | 100 | 0.53 | 0.86 | 0 of 0 |
+| 10,000 | typesense | rare (rank 3000) | all tenants | 100 | 1.11 | 2.15 | 7 of 7 |
+| 10,000 | typesense | two words (100 & 300) | tenant 10 % | 100 | 0.81 | 1.38 | 0 of 0 |
+| 10,000 | typesense | two words (100 & 300) | tenant 0.1 % | 100 | 0.59 | 1.13 | 0 of 0 |
+| 10,000 | typesense | two words (100 & 300) | all tenants | 100 | 0.88 | 1.80 | 1 of 1 |
+| 10,000 | typesense | prefix (4 letters of rank 500) | tenant 10 % | 100 | 1.49 | 2.24 | 20 of 72 |
+| 10,000 | typesense | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.86 | 1.79 | 1 of 1 |
+| 10,000 | typesense | prefix (4 letters of rank 500) | all tenants | 100 | 1.20 | 1.87 | 20 of 576 |
+| 10,000 | typesense | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.89 | 1.47 | 5 of 5 |
+| 10,000 | typesense | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.49 | 0.96 | 0 of 0 |
+| 10,000 | typesense | typo (rank 300, 1 substitution) | all tenants | 100 | 1.13 | 1.66 | 20 of 94 |
+| 10,000 | typesense | medium + counts per type | tenant 10 % | 100 | 1.50 | 2.16 | 20 of 25 |
+| 10,000 | typesense | medium + counts per type | tenant 0.1 % | 100 | 0.34 | 0.52 | 0 of 0 |
+| 10,000 | typesense | medium + counts per type | all tenants | 100 | 1.38 | 1.87 | 20 of 266 |
+| 10,000 | typesense | medium + snippets | tenant 10 % | 100 | 1.73 | 2.61 | 20 of 25 |
+| 10,000 | typesense | medium + snippets | tenant 0.1 % | 100 | 0.41 | 0.91 | 0 of 0 |
+| 10,000 | typesense | medium + snippets | all tenants | 100 | 1.28 | 4.38 | 20 of 266 |
+INFO typesense load 10,000 -> 100,000: 11.1 s, 8,120 docs/s (index maintained)
+INFO typesense size at 100,000: 118 MB
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 100,000 | typesense | common (rank 10) | tenant 10 % | 100 | 2.98 | 6.09 | 20 of 1,598 |
+| 100,000 | typesense | common (rank 10) | tenant 0.1 % | 100 | 1.47 | 2.29 | 15 of 15 |
+| 100,000 | typesense | common (rank 10) | all tenants | 100 | 5.17 | 8.06 | 20 of 14,827 |
+| 100,000 | typesense | medium (rank 100) | tenant 10 % | 100 | 1.95 | 4.31 | 20 of 246 |
+| 100,000 | typesense | medium (rank 100) | tenant 0.1 % | 100 | 0.74 | 1.25 | 4 of 4 |
+| 100,000 | typesense | medium (rank 100) | all tenants | 100 | 2.16 | 5.08 | 20 of 2,701 |
+| 100,000 | typesense | rare (rank 3000) | tenant 10 % | 100 | 1.28 | 1.90 | 12 of 12 |
+| 100,000 | typesense | rare (rank 3000) | tenant 0.1 % | 100 | 0.64 | 0.93 | 0 of 0 |
+| 100,000 | typesense | rare (rank 3000) | all tenants | 100 | 1.32 | 1.71 | 20 of 100 |
+| 100,000 | typesense | two words (100 & 300) | tenant 10 % | 100 | 1.37 | 2.06 | 7 of 7 |
+| 100,000 | typesense | two words (100 & 300) | tenant 0.1 % | 100 | 0.83 | 3.93 | 0 of 0 |
+| 100,000 | typesense | two words (100 & 300) | all tenants | 100 | 1.42 | 4.96 | 20 of 28 |
+| 100,000 | typesense | prefix (4 letters of rank 500) | tenant 10 % | 100 | 2.33 | 4.99 | 20 of 627 |
+| 100,000 | typesense | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.94 | 2.48 | 9 of 9 |
+| 100,000 | typesense | prefix (4 letters of rank 500) | all tenants | 100 | 1.96 | 3.54 | 20 of 6,130 |
+| 100,000 | typesense | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 1.74 | 4.42 | 20 of 91 |
+| 100,000 | typesense | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.70 | 1.05 | 2 of 2 |
+| 100,000 | typesense | typo (rank 300, 1 substitution) | all tenants | 100 | 1.56 | 4.00 | 20 of 977 |
+| 100,000 | typesense | medium + counts per type | tenant 10 % | 100 | 2.42 | 4.43 | 20 of 246 |
+| 100,000 | typesense | medium + counts per type | tenant 0.1 % | 100 | 0.86 | 1.19 | 4 of 4 |
+| 100,000 | typesense | medium + counts per type | all tenants | 100 | 2.82 | 3.54 | 20 of 2,701 |
+| 100,000 | typesense | medium + snippets | tenant 10 % | 100 | 2.57 | 4.44 | 20 of 246 |
+| 100,000 | typesense | medium + snippets | tenant 0.1 % | 100 | 1.03 | 1.55 | 4 of 4 |
+| 100,000 | typesense | medium + snippets | all tenants | 100 | 2.94 | 8.03 | 20 of 2,701 |
+INFO typesense load 100,000 -> 1,000,000: 116.9 s, 7,698 docs/s (index maintained)
+INFO typesense size at 1,000,000: 293 MB
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | typesense | common (rank 10) | tenant 10 % | 100 | 16.05 | 29.27 | 20 of 14,788 |
+| 1,000,000 | typesense | common (rank 10) | tenant 0.1 % | 100 | 4.16 | 8.07 | 20 of 146 |
+| 1,000,000 | typesense | common (rank 10) | all tenants | 100 | 35.89 | 68.83 | 20 of 148,070 |
+| 1,000,000 | typesense | medium (rank 100) | tenant 10 % | 100 | 8.11 | 11.77 | 20 of 2,730 |
+| 1,000,000 | typesense | medium (rank 100) | tenant 0.1 % | 100 | 1.92 | 2.27 | 20 of 36 |
+| 1,000,000 | typesense | medium (rank 100) | all tenants | 100 | 7.22 | 16.15 | 20 of 27,622 |
+| 1,000,000 | typesense | rare (rank 3000) | tenant 10 % | 100 | 4.79 | 7.45 | 20 of 109 |
+| 1,000,000 | typesense | rare (rank 3000) | tenant 0.1 % | 100 | 0.81 | 2.41 | 1 of 1 |
+| 1,000,000 | typesense | rare (rank 3000) | all tenants | 100 | 1.77 | 2.76 | 20 of 1,029 |
+| 1,000,000 | typesense | two words (100 & 300) | tenant 10 % | 100 | 7.26 | 10.47 | 20 of 25 |
+| 1,000,000 | typesense | two words (100 & 300) | tenant 0.1 % | 100 | 1.98 | 2.85 | 0 of 0 |
+| 1,000,000 | typesense | two words (100 & 300) | all tenants | 100 | 3.12 | 5.99 | 20 of 280 |
+| 1,000,000 | typesense | prefix (4 letters of rank 500) | tenant 10 % | 100 | 6.99 | 18.77 | 20 of 1,534 |
+| 1,000,000 | typesense | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 2.47 | 6.43 | 20 of 60 |
+| 1,000,000 | typesense | prefix (4 letters of rank 500) | all tenants | 100 | 4.36 | 18.25 | 20 of 15,738 |
+| 1,000,000 | typesense | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 7.49 | 10.93 | 20 of 993 |
+| 1,000,000 | typesense | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 1.44 | 2.63 | 6 of 6 |
+| 1,000,000 | typesense | typo (rank 300, 1 substitution) | all tenants | 100 | 3.58 | 8.33 | 20 of 9,993 |
+| 1,000,000 | typesense | medium + counts per type | tenant 10 % | 100 | 8.76 | 12.83 | 20 of 2,730 |
+| 1,000,000 | typesense | medium + counts per type | tenant 0.1 % | 100 | 1.69 | 3.06 | 20 of 36 |
+| 1,000,000 | typesense | medium + counts per type | all tenants | 100 | 9.70 | 13.77 | 20 of 27,622 |
+| 1,000,000 | typesense | medium + snippets | tenant 10 % | 100 | 8.12 | 11.51 | 20 of 2,730 |
+| 1,000,000 | typesense | medium + snippets | tenant 0.1 % | 100 | 2.32 | 3.82 | 20 of 36 |
+| 1,000,000 | typesense | medium + snippets | all tenants | 100 | 6.80 | 11.11 | 20 of 27,622 |
+INFO typesense feeder upserts at 1,000,000: 20,000 changed docs in batches of 500: 2.5 s, 8,080 docs/s (each batch searchable on return)
+INFO typesense rebuild of 1,000,000 into an empty index: 125.8 s, 7,949 docs/s
+INFO typesense size after rebuild: 298 MB
+INFO container memory: tarol-search-ts 384.7MiB / 15.71GiB (CPU 43.58%)
+INFO typesense data directory on disk: 1307 MB
+
+| engine | write | n | p50 ms | p99 ms | max ms |
+|---|---|---|---|---|---|
+| typesense | upsert | 50 | 7.5 | 69.5 | 69.5 |
+| typesense | delete | 50 | 6.3 | 27.4 | 27.4 |
+
+## 6. Bench opensearch alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
