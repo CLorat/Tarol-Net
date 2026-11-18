@@ -38,7 +38,18 @@ public abstract partial class ProjectionHost : BackgroundService
     private bool _prepared;
     private long _conflicts;
 
-    private protected ProjectionHost(string name, int version, IEventFeed feed, ProjectionOptions? options, TimeProvider? time, ILogger? logger,
+    /// <summary>Creates a host. A host outside Tarol.Queries (search, step 18) derives from this class and implements
+    /// <see cref="Prepare"/>, <see cref="LoadCheckpoint"/> and <see cref="Write"/>; the loop, gate, meters and waits are the same.</summary>
+    /// <param name="name">The projection's name: the key of its checkpoint and of its gate.</param>
+    /// <param name="version">Its version (≥ 1).</param>
+    /// <param name="feed">The store's feed.</param>
+    /// <param name="options">Batch, poll and backoff; <see langword="null"/> = the defaults.</param>
+    /// <param name="time">The clock of waits; <see langword="null"/> = <see cref="TimeProvider.System"/>.</param>
+    /// <param name="logger">The logger; <see langword="null"/> = none.</param>
+    /// <param name="signal">Wakes the host after a commit; <see langword="null"/> = poll only.</param>
+    /// <param name="gate">Lets one runner of the version work (step 15); <see langword="null"/> = every host runs.</param>
+    /// <param name="meters">Creates the meter <see cref="MeterName"/>; <see langword="null"/> = a shared meter.</param>
+    protected ProjectionHost(string name, int version, IEventFeed feed, ProjectionOptions? options, TimeProvider? time, ILogger? logger,
         IFeedSignal? signal, IProjectionGate? gate, IMeterFactory? meters)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -293,14 +304,27 @@ public abstract partial class ProjectionHost : BackgroundService
         }
     }
 
-    /// <summary>Creates what the projection stores into (idempotent).</summary>
-    private protected abstract ValueTask Prepare(CancellationToken cancellationToken);
+    /// <summary>Creates what the projection stores into (idempotent); called once before the first batch.</summary>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>A task.</returns>
+    protected abstract ValueTask Prepare(CancellationToken cancellationToken);
 
-    /// <summary>Reads the stored checkpoint.</summary>
-    private protected abstract ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken cancellationToken);
+    /// <summary>Reads the stored checkpoint (<see cref="GlobalPosition.Start"/> and building before the first batch).</summary>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The checkpoint.</returns>
+    protected abstract ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken cancellationToken);
 
-    /// <summary>Applies and writes a batch with the guarded checkpoint move; whether it was written and how many rows changed.</summary>
-    private protected abstract ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition to,
+    /// <summary>
+    /// Applies and writes a batch with the guarded checkpoint move: the checkpoint moves from <paramref name="from"/> to
+    /// <paramref name="to"/> only while it is still at <paramref name="from"/>, together with what the batch wrote.
+    /// </summary>
+    /// <param name="events">The feed events of the batch, in order (every stream type); empty when only the state changes.</param>
+    /// <param name="from">The checkpoint the batch read after.</param>
+    /// <param name="to">The position of the batch's last event (equal to <paramref name="from"/> when only the state changes).</param>
+    /// <param name="state">The state after the batch.</param>
+    /// <param name="cancellationToken">Cancels the batch (nothing is written).</param>
+    /// <returns>Whether it was written (<see langword="false"/>: another runner moved the checkpoint, the host reads again) and how many rows changed.</returns>
+    protected abstract ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition to,
         ProjectionState state, CancellationToken cancellationToken);
 
     [LoggerMessage(EventId = 12010, Level = LogLevel.Information, Message = "Projection {Projection} v{Version}: this host is the runner")]
