@@ -97,5 +97,8 @@ fi
 if sec 10 "Meilisearch write -> searchable again, searching the token as a phrase (section 4's query was typo-tolerant and found the previous sample)"; then
   only meili; J lag meili; ok 10
 fi
+if sec 11 "PostgreSQL at 1M (the table section 3 left): bounded ranking (rank the first 10,000 / 1,000 matches) per tenant index, and the trigram index led by the tenant"; then
+  only pg; J bounded; ok 11
+fi
 echo; echo "## done $(date -u +%H:%M)"
 } 2>&1 | tee -a "$out"

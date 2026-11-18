@@ -175,7 +175,7 @@ public static class Bench
         var pg = new Pg(db);
         var size = await pg.Scalar<long>($"SELECT count(*) FROM {pg.Schema}.docs");
         Console.WriteLine($"# bench pg bounded ranking ({Runtime}) over {size:N0} documents");
-        string[] only = ["common (rank 10)", "medium (rank 100)", "rare (rank 3000)", "medium + counts per type", "medium + snippets"];
+        string[] only = ["common (rank 10)", "medium (rank 100)", "rare (rank 3000)", "prefix (4 letters of rank 500)", "medium + counts per type", "medium + snippets"];
         foreach (var kind in new[] { "gin", "btree_gin" })
         {
             Console.WriteLine($"INFO pg index {kind}: {(await pg.SwitchIndex(kind)).TotalSeconds:F1} s");
@@ -185,6 +185,16 @@ public static class Bench
                 await Queries(pg, size, only);
             }
         }
+        pg.Candidates = null;
+
+        // the trigram fallback with the tenant leading its index: GIN (tenant, title gin_trgm_ops) through btree_gin
+        var sw = Stopwatch.StartNew();
+        await pg.Exec($"DROP INDEX IF EXISTS {pg.Schema}.docs_title_trgm; CREATE INDEX docs_tenant_title_trgm ON {pg.Schema}.docs USING gin (tenant, title gin_trgm_ops); ANALYZE {pg.Schema}.docs");
+        Console.WriteLine($"INFO pg trigram index on (tenant, title): {sw.Elapsed.TotalSeconds:F1} s, {await pg.Scalar<long>($"SELECT pg_relation_size('{pg.Schema}.docs_tenant_title_trgm')") / 1e6:F0} MB");
+        await using var tdb = Db(trgm: 0.4);
+        await using var trgm = new Pg(tdb, mode: "trgm");
+        await Queries(trgm, size, only: ["prefix (4 letters of rank 500)", "typo (rank 300, 1 substitution)"]);
+        await pg.Exec($"DROP INDEX {pg.Schema}.docs_tenant_title_trgm; CREATE INDEX docs_title_trgm ON {pg.Schema}.docs USING gin (title gin_trgm_ops)");
         return 0;
     }
 

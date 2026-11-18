@@ -512,6 +512,294 @@ INFO no  accents folded: 'cafe muller' finds 'Café Müller'  (0 hits)
 INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
 ALL 11 CHECKS PASSED (selftest opensearch, Native AOT)
 
-## done 21:49
 
 ## 3. Bench pg alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
+# bench pg fts (gin) (JIT), sizes 10000 / 100000 / 1000000
+INFO pg fts (gin) load 0 -> 10,000: 0.5 s, 20,106 docs/s (empty index)
+INFO pg index build after the first load (gin + trgm): 0.3 s
+INFO pg fts (gin) size at 10,000: 13 MB (table+toast 9 MB, gin 2 MB, title trgm 1 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 1.37 | 2.77 | 20 |
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 1.00 | 1.54 | 1 |
+| 10,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 2.66 | 4.06 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 1.03 | 4.42 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.86 | 1.22 | 0 |
+| 10,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 1.37 | 2.63 | 20 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 0.71 | 1.41 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.57 | 3.89 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 0.83 | 1.25 | 7 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 0.50 | 2.29 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.49 | 0.83 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 0.60 | 0.83 | 1 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 1.29 | 4.18 | 20 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.52 | 0.99 | 1 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | all tenants | 100 | 1.50 | 5.69 | 20 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.51 | 0.83 | 0 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.50 | 0.79 | 0 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.32 | 1.41 | 0 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 1.74 | 5.94 | 20 of 25 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 0.81 | 1.77 | 0 of 0 |
+| 10,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 2.26 | 2.86 | 20 of 266 |
+| 10,000 | pg fts (gin) | medium + snippets | tenant 10 % | 100 | 1.70 | 2.02 | 20 |
+| 10,000 | pg fts (gin) | medium + snippets | tenant 0.1 % | 100 | 0.63 | 0.84 | 0 |
+| 10,000 | pg fts (gin) | medium + snippets | all tenants | 100 | 1.45 | 2.54 | 20 |
+INFO pg switch to btree_gin (tenant, tsv): 0.2 s
+INFO pg fts (btree_gin) size at 10,000: 13 MB (table+toast 9 MB, btree_gin 3 MB, title trgm 1 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg fts (btree_gin) | common (rank 10) | tenant 10 % | 100 | 1.02 | 1.50 | 20 |
+| 10,000 | pg fts (btree_gin) | common (rank 10) | tenant 0.1 % | 100 | 0.52 | 0.82 | 1 |
+| 10,000 | pg fts (btree_gin) | common (rank 10) | all tenants | 100 | 2.12 | 3.01 | 20 |
+| 10,000 | pg fts (btree_gin) | medium (rank 100) | tenant 10 % | 100 | 0.55 | 0.86 | 20 |
+| 10,000 | pg fts (btree_gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.36 | 0.80 | 0 |
+| 10,000 | pg fts (btree_gin) | medium (rank 100) | all tenants | 100 | 1.15 | 1.42 | 20 |
+| 10,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 10 % | 100 | 0.66 | 0.96 | 0 |
+| 10,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.59 | 0.78 | 0 |
+| 10,000 | pg fts (btree_gin) | rare (rank 3000) | all tenants | 100 | 0.30 | 0.45 | 7 |
+| 10,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 10 % | 100 | 0.52 | 0.68 | 0 |
+| 10,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.50 | 0.73 | 0 |
+| 10,000 | pg fts (btree_gin) | two words (100 & 300) | all tenants | 100 | 0.38 | 0.87 | 1 |
+| 10,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 0.86 | 2.02 | 20 |
+| 10,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.70 | 1.14 | 1 |
+| 10,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | all tenants | 100 | 1.36 | 5.48 | 20 |
+| 10,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.54 | 0.92 | 0 |
+| 10,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.49 | 0.76 | 0 |
+| 10,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.32 | 0.65 | 0 |
+| 10,000 | pg fts (btree_gin) | medium + counts per type | tenant 10 % | 100 | 1.37 | 1.85 | 20 of 25 |
+| 10,000 | pg fts (btree_gin) | medium + counts per type | tenant 0.1 % | 100 | 1.19 | 1.42 | 0 of 0 |
+| 10,000 | pg fts (btree_gin) | medium + counts per type | all tenants | 100 | 1.85 | 2.21 | 20 of 266 |
+| 10,000 | pg fts (btree_gin) | medium + snippets | tenant 10 % | 100 | 1.31 | 2.04 | 20 |
+| 10,000 | pg fts (btree_gin) | medium + snippets | tenant 0.1 % | 100 | 0.37 | 0.65 | 0 |
+| 10,000 | pg fts (btree_gin) | medium + snippets | all tenants | 100 | 1.78 | 2.10 | 20 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg fts (btree_gin) | common (rank 10) | tenant 10 % | 100 | 1.00 | 1.20 | 20 |
+| 10,000 | pg fts (btree_gin) | common (rank 10) | tenant 0.1 % | 100 | 0.73 | 3.55 | 1 |
+| 10,000 | pg fts (btree_gin) | common (rank 10) | all tenants | 100 | 2.10 | 5.46 | 20 |
+| 10,000 | pg fts (btree_gin) | medium (rank 100) | tenant 10 % | 100 | 0.76 | 1.05 | 20 |
+| 10,000 | pg fts (btree_gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.29 | 0.54 | 0 |
+| 10,000 | pg fts (btree_gin) | medium (rank 100) | all tenants | 100 | 0.93 | 1.91 | 20 |
+| 10,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 10 % | 100 | 0.59 | 0.89 | 0 |
+| 10,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.46 | 0.77 | 0 |
+| 10,000 | pg fts (btree_gin) | rare (rank 3000) | all tenants | 100 | 0.37 | 0.75 | 7 |
+| 10,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 10 % | 100 | 0.57 | 0.74 | 0 |
+| 10,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.42 | 0.59 | 0 |
+| 10,000 | pg fts (btree_gin) | two words (100 & 300) | all tenants | 100 | 0.30 | 0.58 | 1 |
+| 10,000 | pg fts (btree_gin) | medium + counts per type | tenant 10 % | 100 | 0.69 | 1.31 | 20 of 25 |
+| 10,000 | pg fts (btree_gin) | medium + counts per type | tenant 0.1 % | 100 | 0.88 | 1.29 | 0 of 0 |
+| 10,000 | pg fts (btree_gin) | medium + counts per type | all tenants | 100 | 1.80 | 3.03 | 20 of 266 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg_trgm | prefix (4 letters of rank 500) | tenant 10 % | 100 | 0.82 | 1.64 | 15 |
+| 10,000 | pg_trgm | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.53 | 0.88 | 0 |
+| 10,000 | pg_trgm | prefix (4 letters of rank 500) | all tenants | 100 | 0.70 | 1.71 | 20 |
+| 10,000 | pg_trgm | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 2.21 | 4.25 | 20 |
+| 10,000 | pg_trgm | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 1.13 | 2.63 | 1 |
+| 10,000 | pg_trgm | typo (rank 300, 1 substitution) | all tenants | 100 | 4.73 | 65.99 | 20 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg fts+trgm | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 2.38 | 4.99 | 20 |
+| 10,000 | pg fts+trgm | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 1.48 | 1.95 | 1 |
+| 10,000 | pg fts+trgm | typo (rank 300, 1 substitution) | all tenants | 100 | 4.54 | 61.46 | 20 |
+INFO pg back to gin (tsv): 0.2 s
+INFO pg fts (gin) load 10,000 -> 100,000: 7.4 s, 12,193 docs/s (index maintained)
+INFO pg fts (gin) size at 100,000: 125 MB (table+toast 84 MB, gin 16 MB, title trgm 17 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 100,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 8.08 | 10.68 | 20 |
+| 100,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 0.71 | 1.13 | 15 |
+| 100,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 50.27 | 67.01 | 20 |
+| 100,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 4.15 | 6.61 | 20 |
+| 100,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.82 | 1.43 | 4 |
+| 100,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 6.92 | 11.51 | 20 |
+| 100,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 1.90 | 2.54 | 12 |
+| 100,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.78 | 1.48 | 0 |
+| 100,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 2.08 | 3.90 | 20 |
+| 100,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 2.40 | 2.94 | 7 |
+| 100,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.74 | 1.66 | 0 |
+| 100,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 2.63 | 2.99 | 20 |
+| 100,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 5.60 | 26.17 | 20 |
+| 100,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.68 | 1.04 | 9 |
+| 100,000 | pg fts (gin) | prefix (4 letters of rank 500) | all tenants | 100 | 9.06 | 31.09 | 20 |
+| 100,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 1.74 | 2.62 | 0 |
+| 100,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.78 | 1.68 | 0 |
+| 100,000 | pg fts (gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 1.68 | 2.14 | 0 |
+| 100,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 7.97 | 10.92 | 20 of 246 |
+| 100,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 1.43 | 1.94 | 4 of 4 |
+| 100,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 11.43 | 14.61 | 20 of 2,701 |
+| 100,000 | pg fts (gin) | medium + snippets | tenant 10 % | 100 | 4.79 | 12.34 | 20 |
+| 100,000 | pg fts (gin) | medium + snippets | tenant 0.1 % | 100 | 0.88 | 2.08 | 4 |
+| 100,000 | pg fts (gin) | medium + snippets | all tenants | 100 | 8.12 | 13.07 | 20 |
+INFO pg switch to btree_gin (tenant, tsv): 1.6 s
+INFO pg fts (btree_gin) size at 100,000: 122 MB (table+toast 84 MB, btree_gin 13 MB, title trgm 17 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 100,000 | pg fts (btree_gin) | common (rank 10) | tenant 10 % | 100 | 5.15 | 8.58 | 20 |
+| 100,000 | pg fts (btree_gin) | common (rank 10) | tenant 0.1 % | 100 | 0.89 | 1.94 | 15 |
+| 100,000 | pg fts (btree_gin) | common (rank 10) | all tenants | 100 | 26.87 | 39.64 | 20 |
+| 100,000 | pg fts (btree_gin) | medium (rank 100) | tenant 10 % | 100 | 1.79 | 2.89 | 20 |
+| 100,000 | pg fts (btree_gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.65 | 1.28 | 4 |
+| 100,000 | pg fts (btree_gin) | medium (rank 100) | all tenants | 100 | 5.36 | 12.22 | 20 |
+| 100,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 10 % | 100 | 0.69 | 0.99 | 12 |
+| 100,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.43 | 0.76 | 0 |
+| 100,000 | pg fts (btree_gin) | rare (rank 3000) | all tenants | 100 | 0.74 | 2.94 | 20 |
+| 100,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 10 % | 100 | 0.93 | 1.22 | 7 |
+| 100,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.69 | 0.91 | 0 |
+| 100,000 | pg fts (btree_gin) | two words (100 & 300) | all tenants | 100 | 0.92 | 1.15 | 20 |
+| 100,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 3.00 | 18.04 | 20 |
+| 100,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 1.55 | 6.94 | 9 |
+| 100,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | all tenants | 100 | 7.58 | 60.14 | 20 |
+| 100,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.59 | 3.01 | 0 |
+| 100,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.60 | 0.81 | 0 |
+| 100,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.50 | 0.75 | 0 |
+| 100,000 | pg fts (btree_gin) | medium + counts per type | tenant 10 % | 100 | 3.28 | 5.61 | 20 of 246 |
+| 100,000 | pg fts (btree_gin) | medium + counts per type | tenant 0.1 % | 100 | 1.20 | 1.65 | 4 of 4 |
+| 100,000 | pg fts (btree_gin) | medium + counts per type | all tenants | 100 | 9.87 | 12.83 | 20 of 2,701 |
+| 100,000 | pg fts (btree_gin) | medium + snippets | tenant 10 % | 100 | 2.55 | 3.19 | 20 |
+| 100,000 | pg fts (btree_gin) | medium + snippets | tenant 0.1 % | 100 | 0.95 | 2.80 | 4 |
+| 100,000 | pg fts (btree_gin) | medium + snippets | all tenants | 100 | 6.93 | 19.32 | 20 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 100,000 | pg fts (btree_gin) | common (rank 10) | tenant 10 % | 100 | 4.70 | 7.48 | 20 |
+| 100,000 | pg fts (btree_gin) | common (rank 10) | tenant 0.1 % | 100 | 0.85 | 1.45 | 15 |
+| 100,000 | pg fts (btree_gin) | common (rank 10) | all tenants | 100 | 24.73 | 34.96 | 20 |
+| 100,000 | pg fts (btree_gin) | medium (rank 100) | tenant 10 % | 100 | 1.81 | 3.16 | 20 |
+| 100,000 | pg fts (btree_gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.69 | 2.15 | 4 |
+| 100,000 | pg fts (btree_gin) | medium (rank 100) | all tenants | 100 | 5.50 | 8.97 | 20 |
+| 100,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 10 % | 100 | 0.69 | 2.18 | 12 |
+| 100,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.51 | 0.77 | 0 |
+| 100,000 | pg fts (btree_gin) | rare (rank 3000) | all tenants | 100 | 0.81 | 1.30 | 20 |
+| 100,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 10 % | 100 | 0.98 | 2.28 | 7 |
+| 100,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.50 | 1.13 | 0 |
+| 100,000 | pg fts (btree_gin) | two words (100 & 300) | all tenants | 100 | 0.92 | 1.45 | 20 |
+| 100,000 | pg fts (btree_gin) | medium + counts per type | tenant 10 % | 100 | 3.31 | 5.65 | 20 of 246 |
+| 100,000 | pg fts (btree_gin) | medium + counts per type | tenant 0.1 % | 100 | 1.26 | 2.23 | 4 of 4 |
+| 100,000 | pg fts (btree_gin) | medium + counts per type | all tenants | 100 | 9.01 | 11.04 | 20 of 2,701 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 100,000 | pg_trgm | prefix (4 letters of rank 500) | tenant 10 % | 100 | 2.56 | 6.34 | 20 |
+| 100,000 | pg_trgm | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 1.11 | 2.33 | 2 |
+| 100,000 | pg_trgm | prefix (4 letters of rank 500) | all tenants | 100 | 2.30 | 10.65 | 20 |
+| 100,000 | pg_trgm | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 13.92 | 32.89 | 20 |
+| 100,000 | pg_trgm | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 4.13 | 9.68 | 15 |
+| 100,000 | pg_trgm | typo (rank 300, 1 substitution) | all tenants | 100 | 32.07 | 132.33 | 20 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 100,000 | pg fts+trgm | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 15.10 | 35.20 | 20 |
+| 100,000 | pg fts+trgm | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 3.68 | 8.09 | 15 |
+| 100,000 | pg fts+trgm | typo (rank 300, 1 substitution) | all tenants | 100 | 30.05 | 122.43 | 20 |
+INFO pg back to gin (tsv): 1.5 s
+INFO pg fts (gin) load 100,000 -> 1,000,000: 73.1 s, 12,308 docs/s (index maintained)
+INFO pg fts (gin) size at 1,000,000: 1157 MB (table+toast 839 MB, gin 116 MB, title trgm 113 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 38 | 211.27 | 276.24 | 20 |
+| 1,000,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 22.39 | 36.54 | 20 |
+| 1,000,000 | pg fts (gin) | common (rank 10) | all tenants | 37 | 216.36 | 237.02 | 20 |
+| 1,000,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 41.90 | 52.76 | 20 |
+| 1,000,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 5.13 | 6.73 | 20 |
+| 1,000,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 57.55 | 73.41 | 20 |
+| 1,000,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 2.93 | 5.71 | 20 |
+| 1,000,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 1.32 | 1.96 | 1 |
+| 1,000,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 3.79 | 7.40 | 20 |
+| 1,000,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 2.28 | 3.46 | 20 |
+| 1,000,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 1.83 | 2.74 | 0 |
+| 1,000,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 2.51 | 4.85 | 20 |
+| 1,000,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 10 % | 84 | 60.65 | 500.40 | 20 |
+| 1,000,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 12.30 | 36.33 | 20 |
+| 1,000,000 | pg fts (gin) | prefix (4 letters of rank 500) | all tenants | 81 | 92.29 | 289.43 | 20 |
+| 1,000,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.45 | 1.67 | 0 |
+| 1,000,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.58 | 0.81 | 0 |
+| 1,000,000 | pg fts (gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.38 | 0.65 | 0 |
+| 1,000,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 78.22 | 108.83 | 20 of 2,730 |
+| 1,000,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 9.21 | 15.41 | 20 of 36 |
+| 1,000,000 | pg fts (gin) | medium + counts per type | all tenants | 78 | 101.33 | 133.36 | 20 of 28,105 |
+| 1,000,000 | pg fts (gin) | medium + snippets | tenant 10 % | 100 | 40.39 | 52.17 | 20 |
+| 1,000,000 | pg fts (gin) | medium + snippets | tenant 0.1 % | 100 | 5.19 | 7.75 | 20 |
+| 1,000,000 | pg fts (gin) | medium + snippets | all tenants | 100 | 61.84 | 84.63 | 20 |
+INFO pg switch to btree_gin (tenant, tsv): 13.6 s
+INFO pg fts (btree_gin) size at 1,000,000: 1141 MB (table+toast 839 MB, btree_gin 100 MB, title trgm 113 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | pg fts (btree_gin) | common (rank 10) | tenant 10 % | 100 | 47.37 | 74.65 | 20 |
+| 1,000,000 | pg fts (btree_gin) | common (rank 10) | tenant 0.1 % | 100 | 2.78 | 3.90 | 20 |
+| 1,000,000 | pg fts (btree_gin) | common (rank 10) | all tenants | 34 | 235.19 | 255.14 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium (rank 100) | tenant 10 % | 100 | 9.31 | 15.47 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium (rank 100) | tenant 0.1 % | 100 | 1.02 | 1.58 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium (rank 100) | all tenants | 100 | 63.45 | 78.39 | 20 |
+| 1,000,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 10 % | 100 | 1.50 | 2.32 | 20 |
+| 1,000,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.68 | 0.92 | 1 |
+| 1,000,000 | pg fts (btree_gin) | rare (rank 3000) | all tenants | 100 | 3.14 | 6.85 | 20 |
+| 1,000,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 10 % | 100 | 3.08 | 3.97 | 20 |
+| 1,000,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 0.1 % | 100 | 1.17 | 1.59 | 0 |
+| 1,000,000 | pg fts (btree_gin) | two words (100 & 300) | all tenants | 100 | 2.76 | 3.23 | 20 |
+| 1,000,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 23.25 | 360.47 | 20 |
+| 1,000,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 10.45 | 47.85 | 20 |
+| 1,000,000 | pg fts (btree_gin) | prefix (4 letters of rank 500) | all tenants | 83 | 85.99 | 306.96 | 20 |
+| 1,000,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.58 | 1.03 | 0 |
+| 1,000,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.73 | 2.05 | 0 |
+| 1,000,000 | pg fts (btree_gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.55 | 1.43 | 0 |
+| 1,000,000 | pg fts (btree_gin) | medium + counts per type | tenant 10 % | 100 | 17.84 | 25.62 | 20 of 2,730 |
+| 1,000,000 | pg fts (btree_gin) | medium + counts per type | tenant 0.1 % | 100 | 2.24 | 4.20 | 20 of 36 |
+| 1,000,000 | pg fts (btree_gin) | medium + counts per type | all tenants | 82 | 96.53 | 124.60 | 20 of 29,758 |
+| 1,000,000 | pg fts (btree_gin) | medium + snippets | tenant 10 % | 100 | 10.29 | 14.24 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium + snippets | tenant 0.1 % | 100 | 1.91 | 2.70 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium + snippets | all tenants | 100 | 60.10 | 76.41 | 20 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | pg fts (btree_gin) | common (rank 10) | tenant 10 % | 100 | 47.66 | 66.33 | 20 |
+| 1,000,000 | pg fts (btree_gin) | common (rank 10) | tenant 0.1 % | 100 | 2.55 | 6.23 | 20 |
+| 1,000,000 | pg fts (btree_gin) | common (rank 10) | all tenants | 34 | 238.47 | 269.81 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium (rank 100) | tenant 10 % | 100 | 9.16 | 13.50 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.94 | 1.25 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium (rank 100) | all tenants | 100 | 55.55 | 68.80 | 20 |
+| 1,000,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 10 % | 100 | 1.93 | 2.51 | 20 |
+| 1,000,000 | pg fts (btree_gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.62 | 0.98 | 1 |
+| 1,000,000 | pg fts (btree_gin) | rare (rank 3000) | all tenants | 100 | 2.97 | 7.21 | 20 |
+| 1,000,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 10 % | 100 | 2.55 | 3.77 | 20 |
+| 1,000,000 | pg fts (btree_gin) | two words (100 & 300) | tenant 0.1 % | 100 | 1.12 | 1.53 | 0 |
+| 1,000,000 | pg fts (btree_gin) | two words (100 & 300) | all tenants | 100 | 2.17 | 3.47 | 20 |
+| 1,000,000 | pg fts (btree_gin) | medium + counts per type | tenant 10 % | 100 | 16.90 | 25.67 | 20 of 2,730 |
+| 1,000,000 | pg fts (btree_gin) | medium + counts per type | tenant 0.1 % | 100 | 1.77 | 3.63 | 20 of 36 |
+| 1,000,000 | pg fts (btree_gin) | medium + counts per type | all tenants | 88 | 90.53 | 111.46 | 20 of 28,105 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | pg_trgm | prefix (4 letters of rank 500) | tenant 10 % | 100 | 13.15 | 45.11 | 20 |
+| 1,000,000 | pg_trgm | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 4.18 | 14.02 | 16 |
+| 1,000,000 | pg_trgm | prefix (4 letters of rank 500) | all tenants | 100 | 19.74 | 132.80 | 20 |
+| 1,000,000 | pg_trgm | typo (rank 300, 1 substitution) | tenant 10 % | 45 | 154.94 | 443.09 | 20 |
+| 1,000,000 | pg_trgm | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 23.31 | 43.38 | 20 |
+| 1,000,000 | pg_trgm | typo (rank 300, 1 substitution) | all tenants | 20 | 237.46 | 2295.67 | 20 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | pg fts+trgm | typo (rank 300, 1 substitution) | tenant 10 % | 48 | 146.28 | 386.08 | 20 |
+| 1,000,000 | pg fts+trgm | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 27.43 | 50.47 | 20 |
+| 1,000,000 | pg fts+trgm | typo (rank 300, 1 substitution) | all tenants | 20 | 270.03 | 2311.59 | 20 |
+INFO pg back to gin (tsv): 12.9 s
+INFO pg fts (gin) feeder upserts at 1,000,000: 20,000 changed docs in batches of 500: 3.9 s, 5,081 docs/s (each batch searchable on return)
+INFO pg rebuild of 1,000,000 into a new table: load 36.5 s + indexes 23.8 s = 60.4 s
+INFO container memory: tarol-search-pg 1.511GiB / 15.71GiB (CPU 0.12%)
+INFO pg data directory on disk: 2260 MB
+
+| engine | write | n | p50 ms | p99 ms | max ms |
+|---|---|---|---|---|---|
+| pg fts (gin) | upsert | 50 | 3.6 | 261.2 | 261.2 |
+| pg fts (gin) | delete | 50 | 44.3 | 68.8 | 68.8 |
+
+## 9. The extensions as a non-superuser that owns its database (managed PostgreSQL), in a fresh postgres:17
+INFO superuser: false
+INFO CREATE EXTENSION ok
+INFO CREATE EXTENSION ok
+INFO CREATE EXTENSION ok
+INFO ERROR:  extension "vector" is not available
+DETAIL:  Could not open extension control file "/usr/share/postgresql/17/extension/vector.control": No such file or directory.
+HINT:  The extension must first be installed on the system where PostgreSQL is running.
+INFO created as app: btree_gin 1.3, pg_trgm 1.6, plpgsql 1.0, unaccent 1.1
+
+## 10. Meilisearch write -> searchable again, searching the token as a phrase (section 4's query was typo-tolerant and found the previous sample)
+| engine | write | n | p50 ms | p99 ms | max ms |
+|---|---|---|---|---|---|
+| meilisearch | upsert | 50 | 306.7 | 366.9 | 366.9 |
+| meilisearch | delete | 50 | 152.2 | 248.4 | 248.4 |
+
