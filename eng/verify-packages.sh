@@ -47,10 +47,12 @@ for pid, csproj in expected:
     version, nupkg = packages[pid]
     files = set(zipfile.ZipFile(nupkg).namelist())
     project_dir = os.path.dirname(csproj)
-    need = {f"lib/net11.0/{pid}.dll", "README.md", "LICENSE"}
+    text = open(csproj, encoding="utf-8-sig").read()
+    # A meta-package (IncludeBuildOutput false) has no assembly; lib/net11.0/_._ marks its framework instead.
+    meta = re.search(r"<IncludeBuildOutput>\s*false\s*</IncludeBuildOutput>", text) is not None
+    need = {"lib/net11.0/_._" if meta else f"lib/net11.0/{pid}.dll", "README.md", "LICENSE"}
     for skill in glob.glob(os.path.join(project_dir, "skills", "*", "SKILL.md")):
         need.add("skills/" + os.path.relpath(skill, os.path.join(project_dir, "skills")).replace(os.sep, "/"))
-    text = open(csproj, encoding="utf-8-sig").read()
     for ref in re.findall(r'<ProjectReference\s+Include="([^"]+)"[^>]*TarolGenerator="true"', text, re.S):
         gen = os.path.splitext(os.path.basename(ref.replace("\\", "/")))[0]
         need.add(f"analyzers/dotnet/cs/{gen}.dll")

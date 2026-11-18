@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED meta-package Tarol and nothing else (no ProjectReference, no other Tarol package). Proves that every
+    generator of the 17 included packages reaches the consumer through the dependencies (RL-4), and runs an aggregate, a
+    change through a consumer, a publication, an effect and a projection.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+
+  <Target Name="TarolCheckMetaAnalyzers" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <_TarolExpected Include="Changes;Changes.AspNetCore;Kernel;Messaging;Options;Primitives;Queries;Results;StronglyTypedId;Validations" />
+      <_TarolFound Include="@(Analyzer->'%(Filename)')" Condition="$([System.String]::Copy('%(Filename)').StartsWith('Tarol.'))" />
+      <_TarolMissing Include="@(_TarolExpected->'Tarol.%(Identity).Generators')" Exclude="@(_TarolFound)" />
+    </ItemGroup>
+    <Error Condition="'@(_TarolMissing)' != ''" Text="Generators that did not flow from Tarol: @(_TarolMissing)" />
+    <Message Importance="high" Text="Tarol generators: @(_TarolFound)" />
+  </Target>
+</Project>

@@ -57,6 +57,7 @@ Tarol-Net/
 | Project folder and file | full assembly name | `src/StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj` |
 | Assembly, root namespace, package id | the project name (set in `Directory.Build.props`) | `Tarol.StronglyTypedId` |
 | Satellite package | `Tarol.<Family>.<Part>` | `Tarol.Persistence.Npgsql` |
+| Meta-package (the one exception) | `Tarol`, in family folder `Meta`; no code, `IncludeBuildOutput=false` | `src/Meta/Tarol/Tarol.csproj` |
 | Generator | `Tarol.<Family>.Generators`, namespace the same | `Tarol.StronglyTypedId.Generators` |
 | Unit tests | `<Project>.Tests` | `Tarol.StronglyTypedId.Tests` |
 | Integration tests | `<Project>.IntegrationTests` | `Tarol.Persistence.Npgsql.IntegrationTests` |
