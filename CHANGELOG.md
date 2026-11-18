@@ -339,6 +339,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* **Licence** (step 17D): Tarol is licensed under the GNU AGPL-3.0-only (was: proprietary, owner-only); the copyright
+  holder also offers a commercial licence (`NOTICE`). Packages declare `PackageLicenseExpression` `AGPL-3.0-only` and carry
+  `LICENSE` and `NOTICE`; contributions need a CLA (`CONTRIBUTING.md`).
 * Step 16 (announced in docs/migration/data-protection.md §10):
   * the store's schema is version 3. Its steps are compatible from 1; a store with keys raises `compatible_from` to 3,
     so pods from before step 16 refuse such a schema;

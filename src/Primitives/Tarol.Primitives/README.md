@@ -106,4 +106,4 @@ See `docs/architecture/data-protection.md` in the repository.
 * Concept and decisions: `docs/architecture/domain-core.md`, `docs/architecture/state-transitions.md`,
   `docs/migration/primitives.md`, `docs/migration/state-transitions.md` in the repository.
 
-Licence: proprietary, see `LICENSE`.
+Licence: AGPL-3.0-only, see `LICENSE`; a commercial licence is available from the owner (`NOTICE`).

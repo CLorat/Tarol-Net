@@ -91,4 +91,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and, for coding agents, [AGENTS.md](AGENT
 
 ## Licence
 
-Proprietary, for the copyright holder's use only. All rights reserved; see [LICENSE](LICENSE).
+[GNU AGPL-3.0-only](LICENSE). Copyright (C) 2026 Christoph Lorat; see [NOTICE](NOTICE). A commercial licence (for use
+under terms other than the AGPL) is available from the copyright holder. Contributions need a signed CLA
+([CONTRIBUTING.md](CONTRIBUTING.md)).

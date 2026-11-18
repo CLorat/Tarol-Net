@@ -536,3 +536,26 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 
 A new package, `Tarol`. It has no API of its own, and no other package changed.
 
+## 18. Implementation 17D: AGPL-3.0-only
+
+### 18.1 What changed
+
+* `LICENSE`: the GNU AGPL v3 text in the FSF's layout, 661 lines, unmodified. Source: `github/choosealicense.com`
+  (`_licenses/agpl-3.0.txt`, without its front matter). It was compared word by word with SPDX's `AGPL-3.0-only.txt`: the
+  5,535 words are equal except three URLs, which the FSF's current text gives as `https` **[verified]**. `www.gnu.org` was not
+  reachable from this session.
+* `NOTICE` (new): the copyright line, AGPL-3.0-only, the warranty disclaimer, and the commercial licence from the copyright holder.
+* `CONTRIBUTING.md` (new): a contribution is merged only with a signed CLA (§9.1: relicensing stays possible). The CLA text
+  itself is the owner's; it is not in the repository.
+* `Directory.Build.props`: `PackageLicenseExpression` `AGPL-3.0-only` replaces `PackageLicenseFile`. `eng/Tarol.Packaging.targets`
+  packs `LICENSE` and `NOTICE` as plain files.
+* `eng/verify-packages.sh`: every package must contain `NOTICE`, and its nuspec must declare
+  `<license type="expression">AGPL-3.0-only</license>`.
+* The licence line in 13 package READMEs, the root README, `SECURITY.md`, `AGENTS.md` (the rule), conventions §5, and plan
+  D-1, D-11 and its CI section.
+* No per-file headers (§5.1).
+
+### 18.2 Public API and behaviour
+
+No API or behaviour changes. The packages' licence metadata changes from a file to the SPDX expression `AGPL-3.0-only`.
+

@@ -82,4 +82,4 @@ Aggregate invariants (`[Invariant]` methods returning `Result`) come with `Tarol
 are guard clauses in the aggregate's behaviour returning `Result` (`now` as a parameter); permissions are
 `Tarol.Security`. Validation never runs in event application, replay, snapshots or deserialization.
 
-Licence: proprietary, see `LICENSE`.
+Licence: AGPL-3.0-only, see `LICENSE`; a commercial licence is available from the owner (`NOTICE`).
