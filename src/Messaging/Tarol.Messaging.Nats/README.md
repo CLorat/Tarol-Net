@@ -43,7 +43,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Invoice>())
   the connection, which the transport logs (event 11201); the row retries until `outbox_dead`.
 * **`Prefix`** puts a namespace in front of subjects, streams and consumers for environments that share a server.
 
-Design: docs/architecture/messaging.md §6. Licence: proprietary, see LICENSE.
+Design: docs/architecture/messaging.md §6. Licence: AGPL-3.0-only, see LICENSE; a commercial licence is available from the owner (NOTICE).
 
 ## Retention (step 16)
 

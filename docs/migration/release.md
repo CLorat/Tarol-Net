@@ -546,3 +546,90 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
   `verify-packages.sh`, not a test);
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
 * `eng/verify-packages.sh`: OK, **25 packages and 25 consumers**, `Tarol.PackageTests` included.
+
+## 18. Implementation 17D: AGPL-3.0-only
+
+### 18.1 What changed
+
+* `LICENSE`: the GNU AGPL v3 text in the FSF's layout, 661 lines, unmodified. Source: `github/choosealicense.com`
+  (`_licenses/agpl-3.0.txt`, without its front matter). It was compared word by word with SPDX's `AGPL-3.0-only.txt`: the
+  5,535 words are equal except three URLs, which the FSF's current text gives as `https` **[verified]**. `www.gnu.org` was not
+  reachable from this session.
+* `NOTICE` (new): the copyright line, AGPL-3.0-only, the warranty disclaimer, and the commercial licence from the copyright holder.
+* `CONTRIBUTING.md` (new): a contribution is merged only with a signed CLA (§9.1: relicensing stays possible). The CLA text
+  itself is the owner's; it is not in the repository.
+* `Directory.Build.props`: `PackageLicenseExpression` `AGPL-3.0-only` replaces `PackageLicenseFile`. `eng/Tarol.Packaging.targets`
+  packs `LICENSE` and `NOTICE` as plain files.
+* `eng/verify-packages.sh`: every package must contain `NOTICE`, and its nuspec must declare
+  `<license type="expression">AGPL-3.0-only</license>`.
+* The licence line in 13 package READMEs, the root README, `SECURITY.md`, `AGENTS.md` (the rule), conventions §5, and plan
+  D-1, D-11 and its CI section.
+* No per-file headers (§5.1).
+
+### 18.2 Public API and behaviour
+
+No API or behaviour changes. The packages' licence metadata changes from a file to the SPDX expression `AGPL-3.0-only`.
+
+### 18.3 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863**;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK (every package declares AGPL-3.0-only and carries LICENSE and NOTICE).
+
+## 19. Implementation 17E: the release workflow
+
+### 19.1 What changed
+
+* `.github/workflows/release.yml` (new):
+  * **triggers**: a tag `v*` publishes. `workflow_dispatch` and `pull_request` (when the release files change) are dry runs,
+    which stop before `publish`. Only a tag push can publish, so a dispatch can never publish by mistake (there is no
+    `dry_run` input to get wrong);
+  * **`ci`**: `ci.yml` through `workflow_call` (build, unit tests, package check, integration, AOT smoke);
+  * **`pack`** (needs `ci`):
+    * `eng/verify-packages.sh` (pack + check + the 25 consumers);
+    * the version from the packed `Tarol.Kernel` package, which must equal the tag;
+    * `eng/release.py check` (on a dry run with `--dry-run`: warnings, not failures), then `release.py notes` into the job
+      summary;
+    * the artifact `release` (the `.nupkg` files and the notes). It is not named `packages`, because the called CI uploads that
+      name in the same run;
+  * **`publish`** (needs `pack`; tags only; environment `release`; `contents: write`, `packages: write`):
+    * `dotnet nuget push --skip-duplicate` to `nuget.pkg.github.com/<owner>` with `GITHUB_TOKEN`;
+    * `gh release create --verify-tag`, `--prerelease` for a pre-release version;
+  * concurrency `release-<ref>`, never cancelled.
+* `eng/release.py` (new):
+  * `check <version>` fails when the CHANGELOG has no non-empty `## [<base>]` section, an `AnalyzerReleases.Unshipped.md` lists
+    a rule, or a `PublicAPI.Unshipped.txt` has a line;
+  * `notes <version>`: the CHANGELOG section, the diagnostics of `## Release <base>`, and the install line;
+  * a pre-release uses its base version's sections.
+* `eng/tests/test_release.py` (new): 9 `unittest` tests (shipped, pre-release, missing and empty section, unshipped rule,
+  unshipped API, the notes' content, the dry run's fallback and exit codes, a bad version). CI `build` runs them
+  (`python3 -m unittest discover -s eng/tests`).
+
+### 19.2 Deliberate differences from §5.4
+
+* No `dry_run` input: every run that is not a tag push is a dry run.
+* PDBs are embedded in 17F, not here (RL-2), so 17E's dry run still packs `.snupkg`. `pack` uploads only the `.nupkg` files.
+
+### 19.3 What the owner sets (not in the repository)
+
+* Settings → Environments → `release`: a required reviewer (the owner). GitHub creates the environment on the first tag run.
+* Settings → Rules → a tag ruleset for `v*`, restricted to the owner.
+* The packages' visibility on GitHub Packages after the first push (RL-9: public), and their link to the repository.
+
+### 19.4 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (and `python3 -m unittest discover -s eng/tests`: 9 of 9);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK.
+* **The release dry run** of this PR (run 44269716828, `pull_request`), all green:
+  * `ci / build` (with the release-script tests), `ci / integration` and `ci / aot-smoke`, alongside the PR's own CI, which was
+    not cancelled (the concurrency group of §15.1);
+  * `pack`: pack and verify (25 consumers), the version, `release.py check --dry-run`, the notes in the job summary, the
+    artifact `release`;
+  * `publish` skipped (not a tag).

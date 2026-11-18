@@ -7,7 +7,7 @@ Please do not open a public issue. Use GitHub's private vulnerability reporting 
 
 ## Supported versions
 
-Tarol is proprietary and for the owner's use only (see LICENSE); there are no public releases.
+Tarol is licensed under the AGPL-3.0-only (see LICENSE and NOTICE). Releases are published as packages on GitHub Packages.
 
 ## Agent skills in packages
 

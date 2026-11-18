@@ -107,4 +107,4 @@ The Option rules (TOPT001-TOPT004) come with `Tarol.Options`. There is no TRES00
 * Agent skill: `skills/tarol-results/SKILL.md` (in the package); `tarol-options` ships with `Tarol.Options`
 * Design, measurements and migration from Tarol: `docs/migration/results.md` and `docs/migration/options.md` in the repository
 
-Licence: proprietary, see `LICENSE`.
+Licence: AGPL-3.0-only, see `LICENSE`; a commercial licence is available from the owner (`NOTICE`).

@@ -64,4 +64,4 @@ Projection versions are never dropped automatically.
 `OperationsJson`, the endpoints are plain `RequestDelegate`s. The package takes the ASP.NET Core shared framework
 (`FrameworkReference Microsoft.AspNetCore.App`), no NuGet dependency and no OpenTelemetry package.
 
-Design: docs/architecture/operations.md. Licence: proprietary, see LICENSE.
+Design: docs/architecture/operations.md. Licence: AGPL-3.0-only, see LICENSE; a commercial licence is available from the owner (NOTICE).

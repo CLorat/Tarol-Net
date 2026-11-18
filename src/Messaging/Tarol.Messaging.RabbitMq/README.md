@@ -42,4 +42,4 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Invoice>())
   `StampUserId = false` when all systems share one user (then `AuthenticatedAs` is `null`).
 * **`Prefix`** puts a namespace in front of exchanges and queues for environments that share a virtual host.
 
-Design: docs/architecture/messaging.md §6. Licence: proprietary, see LICENSE.
+Design: docs/architecture/messaging.md §6. Licence: AGPL-3.0-only, see LICENSE; a commercial licence is available from the owner (NOTICE).

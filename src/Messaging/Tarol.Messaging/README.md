@@ -116,4 +116,4 @@ Meter `"Tarol.Messaging"`: `tarol.messages.consumed` and `tarol.messages.duratio
 `tarol.messages.published` by contract. Dead letters page with `List(DeadLetterQuery)` and are discarded with
 `Discard(id)`; the consumers' dead letters are an `IDeadLetterSource` of kind `messages`.
 
-Design: docs/architecture/messaging.md. Licence: proprietary, see LICENSE.
+Design: docs/architecture/messaging.md. Licence: AGPL-3.0-only, see LICENSE; a commercial licence is available from the owner (NOTICE).

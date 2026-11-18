@@ -61,4 +61,4 @@ Meter `Tarol.DataProtection` (`tarol.subjects.erased`, `tarol.subjects.exported`
 * Skill for coding agents: `skills/tarol-data-protection/SKILL.md` (in the package).
 * Concept and decisions: `docs/architecture/data-protection.md`, `docs/migration/data-protection.md` in the repository.
 
-Licence: proprietary, see `LICENSE`.
+Licence: AGPL-3.0-only, see `LICENSE`; a commercial licence is available from the owner (`NOTICE`).

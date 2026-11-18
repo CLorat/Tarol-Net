@@ -72,4 +72,4 @@ Invalid input (unknown kind, empty id, `onBehalfOf` on a user) is a `JsonExcepti
 * Concepts: `docs/architecture/time.md`, `identity-context.md`, `tracing.md`, `security.md`; design and measurements:
   `docs/migration/kernel.md` in the repository
 
-Licence: proprietary, see `LICENSE`.
+Licence: AGPL-3.0-only, see `LICENSE`; a commercial licence is available from the owner (`NOTICE`).
