@@ -10,7 +10,30 @@ search is new in Tarol-Net (plan row 18, added 2026-11-18).
 
 ## 0. Summary
 
-⟨summary⟩
+* **Nothing to migrate**: search is new; it builds on the feed, projection hosts and checkpoints (step 12), list authorization
+  (R-5, QR-6), the key store's blind index and erasure participants (step 16), and the operations machinery (step 15) (§1).
+* **Decided** (GS-0 … GS-12, §9): search is **step 18** before Samples. A user marks **aggregate and entity members**
+  (`[Searchable]`, `[SearchTitle]`, `[SearchAudience]`, `[SearchLanguage]`); a generator writes the documents from the **loaded
+  aggregate**, entities as their own hits shown through their aggregate (GS-1). The default index is **PostgreSQL full-text search
+  in the store's database**, GIN led by the tenant, ranked within the first 1,000 matches, with a trigram fallback for typos (GS-2);
+  **OpenSearch and Typesense** get adapters (GS-3). A **projection host** feeds it (GS-4), with an **explicit version and a
+  fingerprint**, the old version answering while a new one builds (GS-5). One **shared index, tenant first** (GS-6); **type grants
+  and an optional audience filter in the index** (GS-7); **personal data only as a blind exact token**, and the index takes part in
+  erasure, retention and export (GS-8). One **runtime endpoint** `MapTarolSearch` with a cursor and an ETag (GS-9), languages **per
+  document with a tenant default** (GS-10), the **projection operations plus a `Tarol.Search` meter** (GS-11), **four packages**
+  and the endpoint in `Tarol.Changes.AspNetCore` (GS-12).
+* **Measured** (§4; 4 cores, every engine alone, 1,000,000 documents, a 10 % tenant, p50 / p99 ms of a page of 20):
+  * PostgreSQL as decided: common word 16 / 26, medium 5.4 / 7.5, rare 1.2 / 2.1, prefix 15 / 74, typo fallback 47 / 145, with
+    counts 11 / 15, with snippets 7.4 / 9.7. Ranking every match instead: 48 / 64 (common); without the tenant in the GIN 211 / 276.
+  * Meilisearch 1.6–4.8 ms p50; Typesense 4.8–16; OpenSearch 2.1–7.0; all p99 ≤ 29 ms in a tenant.
+  * Rebuild of 1M: PG 60 s, OpenSearch 46 s, Typesense 126 s, Meilisearch 164 s; through the feeder (`Load` per stream, 4 loaders)
+    ~100 s. Size: PG 1.1 GB, Meilisearch 3.5–4.4 GB, Typesense 0.3 GB RAM + 1.3 GB disk, OpenSearch 0.26 GB (2.8 GB JVM).
+  * Write → searchable: PG and Typesense synchronous (3.6 / 7.5 ms), Meilisearch ~0.3 s, OpenSearch ~1 s.
+  * Erasure: tombstone 4.5 ms + re-index of the subject's streams 18.6 ms; before the re-index the subject is still found.
+  * Native AOT: the probe with three hand-written HTTP clients and the Npgsql feeder, **0 IL warnings**, every check natively.
+* **Found** (§5): PostgreSQL's cost is ranking every match (bounded: 13× faster); the tenant must lead the GIN and the trigram
+  index; pg_trgm's default threshold misses transpositions; `unaccent` only via a configuration; engines differ on stemming and
+  accents; Meilisearch caps counts at 1,000 and its `main` now carries BUSL parts; a tombstone alone does not erase an index.
 
 ## 1. Inventory: what search builds on **[verified by reading]** (`main` = `15c5706`, after #73)
 
@@ -326,7 +349,7 @@ CREATE TABLE tarol.search_v1 (
   lang regconfig NOT NULL DEFAULT 'tarol.simple',
   tsv tsvector GENERATED ALWAYS AS (setweight(to_tsvector(lang, coalesce(a, '')), 'A') || … 'D') STORED,
   PRIMARY KEY (tenant, type, id));
-CREATE INDEX ON tarol.search_v1 USING gin (⟨tsv index⟩);          -- §4.2 decides
+CREATE INDEX ON tarol.search_v1 USING gin (tenant, tsv);         -- btree_gin: the tenant leads (GS-6, §4.2)
 CREATE INDEX ON tarol.search_v1 USING gin (title gin_trgm_ops);  CREATE INDEX ON tarol.search_v1 (tenant, aggregate);
 ```
 
@@ -365,18 +388,101 @@ Decision prefix **GS-** (taken: C-, CA-, D-, DP-, J-, M-, O-, P-, Q-, QR-, R-, R
 | GS-6 | Tenancy? (GIN(tenant, tsv) 4–9× faster in a tenant than GIN(tsv) + filter: 9 vs 42 ms, 1.1 vs 4.4 ms; 100 vs 116 MB) | **A shared index, the tenant leading every key, GIN and filter** (recommended); engines filter on a tenant keyword field; no search without a tenant on a user path |
 | GS-7 | Who sees which hits? (an index filter keeps pages and counts exact; a post-filter loads each hit, 0.56 ms, and shortens pages) | **Type grants and an optional audience, both in the index** (recommended): `CheckList<T>` per searchable type → the type filter (entities follow their aggregate); `[SearchAudience]` → "audience empty, or it overlaps the caller's `sub` and roles"; row rules do not run on search (like QR-6) |
 | GS-8 | Personal data? (blind token: the exact value only; plaintext: any word, unsealed until the re-index; erasure = tombstone 4.5 ms + re-index 18.6 ms) | **A blind exact token only** (recommended): `[PersonalData, Searchable(Exact = true)]`, HMAC under the tenant's lookup key (`IKeyStore.BlindIndex`), never text; a TSRCH diagnostic for `[Searchable]` on `[PersonalData]` without `Exact`; `SearchEraser` re-indexes on erasure, removes on retention, contributes to export |
+| GS-9 | Query API and HTTP? (1M, PG, tenant 10 %: counts +6 ms, snippets +2 ms, prefix 15/74 ms; `websearch_to_tsquery` never fails; search pages are varied queries) | **A runtime endpoint, a cursor, an ETag** (recommended): `MapTarolSearch("/search", policy)` with `q` (words AND, `"phrase"`, `-word`, `OR`), `types`, `prefix`, `counts`, `snippets`, `limit` (≤ 50), `after`; a typo fallback when nothing is found; an opaque cursor bound to the query, depth ≤ 1,000 hits; a weak ETag over (version, checkpoint, hits); `Tarol-Position`/`Tarol-Read-After`; no page cache, no SignalR hint |
+| GS-10 | Languages? (PG: a per-row `regconfig` drives the `tsvector`, `unaccent` only through a configuration; engines differ, §3) | **Per document, with a tenant default** (recommended): a `[SearchLanguage]` member (ISO 639-1) or `SearchOptions.Languages` per tenant, default `simple`; PostgreSQL configurations `tarol.german`, `tarol.english`, `tarol.simple` through `unaccent`; the query's language from `?lang` or `Accept-Language`, mapped the same way; engines map de and en to their analysers |
+| GS-11 | Operations? (the host brings `tarol.projections.*`, the lag gauge, the gate and `DropVersion`) | **The projection machinery plus a search meter** (recommended): meter `Tarol.Search` with `tarol.search.queries` (`tarol.outcome`), `tarol.search.duration`, `tarol.search.documents`; lag through the projections gauge; `ready` never waits for catch-up (O-2); an adapter's engine is a `ready` dependency; re-index = a version bump; drop through `DropVersion` |
+| GS-12 | Packages and the meta-package? | **`Tarol.Search`, `Tarol.Search.Npgsql`, `Tarol.Search.OpenSearch`, `Tarol.Search.Typesense`; the endpoint in `Tarol.Changes.AspNetCore`** (recommended, next to the list endpoints, QR-7); the meta-package `Tarol` gains `Tarol.Search` only (RL-4) |
 
 ## 10. Changes against steps 7–17 (announced here, made in the PRs)
 
-⟨changes⟩
+### 10.1 `Tarol.Queries`: a projection host other packages can derive from (18A)
+
+`ProjectionHost`'s constructor and `Prepare`, `LoadCheckpoint`, `Write` become `protected` (today `private protected`), so
+`Tarol.Search` can host its feeder with the same loop, gate, meters, backoff, `CatchUp` and `WaitFor`. Public API addition;
+behaviour unchanged. `ProjectionsBuilder` gains nothing: search registers its host itself.
+
+### 10.2 `Tarol.Changes.AspNetCore`: `MapTarolSearch` (18D)
+
+A new endpoint next to the list endpoints; it uses `ListAccess`-style edge handling (tenant, `CheckList<T>` per type, cache
+headers, problems), `Positions`, and a weak ETag. The package gains a reference to `Tarol.Search` (like `Tarol.Queries`, QR-7).
+
+### 10.3 `Tarol.Persistence` / `Tarol.DataProtection`: the index in export (18B)
+
+`IDataSubjects.Export` collects events and states today. The index holds derived copies only (the blind token is not personal
+data in clear; the text of non-personal fields is not the subject's), so export **lists** the subject's documents (type, id,
+aggregate) through an optional `ErasureParticipant` hook rather than adding their text. If the hook needs a public API change in
+`Tarol.Persistence`, 18B lists it; otherwise `SearchEraser` exposes `Documents(tenant, aggregates)` and the guide says how an
+app adds it to its export.
+
+### 10.4 Meta-package
+
+`Tarol` references `Tarol.Search` (18B).
 
 ## 11. What the implementation must do (in the decided order)
 
-⟨prs⟩
+Stacked PRs, one feature each: **retarget each to `main` before its base is merged** (step 17: #68/#69 merged into their bases).
+A fix goes into the lowest branch it belongs to and is merged upward.
+
+### PR 18A `queries: a projection host other packages can derive from` (`Tarol.Queries`)
+* §10.1; `eng/public-api.py update`; a test that a host defined outside `Tarol.Queries` (in the test assembly) runs, gates and
+  catches up; migration note §15; skill `tarol-queries` names the extension point.
+
+### PR 18B `search: Tarol.Search — attributes, generator, host, in-memory index` (new package)
+* `src/Search/Tarol.Search/` per conventions §8, generator `Tarol.Search.Generators` shipped inside: `[Searchable]`,
+  `[SearchTitle]`, `[SearchAudience]`, `[SearchLanguage]`, `SearchWeight`; `ISearchable<T>` (`Shape`, `Documents`); TSRCH
+  diagnostics (§6) with `AnalyzerReleases`; snapshot, incrementality and diagnostic tests; generated code compiles under the
+  consumer's language version.
+* `ISearchIndex`, `SearchDocument`, `SearchBatch`, `SearchRequest`, `SearchPage`, `SearchHit`; `ISearch`; `SearchHost`
+  (GS-4, fingerprint check GS-5); `InMemorySearchIndex` (word, prefix, typo by edit distance 1, counts, cursor); `SearchEraser`
+  (GS-8); `SearchTest`; `AddSearch`, `UseInMemorySearch`; meter `Tarol.Search` (GS-11).
+* The **contract suite** (`tests/Search/Shared/SearchContract.cs`, source-shared, not shipped): every check of §3, plus tenant
+  isolation, the type filter, audience, the blind token, erasure (an erased subject is no longer found), retention, re-index on
+  change, version fingerprint refusal, cursor pages without repeat, depth limit. The in-memory index passes it.
+* `Tarol.Search.AotSmoke`, `Tarol.Search.PackageTests`, README, skill `tarol-search`; the meta-package (§10.4).
+
+### PR 18C `search.npgsql: PostgreSQL full-text search` (`Tarol.Search.Npgsql`, new package)
+* The table of §6 per version, GIN(tenant, tsv) via `btree_gin`, GIN(tenant, title gin_trgm_ops), (tenant, aggregate); the
+  text-search configurations with `unaccent`; `CREATE EXTENSION IF NOT EXISTS` for the three trusted extensions, a clear error when
+  they are missing; bounded rank (1,000), counts up to the bound, `ts_headline` snippets, prefix through `:*`, trigram fallback
+  with `word_similarity_threshold` 0.4 set per statement; checkpoint in `tarol.projections` in the batch transaction.
+* Integration tests on Testcontainers PostgreSQL: the contract suite, two runners (gate), a replay, an open transaction elsewhere
+  (the feed's xmin), erasure and retention through `Tarol.DataProtection`, read-after. New timing tests bound by events, run 10–25
+  times in Release alone.
+* `Tarol.Search.Npgsql.AotSmoke` against `TAROL_PG`, README, skill `tarol-search-npgsql`.
+
+### PR 18D `changes.aspnetcore: MapTarolSearch` (`Tarol.Changes.AspNetCore`)
+* GS-9 and §10.2; HTTP tests (TestServer): type grants (403 for a requested type without `Read<T>`, silently dropped from the
+  default "all types"), audience, tenant from the context, cursor, depth 400, ETag/304, read-after/stale, problems; OpenAPI entry;
+  skill `tarol-endpoints` updated.
+
+### PR 18E `search.opensearch: the OpenSearch adapter` (`Tarol.Search.OpenSearch`, new package)
+* HttpClient + `Utf8JsonWriter`/`JsonDocument`, no SDK; index per version, keyword tenant/type/audience/exact, text per weight
+  with per-language analysers (de, en) and `asciifolding`; `cross_fields` for words, `bool_prefix`, `fuzziness`; exact counts;
+  checkpoint after `refresh=wait_for` when read-after is asked, otherwise after the bulk response; the engine in `ready`.
+* Testcontainers `opensearchproject/opensearch:2.19.1` (security plugin off, disk threshold off in tests), the contract suite, AOT
+  smoke (`TAROL_OPENSEARCH`), README, skill `tarol-search-opensearch`. No secret: a URL; credentials through the app's
+  `HttpClient` configuration.
+
+### PR 18F `search.typesense: the Typesense adapter` (`Tarol.Search.Typesense`, new package)
+* As 18E with Typesense 28: a collection per version, `stem` per field, `typo_tokens_threshold` ≥ 1 for typos, synchronous
+  imports; the API key from configuration (`TarolSearch:Typesense:ApiKey`), never in the repository; in CI the container's key is a
+  throwaway value generated per run.
+* Testcontainers `typesense/typesense:28.0`, the contract suite, AOT smoke (`TAROL_TYPESENSE`), README, skill `tarol-search-typesense`.
+
+### PR 18G `docs: the search guide; ArtFlow searches auctions`
+* `docs/search/README.md`; `samples/Sagas` makes auctions, bids (entities) and bidder profiles (personal: exact email) searchable;
+  CHANGELOG; plan row 18 done; root README package table; architecture note status.
 
 ## 12. Skill evaluation checklist
 
-⟨skills⟩
+For each skill, an agent given only the skill and the package must do these tasks correctly (checked before each PR is merged):
+
+| Skill | Tasks | Expected API | Mistakes to avoid (and what they produce) |
+|---|---|---|---|
+| `tarol-search` (18B) | make an aggregate and its entity searchable; register the index; search in a test | `[Searchable]`, `[SearchTitle]`, `AddSearch(s => s.Add<T>(), version)`, `SearchTest`, `ISearch.Search` | `[Searchable]` on a `[PersonalData]` member without `Exact` (TSRCH diagnostic); changing weights without a version bump (the host refuses to start); querying without a tenant (impossible: the tenant comes from the context) |
+| `tarol-search-npgsql` (18C) | use PostgreSQL search; add German; read-after | `UseNpgsqlSearch()`, `[SearchLanguage]`, `Tarol-Read-After` | expecting exact counts beyond 1,000; a database user without CREATE (missing extensions: the error names them) |
+| `tarol-search-opensearch` / `-typesense` (18E/F) | point the index at the engine; run the contract suite | `UseOpenSearch(uri)`, `UseTypesense(uri, apiKey from configuration)` | putting the API key in code or appsettings committed to git; expecting OpenSearch read-after in milliseconds |
+| `tarol-endpoints` (18D) | expose search over HTTP with a policy | `MapTarolSearch("/search", "search")` | expecting row rules to filter hits (they do not: use `[SearchAudience]`) |
 
 ## 13. Verification of this PR
 
