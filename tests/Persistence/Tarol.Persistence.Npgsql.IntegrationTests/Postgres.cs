@@ -140,6 +140,24 @@ public sealed class NpgsqlStoreContractTests(Postgres postgres) : StoreContract
     protected override IAggregateStore CreateStore(TimeProvider time, StoreLookups lookups) => postgres.Store(time, lookups);
 }
 
+/// <summary>The store contract on a sealing store: <see cref="Member"/>'s badge names are sealed (step 16).</summary>
+[Trait("Category", "Integration")]
+public sealed class SealedStoreContractTests(Postgres postgres) : StoreContract
+{
+    protected override IAggregateStore CreateStore(TimeProvider time, StoreLookups lookups) => postgres.SealedStore(time, lookups);
+}
+
+/// <summary>The outbox contract on a sealing store: reactions see the events opened.</summary>
+[Trait("Category", "Integration")]
+public sealed class SealedOutboxContractTests(Postgres postgres) : OutboxContract
+{
+    protected override async Task<(IAggregateStore Store, IOutbox Outbox)> Create(TimeProvider time, IOutboxReactions reactions)
+    {
+        var store = await postgres.SealedIsolatedStore(time, Postgres.Codec(), reactions: reactions);
+        return (store, store.Outbox);
+    }
+}
+
 /// <summary>The store contract on a schema the version 1 script created and <c>EnsureSchema</c> upgraded.</summary>
 [Trait("Category", "Integration")]
 public sealed class UpgradedStoreContractTests(Postgres postgres) : StoreContract
