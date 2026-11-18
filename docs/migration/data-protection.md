@@ -551,7 +551,7 @@ Docs and probes only; the package code is `main` at `eabacb5` (step 15 done).
 
 ## 14. Open items
 
-1. **Rolling deploy into sealing; existing plaintext**: **decided, DP-10 (§16.3)**. As designed (16B; §5 item 7): the version 3 steps keep `compatible_from` 2
+1. **Rolling deploy into sealing; existing plaintext**: **decided, DP-10 (§16.3)**. As recommended (16B; §5 item 7), except that the version 3 steps are compatible from 1, not 2 (§16.2 item 4). The recommendation read: the version 3 steps keep `compatible_from` 2
    (old code runs on the new schema). A store that seals raises `compatible_from` to 3 on its first `EnsureSchema` with sealing
    on, so pre-16B pods refuse instead of showing envelopes as values. Existing plaintext fields are sealed by an explicit
    `SealHistory<T>()` (batched, like `RebuildStates`), the one physical rewrite of `events` Tarol does; it is never automatic.
