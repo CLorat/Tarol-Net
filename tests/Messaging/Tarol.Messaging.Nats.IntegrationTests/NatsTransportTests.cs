@@ -70,6 +70,23 @@ public sealed class NatsTransportTests(Nats nats)
         Should.Throw<ArgumentException>(() => new NatsTransport(new NatsTransportOptions { Url = nats.Url, Prefix = "bad.prefix" }));
     }
 
+    [Fact]
+    public async Task A_stream_keeps_messages_for_the_bus_retention_by_default_and_as_configured()
+    {
+        // step 16C (DP-5): JetStream streams used to keep messages for ever
+        var prefix = "n" + Guid.NewGuid().ToString("N")[..8];
+        await using (var transport = new NatsTransport(new NatsTransportOptions { Url = nats.Url, Prefix = prefix }))
+            await transport.Prepare(["shop.ordered"], [], Ct);
+        await using (var transport = new NatsTransport(new NatsTransportOptions { Url = nats.Url, Prefix = prefix + "b", MaxAge = TimeSpan.FromHours(12) }))
+            await transport.Prepare(["shop.ordered"], [], Ct);
+        await using var connection = new NATS.Client.Core.NatsConnection(new NATS.Client.Core.NatsOpts { Url = nats.Url });
+        var js = new NATS.Client.JetStream.NatsJSContext(connection);
+
+        (await js.GetStreamAsync($"{prefix}_SHOP".ToUpperInvariant(), cancellationToken: Ct)).Info.Config.MaxAge.ShouldBe(TimeSpan.FromDays(7));
+        (await js.GetStreamAsync($"{prefix}b_SHOP".ToUpperInvariant(), cancellationToken: Ct)).Info.Config.MaxAge.ShouldBe(TimeSpan.FromHours(12));
+        Should.Throw<ArgumentOutOfRangeException>(() => new NatsTransport(new NatsTransportOptions { Url = nats.Url, Prefix = prefix, MaxAge = TimeSpan.FromSeconds(1) }));
+    }
+
     private sealed class ListLogger : ILogger
     {
         private readonly ConcurrentQueue<string> _lines = new();

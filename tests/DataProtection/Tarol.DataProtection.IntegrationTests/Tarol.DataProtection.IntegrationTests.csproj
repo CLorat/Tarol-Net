@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Integration tests of Tarol.DataProtection against PostgreSQL 17 from Testcontainers (D-15): erasure end to end in two
+    processes (store, two projections, page caches, personal lookups, the audit row), the admin entry's export and erasure
+    behind a policy, retention on a fake clock. Needs Docker; every class carries [Trait("Category", "Integration")].
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <ProjectReference Include="../../../src/DataProtection/Tarol.DataProtection/Tarol.DataProtection.csproj" />
+    <ProjectReference Include="../../../src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="../../../src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
+    <ProjectReference Include="../../../src/Caching/Tarol.Caching/Tarol.Caching.csproj" />
+    <ProjectReference Include="../../../src/Operations/Tarol.Operations/Tarol.Operations.csproj" />
+    <ProjectReference Include="../../../src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- the domain, projections and JSON of the unit tests -->
+    <Compile Include="../Tarol.DataProtection.Tests/Fixtures.cs" Link="Fixtures.cs" />
+  </ItemGroup>
+</Project>
