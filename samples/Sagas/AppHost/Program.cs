@@ -58,6 +58,10 @@ var worker = workerNative is null
 ((IResourceBuilder<IResourceWithEndpoints>)worker).WithHttpHealthCheck("/health/ready");
 worker.WithReference(db).WithReference(broker)
     .WithEnvironment("Tarol__Jobs__SettlementReport__Cron", "* * * * *");   // the nightly report every minute, so a run shows it (J-2)
+// step 16: the master key of data protection, one for api and worker; a real deployment reads it from a secret store
+var masterKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+api.WithEnvironment("Tarol__DataProtection__MasterKey", masterKey);
+worker.WithEnvironment("Tarol__DataProtection__MasterKey", masterKey);
 ((IResourceBuilder<IResourceWithWaitSupport>)worker).WaitFor(db).WaitFor(broker);
 
 var billingNative = Environment.GetEnvironmentVariable("ARTFLOW_BILLING_NATIVE");

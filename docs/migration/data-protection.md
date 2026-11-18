@@ -991,3 +991,70 @@ In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK, and `tarol-data-protection` is in the package. The first run
   failed on CA1050 in the new package consumer; its types now sit in a namespace, and the consumer seals, exports and
   erases from the packed package.
+
+## 18. Implementation 16D: the guide and the sample
+
+### 18.1 What it adds
+
+* **The guide** [`docs/data-protection/README.md`](../data-protection/README.md) (§6.5). It covers:
+  * wiring, and the master key from a secret store;
+  * what to mark and the subject rules, including `nameof(Record.Member)`;
+  * keys, master-key rotation (`PreviousKeys`, `Rewrap`) and backups;
+  * erasure and the participants, your own `ErasureParticipant`, and export;
+  * retention of streams, the bus, dead letters and the audit;
+  * what Tarol cannot reach: plaintext before marking (`SealHistory`), the rolling deploy (DP-10), backups, logs, other
+    services and contracts;
+  * logs and the meter.
+* **`samples/Sagas`**:
+  * `BidderProfile` (stream type `bidder_profile`): the bidder's name and email are `[PersonalData]`, the bidder is its
+    own subject, and the worker registers Bob's profile at start;
+  * `Payout` has `[Retention(Days = 3650)]`;
+  * the API and the worker run `UseNpgsqlKeyStore().AddDataProtection()`, and the AppHost gives both one master key;
+  * `apphost.sh` checks that the profile is stored sealed, then runs alice's export, Bob's 403, the erasure, the export
+    afterwards (email `null`), the audit rows and the tombstone.
+* **CHANGELOG** (16A–16D, the fix of #59, the changes), the root README's package table (`Tarol.DataProtection`), the
+  architecture note's status ("built"), and plan row 16 "done".
+
+### 18.2 Deliberate differences from §6.5 and §11
+
+* §11 says "the bidder's name and email marked", but the sample's bids carry the bidder's Zitadel user id (a string) and
+  no name or email, and a bid is an entity of the auction's stream, so the auction would be the subject. The sample gets a
+  `BidderProfile` aggregate instead: the bidder is the subject, and the erasure removes the bidder's data from every stream
+  that holds it. ArtFlow's real `Bidder.Name` and `Expert.Name` are marked in step 18 (§8).
+
+### 18.3 The AppHost run **[verified]**
+
+`samples/Sagas/apphost.sh samples/Sagas/AppHost/bin/Debug/net11.0 5` (NATS, 2026-11-18). The data-protection lines:
+
+```
+schema versions: store 3 (compatible from 3), messages_dead 2, audit rows 0
+bidder profile: plaintext rows 0, sealed rows 1, subject keys 1
+export by alice: email bob@artflow.example; by bob 403
+erase by alice: {"tenant":"00000000-…","subject":"01a1ec1f-…","alreadyErased":false,"streams":1}; export afterwards: email None
+data-protection audit: export subject, erase subject, export subject; tombstone: true
+```
+
+The rest of the run is unchanged:
+* 5 settlement sagas completed, 5 outbox rows left (their deadlines);
+* the auction list is current with 0 stale reads, and billing has 5/5 invoices issued and paid;
+* the health groups are healthy, and the admin entry answers 200 / 403 / 401;
+* 0 dead letters.
+
+### 18.4 Skill checklist
+
+No new skill. `tarol-data-protection` (16C) is what the guide's tasks map to (§12).
+
+### 18.5 Suppressions
+
+None.
+
+### 18.6 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors. `dotnet build samples/Sagas/AppHost`: 0 errors; the warning ASPIRE010
+  comes from the Aspire SDK's own targets;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (no test added: docs and the sample);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**, all checks passed;
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the AppHost run: §18.3.

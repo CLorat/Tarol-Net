@@ -291,7 +291,38 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `MapTarolHealth` in the API and the worker, `MapTarolAdmin` behind the Zitadel role `tarol-admin`, traces with `Tarol.*` and
   `Npgsql`, metrics to OTLP, and the AppHost waiting on `/health/ready`. **Step 15 (operations) done.**
 
+* Step 16A (docs/migration/data-protection.md §15, DP-1 … DP-4):
+  * `Tarol.Primitives`: `[PersonalData]` (`Subject`) and `[Retention(Days)]`; the generator emits `PersonalShape` on
+    `T.EventTypes` (`EventCatalogEntry.Personal`, `EventCatalog.State`, `RetentionDays`); diagnostics TPRM030–TPRM033;
+  * `Tarol.Persistence`:
+    * sealed fields in the `EventCodec` (`tdp1.` envelopes, AES-256-GCM bound to tenant and subject; `Seal`/`Decode` with
+      a `KeyRing`, `SealState`/`OpenState`);
+    * the key-store port `IKeyStore` with `InMemoryKeyStore`, `IKeyEncryptionKey` with `ConfiguredKeyEncryptionKey`;
+    * blind-indexed personal lookups (`StoreLookups.DefinePersonal`);
+    * `IDataSubjects`, `ErasureParticipant`, `RetentionPolicy`; `InMemoryStoreOptions.Keys`;
+    * `DataProtection.SubjectErased`.
+* Step 16B (§16, DP-10): `Tarol.Persistence.Npgsql`:
+  * schema version 3 (`tenant_keys`, `subject_keys`, `subjects` columns, a GIN index);
+  * `NpgsqlKeyStore` (cached keys, the tombstone and `NOTIFY` in one statement, `LISTEN` eviction) and `UseNpgsqlKeyStore`;
+  * `NpgsqlStoreOptions.Keys` seals on append and opens on every read;
+  * the subject queries, `DeleteStreams` and `SealHistory<T>`; logs 8006–8008.
+* Step 16C (§17, DP-5 … DP-7, DP-9): `Tarol.DataProtection`, a new package:
+  * `AddDataProtection` (the master key from `Tarol:DataProtection:MasterKey`, retention from
+    `Tarol:Retention:<type>:Days`), `UseInMemoryKeyStore`;
+  * `DataSubjects`: an erasure writes the tombstone, re-folds the projections, drops the page cache in every process,
+    deletes personal lookups and audits; export as one JSON document opened with the subject's key only;
+  * the system job `tarol.retention`; the meter `Tarol.DataProtection`; logs 16001–16008; skill `tarol-data-protection`.
+
+  Additions elsewhere: `IDataProtectionStore` (both stores); `IReadModelStore.Replace`/`Remove`, `ProjectionEraser<TRow>`;
+  `IPageCache.Clear(tenant)`, `PageCacheEraser`; the admin endpoints `…/subjects/{id}/export|erase`;
+  `OperationsOptions.AuditRetention` → `tarol.purge-audit`; `NatsTransportOptions.MaxAge`.
+* Step 16D (§18): the guide `docs/data-protection/README.md`; `samples/Sagas` with a `BidderProfile` whose name and email
+  are sealed, exported and erased through the admin entry, and a retention on `Payout`. **Step 16 (data protection) done.**
+
 ### Fixed
+
+* Step 16: `AllocationTests` measured one loop and failed under the parallel suite when a tier-up landed in it; both
+  allocation tests assert the least allocating of five loops (#59).
 
 * Step 15: `PushTests` waited a fixed 300 ms for the SignalR client's replay and an upcast test rewrote events of the shared
   schema (15-0); the `checkpoint-listen` readiness reported a LISTEN that had not started yet as down (15C).
@@ -300,6 +331,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   deterministic (docs/migration/sagas.md §18.3).
 
 ### Changed
+
+* Step 16 (announced in docs/migration/data-protection.md §10):
+  * the store's schema is version 3. Its steps are compatible from 1; a store with keys raises `compatible_from` to 3,
+    so pods from before step 16 refuse such a schema;
+  * the outbox claim decodes with keys, so reactions see the fields opened;
+  * the plain `EventCodec.Decode` reads sealed fields as `null`;
+  * `IReadModelStore` and `IPageCache` gain members (implementers must add them);
+  * **NATS JetStream streams keep messages 7 days** (`MaxAge`; they kept them for ever before).
 
 * Step 15B (announced in docs/migration/operations.md §10): the data sources `UseNpgsqlStore(connectionString)` and
   `UseNpgsqlBus(connectionString)` build trace Npgsql commands only inside an activity (`TraceRootCommands` opts out);
