@@ -199,3 +199,5 @@ INFO pg data directory on disk: 72 MB
 | pg fts (gin) | delete | 50 | 1.5 | 2.0 | 2.0 |
 
 ## 4. Bench meili alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
+
+## 4. Bench meili alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
