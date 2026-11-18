@@ -110,6 +110,7 @@ public sealed class DataProtectionTests(Postgres postgres)
     public async Task A_Cached_Key_Costs_No_Key_Query()
     {
         var (store, keys) = await Sealed();
+        await keys.StartListening(Ct);                          // its LISTEN clears the cache once: not while the test counts
         var context = NewTenant();
         var (alice, _) = await Seed(store, context);
         await Load(store, alice.Id, context);
@@ -395,7 +396,7 @@ public sealed class DataProtectionTests(Postgres postgres)
     {
         var schema = postgres.NewSchema();
         var plain = new NpgsqlAggregateStore(postgres.DataSource, Codec(), _time, new NpgsqlStoreOptions { Schema = schema });
-        (await plain.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(3, 1, 8));
+        (await plain.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 9));
         // older code (version 2) still runs on the version 3 schema of a store that does not seal
         await Version2Code(schema).Ensure(SchemaMode.VerifyOnly, Ct);
 
@@ -449,7 +450,7 @@ public sealed class DataProtectionTests(Postgres postgres)
         await stop.CancelAsync();
         await Task.WhenAll(writers);
 
-        state.ShouldBe(new SchemaState(3, 1, 5));
+        state.ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 6));
         errors.ShouldBe(0);
         (await postgres.Scalar($"SELECT indisvalid FROM pg_index WHERE indexrelid = '{schema}.events_subjects'::regclass")).ShouldBe(true);
     }

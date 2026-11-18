@@ -699,3 +699,21 @@ cancellation still stops the statements before it. No test: the window is the CO
 
 Test: `AutoPrepareTests.Auto_prepare_is_set_unless_the_connection_string_sets_it`; the whole suite with Docker (1883 tests) passes
 with both changes. Not measured here: the gain per commit.
+
+## 26. Performance: schema version 4 and the rebuild's paging (2026-11-18)
+
+**Schema change, public API change.**
+* Retention (`DeleteStreams`) selects `type = $1 AND updated_at < $2 ORDER BY updated_at LIMIT n`, and no index served it (the
+  primary key is `(tenant, type, id)`): every batch of 500 was a sequential scan and a sort. Schema **version 4** (compatible from
+  1, so code of version 1–3 still runs on it) adds `streams_retention ON streams (type, updated_at)`, built `CONCURRENTLY` like the
+  earlier indexes. `NpgsqlSchema.Version` is now 4; it is a `const`, so code compiled against 3 keeps 3 until it is rebuilt
+  (the shipped API baseline lists the change). `SealingVersion` stays 3. It is the one store query that does not filter by tenant,
+  by design: retention runs across tenants.
+* `RebuildStates` paged with `type = $1 AND (tenant, id) > ($3, $4) ORDER BY tenant, id`, an order no index serves, so each page
+  scanned and sorted every stream of the type (quadratic over a large table). It now pages on the primary key's order,
+  `(tenant, type, id) > ($3, $1, $4) ORDER BY tenant, type, id`, as `UnsealedStates` already did; the rows and their order are the
+  same because `type` is fixed.
+
+Tests: the schema state assertions move to version 4 (`DataProtectionTests`: 9 and 6 steps run); the suite with Docker passes
+(1883). `A_Cached_Key_Costs_No_Key_Query` now waits for the key store's `LISTEN` first: the cache clear that follows it could land
+while the test counted (it failed once in a full run).

@@ -98,7 +98,8 @@ Query the state with SQL (`state->>'lot'`); add expression or GIN indexes for yo
 
 ## Personal data (step 16)
 
-Schema version 3 adds `tenant_keys`, `subject_keys`, nullable `subjects` columns and a GIN index (built concurrently).
+Schema version 3 adds `tenant_keys`, `subject_keys`, nullable `subjects` columns and a GIN index (built concurrently);
+version 4 adds the index `streams_retention` on `streams (type, updated_at)` (built concurrently, compatible from 1).
 `NpgsqlKeyStore` caches unwrapped keys per process. An erasure writes the tombstone and a `NOTIFY` in one statement, and
 every process evicts the key. With `NpgsqlStoreOptions.Keys`, `[PersonalData]` is sealed on `Append` and opened on every
 read, personal lookups keep blind indexes, and `EnsureSchema` raises `compatible_from` to 3. `SealHistory<T>` seals

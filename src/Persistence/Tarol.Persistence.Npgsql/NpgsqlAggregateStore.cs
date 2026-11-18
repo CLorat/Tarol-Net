@@ -1103,8 +1103,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
 
         public string StaleStates => field ??= $"""
             SELECT tenant, id, version FROM {schema}.streams
-            WHERE type = $1 AND schema <> $2 AND (tenant, id) > ($3, $4)
-            ORDER BY tenant, id LIMIT $5
+            WHERE (tenant, type, id) > ($3, $1, $4) AND type = $1 AND schema <> $2
+            ORDER BY tenant, type, id LIMIT $5
             """;
 
         public string RewriteState => field ??= $"""

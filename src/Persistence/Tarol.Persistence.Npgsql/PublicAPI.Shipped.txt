@@ -156,7 +156,6 @@ Tarol.Persistence.Npgsql.UpgradeStep.Version.get -> int
 Tarol.Persistence.Npgsql.UpgradeStep.Version.init -> void
 const Tarol.Persistence.Npgsql.NpgsqlSchema.DefaultSchema = "tarol" -> string!
 const Tarol.Persistence.Npgsql.NpgsqlSchema.SealingVersion = 3 -> int
-const Tarol.Persistence.Npgsql.NpgsqlSchema.Version = 3 -> int
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.Equals(object? obj) -> bool
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.GetHashCode() -> int
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.ToString() -> string!
