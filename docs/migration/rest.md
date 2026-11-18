@@ -623,3 +623,20 @@ None.
 | `dotnet pack Tarol.slnx -c Release` + `eng/verify-packages.sh` | OK: 13 packages; `Tarol.Changes.AspNetCore` holds `lib/` (+ XML docs), `analyzers/dotnet/cs/Tarol.Changes.AspNetCore.Generators.dll`, `README.md`, `LICENSE`, `skills/tarol-endpoints/SKILL.md`; `Tarol.Security.Zitadel` holds `skills/tarol-zitadel/SKILL.md`; both consumers pass and list the skills |
 | `TAROL_PG=… eng/aot-smoke.sh` | 13 apps, each 0 IL warnings, all checks pass natively (the HTTP smoke app on PostgreSQL) |
 | `samples/Sagas` AppHost with Zitadel | JIT and Native AOT: see the sample's README |
+
+## 16. Fix: Zitadel roles and tenant come only from this project and the user's organisation (2026-11-18)
+
+**Behaviour change, security.** `ZitadelClaimsTransformation` had three gaps:
+* It also read the generic claim `urn:zitadel:iam:org:project:roles`, which carries the roles of the project the *client* belongs
+  to. A client of another project that requests this project's audience passes the audience check, so its own project's roles
+  (`admin`, …) counted as this project's roles. Only `urn:zitadel:iam:org:project:<project>:roles` is read now; the probe token
+  (probes/rest/output.txt §11) carries only that claim.
+* It kept every role name and ignored which organisation granted it (`{"role":{"<org>":"<domain>"}}`), while the tenant is the
+  user's organisation. A user of organisation B with an `admin` grant in organisation A was `admin` in tenant B. When the token
+  names the user's organisation, only roles granted in it are kept.
+* A `tenant` claim already in the token (a Zitadel Action, a metadata mapping) won over the organisation. When the token names
+  the organisation, it replaces any `tenant` claim. A token without the organisation scope is left as it was.
+
+Tests: `ZitadelClaimsTests.The_generic_roles_claim_of_the_clients_own_project_is_not_read`,
+`A_role_granted_in_another_organisation_is_not_a_role_in_the_users_tenant`,
+`The_users_organisation_replaces_a_tenant_claim_in_the_token` (all three fail without the fix).

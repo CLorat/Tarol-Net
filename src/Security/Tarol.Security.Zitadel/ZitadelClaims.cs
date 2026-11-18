@@ -10,9 +10,11 @@ namespace Tarol.Security.Zitadel;
 
 /// <summary>
 /// Zitadel's token shape → what Tarol reads (docs/architecture/rest.md §11): the roles of the project (one JSON-object
-/// claim <c>urn:zitadel:iam:org:project:&lt;id&gt;:roles</c>) become <c>role</c> claims; the user's organisation
-/// (<c>urn:zitadel:iam:user:resourceowner:id</c>, requested with the scope <c>urn:zitadel:iam:user:resourceowner</c>)
-/// becomes the <c>tenant</c> claim through <see cref="ZitadelTenants.Of"/>.
+/// claim <c>urn:zitadel:iam:org:project:&lt;id&gt;:roles</c>; not the generic <c>urn:zitadel:iam:org:project:roles</c>)
+/// become <c>role</c> claims, only those granted in the user's organisation when the token names it; the user's
+/// organisation (<c>urn:zitadel:iam:user:resourceowner:id</c>, requested with the scope
+/// <c>urn:zitadel:iam:user:resourceowner</c>) becomes the <c>tenant</c> claim through <see cref="ZitadelTenants.Of"/>,
+/// replacing any <c>tenant</c> claim the token carried.
 /// </summary>
 public sealed class ZitadelClaimsTransformation : IClaimsTransformation
 {
@@ -36,7 +38,11 @@ public sealed class ZitadelClaimsTransformation : IClaimsTransformation
         if (principal.Identity is not ClaimsIdentity { IsAuthenticated: true } identity || identity.HasClaim(c => c.Type == MarkerClaim))
             return Task.FromResult(principal);
         identity.AddClaim(new Claim(MarkerClaim, "1"));
-        foreach (var claim in identity.FindAll(c => c.Type == _projectRoles || c.Type == "urn:zitadel:iam:org:project:roles").ToArray())
+        var organisation = identity.FindFirst("urn:zitadel:iam:user:resourceowner:id")?.Value is { Length: > 0 } owner ? owner : null;
+
+        // only this project's claim: the generic urn:zitadel:iam:org:project:roles carries the roles of the project the
+        // client belongs to, which may be another project whose tokens pass the audience check
+        foreach (var claim in identity.FindAll(_projectRoles).ToArray())
         {
             try
             {
@@ -44,16 +50,29 @@ public sealed class ZitadelClaimsTransformation : IClaimsTransformation
                 if (roles.RootElement.ValueKind != JsonValueKind.Object)
                     continue;
                 foreach (var role in roles.RootElement.EnumerateObject())
+                {
+                    // {"role":{"<organisation id>":"<domain>"}}: a role granted in another organisation is not a role in this
+                    // user's tenant (the tenant is the user's organisation)
+                    if (organisation is not null && (role.Value.ValueKind != JsonValueKind.Object || !role.Value.TryGetProperty(organisation, out _)))
+                        continue;
                     if (!identity.HasClaim(identity.RoleClaimType, role.Name))
                         identity.AddClaim(new Claim(identity.RoleClaimType, role.Name));
+                }
             }
             catch (JsonException)
             {
                 // not Zitadel's shape: no roles from it
             }
         }
-        if (!identity.HasClaim(c => c.Type == "tenant") && identity.FindFirst("urn:zitadel:iam:user:resourceowner:id")?.Value is { Length: > 0 } organisation)
+
+        // the user's organisation decides the tenant: a tenant claim put into the token otherwise (an Action, a metadata
+        // mapping) does not override it
+        if (organisation is not null)
+        {
+            foreach (var other in identity.FindAll("tenant").ToArray())
+                identity.RemoveClaim(other);
             identity.AddClaim(new Claim("tenant", ZitadelTenants.Of(organisation).ToString()));
+        }
         return Task.FromResult(principal);
     }
 }

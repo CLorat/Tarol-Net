@@ -52,7 +52,8 @@ app.MapChanges();
 |---|---|
 | `AddZitadel` before `AddEndpoints` | `InvalidOperationException` |
 | the token requested without the project's `:aud` scope | 401 |
-| roles granted on another project | the role map sees none: 403 `Auth.Forbidden` |
+| roles granted on another project (also in the generic `urn:zitadel:iam:org:project:roles` claim) | the role map sees none: 403 `Auth.Forbidden` |
+| a role granted in another organisation than the user's | not a role in the user's tenant |
 | a machine user without the `service` role | recorded as `Actor.User(<user id>)` |
 | `RequireHttpsMetadata` left on for `http://localhost` | the metadata is not fetched: every request 401 |
 | the container's issuer port differs from the URL clients use | issuer mismatch: 401 |
