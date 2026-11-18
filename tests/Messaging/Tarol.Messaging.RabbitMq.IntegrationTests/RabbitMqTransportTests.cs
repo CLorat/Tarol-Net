@@ -130,7 +130,8 @@ public sealed class RabbitMqTransportTests(RabbitMq rabbit)
     }
 }
 
-/// <summary>Which delay queue a backoff goes to (no broker needed).</summary>
+/// <summary>Which delay queue a backoff goes to (no broker needed, but this assembly's fixture starts one).</summary>
+[Trait("Category", "Integration")]
 public sealed class DelayTierTests
 {
     [Theory]
