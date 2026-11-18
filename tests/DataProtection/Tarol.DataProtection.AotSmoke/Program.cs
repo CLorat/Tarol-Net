@@ -57,7 +57,7 @@ async Task Run(string name, Func<TarolBuilder, TarolBuilder> store)
     Check($"{name}: the row re-folded", (await rows.Find(new RowKey(tenant, patient.Id.Value), default))?.Row is { Name: null, Ward: "B2" });
     Check($"{name}: the aggregate loads with the field null", (await aggregates.Load(patient.Id, context, default)).GetValueOrThrow() is { Name: null, Ward: "B2" });
     var retention = provider.GetServices<MaintenanceTask>().Single(static t => t.Name == "tarol.retention");
-    Check($"{name}: retention", await retention.Run(provider, DateTimeOffset.UtcNow.AddDays(2), default) == 1
+    Check($"{name}: retention", await retention.Run(provider, TimeProvider.System.GetUtcNow().AddDays(2), default) == 1
                                 && (await aggregates.Load(patient.Id, context, default)).IsNone);
 }
 
