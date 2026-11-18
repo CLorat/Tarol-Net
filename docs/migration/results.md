@@ -657,3 +657,13 @@ Serializing an `Error` or `Invalid` as its own type (not as `Violation`) is unch
 Tests: `ResultJsonTests.A_Violation_Read_Back_From_Jsonb_With_Its_Keys_Reordered_Is_The_Same`,
 `The_Error_Type_Keeps_Its_Name_Under_A_Camel_Case_Enum_Converter`, `A_Violation_With_An_Unknown_Kind_Or_Type_Is_Refused` (7 cases,
 all failing without the fix). `Tarol.Results.AotSmoke`: 0 IL warnings, all checks passed.
+
+## 13. Fix: TRES002 no longer reports the awaited `Tap` (2026-11-18)
+
+**Behaviour change (analyzer).** TRES002 (a discarded result) exempts `Tap`, `TapFailure` and `TapAsync`, which exist for their side
+effect and hand back the result, but only when called on an instance. The awaited forms are extensions
+(`ResultExtensions.Tap`/`TapFailure` on a `ValueTask<Result<T>>`), whose invocation has no instance, so
+`await LoadAsync().Tap(Log);` was reported while `loaded.Tap(Log);` was not. Extensions of `Tarol.Results.ResultExtensions` with
+those names are exempt too; a method of the same name elsewhere is still reported.
+
+Test: `ResultAnalyzerTests.TRES002_Should_NotReport_HandledResultsAndTaps` (two awaited cases; fails without the fix).

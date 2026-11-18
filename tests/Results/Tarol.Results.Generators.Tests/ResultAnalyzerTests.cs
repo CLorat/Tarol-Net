@@ -90,6 +90,7 @@ public class ResultAnalyzerTests
             {
                 Result Save() => Result.Success();
                 Result<int> Load() => 1;
+                ValueTask<Result<int>> LoadAsync() => ValueTask.FromResult(Load());
                 async Task<Result> M(CancellationToken ct)
                 {
                     _ = Save();
@@ -97,6 +98,8 @@ public class ResultAnalyzerTests
                     loaded.Tap(static v => Console.WriteLine(v));
                     loaded.TapFailure(static v => Console.WriteLine(v));
                     await loaded.TapAsync(static (v, _) => ValueTask.CompletedTask, ct);
+                    await LoadAsync().Tap(static v => Console.WriteLine(v));                 // the awaited extension forms
+                    await LoadAsync().TapFailure(static v => Console.WriteLine(v));
                     if (Save() is Violation v) return v;
                     return Save();
                 }
