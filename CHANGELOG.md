@@ -8,6 +8,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol.Search.Npgsql` (step 18C): PostgreSQL full-text search in the store's database: a table per index version, a GIN led by
+  the tenant, ranking within the first 1,000 matches, German/English/simple with accents folded, a trigram typo fallback, counts,
+  snippets, blind tokens; documents and checkpoint in one transaction; the previous version answers while a new one builds.
 * `Tarol.Search` (step 18B): global search over aggregates and their entities: `[Searchable]`, `[SearchTitle]`,
   `[SearchAudience]`, `[SearchLanguage]` with a generator (TSRCH001–TSRCH005), the port `ISearchIndex`, `SearchHost` on the
   projection machinery, `ISearch`, the in-memory index, `SearchTest`, `SearchEraser` (erasure, retention, export); in the

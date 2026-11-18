@@ -13,6 +13,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <!-- section 12 (added with PR 18C): the built index itself -->
+    <ProjectReference Include="$(TarolRoot)src/Search/Tarol.Search.Npgsql/Tarol.Search.Npgsql.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

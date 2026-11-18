@@ -602,3 +602,56 @@ Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Do
 
 None.
 
+## 17. Implementation: PR 18C (2026-11-18)
+
+`search.npgsql: PostgreSQL full-text search` (new package `Tarol.Search.Npgsql`).
+
+### 17.1 Public API (`eng/public-api.py update`)
+
+* `NpgsqlSearchIndex : ISearchIndex` (`Schema`, `Table`); `NpgsqlSearchOptions` (`Schema`, `Rank` = 1,000, `TypoThreshold` = 0.4);
+  `NpgsqlSearchSchema` (`Prepare(schema, version)`, `TableOf`, `Configuration(schema, language)`, `Validate`);
+  `UseNpgsqlSearch(options, dataSource)`.
+
+### 17.2 Deliberate differences from §6 and §11
+
+* **The tsquery is built from Tarol's own parser, not by `websearch_to_tsquery`.** With no query language the text must match
+  each document in its own stemming, so the three configurations are OR-ed; OR-ing three `websearch_to_tsquery` results let an
+  exclusion (`-morning`) leak through the configuration that did not stem it, and made the last word both exact and a prefix.
+  Now every clause is its alternatives in every configuration (`phraseto_tsquery`, a prefix through `to_tsquery(… ':*')`),
+  OR-ed; an excluded clause is negated across all of them; clauses are AND-ed. The in-memory index reads the same clauses. With
+  a query language: that configuration and `simple`. Measured in §17.4.
+* **Typo candidates come from trigrams, the decision from the shared rule.** `pg_trgm` treats a prefix as similar
+  ("moun" ≈ "Mountain", 0.8); the index takes up to 200 trigram candidates on `(tenant, a)` and keeps those within one edit
+  (`SearchText.WithinOneEdit`, added to 18B), so both indexes answer alike.
+* The typo index is `GIN (tenant, a gin_trgm_ops)` (weight A), not the title (§16.2).
+* Within the rank bound the candidate set is the first 1,000 matches the GIN returns, unordered: pages are stable while the index
+  does not change; a write between two pages can change a page of a query with more than 1,000 matches (documented).
+* The fingerprint is stored in `<schema>.search_versions`; `Prepare` runs under `pg_advisory_xact_lock(hashtext('<schema>.search'))`.
+* Text-search configurations `<schema>.german`, `.english`, `.simple` map words through the `unaccent` dictionary of whatever schema
+  the extension lives in (looked up in `pg_extension`).
+
+### 17.3 Tests **[verified]**
+
+`Tarol.Search.Npgsql.IntegrationTests` (23, Testcontainers PostgreSQL 17): the **contract suite** (17) on the PostgreSQL index;
+German and English documents stem in their language and fold accents (`Häusern` → `Häuser`, `gemalde` → `Gemälde`, `house` →
+`houses`, `cafe` → `Café` and `Cafe`); the previous version answers while a new one builds (`Version` 1, `Current`); without a
+current version the building one answers and says so; the extensions are created and no personal text is stored (one blind token);
+**fed from the Npgsql store with sealing: an erased subject is no longer found after the re-index, retention removes the
+documents**; a database user without CREATE on the database gets the error naming the three extensions.
+
+### 17.4 Measurement of the built index **[verified]** (probe §12, [`output.txt`](probes/search/output.txt))
+
+⟨impl⟩
+
+### 17.5 Skill evaluation checklist (`tarol-search-npgsql`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| run search on PostgreSQL | `UseNpgsqlReadModels()`, `AddSearch(…)`, `UseNpgsqlSearch()` | a data source without `EnableArrays()` |
+| search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting `unaccent()` in an own generated column (42P17) |
+| a database user without rights | the error names `pg_trgm`, `btree_gin`, `unaccent` | granting superuser instead of creating the trusted extensions once |
+
+### 17.6 Suppressions and analyzer configuration
+
+None.
+

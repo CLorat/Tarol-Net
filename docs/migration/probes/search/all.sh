@@ -100,5 +100,8 @@ fi
 if sec 11 "PostgreSQL at 1M (the table section 3 left): bounded ranking (rank the first 10,000 / 1,000 matches) per tenant index, and the trigram index led by the tenant"; then
   only pg; J bounded; ok 11
 fi
+if sec 12 "The built index (PR 18C): NpgsqlSearchIndex at 1M documents, written through Replace, queried through Search (with the query's language, and without: three configurations OR-ed)"; then
+  only pg; J impl 1000000; ok 12
+fi
 echo; echo "## done $(date -u +%H:%M)"
 } 2>&1 | tee -a "$out"

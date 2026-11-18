@@ -7,6 +7,7 @@ return args switch
     ["bench", .. var rest] => await Bench.Run(rest),
     ["lag", .. var rest] => await Bench.Lag(rest),
     ["bounded"] => await Bench.Bounded(),
+    ["impl", .. var rest] => await Impl.Run(rest),
     _ => Usage(),
 };
 
