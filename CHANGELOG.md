@@ -8,6 +8,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `MapTarolSearch` in `Tarol.Changes.AspNetCore` (step 18D): `GET /search` over every searchable type the caller may read
+  (`Read<T>`), in its tenant, its subject and roles as the audience; read-after, 503 while building, weak ETag and 304.
+  `ISearchAccess` and `SearchRegistry.Readable` in `Tarol.Search`.
 * `Tarol.Search.Npgsql` (step 18C): PostgreSQL full-text search in the store's database: a table per index version, a GIN led by
   the tenant, ranking within the first 1,000 matches, German/English/simple with accents folded, a trigram typo fallback, counts,
   snippets, blind tokens; documents and checkpoint in one transaction; the previous version answers while a new one builds.

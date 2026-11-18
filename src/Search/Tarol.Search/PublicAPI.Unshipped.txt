@@ -2,6 +2,8 @@
 Tarol.Search.ISearch
 Tarol.Search.ISearch.Search(Tarol.Search.SearchQuery! query, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
 Tarol.Search.ISearch.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
+Tarol.Search.ISearchAccess
+Tarol.Search.ISearchAccess.CanRead<T>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Tarol.Search.ISearchIndex
 Tarol.Search.ISearchIndex.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
 Tarol.Search.ISearchIndex.Documents(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! aggregates, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>
@@ -160,6 +162,7 @@ Tarol.Search.SearchRegistry.Definition() -> Tarol.Search.SearchIndexDefinition!
 Tarol.Search.SearchRegistry.Loaders.get -> int
 Tarol.Search.SearchRegistry.Loaders.set -> void
 Tarol.Search.SearchRegistry.Projection.get -> Tarol.Queries.ProjectionOptions!
+Tarol.Search.SearchRegistry.Readable(Tarol.Search.ISearchAccess! access, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<string!>!>
 Tarol.Search.SearchRegistry.SearchRegistry() -> void
 Tarol.Search.SearchRegistry.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
 Tarol.Search.SearchRegistry.Version.get -> int

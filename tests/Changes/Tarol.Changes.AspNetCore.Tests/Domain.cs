@@ -14,11 +14,12 @@ public readonly partial record struct Amount([Range(1, 1_000_000)] decimal Value
 [Lifecycle]
 public enum AuctionStatus { [To(Closed)] Open, Closed }
 
+[Tarol.Search.Searchable("Auction")]
 public partial class Auction : AggregateRoot<Auction>
 {
     public EntitySet<Bid> Bids { get; } = [];
     public string Seller { get; private set; } = "";
-    public string Title { get; private set; } = "";
+    [Tarol.Search.SearchTitle, Tarol.Search.Searchable(Tarol.Search.SearchWeight.A)] public string Title { get; private set; } = "";
     public decimal Reserve { get; private set; }
     public DateTimeOffset EndsAt { get; private set; }
     public AuctionStatus Status { get; private set; }
@@ -75,9 +76,10 @@ public partial class Bid : Entity<Auction, Bid>
     private void On(Placed e) => (Bidder, Amount) = (e.Bidder, e.Amount);
 }
 
+[Tarol.Search.Searchable("Payout")]
 public partial class Payout : AggregateRoot<Payout>
 {
-    public Guid Auction { get; private set; }
+    [Tarol.Search.Searchable] public Guid Auction { get; private set; }
     public decimal Amount { get; private set; }
 
     public static Payout MarkDue(Guid auction, decimal amount, DateTimeOffset now)
@@ -111,5 +113,24 @@ public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
 [JsonSerializable(typeof(decimal)), JsonSerializable(typeof(string)), JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]
 [JsonSerializable(typeof(Auction.Watched)), JsonSerializable(typeof(Bid.Placed)), JsonSerializable(typeof(Payout.Due))]
-[JsonSerializable(typeof(AuctionRow))]
+[JsonSerializable(typeof(AuctionRow)), JsonSerializable(typeof(Memo.Written))]
 public sealed partial class AppJson : JsonSerializerContext;
+
+/// <summary>A note visible to its owner only (step 18D: the audience of a search hit).</summary>
+[Tarol.Search.Searchable("Memo")]
+public partial class Memo : AggregateRoot<Memo>
+{
+    [Tarol.Search.SearchTitle, Tarol.Search.Searchable(Tarol.Search.SearchWeight.A)] public string Text { get; private set; } = "";
+    [Tarol.Search.SearchAudience] public string? Owner { get; private set; }
+
+    public static Memo Write(string text, string? owner)
+    {
+        var memo = new Memo(Id<Memo>.New());
+        memo.Raise(new Written(text, owner));
+        return memo;
+    }
+
+    public sealed record Written(string Text, string? Owner) : Event;
+    private void On(Written e) => (Text, Owner) = (e.Text, e.Owner);
+}
+

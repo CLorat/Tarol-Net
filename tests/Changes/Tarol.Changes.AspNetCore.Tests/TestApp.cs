@@ -29,24 +29,32 @@ internal sealed class TestApp : IAsyncDisposable
     public InMemoryAggregateStore Store => App.Services.GetRequiredService<InMemoryAggregateStore>();
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
-        Action<TarolBuilder>? store = null, bool projections = true)
+        Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
-        builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>())
+        if (searchIndex is not null)
+            builder.Services.AddSingleton(searchIndex);
+        var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>())
             .WithReactions(GeneratedReactions.Set)
             .Store(store)
             .AddSecurity(roles =>
             {
                 roles.Role("seller").May<CreateAuction>().May<CloseAuction>().May<RenameAuction>();
-                roles.Role("bidder").May<PlaceBid>().May<Read<Auction>>();
+                roles.Role("bidder").May<PlaceBid>().May<Read<Auction>>().May<Read<Memo>>();
                 roles.Role("reader").May<Read<Auction>>();
                 roles.Role("admin").May<CloseAuction>().May<Read<Auction>>();
                 roles.Authenticated().May<WatchAuction>();
             })
             .AddEndpoints(endpoints)
             .Projections(projections);
+        if (search)
+            Tarol.Search.SearchTarolBuilderExtensions.UseInMemorySearch(Tarol.Search.SearchTarolBuilderExtensions.AddSearch(tarol, s =>
+            {
+                s.Add<Auction>().Add<Payout>().Add<Memo>();
+                s.Projection.Poll = TimeSpan.FromMilliseconds(5);
+            }));
         foreach (var rule in new IAuthorizationHandler[] { new CloseAuctionRule(), new CreateAuctionRule(), new ReadOwnAuction() })
             builder.Services.AddSingleton(rule);
         if (problemDetailsService)
@@ -69,6 +77,8 @@ internal sealed class TestApp : IAsyncDisposable
         app.MapOpenApi();
         app.MapChanges();
         app.MapGroup("/v1").MapChanges(names: "V1");
+        if (search)
+            app.MapTarolSearch("/search", "auctions:read");
         await app.StartAsync(TestContext.Current.CancellationToken);
         return new TestApp(app, app.GetTestClient());
     }

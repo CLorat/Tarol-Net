@@ -1,1 +1,4 @@
 #nullable enable
+Tarol.Changes.AspNetCore.SearchEndpoints
+const Tarol.Changes.AspNetCore.SearchEndpoints.BuildingCode = "Search.Building" -> string!
+static Tarol.Changes.AspNetCore.SearchEndpoints.MapTarolSearch(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern = "/search", string? policy = null) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!

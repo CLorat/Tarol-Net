@@ -655,3 +655,49 @@ documents**; a database user without CREATE on the database gets the error namin
 
 None.
 
+## 18. Implementation: PR 18D (2026-11-18)
+
+`changes.aspnetcore: MapTarolSearch` (GS-7, GS-9; §10.2).
+
+### 18.1 Public API
+
+* `Tarol.Changes.AspNetCore`: `SearchEndpoints.MapTarolSearch(this IEndpointRouteBuilder, string pattern = "/search", string? policy = null)`
+  → `IEndpointConventionBuilder`; `SearchEndpoints.BuildingCode` (`Search.Building`). The package references `Tarol.Search`.
+* `Tarol.Search`: `ISearchAccess.CanRead<T>(CancellationToken)` and `SearchRegistry.Readable(ISearchAccess, CancellationToken)`:
+  the readable document types (an entity type follows its aggregate).
+
+### 18.2 Behaviour
+
+* Query string: `q` (one, 1–256 characters), `types` (comma-separated), `prefix`, `counts`, `snippets` (`true`/`false`, else
+  400), `limit` (1–50), `after`, `lang` (else the first `Accept-Language` code).
+* Edge as for lists: the tenant from the claim, `Cache-Control: private, no-cache`, `Vary: Authorization`, problems; 401
+  anonymous; 403 for a requested type without `Read<T>` (`CheckList<T>`), or when no type is readable; 400 for an unknown type.
+* The caller's audience keys: the subject claim (`ChangeEndpointOptions.SubjectClaim`) and every role claim.
+* `Tarol-Read-After` waits on `SearchHost.WaitFor` (timeout `Queries.ReadAfterTimeout`; `Tarol-Stale: true` after it).
+* 503 with `Retry-After: 5` while the answering version is building (no version current yet).
+* `200 { "items": [{ "type", "id", "aggregate", "title", "score", "snippet"? }], "counts"?, "countsCapped"?, "next" }`,
+  `Tarol-Position`, a weak `ETag` over (version, position, next, hits, counts); a matching `If-None-Match` answers 304.
+
+### 18.3 Deliberate differences from §11
+
+* The endpoint is in `SearchEndpoints` (a static class with the extension), not on `ChangeEndpoints`; it uses
+  `ChangeEndpoints.Edge` and `Problem` like the list entries.
+* No OpenAPI entry yet (the generated entries describe themselves; the runtime endpoint has `WithName("TarolSearch")`). Open item.
+
+### 18.4 Tests **[verified]**
+
+`SearchEndpointTests` (8, TestServer, in-memory index): read-after finds the caller's new auction with position, cache headers,
+a weak ETag and 304; another tenant sees nothing; a requested type without `Read<T>` is 403 and the default leaves it out of
+the counts; a caller with no readable type is 403; 400 for an unknown type, limit 51, a bad flag, a missing `q`, a bad cursor
+and a bad `Tarol-Read-After`; 401 anonymous; the audience is the subject and the roles (a memo for "bidder" is seen by bidders
+only, one of "alice" by alice only); cursor pages and a prefix; 503 + `Retry-After` while building. The class ran 5 times in a
+row green. The test domain's `Auction`, `Payout` and a new `Memo` are `[Searchable]`. `Tarol.Changes.AspNetCore.AotSmoke`
+gains the search check: 0 IL warnings, natively green.
+
+### 18.5 Skill evaluation checklist (`tarol-endpoints`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| expose search over HTTP | `app.MapTarolSearch("/search", "policy")` after `AddSearch` | mapping without `AddSecurity` (entries fail closed) |
+| hide documents per user | `[SearchAudience]` on the aggregate | expecting row rules (`ChangeHandler<,>`) to filter hits |
+

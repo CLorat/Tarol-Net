@@ -65,6 +65,12 @@ POST /auctions/0193…/bids  {"amount":120}   → 409  {"code":"Bid.TooLow",…}
 POST /auctions/0193…/bids  {}               → 400  {"errors":{"amount":["Required"]}}
 ```
 
+## Global search (step 18)
+`app.MapTarolSearch("/search", policy)` (after `AddSearch` from Tarol.Search) answers `GET /search?q=…&types=…&prefix=true&counts=true&snippets=true&limit=20&after=…&lang=de`
+in the caller's tenant: the types default to every searchable type whose `Read<T>` the caller holds (a requested type without
+it is 403), the caller's `sub` and roles are its audience, `Tarol-Read-After` waits for the search host, 503 while no index
+version is current, a weak `ETag` answers 304. Row rules do not filter hits: mark an `[SearchAudience]` member instead.
+
 ## Common mistakes
 
 | Mistake | What happens |
