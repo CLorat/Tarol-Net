@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -60,8 +61,11 @@ public sealed class ValidationGenerator : IIncrementalGenerator
         if (primary != node)
             return null;
 
-        var isInput = type.Interfaces.Any(Symbols.IsValidatableInterface);
         var constructor = Symbols.PrimaryConstructor(type);
+        // an input that derives from an input without naming IValidatable again is still one: with parameters of its own it
+        // is reported (TVAL002), since the inherited Validate would not check them; without, it inherits the base's
+        var isInput = type.Interfaces.Any(Symbols.IsValidatableInterface)
+            || (type.BaseType is { } baseType && Symbols.ImplementsValidatable(baseType) && AddsParameters(constructor, baseType));
         var single = constructor is { Parameters.Length: 1 } ? constructor.Parameters[0].Type : null;
         var hasRules = constructor is not null && constructor.Parameters.Any(static p => p.GetAttributes().Any(Symbols.IsRule));
         var custom = isInput ? null : Symbols.CustomRule(type, single);
@@ -93,6 +97,15 @@ public sealed class ValidationGenerator : IIncrementalGenerator
             sb.Append(char.IsLetterOrDigit(ch) || ch == '.' ? ch : '_');
         return sb.Append(".Validation.g.cs").ToString();
     }
+
+    /// <summary>Whether <paramref name="constructor"/> has a parameter the base's primary constructor does not (by name).</summary>
+    private static bool AddsParameters(IMethodSymbol? constructor, INamedTypeSymbol baseType)
+    {
+        if (constructor is null || constructor.Parameters.Length == 0)
+            return false;
+        var inherited = new HashSet<string>(Symbols.PrimaryConstructor(baseType)?.Parameters.Select(static p => p.Name) ?? []);
+        return constructor.Parameters.Any(p => !inherited.Contains(p.Name));
+    }
 }
 
 /// <summary>The cached result of the transform: the finished source (or none) and the diagnostics.</summary>
@@ -109,6 +122,7 @@ internal sealed record DiagnosticInfo(string Id, LocationInfo? Location, Equatab
             args[i++] = argument;
         return Diagnostic.Create(Diagnostics.ById(Id), Location?.ToLocation(), args);
     }
+
 }
 
 internal static class SyntaxNames
