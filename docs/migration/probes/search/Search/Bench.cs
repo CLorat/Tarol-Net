@@ -182,17 +182,18 @@ public static class Bench
             for (var i = 0; i < 50; i++)
             {
                 var token = "zqlag" + new string([.. $"{i:D3}".Select(ch => (char)('a' + ch - '0'))]) + variant.Length;
+                var probe = e is Meili ? "\"" + token + "\"" : token;   // Meilisearch: a phrase, so typo tolerance cannot match the previous sample
                 var doc = new Doc(Corpus.Big, Guid.NewGuid(), "auction", "lag " + token, "probe");
                 if (variant == "delete")
                 {
                     await e.Upsert(doc);
-                    while ((await e.Search(new Query(token, Corpus.Big, Limit: 1))).Items.Count == 0) await Task.Delay(1);
+                    while ((await e.Search(new Query(probe, Corpus.Big, Limit: 1))).Items.Count == 0) await Task.Delay(1);
                 }
                 var sw = Stopwatch.StartNew();
                 if (variant == "delete") await e.Delete([doc.Id]);
                 else if (variant.EndsWith("wait_for", StringComparison.Ordinal)) await ((OpenSearch)e).UpsertWaitFor(doc);
                 else await e.Upsert(doc);
-                while (((await e.Search(new Query(token, Corpus.Big, Limit: 1))).Items.Count > 0) != (variant != "delete"))
+                while (((await e.Search(new Query(probe, Corpus.Big, Limit: 1))).Items.Count > 0) != (variant != "delete"))
                     await Task.Delay(1);
                 samples.Add(sw.Elapsed.TotalMilliseconds);
                 if (variant != "delete") await e.Delete([doc.Id]);

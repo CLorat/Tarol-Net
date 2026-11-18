@@ -292,3 +292,9 @@ INFO meilisearch size after rebuild: 3542 MB
 INFO container memory: tarol-search-meili 830.6MiB / 15.71GiB (CPU 0.08%)
 INFO meili data directory on disk: 3543 MB
 
+| engine | write | n | p50 ms | p99 ms | max ms |
+|---|---|---|---|---|---|
+| meilisearch | upsert | 50 | 3.9 | 345.3 | 345.3 |
+| meilisearch | delete | 50 | 270.4 | 320.2 | 320.2 |
+
+## 5. Bench typesense alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
