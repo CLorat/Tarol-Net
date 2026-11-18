@@ -335,6 +335,8 @@ The first release of Tarol-Net: 25 packages (24 and the meta-package `Tarol`), t
 
 ### Fixed
 
+* `Tarol.Messaging.SignalR`: a restart attempt that timed out (`TaskCanceledException`) ended `MessagePushClient`'s restart loop,
+  leaving the client disconnected for good; only the client's own stop ends it now (docs/migration/messaging.md §20).
 * Step 16: `AllocationTests` measured one loop and failed under the parallel suite when a tier-up landed in it; both
   allocation tests assert the least allocating of five loops (#59).
 

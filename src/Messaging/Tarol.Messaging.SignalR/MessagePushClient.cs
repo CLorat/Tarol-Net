@@ -182,7 +182,9 @@ public sealed partial class MessagePushClient : IAsyncDisposable
                         Restarted(_log, attempt + 1);
                         return;
                     }
-                    catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
+                    // Only the client's own stop ends the loop. An HTTP timeout is a TaskCanceledException too, and ending the
+                    // loop on it left the client disconnected for good (docs/migration/messaging.md §20).
+                    catch (Exception e) when (e is not OutOfMemoryException && !_stopped.IsCancellationRequested)
                     {
                         RestartFailed(_log, attempt + 1, e);
                     }
