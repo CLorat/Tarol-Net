@@ -1,5 +1,4 @@
 using Tarol.Primitives;
-using Tarol.Search;
 using Tarol.StronglyTypedId;
 
 namespace Tarol.Search.PackageTests;
