@@ -45,6 +45,13 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
     private readonly ILogger? _log;
     private readonly ConcurrentDictionary<(Guid Tenant, Guid Subject), Cached<SubjectKey>> _keys = new();
     private readonly ConcurrentDictionary<Guid, Cached<byte[]?>> _tenants = new();
+
+    /// <summary>Tests: runs between reading keys from the table and caching them (where an erasure can come in).</summary>
+    internal Func<Task>? AfterKeyRead { get; set; }
+
+    // moved by every eviction before it removes entries; a read that saw it move meanwhile does not keep what it cached, so an
+    // erasure that commits between the read of a key and its caching cannot leave the old key in the cache
+    private long _evictions;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _listenGate = new();
     private Task? _listener;
@@ -121,6 +128,7 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
 
         if (missing is null)
             return ring;
+        var evictions = Volatile.Read(ref _evictions);
         var tenantKey = await TenantKey(tenant, create, cancellationToken).ConfigureAwait(false);
         if (tenantKey is null)
         {
@@ -131,6 +139,8 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
 
         using var wrap = new KeyWrap(tenantKey);
         var found = await Read(tenant, missing, wrap, cancellationToken).ConfigureAwait(false);
+        if (AfterKeyRead is { } afterKeyRead)
+            await afterKeyRead().ConfigureAwait(false);
         if (create && found.Count < missing.Count)
         {
             await Create(tenant, [.. missing.Where(s => !found.ContainsKey(s))], wrap, cancellationToken).ConfigureAwait(false);
@@ -144,6 +154,8 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
             {
                 ring.Add(key);
                 Put(_keys, (tenant, subject), key, now);
+                if (Volatile.Read(ref _evictions) != evictions)
+                    _keys.TryRemove((tenant, subject), out _);                         // an erasure may have come in meanwhile
             }
             else
             {
@@ -235,6 +247,7 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
             CryptographicOperations.ZeroMemory(material);
         }
 
+        var evictions = Volatile.Read(ref _evictions);
         await using var select = _db.CreateCommand($"SELECT key_id, wrapped FROM {S}.tenant_keys WHERE tenant = $1");
         select.Parameters.Add(new NpgsqlParameter { Value = tenant });
         var reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -251,6 +264,8 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
             var key = new byte[SubjectKey.KeySize];
             _master.Unwrap(reader.GetString(0), reader.GetFieldValue<byte[]>(1), KeyBinding.Tenant(tenant), key);
             _tenants[tenant] = new Cached<byte[]?>(key, now);
+            if (Volatile.Read(ref _evictions) != evictions)
+                _tenants.TryRemove(tenant, out _);                                      // an erasure may have come in meanwhile
             return key;
         }
     }
@@ -351,6 +366,7 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
     /// <summary>Drops every cached key (tests; after a lost listener connection).</summary>
     public void ClearCache()
     {
+        Interlocked.Increment(ref _evictions);
         var count = _keys.Count;
         _keys.Clear();
         _tenants.Clear();
@@ -360,6 +376,7 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
 
     private void Evict(Guid tenant, Guid? subject, string reason)
     {
+        Interlocked.Increment(ref _evictions);
         var count = 0;
         if (subject is { } s)
         {

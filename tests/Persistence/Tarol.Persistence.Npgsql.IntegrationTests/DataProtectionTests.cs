@@ -121,6 +121,26 @@ public sealed class DataProtectionTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task An_Erasure_Between_Reading_A_Key_And_Caching_It_Does_Not_Leave_The_Key_Cached()
+    {
+        var (_, keys) = await Sealed();
+        var (tenant, subject) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        (await keys.Keys(tenant, [subject], create: true, Ct)).TryGet(subject, out var created).ShouldBeTrue();
+        created!.IsErased.ShouldBeFalse();
+        keys.ClearCache();
+        keys.AfterKeyRead = async () =>
+        {
+            keys.AfterKeyRead = null;
+            (await keys.EraseSubject(tenant, subject, Ct)).ShouldBeTrue();             // commits after the read, before the cache
+        };
+
+        _ = await keys.Keys(tenant, [subject], create: false, Ct);                       // read before the erasure: may still open
+
+        (await keys.Keys(tenant, [subject], create: false, Ct)).TryGet(subject, out var after).ShouldBeTrue();
+        after!.IsErased.ShouldBeTrue();                                                 // the old key was not kept in the cache
+    }
+
+    [Fact]
     public async Task An_Envelope_Relabelled_To_Another_Subject_Does_Not_Open()
     {
         var (store, _) = await Sealed();
