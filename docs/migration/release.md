@@ -28,7 +28,9 @@ merged), SDK 11.0.100, 4 cores.
   * **CI**: 15.7 runner-minutes per full run (build 3m50s, integration 3m51s, aot-smoke 8m02s); 233 workflow runs in the last
     6 days; billed 0 (public).
   * **Actions**: 4 actions, 12 `uses:`, all on major tags; each resolves to one SHA. Newer majors exist for all four.
-  * **Security rules**: `AnalysisModeSecurity=All` finds 0 diagnostics in the 24 packages.
+  * **Security rules**: `AnalysisLevelSecurity=latest-all` finds 80 diagnostics, 31 of them in the packages: 30 CA2100 (SQL built
+    from validated identifiers) and 1 CA5394 (retry jitter). Corrected in 17A: the first measurement used
+    `AnalysisModeSecurity=All`, which switches nothing on, and reported 0.
   * **`main`**: 1863 of 1863 tests, 24 AOT apps with 0 IL warnings, package verification OK.
 * **Decided by the owner** (RL-1 … RL-9, §9):
   * the repository stays public, under **AGPL-3.0**;
@@ -69,10 +71,10 @@ The plan's CI section says the repository stays private so its packages stay pri
 | Source | private | readable by anyone (the licence still forbids use) |
 | CodeQL | only with GitHub Code Security (Team or Enterprise plan) **[unverified]**; on a personal Free/Pro account: none | free |
 | CI minutes | billed: 15.7 per full CI run **[verified]**, the release about 18; 233 runs in 6 days **[verified]**; a Free plan has 2,000 minutes a month, Pro 3,000 **[unverified]** | free |
-| Fallback for CodeQL | .NET security rules: `AnalysisModeSecurity=All` finds 0 today **[verified]**; it can be turned on as errors | |
+| Fallback for CodeQL | .NET security rules (`AnalysisLevelSecurity=latest-all`): 31 review findings in the packages, 49 in tests and smoke apps **[verified]** (corrected, §14) | |
 
 Recommended: **(a)**, as D-1 and the plan say, before the first tag: the packages' privacy then does not depend on 24 manual
-settings. CodeQL is then replaced by `AnalysisModeSecurity=All` (RL-7 b). To save minutes, CI stops running twice for a PR
+settings. CodeQL is then replaced by the .NET security rules (RL-7 b). To save minutes, CI stops running twice for a PR
 branch (push to `claude/**` and `pull_request` both start it today).
 
 ### 2.2 Symbols (RL-2)
@@ -142,8 +144,8 @@ workflow names the environment.
 
 * (a) **CodeQL** (`codeql.yml`, C#, `build-mode: manual` with the repository's own build, push to `main`, PRs, weekly,
   `security-extended`): if the repository stays public (RL-1 b), or with GitHub Code Security.
-* (b) **.NET security rules** as errors (`AnalysisModeSecurity=All` in `Directory.Build.props`; 0 findings today
-  **[verified]**): works in a private repository on any plan.
+* (b) **.NET security rules** as errors (`AnalysisLevelSecurity=latest-all`; asked with "0 findings today", which was wrong: 31 in the
+  packages, 49 in tests, §14): works in a private repository on any plan.
 Recommended: **(b)** if RL-1 is (a); **(a) and (b)** if the repository stays public.
 
 ### 2.8 Split and branches (RL-8)
@@ -255,7 +257,7 @@ A full rebuild of the 24 packages (`--no-incremental`, alternating, min of 3): *
 
 ### 5.5 CI (RL-7, D-13; 17A)
 
-SHA pins for every `uses:`; `ci.yml` gains `workflow_call`; `codeql.yml`; `AnalysisModeSecurity=All`.
+SHA pins for every `uses:`; `ci.yml` gains `workflow_call`; `codeql.yml`; the .NET security rules as decided in §14 (RL-10).
 
 ## 6. Earlier decisions that constrain the release (not re-asked)
 
@@ -311,7 +313,7 @@ Round 3 (2026-11-18):
 |---|---|---|
 | RL-1 (licence) | With the answers of §9.1: PolyForm Noncommercial, PolyForm + OSS-only clause, AGPL-3.0, or keep proprietary | **AGPL-3.0 now** (owner's choice; the recommendation was PolyForm Noncommercial). Commercial use stays allowed under AGPL's terms; a paid licence for others can be offered later. D-1 changes accordingly (§5.1). |
 | RL-6 | The release gate | **Re-run CI on the tag + environment `release`** (recommended): `ci.yml` as `workflow_call`; the publish job in the environment `release`; the owner adds a required reviewer and a `v*` tag ruleset in the settings. |
-| RL-7 | Code security with a public repository | **CodeQL + .NET security rules** (recommended): `codeql.yml` (C#, manual build, push to `main`, PRs, weekly, `security-extended`) and `AnalysisModeSecurity=All`. |
+| RL-7 | Code security with a public repository | **CodeQL + .NET security rules** (recommended): `codeql.yml` (C#, manual build, push to `main`, PRs, weekly, `security-extended`) and the .NET security rules, asked as `AnalysisModeSecurity=All` with "0 findings". That number was wrong (§14); how to handle the 80 findings is RL-10. |
 | RL-8 | The split, and branches beyond `ccr-23c21594-m0xy0g` | **Six PRs on branches `ccr-23c21594-m0xy0g-17a` … `-17f`** (recommended), stacked; the order is §11. |
 
 ### 9.1 The licence questions (answered in the chat, 2026-11-18; not legal advice)
@@ -379,3 +381,19 @@ Then the owner creates `v0.1.0-preview.1` (asked before).
 
 1. Whether GitHub Packages accepts `.snupkg` and what visibility a new package gets: only a real push answers it (RL-1, RL-2).
 2. Dependabot and SHA pins with version comments: confirmed by its first PR after 17A.
+
+## 14. Correction: the .NET security rules (found in 17A)
+
+RL-7 (b) was asked with "`AnalysisModeSecurity=All` finds 0 diagnostics". That property switches nothing on **[verified]**:
+* a deliberate `new System.Random().Next()` in `Tarol.Kernel` gives no CA5394 with it;
+* it gives CA5394 with `AnalysisLevelSecurity=latest-all`.
+
+With the working property the solution has **80 findings** **[verified]** (output §11):
+
+| Where | Rule | Count | What it is **[verified by reading]** |
+|---|---|---|---|
+| `Tarol.Persistence.Npgsql`, `Tarol.Queries.Npgsql`, `Tarol.Messaging.Npgsql` | CA2100 "review SQL for user input" | 30 | SQL text built from the schema and projection names, checked against `^[a-z_][a-z0-9_]{0,62}$`, plus constants; every value is a parameter. CA2100 flags any non-constant command text; it does no data-flow analysis |
+| `Tarol.Messaging.SignalR` | CA5394 insecure `Random` | 1 | the reconnect delay's jitter (`Random.Shared`), not a security use |
+| tests, AOT smoke apps | CA5394, CA2100, CA5399 | 49 | random test data, SQL from test constants, an `HttpClient` without revocation check in a smoke app |
+
+How to handle them was asked of the owner again (RL-10).

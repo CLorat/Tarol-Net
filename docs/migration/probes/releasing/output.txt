@@ -154,5 +154,20 @@ build 0 warnings; format clean; test 1863 of 1863 (second run; the first run, al
 ## 10. Symbols in the package instead of .snupkg (dotnet pack src.slnx -c Release -p:DebugType=embedded -p:IncludeSymbols=false)
 24 .nupkg, 0 .snupkg: 1,949,447 bytes (today 1,385,053 + 495,792 in .snupkg): +564,394 bytes (+41 %), PDB inside each DLL
 
-## 11. .NET security rules all on (dotnet build src.slnx --no-incremental -p:AnalysisModeSecurity=All, warnings not errors)
-0 CA diagnostics in the 24 runtime packages
+## 11. .NET security rules all on
+CORRECTED (17A): `-p:AnalysisModeSecurity=All` switches nothing on (a deliberate `new System.Random().Next()` in Tarol.Kernel gives no
+CA5394 with it, and CA5394 with `-p:AnalysisLevelSecurity=latest-all`). The first measurement here ("0 CA diagnostics") was wrong.
+dotnet build Tarol.slnx --no-incremental -p:AnalysisLevelSecurity=latest-all, warnings not errors: 80 diagnostics
+     31 CA5394 Tarol.Primitives.Tests
+     16 CA2100 Tarol.Persistence.Npgsql
+     13 CA2100 Tarol.Queries.Npgsql
+      6 CA2100 Tarol.Queries.Npgsql.IntegrationTests
+      4 CA5394 Tarol.Caching.Tests
+      3 CA2100 Tarol.Persistence.Npgsql.IntegrationTests
+      2 CA5394 Tarol.Persistence.Npgsql.IntegrationTests
+      2 CA2100 Tarol.Queries.Npgsql.AotSmoke
+      1 CA5399 Tarol.Operations.AotSmoke
+      1 CA5394 Tarol.Messaging.SignalR
+      1 CA2100 Tarol.Messaging.Npgsql
+in src: 30 CA2100 (SQL text from identifiers checked against ^[a-z_][a-z0-9_]{0,62}$ and constants, values as parameters) and
+1 CA5394 (the reconnect delay's jitter, Random.Shared)
