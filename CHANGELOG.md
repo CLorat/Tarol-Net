@@ -8,6 +8,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol.Search.OpenSearch` (step 18E): the OpenSearch adapter (HttpClient, no SDK): an index per version, folding and
+  English/German analysers, Tarol's query syntax, a fuzzy typo fallback by the shared rule, exact counts, highlights, a readiness
+  problem while the cluster does not answer. `ISearchCheckpoints` in `Tarol.Search`, `NpgsqlSearchCheckpoints` and
+  `UseNpgsqlSearchCheckpoints` in `Tarol.Search.Npgsql`. Test-only package `Testcontainers` (MIT) pinned.
 * `MapTarolSearch` in `Tarol.Changes.AspNetCore` (step 18D): `GET /search` over every searchable type the caller may read
   (`Read<T>`), in its tenant, its subject and roles as the audience; read-after, 503 while building, weak ETag and 304.
   `ISearchAccess` and `SearchRegistry.Readable` in `Tarol.Search`.

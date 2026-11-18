@@ -701,3 +701,49 @@ gains the search check: 0 IL warnings, natively green.
 | expose search over HTTP | `app.MapTarolSearch("/search", "policy")` after `AddSearch` | mapping without `AddSecurity` (entries fail closed) |
 | hide documents per user | `[SearchAudience]` on the aggregate | expecting row rules (`ChangeHandler<,>`) to filter hits |
 
+## 19. Implementation: PR 18E (2026-11-18)
+
+`search.opensearch: the OpenSearch adapter` (new package `Tarol.Search.OpenSearch`, GS-3).
+
+### 19.1 Public API
+
+* `Tarol.Search.OpenSearch`: `OpenSearchIndex : ISearchIndex` (`IndexOf(version)`, `Problem`), `OpenSearchOptions`
+  (`IndexPrefix` = `tarol-search`, `WaitForRefresh`, `Shards` = 1, `Replicas` = 1), `UseOpenSearch(http, options)` (also a
+  `ReadinessCheck` "search-opensearch").
+* `Tarol.Search`: `ISearchCheckpoints` (`Prepare`, `Checkpoint`, `Move`, `NewestCurrent`), `InMemorySearchCheckpoints`.
+* `Tarol.Search.Npgsql`: `NpgsqlSearchCheckpoints` (the rows (`search`, n) of `projections`), `UseNpgsqlSearchCheckpoints`.
+
+### 19.2 Deliberate differences from §11
+
+* The checkpoint port is new (§11 assumed the engine adapters write `projections` directly): an engine has no transaction with
+  Tarol's, so the index writes the documents, then moves the checkpoint guarded; `Write` first compares the stored checkpoint
+  and writes nothing for another runner's batch.
+* Stale documents (a removed entity, a deleted stream) go with `_delete_by_query` (tenant, the batch's aggregates, not the new
+  ids) after a refresh, because a delete-by-query sees only refreshed documents. A batch therefore costs one refresh.
+* Readiness: `ReadinessCheck` is synchronous, so the adapter records its last failed connection and `ready` reports it until the
+  next answer; no request per probe.
+* No Elasticsearch claim: the API family is close, but nothing here ran against Elasticsearch **[unverified]**.
+* The CI `aot-smoke` job gets no OpenSearch service; the smoke app skips its engine checks without `TAROL_OPENSEARCH` and was run
+  natively against `opensearchproject/opensearch:2.19.1` here (§19.4). Adding the service is an owner's CI choice.
+
+### 19.3 Tests **[verified]**
+
+`Tarol.Search.OpenSearch.IntegrationTests` (20, Testcontainers OpenSearch 2.19.1 with the security plugin and the disk threshold
+off, PostgreSQL 17 for the checkpoints): the **contract suite** (17); German/English stemming and folding; the checkpoint in
+`projections` and a new version building while version 1 answers; an unreachable cluster is a readiness problem until it answers.
+Finding while testing: a Testcontainers wait path with a query string (`/_cluster/health?wait_for_status=yellow`) never succeeded
+and the fixture hung; the wait now asks `/`.
+
+### 19.4 AOT **[verified]**
+
+`Tarol.Search.OpenSearch.AotSmoke`: 0 IL warnings; with `TAROL_OPENSEARCH` (a local container) 9 checks pass natively. One check
+first assumed an order between two title matches; BM25 puts the shorter title first, which the contract allows.
+
+### 19.5 Skill evaluation checklist (`tarol-search-opensearch`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| run search on OpenSearch | `UseNpgsqlSearchCheckpoints()`, `UseOpenSearch(p => client)` | forgetting the checkpoints (start fails) |
+| authenticate | the `HttpClient`'s handler or header from configuration | credentials in code or committed settings |
+| read your own write | `WaitForRefresh = true` | expecting it within milliseconds by default |
+

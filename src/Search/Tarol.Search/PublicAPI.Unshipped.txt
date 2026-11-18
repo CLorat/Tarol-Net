@@ -4,6 +4,11 @@ Tarol.Search.ISearch.Search(Tarol.Search.SearchQuery! query, Tarol.Kernel.Operat
 Tarol.Search.ISearch.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
 Tarol.Search.ISearchAccess
 Tarol.Search.ISearchAccess.CanRead<T>(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.ISearchCheckpoints
+Tarol.Search.ISearchCheckpoints.Checkpoint(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Search.ISearchCheckpoints.Move(int version, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.ISearchCheckpoints.NewestCurrent(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(int Version, Tarol.Queries.ProjectionCheckpoint Checkpoint)?>
+Tarol.Search.ISearchCheckpoints.Prepare(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Search.ISearchIndex
 Tarol.Search.ISearchIndex.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
 Tarol.Search.ISearchIndex.Documents(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! aggregates, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>
@@ -14,6 +19,12 @@ Tarol.Search.ISearchIndex.Write(Tarol.Search.SearchBatch! batch, System.Threadin
 Tarol.Search.ISearchable<T>
 Tarol.Search.ISearchable<T>.Documents(T! aggregate, System.Collections.Generic.ICollection<Tarol.Search.SearchDocument!>! into) -> void
 Tarol.Search.ISearchable<T>.Shape.get -> Tarol.Search.SearchShape!
+Tarol.Search.InMemorySearchCheckpoints
+Tarol.Search.InMemorySearchCheckpoints.Checkpoint(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Search.InMemorySearchCheckpoints.InMemorySearchCheckpoints() -> void
+Tarol.Search.InMemorySearchCheckpoints.Move(int version, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.InMemorySearchCheckpoints.NewestCurrent(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(int Version, Tarol.Queries.ProjectionCheckpoint Checkpoint)?>
+Tarol.Search.InMemorySearchCheckpoints.Prepare(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Search.InMemorySearchIndex
 Tarol.Search.InMemorySearchIndex.All.get -> System.Collections.Generic.IReadOnlyList<(System.Guid Tenant, Tarol.Search.SearchDocument! Document)>!
 Tarol.Search.InMemorySearchIndex.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
