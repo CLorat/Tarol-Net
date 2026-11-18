@@ -41,7 +41,7 @@ namespace Tarol.Persistence.Npgsql;
 /// (<see cref="NpgsqlSlimDataSourceBuilder"/>: <c>EnableArrays()</c>).
 /// </para>
 /// </remarks>
-public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempotencyKeyPurge
+public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempotencyKeyPurge, IDataProtectionStore
 {
     private static readonly Guid NoTenant = Guid.Empty;
     private readonly NpgsqlDataSource _db;
@@ -797,6 +797,39 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         }
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<StreamRef>> Streams(Guid tenant, string streamType, CancellationToken cancellationToken)
+    {
+        await using var command = _db.CreateCommand(_sql.StreamsOfType);
+        Add(command, tenant, streamType);
+        var streams = new List<StreamRef>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                streams.Add(new StreamRef(tenant, streamType, reader.GetGuid(0)));
+        return streams;
+    }
+
+    /// <inheritdoc />
+    public async Task Audit(string actor, string action, string target, string? detail, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action);
+        ArgumentException.ThrowIfNullOrWhiteSpace(target);
+        await using var command = _db.CreateCommand(_sql.Audit);
+        Add(command, _time.GetUtcNow(), actor, action, target, Jsonb(detail, NpgsqlDbType.Jsonb));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> PurgeAudit(DateTimeOffset olderThan, int batch, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batch);
+        await using var command = _db.CreateCommand(_sql.PurgeAudit);
+        Add(command, olderThan, batch);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task<IReadOnlyList<PositionedEvent>> ReadPage(NpgsqlCommand command, IKeyStore? keys, CancellationToken cancellationToken)
     {
         var rows = new List<RecordedEvents.Raw>();
@@ -1132,6 +1165,14 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             UPDATE {schema}.streams x SET state = u.st::jsonb, subjects = u.sj::uuid[]
             FROM unnest($2::uuid[], $3::uuid[], $4::bigint[], $5::text[], $6::text[]) AS u(t, i, v, st, sj)
             WHERE x.tenant = u.t AND x.type = $1 AND x.id = u.i AND x.version = u.v AND x.subjects IS NULL
+            """;
+
+        public string StreamsOfType => $"SELECT id FROM {schema}.streams WHERE tenant = $1 AND type = $2 ORDER BY id";
+
+        public string Audit => $"INSERT INTO {schema}.operations_audit (at, actor, action, target, detail) VALUES ($1, $2, $3, $4, $5)";
+
+        public string PurgeAudit => $"""
+            DELETE FROM {schema}.operations_audit WHERE id IN (SELECT id FROM {schema}.operations_audit WHERE at < $1 ORDER BY id LIMIT $2)
             """;
 
         public string RaiseCompatibility => $"UPDATE {schema}.schema_version SET compatible_from = greatest(compatible_from, $1)";

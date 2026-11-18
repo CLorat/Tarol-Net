@@ -46,6 +46,12 @@ public static class TarolAdminEndpoints
         group.MapDelete("/dead/{kind}/{id:long}", Discard);
         group.MapGet("/projections", Projections);
         group.MapDelete("/projections/{name}/{version:int}", Drop);
+        // step 16C (DP-6): a data subject's export and erasure, when data protection is registered
+        if (endpoints.ServiceProvider.GetService<IDataSubjects>() is not null)
+        {
+            group.MapGet("/subjects/{id:guid}/export", ExportSubject);
+            group.MapPost("/subjects/{id:guid}/erase", EraseSubject);
+        }
         return group;
     }
 
@@ -159,6 +165,39 @@ public static class TarolAdminEndpoints
         {
             await Problem(context, StatusCodes.Status404NotFound, e.Message).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>The <c>tenant</c> query parameter (a GUID; absent = no tenant); <see langword="null"/> when malformed.</summary>
+    private static Guid? TenantOf(HttpContext context)
+        => context.Request.Query["tenant"].ToString() is { Length: > 0 } text
+            ? Guid.TryParse(text, CultureInfo.InvariantCulture, out var tenant) ? tenant : null
+            : Guid.Empty;
+
+    private static async Task ExportSubject(HttpContext context)
+    {
+        if (TenantOf(context) is not { } tenant)
+        {
+            await Problem(context, StatusCodes.Status400BadRequest, "tenant must be a GUID").ConfigureAwait(false);
+            return;
+        }
+        var subject = Guid.Parse(Route(context, "id"), CultureInfo.InvariantCulture);
+        var export = await context.RequestServices.GetRequiredService<IDataSubjects>().Export(tenant, subject, Actor(context.User), context.RequestAborted).ConfigureAwait(false);
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "application/json";
+        context.Response.Headers.ContentDisposition = $"attachment; filename=\"subject-{subject}.json\"";
+        await context.Response.Body.WriteAsync(export.Utf8Json, context.RequestAborted).ConfigureAwait(false);
+    }
+
+    private static async Task EraseSubject(HttpContext context)
+    {
+        if (TenantOf(context) is not { } tenant)
+        {
+            await Problem(context, StatusCodes.Status400BadRequest, "tenant must be a GUID").ConfigureAwait(false);
+            return;
+        }
+        var subject = Guid.Parse(Route(context, "id"), CultureInfo.InvariantCulture);
+        var erasure = await context.RequestServices.GetRequiredService<IDataSubjects>().EraseSubject(tenant, subject, Actor(context.User), context.RequestAborted).ConfigureAwait(false);
+        await Json(context, StatusCodes.Status200OK, new ErasureView(erasure.Tenant, subject, erasure.AlreadyErased, erasure.Streams.Count), OperationsJson.Default.ErasureView).ConfigureAwait(false);
     }
 
     private static async Task Projections(HttpContext context)

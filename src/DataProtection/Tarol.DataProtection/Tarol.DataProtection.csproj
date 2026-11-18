@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Data protection for Tarol: erasure of a data subject everywhere Tarol wrote its data (the key's tombstone, projection re-folds, page caches in every process, personal lookups, an audit row), export of a subject's data as one JSON document opened with that subject's key only, retention that deletes whole streams of a type after N days, and the configured master key. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;gdpr;privacy;erasure;crypto-shredding;retention;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- DI, hosting, configuration, logging and metrics abstractions are part of .NET 11's base framework. -->
+    <ProjectReference Include="../../Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

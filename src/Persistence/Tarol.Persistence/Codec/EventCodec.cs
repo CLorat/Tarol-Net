@@ -25,7 +25,7 @@ namespace Tarol.Persistence;
 public sealed class EventCodec
 {
     private readonly Lock _gate = new();
-    private volatile Tables _tables = new([], [], [], [], [], []);
+    private volatile Tables _tables = new([], [], [], [], [], [], []);
 
     /// <summary>Creates a codec over <paramref name="options"/> (made read-only).</summary>
     /// <param name="options">The JSON options of the payloads, with <c>ValueObjectJson.Resolver</c> first when events hold value objects.</param>
@@ -77,6 +77,7 @@ public sealed class EventCodec
                 Current = current,
                 Personal = personal,
                 States = states,
+                Retention = catalog.RetentionDays is { } days ? new Dictionary<string, int>(t.Retention) { [catalog.StreamType] = days } : t.Retention,
             };
         }
         return this;
@@ -138,6 +139,12 @@ public sealed class EventCodec
         JsonSerializer.Serialize(writer, domainEvent, info);
         return type;
     }
+
+    /// <summary>The <c>[Retention(Days)]</c> of the registered aggregates, by stream type (DP-7).</summary>
+    public IReadOnlyDictionary<string, int> RetentionDays => _tables.Retention;
+
+    /// <summary>The registered stream types.</summary>
+    public IReadOnlyCollection<string> StreamTypes => _tables.Streams.Keys;
 
     /// <summary>Whether a registered aggregate has <c>[PersonalData]</c> in an event or its state (it is sealed and needs keys).</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
@@ -383,5 +390,6 @@ public sealed class EventCodec
         Dictionary<(string, string), JsonTypeInfo> Current,
         Dictionary<(string, string), IEventUpcaster> Upcasters,
         Dictionary<(string, string), ResolvedShape> Personal,
-        Dictionary<string, ResolvedShape> States);
+        Dictionary<string, ResolvedShape> States,
+        Dictionary<string, int> Retention);
 }

@@ -39,5 +39,13 @@ public sealed record AdminError(string Error);
 [JsonSerializable(typeof(DeadLetterPageView))]
 [JsonSerializable(typeof(RedriveView))]
 [JsonSerializable(typeof(AdminError))]
+[JsonSerializable(typeof(ErasureView))]
 [JsonSerializable(typeof(IReadOnlyList<ProjectionVersion>))]
 public sealed partial class OperationsJson : JsonSerializerContext;
+
+/// <summary>The answer of <c>POST {prefix}/subjects/{id}/erase</c> (step 16C).</summary>
+/// <param name="Tenant">The tenant.</param>
+/// <param name="Subject">The subject.</param>
+/// <param name="AlreadyErased">Whether the key was a tombstone already (the forgetting ran again).</param>
+/// <param name="Streams">How many streams held the subject's data.</param>
+public sealed record ErasureView(Guid Tenant, Guid Subject, bool AlreadyErased, int Streams);

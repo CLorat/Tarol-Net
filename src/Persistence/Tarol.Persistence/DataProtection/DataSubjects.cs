@@ -76,6 +76,16 @@ public abstract class ErasureParticipant
     /// <returns>A task.</returns>
     public virtual ValueTask ForgetTenant(Guid tenant, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
+    /// <summary>
+    /// A subject or tenant was erased, here or in another process (<see cref="IKeyStore.Erased"/>): drop what this process
+    /// holds in memory (a page cache). The default does nothing.
+    /// </summary>
+    /// <param name="tenant">The tenant.</param>
+    /// <param name="subject">The subject; <see langword="null"/> for the whole tenant.</param>
+    public virtual void Evict(Guid tenant, Guid? subject)
+    {
+    }
+
     /// <summary>Retention deleted <paramref name="streams"/> (DP-7): drop what was derived from them. The default does nothing.</summary>
     /// <param name="streams">The deleted streams.</param>
     /// <param name="cancellationToken">Cancels the call.</param>

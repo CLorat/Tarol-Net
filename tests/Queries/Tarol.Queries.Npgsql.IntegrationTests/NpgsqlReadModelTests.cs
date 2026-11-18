@@ -399,6 +399,10 @@ public sealed class NpgsqlReadModelTests(Postgres postgres)
     /// <summary>Computes the batch, then "crashes" before the write reaches the database.</summary>
     private sealed class CrashingStore(IReadModelStore<AuctionRow> inner) : IReadModelStore<AuctionRow>
     {
+        public ValueTask Replace(IReadOnlyList<Versioned<AuctionRow>> rows, CancellationToken cancellationToken) => inner.Replace(rows, cancellationToken);
+
+        public ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken) => inner.Remove(keys, cancellationToken);
+
         public ValueTask Prepare(CancellationToken cancellationToken) => inner.Prepare(cancellationToken);
 
         public ValueTask<ProjectionCheckpoint> Checkpoint(CancellationToken cancellationToken) => inner.Checkpoint(cancellationToken);

@@ -76,6 +76,29 @@ public sealed class InMemoryReadModelStore<TRow> : IReadModelStore<TRow>
     }
 
     /// <inheritdoc />
+    public ValueTask Replace(IReadOnlyList<Versioned<TRow>> rows, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+            foreach (var row in rows)
+                _rows[row.Key] = row;
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        cancellationToken.ThrowIfCancellationRequested();
+        var removed = 0;
+        lock (_gate)
+            foreach (var key in keys)
+                removed += _rows.Remove(key) ? 1 : 0;
+        return ValueTask.FromResult(removed);
+    }
+
+    /// <inheritdoc />
     public ValueTask<Versioned<TRow>?> Find(RowKey key, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

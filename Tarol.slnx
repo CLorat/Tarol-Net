@@ -14,6 +14,9 @@
   <Folder Name="/src/Caching/">
     <Project Path="src/Caching/Tarol.Caching/Tarol.Caching.csproj" />
   </Folder>
+  <Folder Name="/src/DataProtection/">
+    <Project Path="src/DataProtection/Tarol.DataProtection/Tarol.DataProtection.csproj" />
+  </Folder>
   <Folder Name="/src/Changes/">
     <Project Path="src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj" />
     <Project Path="src/Changes/Tarol.Changes/Tarol.Changes.csproj" />

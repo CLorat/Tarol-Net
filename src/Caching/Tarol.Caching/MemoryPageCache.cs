@@ -124,6 +124,14 @@ public sealed class MemoryPageCache : IPageCache, IDisposable
             Remove(key, entry, null);
     }
 
+    /// <inheritdoc />
+    public void Clear(Guid tenant)
+    {
+        foreach (var (key, entry) in _entries)
+            if (key.Tenant == tenant)
+                Remove(key, entry, null);
+    }
+
     /// <summary>Disposes the meter when the cache created it.</summary>
     public void Dispose()
     {

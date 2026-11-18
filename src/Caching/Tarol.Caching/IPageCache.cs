@@ -31,4 +31,8 @@ public interface IPageCache
 
     /// <summary>Removes every entry.</summary>
     void Clear();
+
+    /// <summary>Drops every page of one tenant (an erasure or a re-fold that did not move the checkpoint; DP-5).</summary>
+    /// <param name="tenant">The tenant.</param>
+    void Clear(Guid tenant);
 }

@@ -78,6 +78,23 @@ public sealed class CachedReadModels : IReadModels
 
         public ValueTask<Versioned<TRow>?> Find(RowKey key, CancellationToken cancellationToken) => inner.Find(key, cancellationToken);
 
+        // a replace or remove does not move the checkpoint the pages are keyed on: this process evicts the tenants' pages
+        // (others evict on the erasure's signal, Tarol.DataProtection)
+        public async ValueTask Replace(IReadOnlyList<Versioned<TRow>> rows, CancellationToken cancellationToken)
+        {
+            await inner.Replace(rows, cancellationToken).ConfigureAwait(false);
+            foreach (var tenant in rows.Select(static r => r.Key.Tenant).Distinct())
+                models.Cache.Clear(tenant);
+        }
+
+        public async ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken)
+        {
+            var removed = await inner.Remove(keys, cancellationToken).ConfigureAwait(false);
+            foreach (var tenant in keys.Select(static k => k.Tenant).Distinct())
+                models.Cache.Clear(tenant);
+            return removed;
+        }
+
         public async ValueTask<Result<Page<TRow>>> Search(ListQuery query, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(query);

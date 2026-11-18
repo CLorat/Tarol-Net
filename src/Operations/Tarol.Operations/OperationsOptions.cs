@@ -22,6 +22,13 @@ public sealed class OperationsOptions
     /// <summary>The most dead letters one purge statement deletes (default 1000).</summary>
     public int PurgeBatch { get; set; } = 1000;
 
+    /// <summary>
+    /// How long <c>operations_audit</c> rows are kept (DP-9, step 16C): with a value, the system job <c>tarol.purge-audit</c>
+    /// deletes older rows hourly (needs a job host and a store implementing <c>IDataProtectionStore</c>); <see langword="null"/>
+    /// (the default) = kept for ever. At least 1 day.
+    /// </summary>
+    public TimeSpan? AuditRetention { get; set; }
+
     internal void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(PollEvery, TimeSpan.FromSeconds(1), nameof(PollEvery));
@@ -29,6 +36,8 @@ public sealed class OperationsOptions
         ArgumentOutOfRangeException.ThrowIfLessThan(PurgeBatch, 1, nameof(PurgeBatch));
         if (DeadRetention is { } retention)
             ArgumentOutOfRangeException.ThrowIfLessThan(retention, TimeSpan.FromHours(1), nameof(DeadRetention));
+        if (AuditRetention is { } audit)
+            ArgumentOutOfRangeException.ThrowIfLessThan(audit, TimeSpan.FromDays(1), nameof(AuditRetention));
         Thresholds.Validate();
     }
 }

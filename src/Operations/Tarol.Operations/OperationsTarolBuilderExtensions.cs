@@ -14,6 +14,9 @@ public static class OperationsTarolBuilderExtensions
     /// <summary>The name of the dead-letter retention's system job (O-5).</summary>
     public const string PurgeDeadJob = "tarol.purge-dead";
 
+    /// <summary>The system job that deletes old <c>operations_audit</c> rows (<see cref="OperationsOptions.AuditRetention"/>, step 16C).</summary>
+    public const string PurgeAuditJob = "tarol.purge-audit";
+
     /// <summary>
     /// The operations of a Tarol process (docs/architecture/operations.md): the <see cref="OperationsHost"/> (snapshot and
     /// gauges), the health checks (<see cref="TarolHealthTags"/>: <c>tarol-live</c>, <c>tarol-ready</c>, and
@@ -65,6 +68,19 @@ public static class OperationsTarolBuilderExtensions
                         if (deleted < options.PurgeBatch)
                             break;
                     }
+                return total;
+            }));
+        if (options.AuditRetention is { } kept)
+            services.AddSingleton(new MaintenanceTask(PurgeAuditJob, TimeSpan.FromHours(1), async (provider, at, ct) =>
+            {
+                var store = provider.GetRequiredService<IDataProtectionStore>();
+                var total = 0;
+                for (int deleted; (deleted = await store.PurgeAudit(at - kept, options.PurgeBatch, ct).ConfigureAwait(false)) > 0;)
+                {
+                    total += deleted;
+                    if (deleted < options.PurgeBatch)
+                        break;
+                }
                 return total;
             }));
         return builder;

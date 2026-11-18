@@ -89,7 +89,20 @@ public static class NpgsqlTarolBuilderExtensions
         builder.Services.TryAddSingleton(provider => new NpgsqlKeyStore(provider.GetRequiredService<NpgsqlDataSource>(), provider.GetRequiredService<IKeyEncryptionKey>(),
             provider.GetRequiredService<TimeProvider>(), options, provider.GetService<ILoggerFactory>()?.CreateLogger<NpgsqlKeyStore>()));
         builder.Services.TryAddSingleton<IKeyStore>(static provider => provider.GetRequiredService<NpgsqlKeyStore>());
+        // every process listens from the start: a process that never loads a key still drops its page cache on an erasure
+        builder.Services.AddHostedService(static provider => new KeyListenerService(provider.GetRequiredService<NpgsqlKeyStore>()));
         return builder;
+    }
+
+    private sealed class KeyListenerService(NpgsqlKeyStore keys) : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            _ = keys.StartListening(CancellationToken.None); // not awaited: a database that is not up yet must not stop the host
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class EnsureSchemaService(NpgsqlAggregateStore store) : IHostedService
