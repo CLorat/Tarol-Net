@@ -89,14 +89,40 @@ public sealed partial class ReactionWorker
     /// <returns>What happened to each claimed row; empty when nothing was due.</returns>
     public async Task<IReadOnlyList<ReactionAttempt>> RunOnce(CancellationToken cancellationToken = default)
     {
+        // the whole batch shares one lease: a row is started only while at least half of it is left, so a slow batch does not
+        // run its tail after the lease expired, alongside another worker that claimed those rows again
+        var startBefore = _time.GetUtcNow() + _options.Lease / 2;
         var rows = await _outbox.Claim(_options.Batch, _options.Lease, cancellationToken).ConfigureAwait(false);
         var attempts = new List<ReactionAttempt>(rows.Count);
-        foreach (var row in rows)
+        for (var i = 0; i < rows.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            attempts.Add(await Handle(row, cancellationToken).ConfigureAwait(false));
+            if (_time.GetUtcNow() >= startBefore)
+            {
+                await ReleaseRest(rows, i).ConfigureAwait(false);
+                break;
+            }
+            attempts.Add(await Handle(rows[i], cancellationToken).ConfigureAwait(false));
         }
         return attempts;
+    }
+
+    /// <summary>Hands the rows from <paramref name="from"/> on back unrun (not counted as attempts); they are due again at once.</summary>
+    private async Task ReleaseRest(IReadOnlyList<OutboxRow> rows, int from)
+    {
+        BatchOutlived(_log, rows.Count - from, rows.Count);
+        for (var i = from; i < rows.Count; i++)
+        {
+            try
+            {
+                _ = await _outbox.Release(rows[i], CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                LoopFailed(_log, e);                                                    // the lease brings the rest back
+                return;
+            }
+        }
     }
 
     /// <summary>Runs rounds until nothing is due: an event, its reactions, their events' reactions, … (tests, one-off jobs).</summary>
@@ -221,6 +247,9 @@ public sealed partial class ReactionWorker
 
     [LoggerMessage(EventId = 9003, Level = LogLevel.Warning, Message = "Reaction {Reaction} (row {RowId}, attempt {Attempt}) outlived its lease; another worker owns the row")]
     private static partial void LeaseLost(ILogger logger, string reaction, long rowId, int attempt);
+
+    [LoggerMessage(EventId = 9012, Level = LogLevel.Warning, Message = "The batch outlived half its lease; {Count} of {Batch} rows were handed back unrun (lower ReactionOptions.Batch or raise Lease)")]
+    private static partial void BatchOutlived(ILogger logger, int count, int batch);
 
     [LoggerMessage(EventId = 9004, Level = LogLevel.Error, Message = "The reaction worker loop failed; it waits and claims again")]
     private static partial void LoopFailed(ILogger logger, Exception exception);

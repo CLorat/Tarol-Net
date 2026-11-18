@@ -132,6 +132,18 @@ internal sealed class InMemoryOutbox(TimeProvider time, IOutboxReactions reactio
         }
     }
 
+    public Task<bool> Release(OutboxRow row, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        lock (_gate)
+        {
+            if (Owned(row) is not { } owned)
+                return Task.FromResult(false);
+            (owned.Claim, owned.LeaseUntil, owned.Attempts) = (null, null, Math.Max(0, owned.Attempts - 1));
+            return Task.FromResult(true);
+        }
+    }
+
     public Task<bool> Bury(OutboxRow row, string reason, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(row);

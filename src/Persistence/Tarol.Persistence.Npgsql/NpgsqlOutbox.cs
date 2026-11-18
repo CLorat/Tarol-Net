@@ -139,6 +139,16 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
     }
 
     /// <inheritdoc />
+    public async Task<bool> Release(OutboxRow row, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        await using var command = _db.CreateCommand(_sql.Release);
+        Add(command, row.Id, row.ClaimId, row.DueAt ?? _time.GetUtcNow());                    // keeps its place and its lateness
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = row.LastError.TryGetValue(out string? error) ? error : DBNull.Value });
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    /// <inheritdoc />
     public Task<bool> Bury(OutboxRow row, string reason, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(row);

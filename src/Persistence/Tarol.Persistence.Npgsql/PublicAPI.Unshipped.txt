@@ -1,1 +1,2 @@
 #nullable enable
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Release(Tarol.Persistence.OutboxRow! row, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!

@@ -53,6 +53,8 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
 `ReactionOptions`: `Workers` (4), `Batch` (32), `Lease` (1 min), `PollInterval` (100 ms), `Policy` (`DeliveryPolicy`:
 `MaxAttempts` 10, `FirstDelay` 1 s, `MaxDelay` 5 min), `PurgeKeys`, `KeyRetention` (7 days), `PurgeEvery` (1 h).
 `RunOnce`/`Drain` return what happened to each row (`ReactionAttempt`). Dead letters: `IOutbox.DeadLetters`, `Redrive`.
+A batch shares one lease: once half of it has passed, the rows not started yet are handed back unrun and uncounted
+(`IOutbox.Release`, log 9012), so a slow batch never runs its tail alongside another worker.
 
 ## Sagas
 

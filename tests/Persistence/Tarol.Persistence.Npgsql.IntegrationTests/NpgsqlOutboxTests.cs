@@ -179,6 +179,22 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task A_released_row_is_due_again_at_once_uncounted_and_the_old_claim_is_void()
+    {
+        var store = await Store(e => e is Member.Joined ? OnJoined : ReadOnlySpan<string>.Empty);
+        await Joined(store, Context, earnings: 0);
+        var first = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).Single();
+
+        (await store.Outbox.Release(first, Ct)).ShouldBeTrue();
+        var again = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).Single();          // no lease to wait out
+
+        (again.Id, again.Attempts, again.DueAt).ShouldBe((first.Id, 1, first.DueAt));
+        (await store.Outbox.Release(first, Ct)).ShouldBeFalse();
+        (await store.Outbox.Complete(first, Ct)).ShouldBeFalse();
+        (await store.Outbox.Complete(again, Ct)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task An_expired_lease_is_claimed_again_and_the_first_worker_cannot_complete()
     {
         var store = await Store(e => e is Member.Joined ? OnJoined : ReadOnlySpan<string>.Empty);
