@@ -45,6 +45,9 @@
     <Project Path="src/Messaging/Tarol.Messaging.RabbitMq/Tarol.Messaging.RabbitMq.csproj" />
     <Project Path="src/Messaging/Tarol.Messaging.SignalR/Tarol.Messaging.SignalR.csproj" />
   </Folder>
+  <Folder Name="/src/Meta/">
+    <Project Path="src/Meta/Tarol/Tarol.csproj" />
+  </Folder>
   <Folder Name="/src/Sagas/">
     <Project Path="src/Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
   </Folder>

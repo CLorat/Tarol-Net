@@ -491,3 +491,58 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
 * `eng/verify-packages.sh`: OK;
 * `eng/public-api.py check-shipped`: OK (every Unshipped empty).
+
+## 17. Implementation 17C: the meta-package `Tarol`
+
+### 17.1 What changed
+
+* `src/Meta/Tarol` (new):
+  * `ProjectReference`s to the 17 packages of RL-4;
+  * `IncludeBuildOutput=false`, `IncludeSymbols=false`, and `lib/net11.0/_._` (an empty file) as the framework marker, so NuGet
+    raises no NU5128;
+  * `IsAotCompatible=false` with a comment: no code, so no AOT claim and no smoke app;
+  * empty `PublicAPI.*.txt`; README; skill `tarol-overview`.
+* `tests/Meta/Tarol.PackageTests` (new):
+  * references only `Tarol`;
+  * an MSBuild check fails unless all 10 generators reach the compiler (Changes, Changes.AspNetCore, Kernel, Messaging,
+    Options, Primitives, Queries, Results, StronglyTypedId, Validations);
+  * it runs a consumer and a change, a publication and an effect, and a projection search;
+  * its `nuget.config` maps `Tarol` as well as `Tarol.*` to the local feed.
+* `eng/verify-packages.sh`: a package whose csproj sets `IncludeBuildOutput` false must contain `lib/net11.0/_._` instead of
+  its DLL.
+* `Tarol.slnx` (folder `/src/Meta/`), the root README's package table, conventions §2 (the naming exception), `CHANGELOG.md`.
+
+### 17.2 Verified **[verified]**
+
+* The `.nupkg` holds `LICENSE`, `README.md`, `lib/net11.0/_._` and `skills/tarol-overview/SKILL.md`, plus 17 dependencies
+  (each `exclude="Build,Analyzers"`, the default).
+* The consumer's compiler received all 10 generators, and the app printed `ALL CHECKS PASSED`.
+
+### 17.3 Deliberate differences from §5.3
+
+* The consumer checks a consumer, a change, a publication, an effect and a projection. Its aggregate is the Messaging consumer
+  test's `Board`, plus the Queries consumer test's `Note`.
+
+### 17.4 Skill checklist (`tarol-overview`)
+
+| Task | Expected | Mistake to avoid |
+|---|---|---|
+| start a web app with PostgreSQL | `Tarol` + `Tarol.Persistence.Npgsql`, then `tarol-primitives` and `tarol-changes` | expecting `Tarol` to bring the store (`UseNpgsqlStore` missing) |
+| a worker service without HTTP | the used packages instead of `Tarol` (no ASP.NET Core framework) | referencing `Tarol` and pulling in ASP.NET Core |
+| a generator does not run | nothing to add: generators are inside the runtime packages | adding a `*.Generators` reference |
+| consume from NATS | `Tarol` + `Tarol.Messaging.Nats`, skill `tarol-messaging-nats` | looking for NATS inside `Tarol` |
+
+### 17.5 Public API and behaviour
+
+A new package, `Tarol`. It has no API of its own, and no other package changed.
+
+
+### 17.6 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (the meta-package adds a package consumer, which runs in
+  `verify-packages.sh`, not a test);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK, **25 packages and 25 consumers**, `Tarol.PackageTests` included.

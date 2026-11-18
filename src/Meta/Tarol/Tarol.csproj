@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The meta-package Tarol (D-8, docs/migration/release.md RL-4): no code, only dependencies on the 17 packages that are not a
+    specific implementation. The Npgsql store and read tables, the brokers (NATS, RabbitMQ, the Npgsql bus), SignalR and
+    Zitadel are referenced by the app itself. The generators of every dependency reach the consumer through the dependencies
+    (verified by tests/Meta/Tarol.PackageTests).
+    Its package id is the product name, the one exception to Tarol.<Family>[.<Part>] (conventions §2).
+  -->
+  <PropertyGroup>
+    <Description>Everything Tarol offers in-process, in one reference: aggregates and events, changes and their HTTP entries, queries and the page cache, reactions and sagas, messaging, jobs, security, operations and data protection, with every generator. Add a store (Tarol.Persistence.Npgsql, Tarol.Queries.Npgsql) and a transport (Tarol.Messaging.Npgsql, .Nats, .RabbitMq) as you need them.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;cqrs;meta-package;aot</PackageTags>
+    <!-- No code of its own: the empty assembly is not packed, and lib/net11.0/_._ marks the framework (NU5128). -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <!-- Nothing to analyse for AOT and no smoke app: every dependency carries its own AOT claim and smoke app. -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="_._" Pack="true" PackagePath="lib/net11.0/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Options/Tarol.Options/Tarol.Options.csproj" />
+    <ProjectReference Include="../../Results/Tarol.Results/Tarol.Results.csproj" />
+    <ProjectReference Include="../../StronglyTypedId/Tarol.StronglyTypedId/Tarol.StronglyTypedId.csproj" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel/Tarol.Kernel.csproj" />
+    <ProjectReference Include="../../Validations/Tarol.Validations/Tarol.Validations.csproj" />
+    <ProjectReference Include="../../Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
+    <ProjectReference Include="../../Persistence/Tarol.Persistence/Tarol.Persistence.csproj" />
+    <ProjectReference Include="../../Changes/Tarol.Changes/Tarol.Changes.csproj" />
+    <ProjectReference Include="../../Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <ProjectReference Include="../../Queries/Tarol.Queries/Tarol.Queries.csproj" />
+    <ProjectReference Include="../../Caching/Tarol.Caching/Tarol.Caching.csproj" />
+    <ProjectReference Include="../../Sagas/Tarol.Sagas/Tarol.Sagas.csproj" />
+    <ProjectReference Include="../../Messaging/Tarol.Messaging/Tarol.Messaging.csproj" />
+    <ProjectReference Include="../../Jobs/Tarol.Jobs/Tarol.Jobs.csproj" />
+    <ProjectReference Include="../../Security/Tarol.Security/Tarol.Security.csproj" />
+    <ProjectReference Include="../../Operations/Tarol.Operations/Tarol.Operations.csproj" />
+    <ProjectReference Include="../../DataProtection/Tarol.DataProtection/Tarol.DataProtection.csproj" />
+  </ItemGroup>
+</Project>

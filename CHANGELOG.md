@@ -8,6 +8,8 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol` (step 17C), the meta-package: one reference for the 17 in-process packages (every generator included); the
+  store, the read tables, the transports, SignalR and Zitadel are referenced separately. Agent skill `tarol-overview`.
 * The public API baseline (step 17B): every runtime package lists its public API in `PublicAPI.Shipped.txt` /
   `PublicAPI.Unshipped.txt` (3,694 lines), checked by `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `eng/public-api.py`
   writes the files from the analyzer's own output.
