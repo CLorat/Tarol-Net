@@ -1,9 +1,9 @@
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
+using Tarol.Kernel;
 using Tarol.Persistence;
 using Tarol.Queries;
 using Tarol.StronglyTypedId;
-using Tarol.Kernel;
 
 namespace Tarol.Search;
 
