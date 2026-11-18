@@ -627,6 +627,12 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `dotnet test --solution Tarol.slnx`: **1863 of 1863** (and `python3 -m unittest discover -s eng/tests`: 9 of 9);
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
 * `eng/verify-packages.sh`: OK.
+* **The release dry run** of this PR (run 44269716828, `pull_request`), all green:
+  * `ci / build` (with the release-script tests), `ci / integration` and `ci / aot-smoke`, alongside the PR's own CI, which was
+    not cancelled (the concurrency group of §15.1);
+  * `pack`: pack and verify (25 consumers), the version, `release.py check --dry-run`, the notes in the job summary, the
+    artifact `release`;
+  * `publish` skipped (not a tag).
 
 ## 20. Implementation 17F: ship 0.1.0
 
