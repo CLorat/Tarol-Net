@@ -430,3 +430,14 @@ None: no package code changed. The security rules found nothing beyond CA2100/CA
 
 * `.editorconfig`: CA2100, CA5394 `none` (RL-10, reasons in the file and §14).
 
+
+### 15.4 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors, with every security rule on;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863**;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK;
+* both workflows parse as YAML with the expected triggers and jobs. `actionlint` was not run here (downloading a binary was
+  not allowed in this session), so the PR's own CI and CodeQL runs prove the workflows.
