@@ -18,13 +18,12 @@ namespace Tarol.Results;
 /// </para>
 /// <para>
 /// JSON: <c>{"kind":"invalid","errors":[{"field":…,"code":…}]}</c> or
-/// <c>{"kind":"error","type":"NotFound","code":…,"detail":…}</c>. The names are fixed by this package and do not
-/// follow the serializer's naming policy, so persisted violations stay readable.
+/// <c>{"kind":"error","type":"NotFound","code":…,"detail":…}</c> (<see cref="Json.ViolationJsonConverter"/>). The names are
+/// fixed by this package and do not follow the serializer's naming policy or enum converters, and the members are read in any
+/// order (as <c>jsonb</c> returns them), so persisted violations stay readable.
 /// </para>
 /// </remarks>
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind", UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization)]
-[JsonDerivedType(typeof(Invalid), "invalid")]
-[JsonDerivedType(typeof(Error), "error")]
+[JsonConverter(typeof(Json.ViolationJsonConverter))]
 public closed record Violation
 {
     /// <summary>Returns the HTTP status code for this violation: 400 for <see cref="Invalid"/>, the type's code for <see cref="Error"/>.</summary>

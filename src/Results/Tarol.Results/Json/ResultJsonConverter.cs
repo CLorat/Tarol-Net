@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 
 namespace Tarol.Results.Json;
 
@@ -151,26 +150,10 @@ internal static class ResultJson
         => existing is null ? value : throw new JsonException("A result has exactly one of \"value\", \"success\" or \"failure\".");
 
     internal static Violation ReadViolation(ref Utf8JsonReader reader, JsonSerializerOptions options)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize(ref reader, ViolationInfo(options)) ?? throw new JsonException("\"failure\" must not be null.");
-        }
-        catch (ArgumentException exception)
-        {
-            throw new JsonException($"Invalid violation: {exception.Message}", exception);
-        }
-    }
+        => reader.TokenType == JsonTokenType.Null
+            ? throw new JsonException("\"failure\" must not be null.")
+            : ViolationJsonConverter.ReadViolation(ref reader);
 
     internal static void WriteViolation(Utf8JsonWriter writer, Violation violation, JsonSerializerOptions options)
-        => JsonSerializer.Serialize(writer, violation, ViolationInfo(options));
-
-    // The user's context wins (its options, e.g. an encoder); otherwise this package's generated metadata.
-    // The property names are fixed by [JsonPropertyName], so both give the same JSON.
-    private static JsonTypeInfo<Violation> ViolationInfo(JsonSerializerOptions options)
-        => options.TryGetTypeInfo(typeof(Violation), out var info) ? (JsonTypeInfo<Violation>)info : ResultsJsonContext.Default.Violation;
+        => ViolationJsonConverter.WriteViolation(writer, violation);
 }
-
-/// <summary>Source-generated metadata for <see cref="Violation"/>, used when the caller's options do not provide it.</summary>
-[JsonSerializable(typeof(Violation))]
-internal sealed partial class ResultsJsonContext : JsonSerializerContext;
