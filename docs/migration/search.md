@@ -148,7 +148,72 @@ a page of 20, ranked. "common" = a word in ~30 % of documents, "medium" ~3 %, "r
 
 ## 6. Design (sketch for 18A–18F; names final in the PRs)
 
-⟨design⟩
+The sketch assumes the recommended answers (§9); a different answer changes the named part only.
+
+**User code** (Tarol.Search attributes; the Tarol.Search generator, shipped inside `Tarol.Search`, reads aggregates and entities
+the way the Primitives generator does):
+
+```csharp
+[Searchable("Artwork")]                                    // a searchable aggregate; the label is the display name of its type
+public partial class Artwork : AggregateRoot<Artwork>
+{
+    [SearchTitle, Searchable(SearchWeight.A)] public string Title { get; private set; } = "";
+    [Searchable] public string Description { get; private set; } = "";               // weight B by default
+    [PersonalData, Searchable(Exact = true)] public string? Owner { get; private set; } // a blind token, never text (GS-8)
+    [SearchAudience] public string Seller { get; private set; } = "";                 // optional row visibility (GS-7)
+    [SearchLanguage] public string Language { get; private set; } = "en";             // optional (GS-10)
+    public EntitySet<Edition> Editions { get; } = [];
+}
+
+public partial class Edition : Entity<Artwork, Edition>
+{
+    [Searchable(SearchWeight.A)] public string Label { get; private set; } = "";      // an entity hit, shown through its artwork
+}
+```
+
+**Generated** (per searchable aggregate, an explicit implementation of `ISearchable<T>`):
+`static SearchShape Shape` (types, fields, weights, exact fields, the fingerprint) and
+`static void Documents(T aggregate, ISearchDocumentWriter into)`: the root document and one per entity with a searchable member
+(type `artwork` / `artwork.edition`, id, aggregate id, the aggregate's title, text per weight A–D, exact values, audience,
+language). Diagnostics (TSRCH…): a searchable member that is not `string`/`string?`/an enum/a value object with `ToString`;
+`[Searchable]` on `[PersonalData]` without `Exact = true`; two `[SearchTitle]`; `[Searchable]` outside an aggregate or entity;
+`[SearchAudience]` not a string or `Guid`.
+
+**Registration and ports** (`Tarol.Search`):
+
+```csharp
+builder.AddSearch(search => search.Add<Artwork>().Add<Auction>(), version: 1)     // the index version (GS-5)
+       .UseNpgsqlSearch();                                                        // or UseInMemorySearch(), UseOpenSearch(…)
+app.MapTarolSearch("/search", policy: "search");                                   // GS-9
+```
+
+* `ISearchIndex` (the port each implementation provides): `Prepare`, `Checkpoint`, `Write(SearchBatch)` (documents per
+  stream replaced, checkpoint guarded), `Replace`/`Remove` (erasure, retention), `Search(SearchRequest) → Result<SearchPage>`,
+  `Documents(tenant, aggregates)` (export).
+* `SearchHost : ProjectionHost` (needs §10.1): name `search`, the index version; per batch the streams of registered types, each
+  loaded with `IAggregateReader.Load<T>` (`Actor.System("tarol.search")`, the stream's tenant), `Loaders` in parallel (default 4,
+  §4.6), then `ISearchIndex.Write`.
+* `ISearch` (what an app calls): `Search(SearchQuery, OperationContext)`; the tenant comes from the context, never the query.
+* `SearchEraser : ErasureParticipant`: `Forget` re-indexes the subject's streams, `ForgetTenant` its tenant's, `Deleted` removes
+  the documents of deleted streams; `Export` contributes the subject's documents (§10.3).
+* `SearchTest`: the in-memory store, its feed, the in-memory index, `CatchUp()`, `Search(…)` — the contract suite runs on it.
+
+**Npgsql** (`Tarol.Search.Npgsql`, P3): one table per index version
+
+```sql
+CREATE TABLE tarol.search_v1 (
+  tenant uuid NOT NULL, type text NOT NULL, id uuid NOT NULL, aggregate uuid NOT NULL, version bigint NOT NULL,
+  title text NOT NULL, a text, b text, c text, d text, exact text[] NOT NULL, audience text[] NOT NULL,
+  lang regconfig NOT NULL DEFAULT 'tarol.simple',
+  tsv tsvector GENERATED ALWAYS AS (setweight(to_tsvector(lang, coalesce(a, '')), 'A') || … 'D') STORED,
+  PRIMARY KEY (tenant, type, id));
+CREATE INDEX ON tarol.search_v1 USING gin (⟨tsv index⟩);          -- §4.2 decides
+CREATE INDEX ON tarol.search_v1 USING gin (title gin_trgm_ops);  CREATE INDEX ON tarol.search_v1 (tenant, aggregate);
+```
+
+The checkpoint is the row `('search', 1)` of `tarol.projections`; documents and checkpoint commit together. Text-search
+configurations `tarol.german`, `tarol.english`, `tarol.simple` map words through `unaccent` (§4.7).
+
 
 ## 7. Earlier decisions that constrain search (not re-asked)
 

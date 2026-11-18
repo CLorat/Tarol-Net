@@ -6,6 +6,7 @@ return args switch
     ["feeder", .. var rest] => await Feeder.Run(rest),
     ["bench", .. var rest] => await Bench.Run(rest),
     ["lag", .. var rest] => await Bench.Lag(rest),
+    ["bounded"] => await Bench.Bounded(),
     _ => Usage(),
 };
 

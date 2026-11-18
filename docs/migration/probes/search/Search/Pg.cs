@@ -11,8 +11,11 @@ namespace Probe.Search;
 /// </summary>
 public sealed class Pg(NpgsqlDataSource db, string schema = "search_probe", string index = "gin", string config = "english", string mode = "fts") : IEngine
 {
-    public string Name => mode switch { "trgm" => "pg_trgm", "combined" => "pg fts+trgm", _ => $"pg fts ({IndexKind})" };
+    public string Name => mode switch { "trgm" => "pg_trgm", "combined" => "pg fts+trgm", _ => $"pg fts ({IndexKind}{(Candidates is { } n ? $", rank first {n:N0}" : "")})" };
     public string IndexKind { get; set; } = index;
+
+    /// <summary>Bounded ranking: rank only the first N matches the index returns (null = rank every match).</summary>
+    public int? Candidates { get; set; }
     public NpgsqlDataSource Db => db;
     public string Schema => schema;
 
@@ -150,10 +153,16 @@ public sealed class Pg(NpgsqlDataSource db, string schema = "search_probe", stri
     {
         var tsq = TsQuery(q);
         var snippet = q.Snippets ? $", ts_headline('{config}', d.body, x.q, 'MaxFragments=1, MaxWords=12, MinWords=4')" : ", NULL";
-        var sql = $"""
-            SELECT d.id, d.type, ts_rank(d.tsv, x.q){snippet} FROM {schema}.docs d, (SELECT {tsq} AS q) x
-            WHERE {Where(q, "d.tsv @@ x.q")} ORDER BY 3 DESC, d.id LIMIT {q.Limit}
-            """;
+        var sql = Candidates is { } n
+            ? $"""
+              SELECT d.id, d.type, ts_rank(d.tsv, d.q){snippet.Replace("x.q", "d.q", StringComparison.Ordinal)} FROM (
+                SELECT d.*, x.q FROM {schema}.docs d, (SELECT {tsq} AS q) x WHERE {Where(q, "d.tsv @@ x.q")} LIMIT {n}) d
+              ORDER BY 3 DESC, d.id LIMIT {q.Limit}
+              """
+            : $"""
+              SELECT d.id, d.type, ts_rank(d.tsv, x.q){snippet} FROM {schema}.docs d, (SELECT {tsq} AS q) x
+              WHERE {Where(q, "d.tsv @@ x.q")} ORDER BY 3 DESC, d.id LIMIT {q.Limit}
+              """;
         var items = new List<Hit>(q.Limit);
         string? first = null;
         await using (var c = db.CreateCommand(sql))
@@ -169,7 +178,10 @@ public sealed class Pg(NpgsqlDataSource db, string schema = "search_probe", stri
         if (!q.Facets)
             return new Hits(items, -1, Snippet: first);
         var per = new Dictionary<string, long>();
-        await using (var c = db.CreateCommand($"SELECT d.type, count(*) FROM {schema}.docs d, (SELECT {tsq} AS q) x WHERE {Where(q, "d.tsv @@ x.q")} GROUP BY d.type"))
+        var counted = Candidates is { } cap
+            ? $"SELECT type, count(*) FROM (SELECT d.type FROM {schema}.docs d, (SELECT {tsq} AS q) x WHERE {Where(q, "d.tsv @@ x.q")} LIMIT {cap}) c GROUP BY type"
+            : $"SELECT d.type, count(*) FROM {schema}.docs d, (SELECT {tsq} AS q) x WHERE {Where(q, "d.tsv @@ x.q")} GROUP BY d.type";
+        await using (var c = db.CreateCommand(counted))
         {
             Bind(c, q);
             await using var r = await c.ExecuteReaderAsync();

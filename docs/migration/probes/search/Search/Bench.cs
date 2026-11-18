@@ -167,6 +167,27 @@ public static class Bench
         }
     }
 
+    /// <summary>Queries only, over the table a finished <c>bench pg</c> left (1M documents): bounded ranking at 1,000 and 10,000 candidates,
+    /// both tenant index strategies.</summary>
+    public static async Task<int> Bounded()
+    {
+        await using var db = Db();
+        var pg = new Pg(db);
+        var size = await pg.Scalar<long>($"SELECT count(*) FROM {pg.Schema}.docs");
+        Console.WriteLine($"# bench pg bounded ranking ({Runtime}) over {size:N0} documents");
+        string[] only = ["common (rank 10)", "medium (rank 100)", "rare (rank 3000)", "medium + counts per type", "medium + snippets"];
+        foreach (var kind in new[] { "gin", "btree_gin" })
+        {
+            Console.WriteLine($"INFO pg index {kind}: {(await pg.SwitchIndex(kind)).TotalSeconds:F1} s");
+            foreach (var n in new int?[] { null, 10_000, 1_000 })
+            {
+                pg.Candidates = n;
+                await Queries(pg, size, only);
+            }
+        }
+        return 0;
+    }
+
     public static double P(List<double> sorted, double p) => sorted[Math.Min(sorted.Count - 1, (int)Math.Ceiling(p * sorted.Count) - 1)];
 
     /// <summary>Write → searchable (and delete → gone) for one document, 50 samples, over whatever the index holds.</summary>
