@@ -679,3 +679,11 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 2. **The first tag** `v0.1.0-preview.1` is the owner's to create, after the stack is merged and the environment `release` and the
    tag ruleset exist (§19.3). The first real run answers §13 items 1 and 2: `.snupkg` no longer matters (RL-2); whether a new
    package starts public is checked after the push.
+
+## 22. CI runs every integration-test project
+
+The `integration` job listed its test projects by hand and missed `Tarol.DataProtection.IntegrationTests` and
+`Tarol.Operations.IntegrationTests`. Both are `Category=Integration`, which the `build` job filters out, so crypto-shredding,
+retention, the admin endpoints and the health checks never ran against PostgreSQL in CI or before a release. The job now runs
+every `tests/*/*.IntegrationTests` project in one step, keeps going after a failed project and fails at the end. A new
+integration project therefore runs without a CI change. Both missing suites pass locally with Docker (4 and 3 tests).
