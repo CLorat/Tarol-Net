@@ -11,7 +11,7 @@ namespace Probe.Search;
 /// </summary>
 public sealed class Pg(NpgsqlDataSource db, string schema = "search_probe", string index = "gin", string config = "english", string mode = "fts") : IEngine
 {
-    public string Name => mode switch { "trgm" => "pg_trgm", "combined" => "pg fts+trgm", _ => $"pg fts ({index})" };
+    public string Name => mode switch { "trgm" => "pg_trgm", "combined" => "pg fts+trgm", _ => $"pg fts ({IndexKind})" };
     public string IndexKind { get; set; } = index;
     public NpgsqlDataSource Db => db;
     public string Schema => schema;
@@ -182,7 +182,7 @@ public sealed class Pg(NpgsqlDataSource db, string schema = "search_probe", stri
     private async Task<Hits> Trigram(Query q)
     {
         var sql = q.Match == Match.Prefix
-            ? $"SELECT d.id, d.type, 1.0 FROM {schema}.docs d WHERE {Where(q, "d.title ILIKE '%' || $2 || '%'")} ORDER BY d.id LIMIT {q.Limit}"
+            ? $"SELECT d.id, d.type, 1.0::real FROM {schema}.docs d WHERE {Where(q, "d.title ILIKE '%' || $2 || '%'")} ORDER BY d.id LIMIT {q.Limit}"
             : $"SELECT d.id, d.type, word_similarity($2, d.title) FROM {schema}.docs d WHERE {Where(q, "$2 <% d.title")} ORDER BY 3 DESC, d.id LIMIT {q.Limit}";
         var items = new List<Hit>(q.Limit);
         await using var c = db.CreateCommand(sql);
@@ -191,7 +191,7 @@ public sealed class Pg(NpgsqlDataSource db, string schema = "search_probe", stri
         if (q.Types is { Length: > 0 }) c.Parameters.Add(new() { Value = q.Types });
         await using var r = await c.ExecuteReaderAsync();
         while (await r.ReadAsync())
-            items.Add(new Hit(r.GetGuid(0), r.GetString(1), r.GetFloat(2)));
+            items.Add(new Hit(r.GetGuid(0), r.GetString(1), Convert.ToDouble(r.GetValue(2), System.Globalization.CultureInfo.InvariantCulture)));
         return new Hits(items, -1);
     }
 
