@@ -57,6 +57,12 @@ time.Advance(TimeSpan.FromMinutes(6));                        // idle: the next 
 // Search returns Result<Page<AuctionRow>>: first.TryGetValue(out Page<AuctionRow>? page)
 ```
 
+## Personal data (step 16)
+
+* Pages hold opened rows, keyed on the checkpoint, and an erasure's re-fold does not move the checkpoint. `AddCaching`
+  therefore registers `PageCacheEraser`, which drops the tenant's pages (`IPageCache.Clear(tenant)`) on the erasure, and,
+  through the key store's signal, in every other process. `Replace`/`Remove` through the cached store clear the tenant too.
+
 ## Common mistakes
 
 | Mistake | What happens |

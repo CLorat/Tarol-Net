@@ -44,3 +44,8 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Invoice>())
 * **`Prefix`** puts a namespace in front of subjects, streams and consumers for environments that share a server.
 
 Design: docs/architecture/messaging.md §6. Licence: proprietary, see LICENSE.
+
+## Retention (step 16)
+
+`NatsTransportOptions.MaxAge` is the streams' JetStream `MaxAge`, 7 days by default (the bus retention). Before step 16 the streams kept
+messages for ever; `TimeSpan.Zero` still does.

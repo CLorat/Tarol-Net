@@ -93,6 +93,7 @@
     <Project Path="tests/Changes/Tarol.Changes.Tests/Tarol.Changes.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/DataProtection/">
+    <Project Path="tests/DataProtection/Tarol.DataProtection.AotSmoke/Tarol.DataProtection.AotSmoke.csproj" />
     <Project Path="tests/DataProtection/Tarol.DataProtection.IntegrationTests/Tarol.DataProtection.IntegrationTests.csproj" />
     <Project Path="tests/DataProtection/Tarol.DataProtection.Tests/Tarol.DataProtection.Tests.csproj" />
   </Folder>

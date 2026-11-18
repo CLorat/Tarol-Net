@@ -40,6 +40,8 @@ Any batch of a projection moves its checkpoint, of any tenant: every entry of th
 99.6 % hits at ~75 commits/s. Without `PushCheckpoints` the cache still saves the search, but reading the checkpoint
 costs a round trip per request; with `PushCheckpoints` only in the API process, pages lag up to the 1 s poll.
 
+* **Personal data (step 16)**: `IPageCache.Clear(tenant)` and `PageCacheEraser`, which drops an erased tenant's pages in every process.
+
 ## Links
 
 * Concept: `docs/architecture/caching.md`; decisions and measurements: `docs/migration/caching.md`.

@@ -31,6 +31,27 @@ public sealed class NpgsqlReadModelTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task Replace_Rewrites_A_Row_At_The_Same_Version_And_Remove_Deletes_It_Without_Moving_The_Checkpoint()
+    {
+        // step 16C (DP-5, DP-7): the upsert's version guard refuses a rewrite at the same version; an erasure's re-fold needs one
+        var setup = await postgres.Create();
+        var auctions = await setup.Seed(2, TenantA);
+        await setup.CatchUp(setup.Host<AuctionRow>());
+        var store = setup.ReadModels.Store<AuctionRow>();
+        var key = new RowKey(TenantA.Value, auctions[0].Id.Value);
+        var row = (await store.Find(key, Ct)).ShouldNotBeNull();
+        var checkpoint = await store.Checkpoint(Ct);
+
+        await store.Replace([row with { Row = row.Row with { Seller = "(erased)" } }], Ct);
+        (await store.Find(key, Ct)).ShouldNotBeNull().Row.Seller.ShouldBe("(erased)");
+        (await store.Remove([key, new RowKey(TenantA.Value, Guid.CreateVersion7())], Ct)).ShouldBe(1);
+
+        (await store.Find(key, Ct)).ShouldBeNull();
+        (await store.Find(new RowKey(TenantA.Value, auctions[1].Id.Value), Ct)).ShouldNotBeNull();
+        (await store.Checkpoint(Ct)).ShouldBe(checkpoint);
+    }
+
+    [Fact]
     public async Task One_row_per_auction_equal_to_the_aggregates_other_stream_types_ignored_tenants_isolated()
     {
         var setup = await postgres.Create();

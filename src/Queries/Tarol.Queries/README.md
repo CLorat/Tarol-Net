@@ -76,6 +76,8 @@ Meter `"Tarol.Queries"`: `tarol.projections.events`, `tarol.projections.batches`
 `tarol.projections.batch.duration`. `IProjectionGate` lets one host of a projection version run (`IsRunner`); the
 PostgreSQL read stores provide one.
 
+* **Personal data (step 16)**: `IReadModelStore.Replace`/`Remove` and `ProjectionEraser<TRow>`, the erasure participant `AddProjections` registers for every projection: it re-folds an erased subject's streams without moving the checkpoint.
+
 ## Links
 
 * Concept: `docs/architecture/queries.md`; decisions QR-1 … QR-7: `docs/migration/queries.md`.
