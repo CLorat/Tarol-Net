@@ -140,11 +140,130 @@ Corpus: deterministic, 20,000 pseudo-words with Zipf frequencies, titles of 3–
 50 tenants: one holds 10 %, one 0.1 %; three types. Queries: ten terms per class, round 2 of 2 reported, up to 100 runs in ≤ 8 s,
 a page of 20, ranked. "common" = a word in ~30 % of documents, "medium" ~3 %, "rare" ~0.1 %.
 
-⟨measurements⟩
+### 4.1 Licences (§1 of the output, read from the sources and images)
+
+| Component | Licence read | With AGPL-3.0 Tarol | With the owner's commercial licence |
+|---|---|---|---|
+| PostgreSQL 17.12, `pg_trgm`, `btree_gin`, `unaccent` (contrib) | PostgreSQL Licence (image copyright file) | yes | yes |
+| `pgvector` | PostgreSQL Licence | yes | yes |
+| Meilisearch v1.13.3 | MIT | yes (a separate server) | yes |
+| Meilisearch `main` | MIT **plus** BUSL-1.1 "Enterprise Edition" files (`LICENSE-EE`) | the community build only; a later version must be re-read before an upgrade | the same |
+| Typesense v28.0 server | GPL-3.0 | yes: a separate process over HTTP, Tarol links nothing of it | yes for the same reason; an operator who modifies and distributes Typesense has GPL duties, not Tarol |
+| OpenSearch 2.19.1 | Apache-2.0 (source and `LICENSE.txt` in the image) | yes | yes |
+| Elasticsearch `main` | AGPL-3.0 / SSPL / Elastic Licence 2.0 (triple) | as a separate server, AGPL is the compatible choice | ELv2 forbids offering it as a managed service; the owner's customers choose |
+| ParadeDB `pg_search` | AGPL-3.0 | yes | an extension inside the customer's database: the customer's AGPL duty; not offered by managed PostgreSQL services |
+| the adapters' clients | Tarol's own code (HttpClient, `Utf8JsonWriter`) | — | — |
+
+### 4.2 Query latency at 1,000,000 documents (p50 / p99 ms, a ranked page of 20)
+
+The tenant filter is the normal case (user paths always carry a tenant); "all tenants" shows what the filter is worth.
+Hits at 1M across all tenants: common 148,070, medium 27,622, rare 1,029 (in the 10 % tenant: 14,788 / 2,730 / 109).
+
+| Query (tenant 10 %) | PG GIN(tsv) | PG GIN(tenant, tsv) | **PG GIN(tenant, tsv), rank first 1,000** | Meilisearch | Typesense | OpenSearch |
+|---|---|---|---|---|---|---|
+| common word | 211 / 276 | 48 / 64 | **16 / 26** | 3.3 / 6.8 | 16 / 29 | 7.0 / 9.2 |
+| medium word | 42 / 53 | 9.1 / 13 | **5.4 / 7.5** | 2.0 / 6.4 | 8.1 / 12 | 3.0 / 4.0 |
+| rare word | 2.9 / 5.7 | 1.6 / 2.2 | **1.2 / 2.1** | 1.6 / 7.0 | 4.8 / 7.5 | 2.1 / 2.8 |
+| two words | 2.3 / 3.5 | 2.6 / 3.8 | — | 3.3 / 6.7 | 7.3 / 10 | 2.6 / 3.7 |
+| prefix (4 letters) | 61 / 500 | 24 / 301 | **15 / 74** | 3.4 / 8.3 | 7.0 / 19 | 3.8 / 13 |
+| typo | trigram (tenant, title): 47 / 145 | | | 1.6 / 4.9 | 7.5 / 11 | 5.9 / 9.8 |
+| medium + counts per type | 82 / 113 | 19 / 23 | **11 / 15** (counts to 1,000) | 4.8 / 7.4 (to 1,000) | 8.8 / 13 | 3.7 / 5.7 |
+| medium + snippets | 43 / 54 | 13 / 14 | **7.4 / 9.7** | 2.6 / 10 | 8.1 / 12 | 3.4 / 4.7 |
+
+| Query (tenant 0.1 %, 1,000 documents) | PG GIN(tsv) | PG GIN(tenant, tsv) | Meilisearch | Typesense | OpenSearch |
+|---|---|---|---|---|---|
+| common word | 22 / 33 | 2.5 / 3.5 | 1.8 / 3.0 | 4.2 / 8.1 | 2.3 / 3.3 |
+| medium word | 4.4 / 6.4 | 1.1 / 1.4 | 1.9 / 5.4 | 1.9 / 2.3 | 1.9 / 4.6 |
+| typo | trigram (tenant, title): 7.1 / 14 | | 1.1 / 3.0 | 1.4 / 2.6 | 5.4 / 9.0 |
+
+| Query (all tenants) | PG GIN(tsv) | PG GIN(tsv), rank first 1,000 | Meilisearch | Typesense | OpenSearch |
+|---|---|---|---|---|---|
+| common word | 250 / 278 | 4.4 / 6.3 | 3.1 / 6.6 | 36 / 69 | 7.8 / 16 |
+| medium word | 60 / 77 | 11 / 21 | 4.2 / 17 | 7.2 / 16 | 3.1 / 4.6 |
+
+At 10,000 and 100,000 documents every candidate answers a page below 10 ms p99 in a tenant, except PostgreSQL without the
+tenant in the index on a common word at 100,000 (8.1 / 10.7 ms; all tenants 50 / 67 ms) and its prefix (5.6 / 26 ms).
+
+### 4.3 Indexing, size, rebuild, memory
+
+| | PG (P3) | Meilisearch | Typesense | OpenSearch |
+|---|---|---|---|---|
+| bulk load into a growing index, 100k → 1M | 12,308 docs/s (COPY, indexes maintained) | 5,671 docs/s | 7,698 docs/s | 21,727 docs/s |
+| feeder writes at 1M (20,000 changed docs, batches of 500, each searchable on return) | 5,081 docs/s | 852 docs/s (a task per batch, waited) | 8,080 docs/s | 5,001 docs/s (with a refresh) |
+| **rebuild of 1M** (a new version) | **60 s** (load 37 s + indexes 24 s) into a new table | 164 s | 126 s | 46 s |
+| index size at 1M | 1,141 MB: table 839, GIN(tenant, tsv) 100, title trigram 113 (78 led by the tenant) | 3,542–4,374 MB on disk | 298 MB in memory, 1,307 MB on disk | 260 MB, 693 MB data directory |
+| memory of the process at 1M | the database's (container 1.5 GB, `shared_buffers` 1 GB) | 831 MB | 385 MB | 2.8 GB (JVM, heap 2 GB) |
+| operational weight | none: the store's database, three trusted extensions | one more server, its data volume and master key | one more server, its API key; the index lives in RAM | a JVM cluster: heap sizing, disk watermarks (§5), refresh |
+
+### 4.4 Write → searchable, and the feed's lag (50 samples, p50 / p99 ms)
+
+| | upsert visible | delete invisible | note |
+|---|---|---|---|
+| PG | 3.6 / 261 (the GIN pending list, §5) | in the feeder's transaction; the probe's delete by `id` alone scanned (44 ms), the design deletes by `(tenant, aggregate)` | synchronous: visible at commit |
+| Meilisearch | 307 / 367 | 152 / 248 | an asynchronous task queue |
+| Typesense | 7.5 / 70 | 6.3 / 27 | synchronous |
+| OpenSearch | 1,007 / 1,044 (also with `refresh=wait_for`) | 1,011 / 1,036 | the 1 s refresh interval |
+
+The feeder itself lags the commit like a projection: NOTIFY wake-up p50 3.6 / p99 6.1 ms (queries.md §6). Read-your-writes
+(`Tarol-Read-After`) therefore costs ~4 ms on PostgreSQL and Typesense, ~0.3 s on Meilisearch and ~1 s on OpenSearch.
+
+### 4.5 Erasure (feeder, JIT)
+
+The tombstone takes 4.5 ms, then the participant finds the subject's streams and re-indexes them (`StreamsOf` + `Load` + replace)
+in 18.6 ms (a cold first run). Until the participant ran, the blind token, and in the plaintext variant D3 the text, still
+found the subject **[verified]**.
+
+### 4.6 The feeder: rebuild through `Load<T>` (20,000 artworks = 20,128 loads, 60,000 documents; round 2)
+
+| loaders | streams/s | documents/s |
+|---|---|---|
+| 1 | 1,569 | 4,676 |
+| 4 | 3,315 | 9,880 |
+| 8 | 3,758 | 11,203 |
+
+One `Load<Artwork>` (stored state, sealed owner, key cached) takes p50 0.56 / p99 1.02 ms. A rebuild of 1,000,000 documents
+through the feeder with 4 loaders therefore takes about 100 s (≈ 2× the bulk rebuild of §4.3), dominated by the loads.
+
+### 4.7 PostgreSQL specifics
+
+* A per-document `regconfig` column drives the generated `tsvector` (german row stemmed german); `unaccent()` itself is refused
+  in a generated column (`42P17`, not immutable), a text-search configuration mapping through `unaccent` works **[verified]**.
+* `pg_trgm`, `btree_gin` and `unaccent` are created by a **non-superuser that owns the database** (trusted extensions);
+  `vector` is not in the stock image **[verified]** (§9 of the output).
+* `websearch_to_tsquery` takes any input without a syntax error, including `'); DROP TABLE x; --` **[verified]**.
+
+### 4.8 Native AOT
+
+The probe (Npgsql store, the feeder, the three HTTP adapters) publishes with **0 IL warnings**; every contract check passes
+natively against all four engines, and the feeder's 17 checks too **[verified]** (§8 of the output).
 
 ## 5. Found while probing
 
-⟨found⟩
+1. **Ranking every match is PostgreSQL's cost, not matching.** `ORDER BY ts_rank` reads every matching row: 211 ms for a common
+   word in a 10 % tenant at 1M with GIN(tsv), 48 ms with the tenant in the GIN, **16 ms when only the first 1,000 matches are
+   ranked**. Meilisearch caps the same way (`maxTotalHits` 1,000). A bounded rank is the design (GS-2).
+2. **The tenant must lead the GIN** (`btree_gin`): 4–9× faster in a tenant than GIN(tsv) plus a filter, and smaller (100 vs 116 MB).
+3. **The trigram index needs the tenant too**: the title trigram fallback for typos took 155 ms in a 10 % tenant, 47 ms led by
+   the tenant. It runs only when full-text finds nothing.
+4. **pg_trgm's default `word_similarity_threshold` (0.6) misses a one-letter transposition** ("harbuor"); 0.4 finds it.
+5. **`unaccent` cannot be used in a generated column**, only through a text-search configuration.
+6. **Engines differ on language**: Meilisearch does not stem (typo tolerance hides part of it); Typesense stems only with
+   `stem: true`; OpenSearch does not fold accents without `asciifolding`. The contract suite therefore tests behaviour per
+   configured language, not one universal expectation.
+7. **Meilisearch counts stop at 1,000** and its deletes take ~150–250 ms through the task queue; the feeder must wait for the
+   task before it moves the checkpoint.
+8. **OpenSearch's read-your-writes is a second** (the refresh); `refresh=wait_for` waits the same second.
+9. **OpenSearch blocked index creation on a host disk at 90 %** (its disk watermarks; the shared volume of a container): an
+   operator setting, recorded in the probe README.
+10. **Typesense's `typo_tokens_threshold=0` turns typo search off**, and OpenSearch ranked a body-only match first on a tiny
+    corpus with `best_fields` (per-field IDF); `cross_fields` fixed it. Adapter defaults matter and belong in the contract suite.
+11. **A key's tombstone alone does not erase the index**: a blind token or plaintext keeps finding the subject until the index's
+    participant re-indexes. Search must be an `ErasureParticipant`.
+12. **A GIN's pending list makes a rare write slow** (p99 261 ms for one upsert): `fastupdate` flushes in the writer. For a
+    feeder this is a batch that takes longer, not a user request; the index keeps the default and the note says so.
+13. **The probe's own mistakes**, fixed before measuring: a bash loop variable leaked into a helper (a test ran against a paused
+    engine), a numeric score read as float crashed the PostgreSQL bench, and Meilisearch's typo tolerance found the previous lag
+    sample's token. Each was caught by a check that failed, then rerun.
 
 ## 6. Design (sketch for 18A–18F; names final in the PRs)
 
