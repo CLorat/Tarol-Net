@@ -234,7 +234,15 @@ Filled in from the owner's answers (§9).
 
 ## 9. Owner answers
 
-Asked after the inventory and the probes.
+Round 1 (2026-11-18), after the inventory and the probes: RL-1 … RL-4. The prefix RL- was free (taken: C-, CA-, D-, DP-, J-, M-,
+O-, P-, Q-, QR-, R-, S-, T-).
+
+| # | Question (with the numbers it was asked with) | Answer |
+|---|---|---|
+| RL-1 | The repository is public, the plan keeps it private (D-1). Private: packages private by inheritance, CI billed (15.7 runner-minutes per run, 233 runs in 6 days), CodeQL only with Code Security. Public: CodeQL and minutes free, source readable, 24 packages to set private by hand | **Stay public, and change the licence** (owner's words: "Stay Public and we change the license to something that can be used but not commercialised and only in free open source, and if [you] want to use [it] in business [earning] money we need written allowance. Explain the options"). The licence options are §9.1; D-1 is reopened by the owner. |
+| RL-2 | Symbols: `.snupkg` on GitHub Packages unverified; PDB embedded 1.95 MB vs 1.39 + 0.50 MB | **Embed PDBs** (recommended): `DebugType=embedded`, no `.snupkg`. |
+| RL-3 | The first version | **`0.1.0`, first tagged `v0.1.0-preview.1`** (recommended). |
+| RL-4 | Meta-package (generators flow already) | **`Tarol` = everything except the specific implementations** (owner's words: "Make Tarol everything but not the specific impl like rabbitmq and so"). Which packages count as specific: §9.2, asked in round 2. |
 
 ## 10. Changes against steps 1–16
 
