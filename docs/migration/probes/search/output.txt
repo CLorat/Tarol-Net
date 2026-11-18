@@ -486,3 +486,10 @@ INFO opensearch size after rebuild: 260 MB
 INFO container memory: tarol-search-os 2.786GiB / 15.71GiB (CPU 0.88%)
 INFO opensearch data directory on disk: 693 MB
 
+| engine | write | n | p50 ms | p99 ms | max ms |
+|---|---|---|---|---|---|
+| opensearch | upsert | 50 | 1007.1 | 1043.7 | 1043.7 |
+| opensearch | upsert refresh=wait_for | 50 | 1007.4 | 1042.6 | 1042.6 |
+| opensearch | delete | 50 | 1011.3 | 1035.7 | 1035.7 |
+
+## 7. Feeder: rebuild from the feed through Load<T> (20,000 artworks = 60,000 documents), JIT
