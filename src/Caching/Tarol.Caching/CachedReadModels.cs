@@ -102,13 +102,20 @@ public sealed class CachedReadModels : IReadModels
             if (!planned.TryGetValue(out ListQueryPlan<TRow>? plan))
                 return await inner.Search(query, cancellationToken).ConfigureAwait(false);       // the store answers Invalid itself
             var key = PageKey.Of(plan);
+            var clears = models.Cache.Clears;                                                   // before the rows are read
             // the stamp is read BEFORE the search: a batch that lands during it makes the next request miss
             var checkpoint = await models.Positions.Checkpoint<TRow>(cancellationToken).ConfigureAwait(false);
             if (checkpoint.State == ProjectionState.Current && models.Cache.TryGet(key, checkpoint.Position, out Page<TRow>? hit))
                 return hit;
             var result = await inner.Search(query, cancellationToken).ConfigureAwait(false);
             if (checkpoint.State == ProjectionState.Current && result.TryGetValue(out Page<TRow>? page))
+            {
                 models.Cache.Put(key, checkpoint.Position, page, Size(key, page));
+                // a replace or an erasure cleared the tenant during the search: this page may hold the rows before it, and the
+                // checkpoint did not move to hide it; clearing again after the Put leaves no such page behind
+                if (models.Cache.Clears != clears)
+                    models.Cache.Clear(key.Tenant);
+            }
             return result;
         }
 

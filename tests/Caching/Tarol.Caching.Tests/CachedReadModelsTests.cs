@@ -130,6 +130,22 @@ public sealed class CachedReadModelsTests
     }
 
     [Fact]
+    public async Task A_replace_during_the_search_does_not_leave_the_page_read_before_it_cached()
+    {
+        var lab = new Lab();
+        lab.Batch(TenantA, ("Lot 1", "ada"));
+        var query = new ListQuery(TenantA);
+        var row = (await lab.Page(query)).Items.ShouldHaveSingleItem();
+        lab.Cache.Clear();
+        // an erasure replaces the row (the checkpoint stays) after the search read it, before its page is cached
+        lab.Counting.AfterSearch = () => lab.Store.Replace([new Versioned<AuctionRow>(new RowKey(TenantA, row.Id), 2, row with { Seller = "erased" })], Ct).AsTask();
+
+        (await lab.Page(query)).Items.Single().Seller.ShouldBe("ada");                       // read before the erasure
+
+        (await lab.Page(query)).Items.Single().Seller.ShouldBe("erased");                    // not served from the cache
+    }
+
+    [Fact]
     public async Task Nothing_is_cached_while_the_projection_builds()
     {
         var lab = new Lab(current: false);

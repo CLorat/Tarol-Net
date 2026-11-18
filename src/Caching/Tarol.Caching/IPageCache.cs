@@ -35,4 +35,11 @@ public interface IPageCache
     /// <summary>Drops every page of one tenant (an erasure or a re-fold that did not move the checkpoint; DP-5).</summary>
     /// <param name="tenant">The tenant.</param>
     void Clear(Guid tenant);
+
+    /// <summary>
+    /// Moves on every <see cref="Clear()"/> and <see cref="Clear(Guid)"/>, before the entries go. A search that saw it move
+    /// between its start and its <see cref="Put{TRow}"/> read the rows before a clear (an erasure) and drops its page again.
+    /// A cache that does not count (the default, 0) keeps such a page until the checkpoint moves.
+    /// </summary>
+    long Clears => 0;
 }
