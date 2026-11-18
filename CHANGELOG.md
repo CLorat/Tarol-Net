@@ -6,10 +6,17 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+## [0.1.0]
+
+The first release of Tarol-Net: 25 packages (24 and the meta-package `Tarol`), the public API baseline
+(`PublicAPI.Shipped.txt`) and 83 diagnostics (below).
+
 ### Added
 
 * `Tarol` (step 17C), the meta-package: one reference for the 17 in-process packages (every generator included); the
   store, the read tables, the transports, SignalR and Zitadel are referenced separately. Agent skill `tarol-overview`.
+* Release (step 17E, 17F): `release.yml` (a tag `v*` re-runs CI, packs, checks, writes these notes and publishes to
+  GitHub Packages), `eng/release.py`; PDBs embedded in the DLLs (no `.snupkg`).
 * The public API baseline (step 17B): every runtime package lists its public API in `PublicAPI.Shipped.txt` /
   `PublicAPI.Unshipped.txt` (3,694 lines), checked by `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `eng/public-api.py`
   writes the files from the analyzer's own output.
@@ -432,3 +439,20 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `Violation.Aggregate`, `Switch`, `MatchAsync`, `TryGetError` and every `Task`-based overload.
 * The old `Tarol.Options` `T?` extensions are not carried over; neither are `Options.Persistence.Relational` (EF Core)
   and `Options.Serialization.Json`, which were already removed in CLorat/Tarol `e4722c4`.
+
+### Upgrade notes
+
+* **Store schema version 3** (step 16B). `EnsureSchema` applies the version 3 steps (key tables, `subjects` columns), which are
+  compatible from version 1: code built before step 16B keeps running on the new schema.
+* **Rolling deploys into sealing (DP-10).** A store with keys raises `schema_version.compatible_from` to 3 on its first
+  `EnsureSchema`, so pods built before step 16 refuse to start instead of reading sealed envelopes as values. Roll out the new
+  version everywhere, then turn keys on.
+* **Existing plaintext is not sealed automatically.** Fields written before a member was marked `[PersonalData]` stay plaintext
+  until you run `store.SealHistory<T>(500, ct)` once per aggregate, after every pod runs the new version. It is the one rewrite
+  of `events` Tarol does (about 4.4 minutes per million events in the measurement).
+* **Backups hold the wrapped keys.** An erasure is complete once the backups older than it have expired. Keep the backup
+  retention short, or keep the key tables in a database of their own with shorter backups
+  (`docs/data-protection/README.md`).
+* **Licence**: AGPL-3.0-only from this release on (`LICENSE`, `NOTICE`); a commercial licence is available from the copyright
+  holder.
+

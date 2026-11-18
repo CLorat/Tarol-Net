@@ -11,7 +11,6 @@
     <PackageTags>tarol;ddd;event-sourcing;cqrs;meta-package;aot</PackageTags>
     <!-- No code of its own: the empty assembly is not packed, and lib/net11.0/_._ marks the framework (NU5128). -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
-    <IncludeSymbols>false</IncludeSymbols>
     <!-- Nothing to analyse for AOT and no smoke app: every dependency carries its own AOT claim and smoke app. -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>

@@ -199,7 +199,7 @@ artifact, instantiates every template against the local package feed and builds 
 
 ## 5. Packaging
 
-* Package id = assembly name. Metadata (authors, URLs, copyright, SourceLink, snupkg) in the root props;
+* Package id = assembly name. Metadata (authors, URLs, copyright, SourceLink, the PDB embedded in the DLL since 0.1.0, RL-2) in the root props;
   `Description` and `PackageTags` per csproj; `PackageReadmeFile` set automatically when `README.md` exists.
 * Generators are packed into their runtime package by `eng/Tarol.Packaging.targets` (target
   `_TarolPackGenerators`, which adds the generator's `GetTargetPath` output as a `TfmSpecificPackageFile`

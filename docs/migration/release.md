@@ -599,3 +599,23 @@ No API or behaviour changes. The packages' licence metadata changes from a file 
 * Settings → Rules → a tag ruleset for `v*`, restricted to the owner.
 * The packages' visibility on GitHub Packages after the first push (RL-9: public), and their link to the repository.
 
+## 20. Implementation 17F: ship 0.1.0
+
+### 20.1 What changed
+
+* **Diagnostics**: all 83 rules of the 10 generators moved from `AnalyzerReleases.Unshipped.md` to `AnalyzerReleases.Shipped.md`
+  under `## Release 0.1.0` (moved by a script that asserts each step; the counts agree with §1). Every `Unshipped.md` keeps only
+  its header.
+* **`CHANGELOG.md`**:
+  * the `[Unreleased]` content became `## [0.1.0]`, and an empty `## [Unreleased]` sits above it;
+  * a short introduction, and "Upgrade notes" (§8): schema version 3, DP-10's rolling-deploy rule, `SealHistory<T>` only
+    explicitly, the backup note from `docs/data-protection/README.md`, the licence.
+* **Symbols** (RL-2): `DebugType=embedded` replaces `IncludeSymbols`/`snupkg` in `src/Directory.Build.props`.
+  `eng/verify-packages.sh` fails on any `.snupkg` and on a DLL without an embedded PDB (its `MPDB` blob).
+* The public API was shipped by 17B already: `eng/public-api.py check-shipped` passes.
+* `eng/release.py check 0.1.0` and `check 0.1.0-preview.1` pass; `notes 0.1.0-preview.1` writes the notes of the first tag.
+
+### 20.2 Public API and behaviour
+
+The packages carry their PDB inside the DLL, and no `.snupkg` is produced. Nothing else changes.
+
