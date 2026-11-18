@@ -177,7 +177,9 @@ public sealed class IdRegistrationGenerator : IIncrementalGenerator
     {
         ITypeParameterSymbol => true,
         IArrayTypeSymbol array => ContainsTypeParameter(array.ElementType),
-        INamedTypeSymbol named => named.TypeArguments.Any(ContainsTypeParameter),
+        // Outer<T>.Inner has no type arguments of its own, but names T through its containing type
+        INamedTypeSymbol named => named.TypeArguments.Any(ContainsTypeParameter)
+            || (named.ContainingType is { } outer && ContainsTypeParameter(outer)),
         _ => false
     };
 

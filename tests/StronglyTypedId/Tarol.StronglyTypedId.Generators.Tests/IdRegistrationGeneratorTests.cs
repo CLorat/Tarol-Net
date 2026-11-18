@@ -111,6 +111,13 @@ public class IdRegistrationGeneratorTests
                                                                   {
                                                                       public Id<Wrapper<T>> Nested { get; set; } // nested type parameter: skip
                                                                   }
+                                                                  public class Outer<T>
+                                                                  {
+                                                                      public class Inner { }
+                                                                      public Id<Inner> Child { get; set; }     // Outer<T>.Inner names T: skip
+                                                                      public class Mid { public class Leaf { } }
+                                                                      public Id<Mid.Leaf> Deep { get; set; }   // two levels down: skip
+                                                                  }
                                                               }
                                                               """);
 

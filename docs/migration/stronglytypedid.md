@@ -149,3 +149,12 @@ Status: checklist written; **not yet run** (needs a model-evaluation harness out
 * MVC (`IParsable`) binding not tested here.
 * `IStronglyTypedId<TSelf>` static factory: decide in step 8 (persistence) whether generic infrastructure needs it.
 * `dotnet-package-skills install` was not run (tool not installed here).
+
+## 7. Fix: no registration for a marker nested in a generic type (2026-11-18)
+
+**Behaviour change (generator).** The registration generator skips open markers (`Id<T>`, `Id<Wrapper<T>>`), but checked only a
+marker's own type arguments. A marker nested in a generic type (`Outer<T>.Inner`, or `Outer<T>.Mid.Leaf`) has none of its own and
+passed, so the generator emitted `Register<global::Outer<T>.Inner>()` into a non-generic class: a compile error in the user's
+build. The check now walks the containing types as well, and such a marker is skipped like any open generic.
+
+Test: `IdRegistrationGeneratorTests.Skips_Open_Generic_Usages` (two new cases; fails without the fix).
