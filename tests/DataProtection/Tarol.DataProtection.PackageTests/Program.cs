@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Tarol.DataProtection;
+using Tarol.DataProtection.PackageTests;
 using Tarol.Kernel;
 using Tarol.Options;
 using Tarol.Persistence;
@@ -34,22 +35,25 @@ if (!appended || !exported || !erased)
 Console.WriteLine("Tarol.DataProtection package consumer: sealed, exported and erased");
 return 0;
 
-public partial class Member : AggregateRoot<Member>
+namespace Tarol.DataProtection.PackageTests
 {
-    [PersonalData] public string? Email { get; private set; }
-
-    public static Member Join(string email)
+    public partial class Member : AggregateRoot<Member>
     {
-        var member = new Member(Id<Member>.New());
-        member.Raise(new Joined(email));
-        return member;
+        [PersonalData] public string? Email { get; private set; }
+
+        public static Member Join(string email)
+        {
+            var member = new Member(Id<Member>.New());
+            member.Raise(new Joined(email));
+            return member;
+        }
+
+        public sealed record Joined([property: PersonalData] string? Email) : Event;
+
+        private void On(Joined e) => Email = e.Email;
     }
 
-    public sealed record Joined([property: PersonalData] string? Email) : Event;
-
-    private void On(Joined e) => Email = e.Email;
+    [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+    [JsonSerializable(typeof(Member.Joined))]
+    internal sealed partial class ConsumerJson : JsonSerializerContext;
 }
-
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(Member.Joined))]
-internal sealed partial class ConsumerJson : JsonSerializerContext;

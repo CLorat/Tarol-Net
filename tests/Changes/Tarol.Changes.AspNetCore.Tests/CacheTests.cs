@@ -167,9 +167,9 @@ public sealed class CacheTests : IAsyncLifetime
         private sealed class Counting<TRow>(IReadModelStore<TRow> inner, SearchCount searches) : IReadModelStore<TRow>
             where TRow : class, IProjection<TRow>
         {
-        public ValueTask Replace(IReadOnlyList<Versioned<TRow>> rows, CancellationToken cancellationToken) => inner.Replace(rows, cancellationToken);
+            public ValueTask Replace(IReadOnlyList<Versioned<TRow>> rows, CancellationToken cancellationToken) => inner.Replace(rows, cancellationToken);
 
-        public ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken) => inner.Remove(keys, cancellationToken);
+            public ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken) => inner.Remove(keys, cancellationToken);
 
             public ValueTask Prepare(CancellationToken cancellationToken) => inner.Prepare(cancellationToken);
 
