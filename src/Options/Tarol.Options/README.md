@@ -90,4 +90,4 @@ Absence that is a failure is a `Result<T>`. `Tarol.Results` depends on this pack
 * Agent skill: `skills/tarol-options/SKILL.md` (in the package)
 * Design, measurements and migration from Tarol: `docs/migration/options.md` in the repository
 
-Licence: proprietary, see `LICENSE`.
+Licence: AGPL-3.0-only, see `LICENSE`; a commercial licence is available from the owner (`NOTICE`).

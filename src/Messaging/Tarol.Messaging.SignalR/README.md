@@ -69,4 +69,4 @@ feature switch in the application's project:
 Every node of a web tier must receive every message for its own connections: give each node its own forwarder name
 (`o.Name = "UiPush-" + Environment.MachineName`) so each has its own subscription.
 
-Design: docs/architecture/messaging.md §10. Licence: proprietary, see LICENSE.
+Design: docs/architecture/messaging.md §10. Licence: AGPL-3.0-only, see LICENSE; a commercial licence is available from the owner (NOTICE).

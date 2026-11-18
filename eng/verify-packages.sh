@@ -50,12 +50,15 @@ for pid, csproj in expected:
     text = open(csproj, encoding="utf-8-sig").read()
     # A meta-package (IncludeBuildOutput false) has no assembly; lib/net11.0/_._ marks its framework instead.
     meta = re.search(r"<IncludeBuildOutput>\s*false\s*</IncludeBuildOutput>", text) is not None
-    need = {"lib/net11.0/_._" if meta else f"lib/net11.0/{pid}.dll", "README.md", "LICENSE"}
+    need = {"lib/net11.0/_._" if meta else f"lib/net11.0/{pid}.dll", "README.md", "LICENSE", "NOTICE"}
     for skill in glob.glob(os.path.join(project_dir, "skills", "*", "SKILL.md")):
         need.add("skills/" + os.path.relpath(skill, os.path.join(project_dir, "skills")).replace(os.sep, "/"))
     for ref in re.findall(r'<ProjectReference\s+Include="([^"]+)"[^>]*TarolGenerator="true"', text, re.S):
         gen = os.path.splitext(os.path.basename(ref.replace("\\", "/")))[0]
         need.add(f"analyzers/dotnet/cs/{gen}.dll")
+    nuspec = next(n for n in files if n.endswith(".nuspec"))
+    if '<license type="expression">AGPL-3.0-only</license>' not in zipfile.ZipFile(nupkg).read(nuspec).decode("utf-8"):
+        errors.append(f"{pid} {version}: the nuspec does not declare the licence expression AGPL-3.0-only")
     for missing in sorted(need - files):
         errors.append(f"{pid} {version}: missing {missing}")
     for bad in sorted(f for f in files if f.startswith("build/") or f.startswith("buildTransitive/")):

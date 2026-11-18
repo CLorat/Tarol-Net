@@ -44,9 +44,10 @@ Review the diff, then accept with `TAROL_ACCEPT_SNAPSHOTS=1 dotnet test --soluti
 * Generators ship inside their runtime package (`TarolGenerator="true"` project reference); never a separate
   package, never a `build/*.targets` that loads the analyzer again.
 * Package versions only in `Directory.Packages.props`; never reference a package the shared framework provides.
-* The licence is proprietary and owner-only (`LICENSE`, packed into every package). Do not change it, do not add
-  open-source licence headers or `PackageLicenseExpression`, and do not set sponsorship or other legal claims
-  (e.g. Verify's properties). Never publish packages to nuget.org.
+* The licence is AGPL-3.0-only (`LICENSE`, `NOTICE`; `PackageLicenseExpression` in `Directory.Build.props`), and the owner
+  also offers a commercial licence. Do not change either, do not add per-file licence headers, and do not set sponsorship or
+  other legal claims (e.g. Verify's properties). Contributions need the owner's CLA (`CONTRIBUTING.md`). Never publish
+  packages to nuget.org.
 * Do not change behaviour silently: every public API or behaviour change is listed in the migration note.
 * Pull requests: one clear feature per PR (one migration step, or one self-contained part of it); body follows
   `.github/pull_request_template.md`. See docs/migration/plan.md#pull-requests.

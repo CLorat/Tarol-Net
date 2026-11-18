@@ -75,4 +75,4 @@ new NpgsqlBusOptions { EnsureSchema = false, Roles = new Dictionary<string, stri
 With the map, a message whose role is not its contract's prefix is buried (`Messaging.SourceMismatch`), with or without
 the policy; an unknown role is never a source. Without the map (all systems as one role) the stamp proves nothing.
 
-Design: docs/architecture/messaging.md §6. Licence: proprietary, see LICENSE.
+Design: docs/architecture/messaging.md §6. Licence: AGPL-3.0-only, see LICENSE; a commercial licence is available from the owner (NOTICE).

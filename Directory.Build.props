@@ -48,7 +48,8 @@
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <!-- Proprietary, owner-only licence (docs/migration/plan.md D-1): the LICENSE file is packed into every package. -->
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <!-- AGPL-3.0-only (docs/migration/plan.md D-1, release.md RL-1); the owner also offers a commercial licence (NOTICE).
+         LICENSE and NOTICE are packed as plain files by eng/Tarol.Packaging.targets. -->
+    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
   </PropertyGroup>
 </Project>

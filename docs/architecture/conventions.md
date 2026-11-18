@@ -209,7 +209,8 @@ artifact, instantiates every template against the local package feed and builds 
   references only the package runs the generator. Earlier, a prototype on the old repository showed that a
   bundled generator also runs for a *transitive* consumer (`Tarol.Primitives` → `Tarol.StronglyTypedId`).
 * `eng/verify-packages.sh` enforces this for every package on every CI run.
-* Licence: proprietary, owner-only; the root `LICENSE` is packed into every package as `PackageLicenseFile` (plan D-1). Packages are published only to a private feed.
+* Licence: AGPL-3.0-only (plan D-1, step 17D): every package declares `PackageLicenseExpression` `AGPL-3.0-only` and carries the root
+  `LICENSE` and `NOTICE` as files. Packages are published to GitHub Packages only, never to nuget.org (RL-9).
 
 ## 6. Agent skills
 
