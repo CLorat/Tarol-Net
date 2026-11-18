@@ -1,0 +1,158 @@
+# Release probes (step 17 design), 2026-11-18, SDK 11.0.100, 4 cores, on main 45da502
+
+## 1. PublicApiAnalyzers 5.6.0 on the 24 runtime packages, empty files (dotnet build src.slnx, warnings counted once)
+   3752 warning RS0016
+     24 warning RS0026
+      1 warning RS0027
+     30 warning RS0041
+
+RS0016 per package:
+    727 Tarol.Persistence
+    448 Tarol.Messaging
+    363 Tarol.Primitives
+    306 Tarol.Queries
+    216 Tarol.Changes
+    213 Tarol.Operations
+    194 Tarol.Persistence.Npgsql
+    184 Tarol.Results
+    184 Tarol.Changes.AspNetCore
+    105 Tarol.Jobs
+    103 Tarol.Messaging.SignalR
+     86 Tarol.Sagas
+     80 Tarol.Queries.Npgsql
+     77 Tarol.Messaging.Npgsql
+     71 Tarol.Kernel
+     69 Tarol.Validations
+     64 Tarol.StronglyTypedId
+     57 Tarol.Caching
+     47 Tarol.Options
+     39 Tarol.Security
+     37 Tarol.Messaging.Nats
+     33 Tarol.DataProtection
+     30 Tarol.Messaging.RabbitMq
+     19 Tarol.Security.Zitadel
+
+## 2. RS0026 / RS0027 / RS0041 (file, line, message)
+RS0041 KernelJsonContext.Actor.g.cs:22 | Symbol 'Actor.get' uses some oblivious reference types
+RS0041 KernelJsonContext.IdICausation.g.cs:22 | Symbol 'IdICausation.get' uses some oblivious reference types
+RS0041 KernelJsonContext.IdICorrelation.g.cs:22 | Symbol 'IdICorrelation.get' uses some oblivious reference types
+RS0041 KernelJsonContext.IdITenant.g.cs:22 | Symbol 'IdITenant.get' uses some oblivious reference types
+RS0041 KernelJsonContext.OperationContext.g.cs:22 | Symbol 'OperationContext.get' uses some oblivious reference types
+RS0041 SignalRJson.DateTimeOffset.g.cs:22 | Symbol 'DateTimeOffset.get' uses some oblivious reference types
+RS0041 SignalRJson.Guid.g.cs:22 | Symbol 'Guid.get' uses some oblivious reference types
+RS0041 SignalRJson.Int32.g.cs:22 | Symbol 'Int32.get' uses some oblivious reference types
+RS0041 SignalRJson.JsonElement.g.cs:22 | Symbol 'JsonElement.get' uses some oblivious reference types
+RS0041 SignalRJson.PushedMessage.g.cs:22 | Symbol 'PushedMessage.get' uses some oblivious reference types
+RS0041 SignalRJson.String.g.cs:22 | Symbol 'String.get' uses some oblivious reference types
+RS0041 OperationsJson.AdminError.g.cs:22 | Symbol 'AdminError.get' uses some oblivious reference types
+RS0041 OperationsJson.Boolean.g.cs:22 | Symbol 'Boolean.get' uses some oblivious reference types
+RS0041 OperationsJson.DateTimeOffset.g.cs:22 | Symbol 'DateTimeOffset.get' uses some oblivious reference types
+RS0041 OperationsJson.DeadLetterPageView.g.cs:22 | Symbol 'DeadLetterPageView.get' uses some oblivious reference types
+RS0041 OperationsJson.DeadLetterView.g.cs:22 | Symbol 'DeadLetterView.get' uses some oblivious reference types
+RS0041 OperationsJson.ErasureView.g.cs:22 | Symbol 'ErasureView.get' uses some oblivious reference types
+RS0041 OperationsJson.Guid.g.cs:22 | Symbol 'Guid.get' uses some oblivious reference types
+RS0041 OperationsJson.IReadOnlyListDeadLetterView.g.cs:22 | Symbol 'IReadOnlyListDeadLetterView.get' uses some oblivious reference types
+RS0041 OperationsJson.IReadOnlyListProjectionVersion.g.cs:22 | Symbol 'IReadOnlyListProjectionVersion.get' uses some oblivious reference types
+RS0041 OperationsJson.Int32.g.cs:22 | Symbol 'Int32.get' uses some oblivious reference types
+RS0041 OperationsJson.Int64.g.cs:22 | Symbol 'Int64.get' uses some oblivious reference types
+RS0041 OperationsJson.NullableGuid.g.cs:22 | Symbol 'NullableGuid.get' uses some oblivious reference types
+RS0041 OperationsJson.NullableInt64.g.cs:22 | Symbol 'NullableInt64.get' uses some oblivious reference types
+RS0041 OperationsJson.ProjectionVersion.g.cs:22 | Symbol 'ProjectionVersion.get' uses some oblivious reference types
+RS0041 OperationsJson.RedriveView.g.cs:22 | Symbol 'RedriveView.get' uses some oblivious reference types
+RS0041 OperationsJson.String.g.cs:22 | Symbol 'String.get' uses some oblivious reference types
+RS0026 ChangePipeline.cs:142 | Symbol 'Run<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/b
+RS0026 ChangePipeline.cs:197 | Symbol 'Run<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/b
+RS0026 ChangeTest.cs:117 | Symbol 'When<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+RS0026 ChangeTest.cs:131 | Symbol 'When<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+RS0026 JobsBuilder.cs:42 | Symbol 'Add<TJob>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/rosly
+RS0026 JobsBuilder.cs:51 | Symbol 'Add<TJob>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/rosly
+RS0026 JobTest.cs:106 | Symbol 'Add' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/blob
+RS0026 JobTest.cs:99 | Symbol 'Add' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/blob
+RS0026 NpgsqlMessagingBuilderExtensions.cs:21 | Symbol 'UseNpgsqlBus' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/ro
+RS0026 NpgsqlMessagingBuilderExtensions.cs:44 | Symbol 'UseNpgsqlBus' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/ro
+RS0026 MessageConsumers.cs:108 | Symbol 'Redrive' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+RS0026 MessageConsumers.cs:115 | Symbol 'Redrive' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+RS0026 MessagingTest.cs:302 | Symbol 'When<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+RS0026 MessagingTest.cs:311 | Symbol 'When<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+RS0026 NpgsqlTarolBuilderExtensions.cs:23 | Symbol 'UseNpgsqlStore' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/
+RS0026 NpgsqlTarolBuilderExtensions.cs:47 | Symbol 'UseNpgsqlStore' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/
+RS0027 InMemoryAggregateStore.cs:45 | 'InMemoryAggregateStore' violates the backcompat requirement: 'API with optional parameter(s) should have the most parameters amongst its public overl
+RS0041 AggregateRoot.cs:73 | Symbol 'Raise' uses some oblivious reference types
+RS0041 Entity.cs:68 | Symbol 'Raise' uses some oblivious reference types
+RS0041 Entity.cs:78 | Symbol 'Raise' uses some oblivious reference types
+RS0026 QueriesTarolBuilderExtensions.cs:26 | Symbol 'Add<TRow>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/rosly
+RS0026 QueriesTarolBuilderExtensions.cs:50 | Symbol 'Add' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/blob
+RS0026 Result.cs:305 | Symbol 'BindAsync' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/rosly
+RS0026 Result.cs:316 | Symbol 'BindAsync<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/ro
+RS0026 ResultOfT.cs:258 | Symbol 'BindAsync<TNew>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet
+RS0026 ResultOfT.cs:269 | Symbol 'BindAsync' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/rosly
+RS0026 ReactionTest.cs:129 | Symbol 'When<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+RS0026 ReactionTest.cs:142 | Symbol 'When<T>' violates the backcompat requirement: 'Do not add multiple overloads with optional parameters'. See 'https://github.com/dotnet/roslyn/
+
+## 3. Generating the baseline
+dotnet format analyzers <csproj> --diagnostics RS0016 RS0037 (per project, ~26 s each, 3,655 lines): skips the 39 System.Text.Json-generated members (also with --include-generated)
+eng/public-api.py update (one build, SARIF APIName): 17.4 s, 3,694 lines; diff against dotnet format per package:
+  Tarol.Caching only-format=0 only-sarif=0
+  Tarol.Changes.AspNetCore only-format=0 only-sarif=0
+  Tarol.Changes only-format=0 only-sarif=0
+  Tarol.DataProtection only-format=0 only-sarif=0
+  Tarol.Jobs only-format=0 only-sarif=0
+  Tarol.Kernel only-format=0 only-sarif=9
+  Tarol.Messaging.Nats only-format=0 only-sarif=0
+  Tarol.Messaging.Npgsql only-format=0 only-sarif=0
+  Tarol.Messaging.RabbitMq only-format=0 only-sarif=0
+  Tarol.Messaging.SignalR only-format=0 only-sarif=10
+  Tarol.Messaging only-format=0 only-sarif=0
+  Tarol.Operations only-format=0 only-sarif=20
+  Tarol.Options only-format=0 only-sarif=0
+  Tarol.Persistence.Npgsql only-format=0 only-sarif=0
+  Tarol.Persistence only-format=0 only-sarif=0
+  Tarol.Primitives only-format=0 only-sarif=0
+  Tarol.Queries.Npgsql only-format=0 only-sarif=0
+  Tarol.Queries only-format=0 only-sarif=0
+  Tarol.Results only-format=0 only-sarif=0
+  Tarol.Sagas only-format=0 only-sarif=0
+  Tarol.Security.Zitadel only-format=0 only-sarif=0
+  Tarol.Security only-format=0 only-sarif=0
+  Tarol.StronglyTypedId only-format=0 only-sarif=0
+  Tarol.Validations only-format=0 only-sarif=0
+oblivious (~) lines: 99
+rebuild after update: RS0016 0, RS0017 0, RS0026 24, RS0027 1, RS0041 30
+
+## 4. Build cost (dotnet build src.slnx --no-restore --no-incremental, s; rounds alternate)
+with analyzer:    7.17 6.84 6.60 6.95 6.94  (min 6.60)
+without analyzer: 7.13 7.10 6.58 7.35 7.10  (min 6.58)
+
+## 5. Packages (dotnet pack -c Release on main, 0.0.0-alpha.0.49)
+24 .nupkg: 1385053 bytes; 24 .snupkg: 495792 bytes
+Tarol.Persistence nuspec dependency:
+        <dependency id="Tarol.Primitives" version="0.0.0-alpha.0.49" exclude="Build,Analyzers" />
+dependencies with exclude="Build,Analyzers": 32 of 32
+
+Generators passed to csc (/analyzer:) when a consumer references one package (dotnet build -v:d of the PackageTests):
+  Tarol.Primitives: Kernel Options Primitives Results StronglyTypedId
+  Tarol.Changes:    Changes Kernel Options Primitives Results StronglyTypedId Validations
+  Tarol.Sagas:      Changes Kernel Options Primitives Results StronglyTypedId Validations
+
+## 6. Actions (git ls-remote, 2026-11-18)
+uses in ci.yml: actions/checkout@v5 x3, actions/setup-dotnet@v5 x3, actions/cache@v4 x3, actions/upload-artifact@v4 x3
+actions/checkout       v5 = v5.1.0 fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 (newest major v7)
+actions/setup-dotnet   v5 = v5.4.0 26b0ec14cb23fa6904739307f278c14f94c95bf1 (newest major v6)
+actions/cache          v4 = v4.3.0 0057852bfaa89a56745cba8c7296529d2fc39830 (newest major v6)
+actions/upload-artifact v4 = v4.6.2 ea165f8d65b6e75b540449e92b4886f43607fa02 (newest major v7)
+actions/download-artifact v5 = v5.0.0 634f93cb2916e3fdff6788551b99b062d0335ce0 (newest major v8)
+github/codeql-action   v4 = v4.39.3 33d7b85da1a04171e211befe2c739303b9a4c066
+
+## 7. CI on main 45da502 (run 44243854282): build 3m50s, integration 3m51s, aot-smoke 8m02s (15.7 runner-minutes), billable 0 ms (public repository)
+workflow runs in the repository 2026-11-12 .. 2026-11-18: 233
+
+## 8. Repository visibility (claude-code-remote list_repos): CLorat/Tarol-Net public; CLorat/Tarol private
+
+## 9. Local verification of main 45da502 (Docker: postgres:17, nats:2.11, rabbitmq:4-management)
+build 0 warnings; format clean; test 1863 of 1863 (second run; the first run, alongside the probe builds, failed PushTests.After_a_reconnect_the_subscriptions_are_replayed once: client Disconnected; 12 of 12 alone); aot-smoke 24 apps, 0 IL warnings; verify-packages OK
+
+## 10. Symbols in the package instead of .snupkg (dotnet pack src.slnx -c Release -p:DebugType=embedded -p:IncludeSymbols=false)
+24 .nupkg, 0 .snupkg: 1,949,447 bytes (today 1,385,053 + 495,792 in .snupkg): +564,394 bytes (+41 %), PDB inside each DLL
+
+## 11. .NET security rules all on (dotnet build src.slnx --no-incremental -p:AnalysisModeSecurity=All, warnings not errors)
+0 CA diagnostics in the 24 runtime packages
