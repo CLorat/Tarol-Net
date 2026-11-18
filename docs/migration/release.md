@@ -396,4 +396,8 @@ With the working property the solution has **80 findings** **[verified]** (outpu
 | `Tarol.Messaging.SignalR` | CA5394 insecure `Random` | 1 | the reconnect delay's jitter (`Random.Shared`), not a security use |
 | tests, AOT smoke apps | CA5394, CA2100, CA5399 | 49 | random test data, SQL from test constants, an `HttpClient` without revocation check in a smoke app |
 
-How to handle them was asked of the owner again (RL-10).
+How to handle them was asked of the owner again (2026-11-18):
+
+| # | Question | Answer |
+|---|---|---|
+| RL-10 | The .NET security rules with 80 findings: all on with CA2100/CA5394 off, all on with a justified suppression per site, or CodeQL only | **All on; CA2100 and CA5394 off** (recommended): `AnalysisLevelSecurity=latest-all` in `Directory.Build.props`, so every security rule is an error; `.editorconfig` sets CA2100 (no data flow; SQL from validated identifiers; CodeQL's SQL-injection query covers it) and CA5394 (`Random` only for jitter and test data) to `none`, for tests and smoke apps too. No code changes. |
