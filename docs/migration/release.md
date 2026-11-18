@@ -536,6 +536,17 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 
 A new package, `Tarol`. It has no API of its own, and no other package changed.
 
+
+### 17.6 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (the meta-package adds a package consumer, which runs in
+  `verify-packages.sh`, not a test);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK, **25 packages and 25 consumers**, `Tarol.PackageTests` included.
+
 ## 18. Implementation 17D: AGPL-3.0-only
 
 ### 18.1 What changed
@@ -558,6 +569,15 @@ A new package, `Tarol`. It has no API of its own, and no other package changed.
 ### 18.2 Public API and behaviour
 
 No API or behaviour changes. The packages' licence metadata changes from a file to the SPDX expression `AGPL-3.0-only`.
+
+### 18.3 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863**;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK (every package declares AGPL-3.0-only and carries LICENSE and NOTICE).
 
 ## 19. Implementation 17E: the release workflow
 
