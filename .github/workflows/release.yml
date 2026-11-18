@@ -1,0 +1,114 @@
+name: Release
+
+# docs/architecture/release.md §2. A tag v<x.y.z>[-pre] publishes; every other trigger is a dry run that stops before `publish`.
+# The owner creates the tags. Packages go to the owner's GitHub Packages feed, never to nuget.org (RL-9).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # a dry run on any branch (the file must be on the default branch to be dispatched)
+  pull_request: # a dry run when the release files change
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/ci.yml
+      - eng/release.py
+      - eng/public-api.py
+      - eng/verify-packages.sh
+      - eng/tests/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never cancel a half-done release
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  ci:
+    # The whole CI on the exact commit (RL-6): build, unit tests, package check, integration, AOT smoke.
+    uses: ./.github/workflows/ci.yml
+
+  pack:
+    name: pack
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0 # MinVer reads the version from the tag
+
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          global-json-file: global.json
+
+      - name: Pack and verify the packages
+        run: eng/verify-packages.sh
+
+      - name: Version
+        id: version
+        run: |
+          version=$(basename "$(ls artifacts/package/release/Tarol.Kernel.*.nupkg)" .nupkg | sed 's/^Tarol\.Kernel\.//')
+          if [[ "$GITHUB_REF" == refs/tags/v* && "$version" != "${GITHUB_REF_NAME#v}" ]]; then
+            echo "::error::MinVer made $version, the tag is $GITHUB_REF_NAME"; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          [[ "$version" == *-* ]] && echo "prerelease=true" >> "$GITHUB_OUTPUT" || echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          echo "Tarol $version"
+
+      - name: Check that the release ships its API, diagnostics and CHANGELOG section
+        run: python3 eng/release.py check "${{ steps.version.outputs.version }}" ${{ startsWith(github.ref, 'refs/tags/v') && ' ' || '--dry-run' }}
+
+      - name: Release notes
+        run: |
+          python3 eng/release.py notes "${{ steps.version.outputs.version }}" ${{ startsWith(github.ref, 'refs/tags/v') && ' ' || '--dry-run' }} > artifacts/release-notes.md
+          cat artifacts/release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release # not "packages": the called CI uploads that name in the same run
+          path: |
+            artifacts/package/release/*.nupkg
+            artifacts/release-notes.md
+          retention-days: 30
+
+  publish:
+    name: publish
+    needs: pack
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: release # the owner can require a reviewer here (Settings → Environments)
+    permissions:
+      contents: write # the GitHub release
+      packages: write # the GitHub Packages feed (GITHUB_TOKEN only, D-11)
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: release
+          path: release
+
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with:
+          dotnet-version: 11.0.x
+
+      # The bytes `pack` verified; --skip-duplicate makes a re-run after a failed later step safe.
+      - name: Push to GitHub Packages
+        run: >-
+          dotnet nuget push "release/package/release/*.nupkg"
+          --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+          --api-key "${{ secrets.GITHUB_TOKEN }}"
+          --skip-duplicate
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag
+          --title "Tarol ${{ needs.pack.outputs.version }}"
+          --notes-file release/release-notes.md
+          ${{ needs.pack.outputs.prerelease == 'true' && '--prerelease' || '' }}
