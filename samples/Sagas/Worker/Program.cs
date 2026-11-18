@@ -9,6 +9,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Tarol.Changes;
+using Tarol.DataProtection;
 using Tarol.Jobs;
 using Tarol.Kernel;
 using Tarol.Messaging;
@@ -26,7 +27,7 @@ using Tarol.Sagas;
 var builder = WebApplication.CreateSlimBuilder(args);        // step 15: a small HTTP listener for the health probes
 var connectionString = builder.Configuration.GetConnectionString("tarol")
                        ?? throw new InvalidOperationException("No connection string 'tarol' (run it through the AppHost).");
-builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>().Add<DayReport>())
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>().Add<DayReport>().Add<BidderProfile>())
     .WithReactions(GeneratedReactions.Set)
     .UseNpgsqlStore(connectionString, new NpgsqlStoreOptions { NotifyFeed = true })   // EnsureSchema when the host starts; NOTIFY per commit
     .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })   // the read tables (LISTEN on the feed); NOTIFY per batch
@@ -40,7 +41,9 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
         .UseNpgsqlDeadLetters())
     .AddJobs(j => j.Add<SettlementReport>("15 2 * * *", o => { o.TimeZone = "Europe/Vienna"; o.PerTenant = true; }),   // step 14: once per occurrence and tenant
         o => o.TenantSyncEvery = TimeSpan.FromSeconds(20))        // the demo's tenants appear while it runs; hourly by default
-    .AddOperations();                                              // step 15: the snapshot and its gauges, the health groups
+    .AddOperations()                                               // step 15: the snapshot and its gauges, the health groups
+    .UseNpgsqlKeyStore()                                           // step 16: keys in tarol.tenant_keys / subject_keys
+    .AddDataProtection();                                          // master key: Tarol:DataProtection:MasterKey (the AppHost sets it)
 builder.Services.AddSingleton<ITenantDirectory, AuctionTenants>();
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("worker"))
@@ -56,6 +59,10 @@ var store = host.Services.GetRequiredService<NpgsqlAggregateStore>();
 var pipeline = host.Services.GetRequiredService<ChangePipeline>();
 var count = args.Length > 0 ? int.Parse(args[0], System.Globalization.CultureInfo.InvariantCulture) : 20;
 var alice = OperationContext.Start(Actor.User("alice"), Option.None, TimeProvider.System);
+// step 16: bob's profile, with his name and email sealed (the AppHost run exports and erases it through the admin entry)
+var profile = BidderProfile.Register("bob", "Bob Bidder", "bob@artflow.example", TimeProvider.System.GetUtcNow());
+_ = (await store.Append(profile, 0, alice, Option.None, default)).IsSuccess;
+Console.WriteLine($"bidder profile {profile.Id.Value} registered");
 for (var i = 0; i < count && !host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.IsCancellationRequested; i++)
 {
     using (Producer.Source.StartActivity("POST /auctions/{id}/settle"))

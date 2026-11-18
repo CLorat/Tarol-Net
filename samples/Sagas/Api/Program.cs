@@ -6,6 +6,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Tarol.Caching;
 using Tarol.Changes;
+using Tarol.DataProtection;
 using Tarol.Changes.AspNetCore;
 using Tarol.Operations;
 using Tarol.Persistence.Npgsql;
@@ -21,7 +22,7 @@ var project = builder.Configuration["Zitadel:Project"]
               ?? (builder.Configuration["Zitadel:ProjectFile"] is { } file ? File.ReadAllText(file).Trim() : null)
               ?? throw new InvalidOperationException("No Zitadel project (run it through the AppHost).");
 
-builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>())
+builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Settlement>().Add<BidderProfile>())
     .WithReactions(GeneratedReactions.Set)                     // the API's commits write the worker's outbox rows …
     .WithOutboxRows(GeneratedPublications.Set)                 // … and its publication rows (the worker publishes them)
     .UseNpgsqlStore(connectionString)
@@ -34,6 +35,8 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
     })
     .AddEndpoints()
     .AddOperations()                                           // step 15: the snapshot, its gauges, the health groups, the admin entry
+    .UseNpgsqlKeyStore()                                       // step 16: the keys of [PersonalData] (BidderProfile)
+    .AddDataProtection()                                       // …/subjects/{id}/export and …/erase under the admin policy
     .AddZitadel(zitadel =>
     {
         zitadel.Authority = builder.Configuration["Zitadel:Authority"] ?? "http://localhost:8080";

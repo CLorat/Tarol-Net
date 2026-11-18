@@ -79,6 +79,30 @@ public partial class Bid : Entity<Auction, Bid>
     private void On(Won e) => IsWinner = true;
 }
 
+/// <summary>
+/// A bidder's profile (step 16): name and email are personal data, sealed with the bidder's key. The bidder is its own
+/// subject. Erasure (POST /tarol/admin/subjects/{id}/erase) makes them read as null everywhere; export returns them.
+/// </summary>
+public partial class BidderProfile : AggregateRoot<BidderProfile>
+{
+    [PersonalData] public string? Name { get; private set; }
+    [PersonalData] public string? Email { get; private set; }
+    public string Login { get; private set; } = "";
+
+    public static BidderProfile Register(string login, string name, string email, DateTimeOffset now)
+    {
+        var profile = new BidderProfile(Id<BidderProfile>.New(now));
+        profile.Raise(new Registered(login, name, email));
+        return profile;
+    }
+
+    public sealed record Registered(string Login, [property: PersonalData] string? Name, [property: PersonalData] string? Email) : Event;
+
+    private void On(Registered e) => (Login, Name, Email) = (e.Login, e.Name, e.Email);
+}
+
+/// <summary>Payouts are kept ten years after their last event, then tarol.retention deletes them (step 16, DP-7).</summary>
+[Retention(Days = 3650)]
 public partial class Payout : AggregateRoot<Payout>
 {
     public Guid Auction { get; private set; }
@@ -162,6 +186,7 @@ public partial class Settlement : AggregateRoot<Settlement>
 [JsonSerializable(typeof(Bid.Placed))]
 [JsonSerializable(typeof(Bid.Won))]
 [JsonSerializable(typeof(Payout.Due))]
+[JsonSerializable(typeof(BidderProfile.Registered))]
 [JsonSerializable(typeof(Settlement.Started))]
 [JsonSerializable(typeof(Settlement.DeadlineSet))]
 [JsonSerializable(typeof(Settlement.Completed))]

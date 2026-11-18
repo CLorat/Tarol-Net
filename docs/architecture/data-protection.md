@@ -16,8 +16,10 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/data-protection/`](../migration/probes/data-protection/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions DP-1 … DP-9, [migration/data-protection.md](../migration/data-protection.md) §9). To be built
-in PRs 16A–16D (§11 there).
+**Status: built** (owner decisions DP-1 … DP-10, [migration/data-protection.md](../migration/data-protection.md) §9 and §16.3), in
+PRs 16A–16D (§15–§18 there). The guide is [data-protection/README.md](../data-protection/README.md). Where the build differs
+from this note, the migration note says so: subjects read from the JSON, keys created just before the commit, version 3
+steps compatible from 1, no TQRY diagnostic.
 
 ## 1. Where personal data lands today, and what forgets it
 
