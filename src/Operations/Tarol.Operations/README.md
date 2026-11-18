@@ -56,7 +56,7 @@ Dead letters are kept until a human acts (O-5). `DeadRetention = TimeSpan.FromDa
 (hourly, once per cluster with `AddJobs` of `Tarol.Jobs`): it deletes older ones on the `dead_at` indexes and audits each purge.
 Projection versions are never dropped automatically.
 
-* **Data subjects (step 16)**: `GET {prefix}/subjects/{id}/export` and `POST {prefix}/subjects/{id}/erase` when `IDataSubjects` is registered; `OperationsOptions.AuditRetention` → `tarol.purge-audit`.
+* **Data subjects (step 16)**: `GET {prefix}/subjects/{id}/export?tenant=` and `POST {prefix}/subjects/{id}/erase?tenant=` (`tenant` required; the empty GUID for tenant-less data) when `IDataSubjects` is registered; `OperationsOptions.AuditRetention` → `tarol.purge-audit`.
 
 ## AOT
 

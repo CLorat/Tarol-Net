@@ -55,7 +55,7 @@ foreach (var dead in page.Items)
 ## Data subjects and the audit (step 16)
 
 * With `AddDataProtection` (`IDataSubjects` registered), `MapTarolAdmin` also maps `GET {prefix}/subjects/{id}/export?tenant=…`
-  (a JSON attachment) and `POST {prefix}/subjects/{id}/erase?tenant=…`, under the same policy; both are audited with the
+  (a JSON attachment) and `POST {prefix}/subjects/{id}/erase?tenant=…` (`tenant` required, else 400; the empty GUID for tenant-less data), under the same policy; both are audited with the
   principal's name.
 * `OperationsOptions.AuditRetention` (at least 1 day) adds the system job `tarol.purge-audit`, which deletes older
   `operations_audit` rows. Without it they are kept for ever.

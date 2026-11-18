@@ -1058,3 +1058,13 @@ In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**, all checks passed;
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
 * the AppHost run: §18.3.
+
+## 19. Fix: the subject endpoints require the tenant (2026-11-18)
+
+**Behaviour change.** `POST {prefix}/subjects/{id}/erase` and `GET {prefix}/subjects/{id}/export` read an absent `tenant` query
+parameter as `Guid.Empty`, the tenant-less data. An erasure without `?tenant=` therefore wrote a tombstone for `(empty, subject)`,
+found no streams and answered 200, while the person's key in their real tenant stayed readable: a GDPR erasure that silently did
+nothing. Both endpoints now answer 400 without `tenant`; tenant-less data is named with the empty GUID
+(`?tenant=00000000-0000-0000-0000-000000000000`). A malformed tenant is still 400.
+
+Test: `DataProtectionIntegrationTests` (the admin endpoint test) erases and exports without `tenant` and expects 400.

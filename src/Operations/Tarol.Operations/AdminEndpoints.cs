@@ -173,11 +173,21 @@ public static class TarolAdminEndpoints
             ? Guid.TryParse(text, CultureInfo.InvariantCulture, out var tenant) ? tenant : null
             : Guid.Empty;
 
+    /// <summary>
+    /// The <c>tenant</c> of a data-subject call: required, a GUID (<see cref="Guid.Empty"/> names tenant-less data). An absent
+    /// tenant would act on the tenant-less data only: an erasure would answer 200 and leave the person's keys readable.
+    /// </summary>
+    private static Guid? SubjectTenantOf(HttpContext context)
+        => context.Request.Query.ContainsKey("tenant") ? TenantOf(context) : null;
+
+    private const string SubjectTenantRequired =
+        "tenant is required and must be a GUID (00000000-0000-0000-0000-000000000000 for tenant-less data)";
+
     private static async Task ExportSubject(HttpContext context)
     {
-        if (TenantOf(context) is not { } tenant)
+        if (SubjectTenantOf(context) is not { } tenant)
         {
-            await Problem(context, StatusCodes.Status400BadRequest, "tenant must be a GUID").ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status400BadRequest, SubjectTenantRequired).ConfigureAwait(false);
             return;
         }
         var subject = Guid.Parse(Route(context, "id"), CultureInfo.InvariantCulture);
@@ -190,9 +200,9 @@ public static class TarolAdminEndpoints
 
     private static async Task EraseSubject(HttpContext context)
     {
-        if (TenantOf(context) is not { } tenant)
+        if (SubjectTenantOf(context) is not { } tenant)
         {
-            await Problem(context, StatusCodes.Status400BadRequest, "tenant must be a GUID").ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status400BadRequest, SubjectTenantRequired).ConfigureAwait(false);
             return;
         }
         var subject = Guid.Parse(Route(context, "id"), CultureInfo.InvariantCulture);
