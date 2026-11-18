@@ -183,6 +183,47 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task A_concurrent_run_under_the_same_key_gets_the_stored_outcome_not_a_conflict()
+    {
+        var auction = NewAuction();
+        var inner = new InMemoryAggregateStore(TimeProvider.System);
+        var context = OperationContext.Start(Actor.User("alice"), Option.None, TimeProvider.System);
+        (await inner.Append(auction, 0, context, Option.None, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+        AggregateChanges.Committed(auction);
+        var key = new ChangeOptions(new IdempotencyKey(Option.None, "http", "retry-1"));
+        var first = new ChangePipeline(inner, ChangeTest.At(Start).Clock);
+        Result<ChangeOutcome>? won = null;
+        // the client's first request commits while its retry is between the key check and the append
+        var racing = new RacingStore(inner, () => won = first.Run(new PlaceBid(auction.Id, new Amount(150)), context, key).AsTask().GetAwaiter().GetResult());
+        var retry = new ChangePipeline(racing, ChangeTest.At(Start).Clock);
+
+        var result = await retry.Run(new PlaceBid(auction.Id, new Amount(150)), context, key, TestContext.Current.CancellationToken);
+
+        var outcome = result.GetValueOrThrow();
+        outcome.Replayed.ShouldBeTrue();
+        (outcome.StreamId, outcome.Version).ShouldBe((won!.Value.GetValueOrThrow().StreamId, won.Value.GetValueOrThrow().Version));
+        inner.History(auction.Id, Option.None).Length.ShouldBe(2);                                // one bid, not two
+    }
+
+    [Fact]
+    public async Task A_concurrent_creation_under_the_same_key_gets_the_stored_outcome_not_a_conflict()
+    {
+        var inner = new InMemoryAggregateStore(TimeProvider.System);
+        var context = OperationContext.Start(Actor.User("alice"), Option.None, TimeProvider.System);
+        var key = new ChangeOptions(new IdempotencyKey(Option.None, "http", "create-1"));
+        var first = new ChangePipeline(inner, ChangeTest.At(Start).Clock);
+        Result<ChangeOutcome>? won = null;
+        var create = new CreateAuction("L-1", new Title("Sunflowers"), new Amount(100), Start.AddDays(7));
+        var racing = new RacingStore(inner, () => won ??= first.Run(create, context, key).AsTask().GetAwaiter().GetResult());
+        var retry = new ChangePipeline(racing, ChangeTest.At(Start).Clock);
+
+        var result = await retry.Run(create, context, key, TestContext.Current.CancellationToken);
+
+        var outcome = result.GetValueOrThrow();                                                 // the other run's new stream, not a duplicate-key 409
+        (outcome.Replayed, outcome.StreamId).ShouldBe((true, won!.Value.GetValueOrThrow().StreamId));
+    }
+
+    [Fact]
     public async Task An_expected_version_from_the_caller_is_checked_before_the_behaviour()
     {
         var auction = NewAuction();

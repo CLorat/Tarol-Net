@@ -551,3 +551,16 @@ pipeline validates them), as in the Primitives and Validations tests.
 | `dotnet test --solution Tarol.slnx` | 743 total, 0 failed (684 before + 37 `Tarol.Changes.Tests` + 22 `Tarol.Changes.Generators.Tests`) |
 | `eng/verify-packages.sh` | OK: `Tarol.Changes` holds `lib/` (+ XML docs), `analyzers/dotnet/cs/Tarol.Changes.Generators.dll`, `README.md`, `LICENSE`, `skills/tarol-changes/SKILL.md`; the consumer passes 8/8, its generators (Changes, Primitives, Validations) reach the compiler, `project.assets.json` lists `tarol-changes` and the dependencies' skills |
 | `eng/aot-smoke.sh` | 8 apps, each 0 IL warnings; `Tarol.Changes.AotSmoke` 8/8 natively |
+
+## 15. Fix: a concurrent run under the same key replays instead of a 409 (2026-11-18)
+
+**Behaviour change.** When two runs with the same idempotency key raced (a client retrying after a timeout while the first
+request was still committing), both passed the key check, and the loser's append was refused: `VersionConflict` on the same
+stream (409, or `<Aggregate>.AlreadyExists` for a creation), or `Idempotency.DuplicateKey` when the streams differed (a creation
+picks a new id each time). The pipeline returned that refusal, so the client saw 409 although its request had committed.
+
+Now, when a run with a key is refused with a version conflict or a duplicate key, the pipeline checks the key again and returns
+the stored outcome (`Replayed: true`, or `KeyReused` when the fingerprint differs, R-9). Without a stored outcome the refusal stands.
+
+Tests: `PipelineTests.A_concurrent_run_under_the_same_key_gets_the_stored_outcome_not_a_conflict` and
+`A_concurrent_creation_under_the_same_key_gets_the_stored_outcome_not_a_conflict` (both fail without the fix).
