@@ -481,3 +481,13 @@ No API or behaviour changed. Every public change from now on is an error until `
 
 * `src/PublicApi.globalconfig`: RS0026, RS0027, RS0041 `none` (RL-5; reasons in the file and §2.5).
 
+
+### 16.6 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors (RS0016/RS0017 errors on every runtime package);
+* `dotnet format Tarol.slnx --verify-no-changes`: clean;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863**;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
+* `eng/verify-packages.sh`: OK;
+* `eng/public-api.py check-shipped`: OK (every Unshipped empty).
