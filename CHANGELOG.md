@@ -18,6 +18,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* `ProjectionHost` can be derived from outside `Tarol.Queries` (step 18A): its constructor and `Prepare`, `LoadCheckpoint` and
+  `Write` are `protected` (were `private protected`); `Write`'s last position parameter is named `through`. Behaviour unchanged.
+
 * `NpgsqlSchema.Version` is 4. The data sources Tarol builds set `Max Auto Prepare=64` unless the connection string sets it.
 * The data-subject endpoints (`…/subjects/{id}/export|erase`) require `?tenant=` (400 without it).
 * `Violation` JSON is read in any member order and accepts only `ErrorType` names for `type`.

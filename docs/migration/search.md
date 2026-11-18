@@ -487,3 +487,48 @@ For each skill, an agent given only the skill and the package must do these task
 ## 13. Verification of this PR
 
 ⟨verification⟩
+
+## 14. Open items
+
+* Meilisearch: not built (GS-3); the port and the contract suite leave room for it. Re-read its licence before any adapter
+  (`main` carries BUSL-1.1 parts, §4.1).
+* Semantic search (`pgvector`): later, if a scenario asks (§2.10).
+* Elasticsearch: the OpenSearch adapter's API family; not verified against Elasticsearch **[unverified]**.
+
+## 15. Implementation: PR 18A (2026-11-18)
+
+`queries: a projection host other packages can derive from` (§10.1).
+
+### 15.1 Public API (`Tarol.Queries`, `eng/public-api.py update`)
+
+* `ProjectionHost(string name, int version, IEventFeed feed, ProjectionOptions? options, TimeProvider? time, ILogger? logger,
+  IFeedSignal? signal, IProjectionGate? gate, IMeterFactory? meters)`: `protected` (was `private protected`).
+* `protected abstract ValueTask Prepare(CancellationToken)`, `ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken)`,
+  `ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition through,
+  ProjectionState state, CancellationToken)`: `protected` (were `private protected`), with XML docs.
+* `override ProjectionHost.ExecuteAsync(CancellationToken)`: unchanged code, now in the API file because the class is derivable.
+
+### 15.2 Deliberate differences from §10.1
+
+* `Write`'s last position parameter is named **`through`** (was `to`): CA1716 reports `to` as a reserved word for overriders in
+  Visual Basic. `ISqlProjectionStore.Write` already names it `through`.
+
+### 15.3 Changes against steps 7–17
+
+* Public API addition only; no behaviour change. `ProjectionHost<TRow>` and `SqlProjectionHost` override with `protected`.
+
+### 15.4 Tests **[verified]**
+
+`DerivedHostTests` (3): a host defined in the test assembly catches up through small batches and turns current; a refused write
+counts a conflict and the host reads again; `WaitFor` returns once it passed a position. `Tarol.Queries.Tests` 53 passed.
+
+### 15.5 Skill
+
+`tarol-queries` gains "A host of your own (step 18)". Evaluation: given the skill, derive a host that counts events (expected:
+`ProjectionHost` subclass with the three members; mistake to avoid: moving the checkpoint without the guard → a second runner
+double-counts).
+
+### 15.6 Suppressions and analyzer configuration
+
+None.
+

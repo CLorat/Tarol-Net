@@ -100,6 +100,12 @@ public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<Aucti
 * A personal row member stays nullable. It cannot be `[Sort]`: sort columns are non-nullable (TQRY004).
 * An `ISqlProjection` (your own SQL tables) has no automatic participant: register your own `ErasureParticipant`.
 
+## A host of your own (step 18)
+A package that feeds something other than a read table (search) derives from `ProjectionHost` and implements `Prepare`,
+`LoadCheckpoint` and `Write(events, from, through, state, ct)`; the loop, the guard, the gate, the meters, `CatchUp` and `WaitFor`
+come with it. `Write` returns `(false, 0)` when another runner moved the checkpoint (the host reads again). Applications use
+`[Projection]` or `ISqlProjection` instead.
+
 ## Common mistakes
 
 | Mistake | What happens |

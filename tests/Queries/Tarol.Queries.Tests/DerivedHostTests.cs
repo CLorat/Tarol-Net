@@ -86,7 +86,7 @@ public sealed class DerivedHostTests
         (await host.WaitFor(head, TimeSpan.Zero, TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
-    private static async Task<GlobalPosition> LastPosition(IEventFeed feed)
+    private static async Task<GlobalPosition> LastPosition(InMemoryAggregateStore feed)
     {
         var last = GlobalPosition.Start;
         await foreach (var e in feed.ReadAll(GlobalPosition.Start, 10_000, TestContext.Current.CancellationToken))

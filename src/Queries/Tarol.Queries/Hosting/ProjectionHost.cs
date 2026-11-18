@@ -316,15 +316,15 @@ public abstract partial class ProjectionHost : BackgroundService
 
     /// <summary>
     /// Applies and writes a batch with the guarded checkpoint move: the checkpoint moves from <paramref name="from"/> to
-    /// <paramref name="to"/> only while it is still at <paramref name="from"/>, together with what the batch wrote.
+    /// <paramref name="through"/> only while it is still at <paramref name="from"/>, together with what the batch wrote.
     /// </summary>
     /// <param name="events">The feed events of the batch, in order (every stream type); empty when only the state changes.</param>
     /// <param name="from">The checkpoint the batch read after.</param>
-    /// <param name="to">The position of the batch's last event (equal to <paramref name="from"/> when only the state changes).</param>
+    /// <param name="through">The position of the batch's last event (equal to <paramref name="from"/> when only the state changes).</param>
     /// <param name="state">The state after the batch.</param>
     /// <param name="cancellationToken">Cancels the batch (nothing is written).</param>
     /// <returns>Whether it was written (<see langword="false"/>: another runner moved the checkpoint, the host reads again) and how many rows changed.</returns>
-    protected abstract ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition to,
+    protected abstract ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition through,
         ProjectionState state, CancellationToken cancellationToken);
 
     [LoggerMessage(EventId = 12010, Level = LogLevel.Information, Message = "Projection {Projection} v{Version}: this host is the runner")]
