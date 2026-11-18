@@ -1,0 +1,105 @@
+#nullable enable
+Tarol.Jobs.Cron
+Tarol.Jobs.IJob
+Tarol.Jobs.IJob.Run(Tarol.Jobs.JobRun! run, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Jobs.ITenantDirectory
+Tarol.Jobs.ITenantDirectory.Tenants(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>!>
+Tarol.Jobs.JobAttempt
+Tarol.Jobs.JobAttempt.<Clone>$() -> Tarol.Jobs.JobAttempt!
+Tarol.Jobs.JobAttempt.Attempt.get -> int
+Tarol.Jobs.JobAttempt.Attempt.init -> void
+Tarol.Jobs.JobAttempt.Deconstruct(out string! Job, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out System.DateTimeOffset Occurrence, out int Attempt, out Tarol.Changes.Verdict Verdict, out Tarol.Options.Option<string!> Reason, out bool Redrive) -> void
+Tarol.Jobs.JobAttempt.Equals(Tarol.Jobs.JobAttempt? other) -> bool
+Tarol.Jobs.JobAttempt.Job.get -> string!
+Tarol.Jobs.JobAttempt.Job.init -> void
+Tarol.Jobs.JobAttempt.JobAttempt(string! Job, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, System.DateTimeOffset Occurrence, int Attempt, Tarol.Changes.Verdict Verdict, Tarol.Options.Option<string!> Reason, bool Redrive) -> void
+Tarol.Jobs.JobAttempt.Occurrence.get -> System.DateTimeOffset
+Tarol.Jobs.JobAttempt.Occurrence.init -> void
+Tarol.Jobs.JobAttempt.Reason.get -> Tarol.Options.Option<string!>
+Tarol.Jobs.JobAttempt.Reason.init -> void
+Tarol.Jobs.JobAttempt.Redrive.get -> bool
+Tarol.Jobs.JobAttempt.Redrive.init -> void
+Tarol.Jobs.JobAttempt.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Jobs.JobAttempt.Tenant.init -> void
+Tarol.Jobs.JobAttempt.Verdict.get -> Tarol.Changes.Verdict
+Tarol.Jobs.JobAttempt.Verdict.init -> void
+Tarol.Jobs.JobHost
+Tarol.Jobs.JobHost.Jobs.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Jobs.JobHostOptions
+Tarol.Jobs.JobHostOptions.JobHostOptions() -> void
+Tarol.Jobs.JobHostOptions.Lease.get -> System.TimeSpan
+Tarol.Jobs.JobHostOptions.Lease.set -> void
+Tarol.Jobs.JobHostOptions.PollInterval.get -> System.TimeSpan
+Tarol.Jobs.JobHostOptions.PollInterval.set -> void
+Tarol.Jobs.JobHostOptions.TenantSyncEvery.get -> System.TimeSpan
+Tarol.Jobs.JobHostOptions.TenantSyncEvery.set -> void
+Tarol.Jobs.JobHostOptions.Workers.get -> int
+Tarol.Jobs.JobHostOptions.Workers.set -> void
+Tarol.Jobs.JobOptions
+Tarol.Jobs.JobOptions.Enabled.get -> bool
+Tarol.Jobs.JobOptions.Enabled.set -> void
+Tarol.Jobs.JobOptions.Grace.get -> System.TimeSpan
+Tarol.Jobs.JobOptions.Grace.set -> void
+Tarol.Jobs.JobOptions.JobOptions() -> void
+Tarol.Jobs.JobOptions.MaxCatchUp.get -> int
+Tarol.Jobs.JobOptions.MaxCatchUp.set -> void
+Tarol.Jobs.JobOptions.Missed.get -> Tarol.Changes.Missed
+Tarol.Jobs.JobOptions.Missed.set -> void
+Tarol.Jobs.JobOptions.Name.get -> string?
+Tarol.Jobs.JobOptions.Name.set -> void
+Tarol.Jobs.JobOptions.PerTenant.get -> bool
+Tarol.Jobs.JobOptions.PerTenant.set -> void
+Tarol.Jobs.JobOptions.Policy.get -> Tarol.Sagas.DeliveryPolicy!
+Tarol.Jobs.JobOptions.Policy.set -> void
+Tarol.Jobs.JobOptions.TimeZone.get -> string!
+Tarol.Jobs.JobOptions.TimeZone.set -> void
+Tarol.Jobs.JobRun
+Tarol.Jobs.JobRun.Attempt.get -> int
+Tarol.Jobs.JobRun.Change<T>(Tarol.Changes.IChange<T!>! change, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Jobs.JobRun.Context.get -> Tarol.Kernel.OperationContext!
+Tarol.Jobs.JobRun.Create<T>(Tarol.Changes.ICreation<T!>! creation, string! part, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Jobs.JobRun.Occurrence.get -> Tarol.Changes.JobOccurrence!
+Tarol.Jobs.JobServiceCollectionExtensions
+Tarol.Jobs.JobTest
+Tarol.Jobs.JobTest.Add(Tarol.Jobs.IJob! job, Tarol.Jobs.Schedule! schedule, System.Action<Tarol.Jobs.JobOptions!>? configure = null) -> Tarol.Jobs.JobTest!
+Tarol.Jobs.JobTest.Add(Tarol.Jobs.IJob! job, string! cron, System.Action<Tarol.Jobs.JobOptions!>? configure = null) -> Tarol.Jobs.JobTest!
+Tarol.Jobs.JobTest.Advance(System.TimeSpan delta) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Jobs.JobAttempt!>!>!
+Tarol.Jobs.JobTest.AdvanceTo(System.DateTimeOffset target) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Jobs.JobAttempt!>!>!
+Tarol.Jobs.JobTest.Clock.get -> System.TimeProvider!
+Tarol.Jobs.JobTest.DeadJobs() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadJob!>!>!
+Tarol.Jobs.JobTest.Down(System.TimeSpan delta) -> Tarol.Jobs.JobTest!
+Tarol.Jobs.JobTest.Given<T>(T! aggregate, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> Tarol.Jobs.JobTest!
+Tarol.Jobs.JobTest.JobRows() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.JobState!>!>!
+Tarol.Jobs.JobTest.Load<T>(Tarol.StronglyTypedId.Id<T!> id, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant = default(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>)) -> T!
+Tarol.Jobs.JobTest.Now.get -> System.DateTimeOffset
+Tarol.Jobs.JobTest.Pipeline.get -> Tarol.Changes.ChangePipeline!
+Tarol.Jobs.JobTest.Reactions.get -> System.Collections.Generic.IReadOnlyList<Tarol.Sagas.ReactionAttempt!>!
+Tarol.Jobs.JobTest.Redrive(long id) -> System.Threading.Tasks.Task<bool>!
+Tarol.Jobs.JobTest.Rows.get -> Tarol.Persistence.IJobRows!
+Tarol.Jobs.JobTest.Runs.get -> System.Collections.Generic.IReadOnlyList<Tarol.Jobs.JobAttempt!>!
+Tarol.Jobs.JobTest.Store.get -> Tarol.Persistence.InMemoryAggregateStore!
+Tarol.Jobs.JobTest.Sync() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.JobSyncChange!>!>!
+Tarol.Jobs.JobTest.WithConfiguration(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Tarol.Jobs.JobTest!
+Tarol.Jobs.JobTest.WithTenants(params Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>[]! tenants) -> Tarol.Jobs.JobTest!
+Tarol.Jobs.JobsBuilder
+Tarol.Jobs.JobsBuilder.Add(Tarol.Changes.JobSet! jobs) -> Tarol.Jobs.JobsBuilder!
+Tarol.Jobs.JobsBuilder.Add<TJob>(Tarol.Jobs.Schedule! schedule, System.Action<Tarol.Jobs.JobOptions!>? configure = null) -> Tarol.Jobs.JobsBuilder!
+Tarol.Jobs.JobsBuilder.Add<TJob>(string! cron, System.Action<Tarol.Jobs.JobOptions!>? configure = null) -> Tarol.Jobs.JobsBuilder!
+Tarol.Jobs.JobsBuilder.Configure(string! name, System.Action<Tarol.Jobs.JobOptions!>! configure) -> Tarol.Jobs.JobsBuilder!
+Tarol.Jobs.Schedule
+abstract Tarol.Jobs.Schedule.After(System.DateTimeOffset after, System.TimeZoneInfo! zone) -> System.DateTimeOffset
+abstract Tarol.Jobs.Schedule.Text.get -> string!
+const Tarol.Jobs.JobHost.ActivitySourceName = "Tarol.Jobs" -> string!
+const Tarol.Jobs.JobHost.MeterName = "Tarol.Jobs" -> string!
+override Tarol.Jobs.Cron.After(System.DateTimeOffset after, System.TimeZoneInfo! zone) -> System.DateTimeOffset
+override Tarol.Jobs.Cron.Text.get -> string!
+override Tarol.Jobs.JobAttempt.Equals(object? obj) -> bool
+override Tarol.Jobs.JobAttempt.GetHashCode() -> int
+override Tarol.Jobs.JobAttempt.ToString() -> string!
+static Tarol.Jobs.Cron.Parse(string! expression) -> Tarol.Jobs.Cron!
+static Tarol.Jobs.Cron.TryParse(string? expression, out Tarol.Jobs.Cron? cron, out string? error) -> bool
+static Tarol.Jobs.JobAttempt.operator !=(Tarol.Jobs.JobAttempt? left, Tarol.Jobs.JobAttempt? right) -> bool
+static Tarol.Jobs.JobAttempt.operator ==(Tarol.Jobs.JobAttempt? left, Tarol.Jobs.JobAttempt? right) -> bool
+static Tarol.Jobs.JobServiceCollectionExtensions.AddJobs(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Jobs.JobsBuilder!>! jobs, System.Action<Tarol.Jobs.JobHostOptions!>? configure = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Jobs.JobTest.At(System.DateTimeOffset now, Tarol.Changes.JobSet! jobs, System.Action<Tarol.Jobs.JobsBuilder!>? configure = null, Tarol.Changes.ReactionSet? reactions = null, System.Text.Json.JsonSerializerOptions? stateOptions = null) -> Tarol.Jobs.JobTest!
+static Tarol.Jobs.Schedule.Every(System.TimeSpan interval) -> Tarol.Jobs.Schedule!

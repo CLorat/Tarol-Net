@@ -1,0 +1,446 @@
+#nullable enable
+Tarol.Messaging.Ack
+Tarol.Messaging.Ack.Ack = 0 -> Tarol.Messaging.Ack
+Tarol.Messaging.Ack.Retry = 1 -> Tarol.Messaging.Ack
+Tarol.Messaging.ConsumerAttempt
+Tarol.Messaging.ConsumerAttempt.<Clone>$() -> Tarol.Messaging.ConsumerAttempt!
+Tarol.Messaging.ConsumerAttempt.Consumer.get -> string!
+Tarol.Messaging.ConsumerAttempt.Consumer.init -> void
+Tarol.Messaging.ConsumerAttempt.ConsumerAttempt(string! Consumer, Tarol.Messaging.Incoming! Incoming, Tarol.Changes.Verdict Verdict, Tarol.Options.Option<string!> Reason, Tarol.Changes.ChangeOutcome? Outcome) -> void
+Tarol.Messaging.ConsumerAttempt.Deconstruct(out string! Consumer, out Tarol.Messaging.Incoming! Incoming, out Tarol.Changes.Verdict Verdict, out Tarol.Options.Option<string!> Reason, out Tarol.Changes.ChangeOutcome? Outcome) -> void
+Tarol.Messaging.ConsumerAttempt.Equals(Tarol.Messaging.ConsumerAttempt? other) -> bool
+Tarol.Messaging.ConsumerAttempt.Incoming.get -> Tarol.Messaging.Incoming!
+Tarol.Messaging.ConsumerAttempt.Incoming.init -> void
+Tarol.Messaging.ConsumerAttempt.Outcome.get -> Tarol.Changes.ChangeOutcome?
+Tarol.Messaging.ConsumerAttempt.Outcome.init -> void
+Tarol.Messaging.ConsumerAttempt.Reason.get -> Tarol.Options.Option<string!>
+Tarol.Messaging.ConsumerAttempt.Reason.init -> void
+Tarol.Messaging.ConsumerAttempt.Verdict.get -> Tarol.Changes.Verdict
+Tarol.Messaging.ConsumerAttempt.Verdict.init -> void
+Tarol.Messaging.ConsumerInfo
+Tarol.Messaging.ConsumerInfo.<Clone>$() -> Tarol.Messaging.ConsumerInfo!
+Tarol.Messaging.ConsumerInfo.ConsumerInfo(string! Name, System.Collections.Generic.IReadOnlyList<string!>! Topics) -> void
+Tarol.Messaging.ConsumerInfo.Deconstruct(out string! Name, out System.Collections.Generic.IReadOnlyList<string!>! Topics) -> void
+Tarol.Messaging.ConsumerInfo.Equals(Tarol.Messaging.ConsumerInfo? other) -> bool
+Tarol.Messaging.ConsumerInfo.Name.get -> string!
+Tarol.Messaging.ConsumerInfo.Name.init -> void
+Tarol.Messaging.ConsumerInfo.Topics.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Messaging.ConsumerInfo.Topics.init -> void
+Tarol.Messaging.ConsumerRun
+Tarol.Messaging.ConsumerRun.ConsumerRun() -> void
+Tarol.Messaging.ConsumerRun.ConsumerRun(Tarol.Messaging.Mapped Mapped, Tarol.Results.Result<Tarol.Changes.ChangeOutcome> Result) -> void
+Tarol.Messaging.ConsumerRun.Deconstruct(out Tarol.Messaging.Mapped Mapped, out Tarol.Results.Result<Tarol.Changes.ChangeOutcome> Result) -> void
+Tarol.Messaging.ConsumerRun.Equals(Tarol.Messaging.ConsumerRun other) -> bool
+Tarol.Messaging.ConsumerRun.Mapped.get -> Tarol.Messaging.Mapped
+Tarol.Messaging.ConsumerRun.Mapped.init -> void
+Tarol.Messaging.ConsumerRun.Result.get -> Tarol.Results.Result<Tarol.Changes.ChangeOutcome>
+Tarol.Messaging.ConsumerRun.Result.init -> void
+Tarol.Messaging.ConsumerRunner
+Tarol.Messaging.ConsumerSet
+Tarol.Messaging.ConsumerSet.ConsumerSet(System.Collections.Generic.IReadOnlyList<Tarol.Messaging.ConsumerInfo!>! consumers, Tarol.Messaging.ConsumerRunner! runner) -> void
+Tarol.Messaging.ConsumerSet.Consumers.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.ConsumerInfo!>!
+Tarol.Messaging.ConsumerSet.Run(string! consumer, Tarol.Changes.ChangePipeline! pipeline, Tarol.Messaging.Message! message, Tarol.Messaging.MessageScope! scope, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Messaging.ConsumerRun>
+Tarol.Messaging.ConsumesAttribute
+Tarol.Messaging.ConsumesAttribute.ConsumesAttribute(string! contract, int version) -> void
+Tarol.Messaging.ConsumesAttribute.Contract.get -> string!
+Tarol.Messaging.ConsumesAttribute.Name.get -> string?
+Tarol.Messaging.ConsumesAttribute.Name.init -> void
+Tarol.Messaging.ConsumesAttribute.Version.get -> int
+Tarol.Messaging.DeadMessage
+Tarol.Messaging.DeadMessage.<Clone>$() -> Tarol.Messaging.DeadMessage!
+Tarol.Messaging.DeadMessage.Attempts.get -> int
+Tarol.Messaging.DeadMessage.Attempts.init -> void
+Tarol.Messaging.DeadMessage.Data.get -> System.ReadOnlyMemory<byte>
+Tarol.Messaging.DeadMessage.Data.init -> void
+Tarol.Messaging.DeadMessage.DeadAt.get -> System.DateTimeOffset
+Tarol.Messaging.DeadMessage.DeadAt.init -> void
+Tarol.Messaging.DeadMessage.DeadMessage(long Id, string! Subscription, string! Topic, System.Guid? MessageId, int Attempts, string! Reason, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Headers, System.ReadOnlyMemory<byte> Data, System.DateTimeOffset DeadAt) -> void
+Tarol.Messaging.DeadMessage.Deconstruct(out long Id, out string! Subscription, out string! Topic, out System.Guid? MessageId, out int Attempts, out string! Reason, out System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Headers, out System.ReadOnlyMemory<byte> Data, out System.DateTimeOffset DeadAt) -> void
+Tarol.Messaging.DeadMessage.Equals(Tarol.Messaging.DeadMessage? other) -> bool
+Tarol.Messaging.DeadMessage.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Tarol.Messaging.DeadMessage.Headers.init -> void
+Tarol.Messaging.DeadMessage.Id.get -> long
+Tarol.Messaging.DeadMessage.Id.init -> void
+Tarol.Messaging.DeadMessage.MessageId.get -> System.Guid?
+Tarol.Messaging.DeadMessage.MessageId.init -> void
+Tarol.Messaging.DeadMessage.Reason.get -> string!
+Tarol.Messaging.DeadMessage.Reason.init -> void
+Tarol.Messaging.DeadMessage.Subscription.get -> string!
+Tarol.Messaging.DeadMessage.Subscription.init -> void
+Tarol.Messaging.DeadMessage.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Messaging.DeadMessage.ToItem() -> Tarol.Persistence.DeadLetterItem!
+Tarol.Messaging.DeadMessage.Topic.get -> string!
+Tarol.Messaging.DeadMessage.Topic.init -> void
+Tarol.Messaging.EffectContext
+Tarol.Messaging.EffectContext.<Clone>$() -> Tarol.Messaging.EffectContext!
+Tarol.Messaging.EffectContext.Deconstruct(out string! Name, out Tarol.Primitives.RecordedEvent! Recorded, out string! IdempotencyKey) -> void
+Tarol.Messaging.EffectContext.EffectContext(string! Name, Tarol.Primitives.RecordedEvent! Recorded, string! IdempotencyKey) -> void
+Tarol.Messaging.EffectContext.Equals(Tarol.Messaging.EffectContext? other) -> bool
+Tarol.Messaging.EffectContext.IdempotencyKey.get -> string!
+Tarol.Messaging.EffectContext.IdempotencyKey.init -> void
+Tarol.Messaging.EffectContext.Name.get -> string!
+Tarol.Messaging.EffectContext.Name.init -> void
+Tarol.Messaging.EffectContext.Recorded.get -> Tarol.Primitives.RecordedEvent!
+Tarol.Messaging.EffectContext.Recorded.init -> void
+Tarol.Messaging.EffectSet
+Tarol.Messaging.EffectSet.ActivityName(string! reaction) -> string!
+Tarol.Messaging.EffectSet.Add<TEvent>(string! name, System.Func<System.IServiceProvider!, Tarol.Messaging.IEffect<TEvent!>!>! handler) -> Tarol.Messaging.EffectSet!
+Tarol.Messaging.EffectSet.DueAt(Tarol.Primitives.DomainEvent! domainEvent, string! reaction) -> System.DateTimeOffset?
+Tarol.Messaging.EffectSet.EffectSet(System.IServiceProvider? services = null) -> void
+Tarol.Messaging.EffectSet.IsScheduled(string! reaction) -> bool
+Tarol.Messaging.EffectSet.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Messaging.EffectSet.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
+Tarol.Messaging.EffectSet.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Messaging.EffectSet.WithServices(System.IServiceProvider! services) -> Tarol.Messaging.EffectSet!
+Tarol.Messaging.Handled
+Tarol.Messaging.Handled.Ack.get -> Tarol.Messaging.Ack
+Tarol.Messaging.Handled.Ack.init -> void
+Tarol.Messaging.Handled.Deconstruct(out Tarol.Messaging.Ack Ack, out System.TimeSpan RetryAfter) -> void
+Tarol.Messaging.Handled.Equals(Tarol.Messaging.Handled other) -> bool
+Tarol.Messaging.Handled.Handled() -> void
+Tarol.Messaging.Handled.Handled(Tarol.Messaging.Ack Ack, System.TimeSpan RetryAfter = default(System.TimeSpan)) -> void
+Tarol.Messaging.Handled.RetryAfter.get -> System.TimeSpan
+Tarol.Messaging.Handled.RetryAfter.init -> void
+Tarol.Messaging.IEffect<TEvent>
+Tarol.Messaging.IEffect<TEvent>.Run(TEvent! domainEvent, Tarol.Messaging.EffectContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Messaging.IMessageDeadLetters
+Tarol.Messaging.IMessageDeadLetters.Add(string! subscription, Tarol.Messaging.Incoming! incoming, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.IMessageDeadLetters.Discard(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Messaging.IMessageDeadLetters.Discard(long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Messaging.IMessageDeadLetters.List(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.DeadMessage!>!>!
+Tarol.Messaging.IMessageDeadLetters.List(int max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.DeadMessage!>!>!
+Tarol.Messaging.IMessageDeadLetters.Take(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Messaging.DeadMessage?>!
+Tarol.Messaging.IMessageDeadLetters.Take(long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Messaging.DeadMessage?>!
+Tarol.Messaging.IMessageTransport
+Tarol.Messaging.IMessageTransport.Consume(Tarol.Messaging.Subscription! subscription, Tarol.Messaging.MessageHandler! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.IMessageTransport.Prepare(System.Collections.Generic.IReadOnlyList<string!>! topics, System.Collections.Generic.IReadOnlyList<Tarol.Messaging.Subscription!>! subscriptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.IMessageTransport.Publish(Tarol.Messaging.Message! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.InMemoryMessageDeadLetters
+Tarol.Messaging.InMemoryMessageDeadLetters.Add(string! subscription, Tarol.Messaging.Incoming! incoming, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.InMemoryMessageDeadLetters.Count.get -> int
+Tarol.Messaging.InMemoryMessageDeadLetters.Discard(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Messaging.InMemoryMessageDeadLetters.InMemoryMessageDeadLetters(System.TimeProvider! time) -> void
+Tarol.Messaging.InMemoryMessageDeadLetters.List(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.DeadMessage!>!>!
+Tarol.Messaging.InMemoryMessageDeadLetters.List(int max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.DeadMessage!>!>!
+Tarol.Messaging.InMemoryMessageDeadLetters.Take(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Messaging.DeadMessage?>!
+Tarol.Messaging.InMemoryTransport
+Tarol.Messaging.InMemoryTransport.Consume(Tarol.Messaging.Subscription! subscription, Tarol.Messaging.MessageHandler! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.InMemoryTransport.InMemoryTransport(System.TimeProvider! time) -> void
+Tarol.Messaging.InMemoryTransport.Pending.get -> int
+Tarol.Messaging.InMemoryTransport.PollInterval.get -> System.TimeSpan
+Tarol.Messaging.InMemoryTransport.PollInterval.init -> void
+Tarol.Messaging.InMemoryTransport.Prepare(System.Collections.Generic.IReadOnlyList<string!>! topics, System.Collections.Generic.IReadOnlyList<Tarol.Messaging.Subscription!>! subscriptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.InMemoryTransport.Publish(Tarol.Messaging.Message! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.InMemoryTransport.Published.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.Message!>!
+Tarol.Messaging.InMemoryTransport.RunDue(string! subscription, Tarol.Messaging.MessageHandler! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Messaging.Incoming
+Tarol.Messaging.Incoming.<Clone>$() -> Tarol.Messaging.Incoming!
+Tarol.Messaging.Incoming.Attempt.get -> int
+Tarol.Messaging.Incoming.Attempt.init -> void
+Tarol.Messaging.Incoming.AuthenticatedAs.get -> string?
+Tarol.Messaging.Incoming.AuthenticatedAs.init -> void
+Tarol.Messaging.Incoming.Deconstruct(out Tarol.Messaging.Message? Message, out int Attempt, out string? AuthenticatedAs, out System.ReadOnlyMemory<byte> Raw, out string! Topic) -> void
+Tarol.Messaging.Incoming.Equals(Tarol.Messaging.Incoming? other) -> bool
+Tarol.Messaging.Incoming.Incoming(Tarol.Messaging.Message? Message, int Attempt, string? AuthenticatedAs, System.ReadOnlyMemory<byte> Raw, string! Topic) -> void
+Tarol.Messaging.Incoming.Message.get -> Tarol.Messaging.Message?
+Tarol.Messaging.Incoming.Message.init -> void
+Tarol.Messaging.Incoming.Raw.get -> System.ReadOnlyMemory<byte>
+Tarol.Messaging.Incoming.Raw.init -> void
+Tarol.Messaging.Incoming.Topic.get -> string!
+Tarol.Messaging.Incoming.Topic.init -> void
+Tarol.Messaging.Mapped
+Tarol.Messaging.Mapped.Malformed = 1 -> Tarol.Messaging.Mapped
+Tarol.Messaging.Mapped.Ran = 0 -> Tarol.Messaging.Mapped
+Tarol.Messaging.Mapped.UnknownContract = 3 -> Tarol.Messaging.Mapped
+Tarol.Messaging.Mapped.UnknownVersion = 2 -> Tarol.Messaging.Mapped
+Tarol.Messaging.Message
+Tarol.Messaging.Message.<Clone>$() -> Tarol.Messaging.Message!
+Tarol.Messaging.Message.Actor.get -> string?
+Tarol.Messaging.Message.Actor.init -> void
+Tarol.Messaging.Message.ActorSubject.get -> string?
+Tarol.Messaging.Message.Causation.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ICausation!>>
+Tarol.Messaging.Message.Causation.init -> void
+Tarol.Messaging.Message.Correlation.get -> Tarol.StronglyTypedId.Id<Tarol.Kernel.ICorrelation!>
+Tarol.Messaging.Message.Correlation.init -> void
+Tarol.Messaging.Message.Data.get -> System.ReadOnlyMemory<byte>
+Tarol.Messaging.Message.Data.init -> void
+Tarol.Messaging.Message.DedupId.get -> string!
+Tarol.Messaging.Message.Equals(Tarol.Messaging.Message? other) -> bool
+Tarol.Messaging.Message.Headers() -> System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, string!>>!
+Tarol.Messaging.Message.Id.get -> System.Guid
+Tarol.Messaging.Message.Id.init -> void
+Tarol.Messaging.Message.Message() -> void
+Tarol.Messaging.Message.Source.get -> string!
+Tarol.Messaging.Message.Source.init -> void
+Tarol.Messaging.Message.Subject.get -> string?
+Tarol.Messaging.Message.Subject.init -> void
+Tarol.Messaging.Message.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Messaging.Message.Tenant.init -> void
+Tarol.Messaging.Message.Time.get -> System.DateTimeOffset
+Tarol.Messaging.Message.Time.init -> void
+Tarol.Messaging.Message.Traceparent.get -> string?
+Tarol.Messaging.Message.Traceparent.init -> void
+Tarol.Messaging.Message.Type.get -> string!
+Tarol.Messaging.Message.Type.init -> void
+Tarol.Messaging.Message.Version.get -> int
+Tarol.Messaging.Message.Version.init -> void
+Tarol.Messaging.MessageConsumers
+Tarol.Messaging.MessageConsumers.DeadLetters.get -> Tarol.Messaging.IMessageDeadLetters!
+Tarol.Messaging.MessageConsumers.Handle(string! consumer, Tarol.Messaging.Incoming! incoming, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Messaging.Handled>
+Tarol.Messaging.MessageConsumers.MessageConsumers(Tarol.Messaging.ConsumerSet! set, Tarol.Changes.ChangePipeline! pipeline, Tarol.Messaging.IMessageDeadLetters! dead, Tarol.Messaging.MessagingOptions! options, System.Text.Json.JsonSerializerOptions! json, Microsoft.Extensions.Logging.ILogger? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Messaging.MessageConsumers.Redrive(long id, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tarol.Messaging.ConsumerAttempt?>!
+Tarol.Messaging.MessageConsumers.Redrive(long id, string? actor, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Tarol.Messaging.ConsumerAttempt?>!
+Tarol.Messaging.MessageConsumers.Run(Tarol.Messaging.IMessageTransport! transport, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.MessageConsumers.Subscriptions.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.Subscription!>!
+Tarol.Messaging.MessageHandler
+Tarol.Messaging.MessageHeaders
+Tarol.Messaging.MessagePublisher
+Tarol.Messaging.MessagePublisher.ActivityName(string! reaction) -> string!
+Tarol.Messaging.MessagePublisher.DueAt(Tarol.Primitives.DomainEvent! domainEvent, string! reaction) -> System.DateTimeOffset?
+Tarol.Messaging.MessagePublisher.IsScheduled(string! reaction) -> bool
+Tarol.Messaging.MessagePublisher.MessagePublisher(Tarol.Messaging.PublicationSet! set, Tarol.Messaging.IMessageTransport! transport, System.Text.Json.JsonSerializerOptions! json, Microsoft.Extensions.Logging.ILogger? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Messaging.MessagePublisher.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Messaging.MessagePublisher.Publications.get -> Tarol.Messaging.PublicationSet!
+Tarol.Messaging.MessagePublisher.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
+Tarol.Messaging.MessagePublisher.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Messaging.MessageScope
+Tarol.Messaging.MessageScope.MessageScope(Tarol.Kernel.OperationContext! operation, Tarol.Changes.ChangeOptions options, System.Text.Json.JsonSerializerOptions! json) -> void
+Tarol.Messaging.MessageScope.Operation.get -> Tarol.Kernel.OperationContext!
+Tarol.Messaging.MessageScope.Options.get -> Tarol.Changes.ChangeOptions
+Tarol.Messaging.MessageScope.Payload<T>(System.ReadOnlyMemory<byte> data) -> T?
+Tarol.Messaging.MessageTest
+Tarol.Messaging.MessageTest.Attempts.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.ConsumerAttempt!>!
+Tarol.Messaging.MessageTest.Clock.get -> System.TimeProvider!
+Tarol.Messaging.MessageTest.Consumers.get -> Tarol.Messaging.MessageConsumers!
+Tarol.Messaging.MessageTest.DeadLetters.get -> Tarol.Messaging.InMemoryMessageDeadLetters!
+Tarol.Messaging.MessageTest.DeadMessages() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.DeadMessage!>!>!
+Tarol.Messaging.MessageTest.Drain() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.ConsumerAttempt!>!>!
+Tarol.Messaging.MessageTest.From(Tarol.Kernel.Actor! actor) -> Tarol.Messaging.MessageTest!
+Tarol.Messaging.MessageTest.Given<T>(T! aggregate) -> Tarol.Messaging.MessageTest!
+Tarol.Messaging.MessageTest.InTenant(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant) -> Tarol.Messaging.MessageTest!
+Tarol.Messaging.MessageTest.Later(System.TimeSpan delta) -> Tarol.Messaging.MessageTest!
+Tarol.Messaging.MessageTest.Load<T>(Tarol.StronglyTypedId.Id<T!> id) -> T!
+Tarol.Messaging.MessageTest.Message<T>(string! contract, int version, T payload, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>! typeInfo) -> Tarol.Messaging.Message!
+Tarol.Messaging.MessageTest.Options.get -> Tarol.Messaging.MessagingOptions!
+Tarol.Messaging.MessageTest.Pipeline.get -> Tarol.Changes.ChangePipeline!
+Tarol.Messaging.MessageTest.Redrive(long id) -> System.Threading.Tasks.Task<Tarol.Messaging.ConsumerAttempt?>!
+Tarol.Messaging.MessageTest.Send(Tarol.Messaging.Message! message) -> System.Threading.Tasks.Task!
+Tarol.Messaging.MessageTest.Store.get -> Tarol.Persistence.InMemoryAggregateStore!
+Tarol.Messaging.MessageTest.Transport.get -> Tarol.Messaging.InMemoryTransport!
+Tarol.Messaging.MessageTest.Trust(string! source, System.Action<Tarol.Messaging.SourceTrust!>? configure = null) -> Tarol.Messaging.MessageTest!
+Tarol.Messaging.MessagingBuilder
+Tarol.Messaging.MessagingBuilder.Consume(Tarol.Messaging.ConsumerSet! consumers) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.Effect<TEvent, THandler>(string! name) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.Effect<TEvent>(string! name, System.Func<System.IServiceProvider!, Tarol.Messaging.IEffect<TEvent!>!>! handler) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.Options.get -> Tarol.Messaging.MessagingOptions!
+Tarol.Messaging.MessagingBuilder.Publish(Tarol.Messaging.PublicationSet! publications) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.Tarol.get -> Tarol.Persistence.TarolBuilder!
+Tarol.Messaging.MessagingBuilder.Trust(string! source, System.Action<Tarol.Messaging.SourceTrust!>? configure = null) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.UseDeadLetters(System.Func<System.IServiceProvider!, Tarol.Messaging.IMessageDeadLetters!>! deadLetters) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.UseInMemoryDeadLetters() -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.UseInMemoryTransport() -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.UseTransport(System.Func<System.IServiceProvider!, Tarol.Messaging.IMessageTransport!>! transport) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingHost
+Tarol.Messaging.MessagingHost.MessagingHost(Tarol.Messaging.IMessageTransport! transport, Tarol.Messaging.MessageConsumers! consumers, System.TimeProvider! time, Microsoft.Extensions.Logging.ILogger<Tarol.Messaging.MessagingHost!>? logger = null) -> void
+Tarol.Messaging.MessagingHost.RestartDelay.get -> System.TimeSpan
+Tarol.Messaging.MessagingHost.RestartDelay.init -> void
+Tarol.Messaging.MessagingOptions
+Tarol.Messaging.MessagingOptions.Application.get -> string!
+Tarol.Messaging.MessagingOptions.Application.set -> void
+Tarol.Messaging.MessagingOptions.Concurrency.get -> int
+Tarol.Messaging.MessagingOptions.Concurrency.set -> void
+Tarol.Messaging.MessagingOptions.Lease.get -> System.TimeSpan
+Tarol.Messaging.MessagingOptions.Lease.set -> void
+Tarol.Messaging.MessagingOptions.MessagingOptions() -> void
+Tarol.Messaging.MessagingOptions.Policy.get -> Tarol.Sagas.DeliveryPolicy!
+Tarol.Messaging.MessagingOptions.Policy.set -> void
+Tarol.Messaging.MessagingOptions.Sources.get -> System.Collections.Generic.IReadOnlyDictionary<string!, Tarol.Messaging.SourceTrust!>!
+Tarol.Messaging.MessagingOptions.Trust(string! source, System.Action<Tarol.Messaging.SourceTrust!>? configure = null) -> Tarol.Messaging.MessagingOptions!
+Tarol.Messaging.MessagingOptions.Validate() -> void
+Tarol.Messaging.MessagingStep
+Tarol.Messaging.MessagingStep.<Clone>$() -> Tarol.Messaging.MessagingStep!
+Tarol.Messaging.MessagingStep.Application.get -> string!
+Tarol.Messaging.MessagingStep.Application.init -> void
+Tarol.Messaging.MessagingStep.Deconstruct(out string! Application, out Tarol.Sagas.ReactionAttempt? Row, out Tarol.Messaging.ConsumerAttempt? Delivery) -> void
+Tarol.Messaging.MessagingStep.Delivery.get -> Tarol.Messaging.ConsumerAttempt?
+Tarol.Messaging.MessagingStep.Delivery.init -> void
+Tarol.Messaging.MessagingStep.Equals(Tarol.Messaging.MessagingStep? other) -> bool
+Tarol.Messaging.MessagingStep.MessagingStep(string! Application, Tarol.Sagas.ReactionAttempt? Row, Tarol.Messaging.ConsumerAttempt? Delivery) -> void
+Tarol.Messaging.MessagingStep.Row.get -> Tarol.Sagas.ReactionAttempt?
+Tarol.Messaging.MessagingStep.Row.init -> void
+Tarol.Messaging.MessagingSystem
+Tarol.Messaging.MessagingSystem.Application.get -> string!
+Tarol.Messaging.MessagingSystem.As(Tarol.Kernel.Actor! actor) -> Tarol.Messaging.MessagingSystem!
+Tarol.Messaging.MessagingSystem.Consumers.get -> Tarol.Messaging.MessageConsumers!
+Tarol.Messaging.MessagingSystem.Context(Tarol.Kernel.Actor? actor = null) -> Tarol.Kernel.OperationContext!
+Tarol.Messaging.MessagingSystem.DeadLetters.get -> Tarol.Messaging.InMemoryMessageDeadLetters!
+Tarol.Messaging.MessagingSystem.Deliveries.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.ConsumerAttempt!>!
+Tarol.Messaging.MessagingSystem.Given<T>(T! aggregate) -> Tarol.Messaging.MessagingSystem!
+Tarol.Messaging.MessagingSystem.InTenant(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant) -> Tarol.Messaging.MessagingSystem!
+Tarol.Messaging.MessagingSystem.Load<T>(Tarol.StronglyTypedId.Id<T!> id) -> T!
+Tarol.Messaging.MessagingSystem.Outbox.get -> Tarol.Persistence.IOutbox!
+Tarol.Messaging.MessagingSystem.OutboxDead() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetter!>!>!
+Tarol.Messaging.MessagingSystem.Pipeline.get -> Tarol.Changes.ChangePipeline!
+Tarol.Messaging.MessagingSystem.Publisher.get -> Tarol.Messaging.MessagePublisher!
+Tarol.Messaging.MessagingSystem.Rows.get -> System.Collections.Generic.IReadOnlyList<Tarol.Sagas.ReactionAttempt!>!
+Tarol.Messaging.MessagingSystem.Store.get -> Tarol.Persistence.InMemoryAggregateStore!
+Tarol.Messaging.MessagingSystem.When<T>(Tarol.Changes.IChange<T!>! change, Tarol.Kernel.Actor? actor = null) -> System.Threading.Tasks.Task<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>!
+Tarol.Messaging.MessagingSystem.When<T>(Tarol.Changes.ICreation<T!>! creation, Tarol.Kernel.Actor? actor = null) -> System.Threading.Tasks.Task<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>!
+Tarol.Messaging.MessagingSystemOptions
+Tarol.Messaging.MessagingSystemOptions.Consumers.get -> Tarol.Messaging.ConsumerSet?
+Tarol.Messaging.MessagingSystemOptions.Consumers.set -> void
+Tarol.Messaging.MessagingSystemOptions.Effects.get -> Tarol.Messaging.EffectSet!
+Tarol.Messaging.MessagingSystemOptions.Effects.set -> void
+Tarol.Messaging.MessagingSystemOptions.MessagingSystemOptions() -> void
+Tarol.Messaging.MessagingSystemOptions.Policy.get -> Tarol.Sagas.DeliveryPolicy!
+Tarol.Messaging.MessagingSystemOptions.Policy.set -> void
+Tarol.Messaging.MessagingSystemOptions.Publications.get -> Tarol.Messaging.PublicationSet!
+Tarol.Messaging.MessagingSystemOptions.Publications.set -> void
+Tarol.Messaging.MessagingSystemOptions.PublishThrough.get -> System.Func<Tarol.Messaging.IMessageTransport!, Tarol.Messaging.IMessageTransport!>?
+Tarol.Messaging.MessagingSystemOptions.PublishThrough.set -> void
+Tarol.Messaging.MessagingSystemOptions.Reactions.get -> Tarol.Changes.ReactionSet!
+Tarol.Messaging.MessagingSystemOptions.Reactions.set -> void
+Tarol.Messaging.MessagingSystemOptions.StateOptions.get -> System.Text.Json.JsonSerializerOptions?
+Tarol.Messaging.MessagingSystemOptions.StateOptions.set -> void
+Tarol.Messaging.MessagingSystemOptions.Trust(string! source, System.Action<Tarol.Messaging.SourceTrust!>? configure = null) -> Tarol.Messaging.MessagingSystemOptions!
+Tarol.Messaging.MessagingTarolBuilderExtensions
+Tarol.Messaging.MessagingTest
+Tarol.Messaging.MessagingTest.Clock.get -> System.TimeProvider!
+Tarol.Messaging.MessagingTest.Drain() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.MessagingStep!>!>!
+Tarol.Messaging.MessagingTest.Later(System.TimeSpan delta) -> Tarol.Messaging.MessagingTest!
+Tarol.Messaging.MessagingTest.System(string! application, System.Text.Json.JsonSerializerOptions! json, System.Action<Tarol.Messaging.MessagingSystemOptions!>! configure) -> Tarol.Messaging.MessagingTest!
+Tarol.Messaging.MessagingTest.Systems.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.MessagingSystem!>!
+Tarol.Messaging.MessagingTest.Transport.get -> Tarol.Messaging.InMemoryTransport!
+Tarol.Messaging.MessagingTest.this[string! application].get -> Tarol.Messaging.MessagingSystem!
+Tarol.Messaging.PublicationInfo
+Tarol.Messaging.PublicationInfo.<Clone>$() -> Tarol.Messaging.PublicationInfo!
+Tarol.Messaging.PublicationInfo.Contract.get -> string!
+Tarol.Messaging.PublicationInfo.Contract.init -> void
+Tarol.Messaging.PublicationInfo.Deconstruct(out string! Name, out string! Contract, out int Version) -> void
+Tarol.Messaging.PublicationInfo.Equals(Tarol.Messaging.PublicationInfo? other) -> bool
+Tarol.Messaging.PublicationInfo.Name.get -> string!
+Tarol.Messaging.PublicationInfo.Name.init -> void
+Tarol.Messaging.PublicationInfo.PublicationInfo(string! Name, string! Contract, int Version) -> void
+Tarol.Messaging.PublicationInfo.Version.get -> int
+Tarol.Messaging.PublicationInfo.Version.init -> void
+Tarol.Messaging.PublicationMapper
+Tarol.Messaging.PublicationSet
+Tarol.Messaging.PublicationSet.DueAt(Tarol.Primitives.DomainEvent! domainEvent, string! reaction) -> System.DateTimeOffset?
+Tarol.Messaging.PublicationSet.Find(string! name) -> Tarol.Messaging.PublicationInfo?
+Tarol.Messaging.PublicationSet.IsScheduled(string! reaction) -> bool
+Tarol.Messaging.PublicationSet.Map(string! name, Tarol.Primitives.RecordedEvent! recorded, System.Text.Json.JsonSerializerOptions! json) -> byte[]?
+Tarol.Messaging.PublicationSet.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Messaging.PublicationSet.PublicationSet(System.Collections.Generic.IReadOnlyList<Tarol.Messaging.PublicationInfo!>! publications, Tarol.Persistence.ReactionTable! table, Tarol.Messaging.PublicationMapper! mapper) -> void
+Tarol.Messaging.PublicationSet.Publications.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.PublicationInfo!>!
+Tarol.Messaging.PublicationSet.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
+Tarol.Messaging.PublicationSet.Topics.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Messaging.PublishesAttribute<TEvent>
+Tarol.Messaging.PublishesAttribute<TEvent>.Contract.get -> string!
+Tarol.Messaging.PublishesAttribute<TEvent>.PublishesAttribute(string! contract, int version) -> void
+Tarol.Messaging.PublishesAttribute<TEvent>.Version.get -> int
+Tarol.Messaging.SourceTrust
+Tarol.Messaging.SourceTrust.AllowedTenants.get -> System.Collections.Generic.IReadOnlyCollection<System.Guid>!
+Tarol.Messaging.SourceTrust.Allows(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant) -> bool
+Tarol.Messaging.SourceTrust.AllowsAnyTenant.get -> bool
+Tarol.Messaging.SourceTrust.AnyTenant() -> Tarol.Messaging.SourceTrust!
+Tarol.Messaging.SourceTrust.SourceTrust() -> void
+Tarol.Messaging.SourceTrust.Tenants(params Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>[]! tenants) -> Tarol.Messaging.SourceTrust!
+Tarol.Messaging.Subscription
+Tarol.Messaging.Subscription.<Clone>$() -> Tarol.Messaging.Subscription!
+Tarol.Messaging.Subscription.Concurrency.get -> int
+Tarol.Messaging.Subscription.Concurrency.init -> void
+Tarol.Messaging.Subscription.Deconstruct(out string! Name, out System.Collections.Generic.IReadOnlyList<string!>! Topics) -> void
+Tarol.Messaging.Subscription.Equals(Tarol.Messaging.Subscription? other) -> bool
+Tarol.Messaging.Subscription.Lease.get -> System.TimeSpan
+Tarol.Messaging.Subscription.Lease.init -> void
+Tarol.Messaging.Subscription.Name.get -> string!
+Tarol.Messaging.Subscription.Name.init -> void
+Tarol.Messaging.Subscription.Subscription(string! Name, System.Collections.Generic.IReadOnlyList<string!>! Topics) -> void
+Tarol.Messaging.Subscription.Topics.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Messaging.Subscription.Topics.init -> void
+const Tarol.Messaging.MessageConsumers.ActivitySourceName = "Tarol.Messaging" -> string!
+const Tarol.Messaging.MessageConsumers.MeterName = "Tarol.Messaging" -> string!
+const Tarol.Messaging.MessageHeaders.Actor = "ce-actor" -> string!
+const Tarol.Messaging.MessageHeaders.Causation = "ce-causation" -> string!
+const Tarol.Messaging.MessageHeaders.ContentType = "content-type" -> string!
+const Tarol.Messaging.MessageHeaders.ContractVersion = "ce-contractversion" -> string!
+const Tarol.Messaging.MessageHeaders.Correlation = "ce-correlation" -> string!
+const Tarol.Messaging.MessageHeaders.Id = "ce-id" -> string!
+const Tarol.Messaging.MessageHeaders.Source = "ce-source" -> string!
+const Tarol.Messaging.MessageHeaders.SpecVersion = "ce-specversion" -> string!
+const Tarol.Messaging.MessageHeaders.Subject = "ce-subject" -> string!
+const Tarol.Messaging.MessageHeaders.Tenant = "ce-tenant" -> string!
+const Tarol.Messaging.MessageHeaders.Time = "ce-time" -> string!
+const Tarol.Messaging.MessageHeaders.Traceparent = "traceparent" -> string!
+const Tarol.Messaging.MessageHeaders.Type = "ce-type" -> string!
+override Tarol.Messaging.ConsumerAttempt.Equals(object? obj) -> bool
+override Tarol.Messaging.ConsumerAttempt.GetHashCode() -> int
+override Tarol.Messaging.ConsumerAttempt.ToString() -> string!
+override Tarol.Messaging.ConsumerInfo.Equals(object? obj) -> bool
+override Tarol.Messaging.ConsumerInfo.GetHashCode() -> int
+override Tarol.Messaging.ConsumerInfo.ToString() -> string!
+~override Tarol.Messaging.ConsumerRun.Equals(object obj) -> bool
+override Tarol.Messaging.ConsumerRun.GetHashCode() -> int
+~override Tarol.Messaging.ConsumerRun.ToString() -> string
+override Tarol.Messaging.DeadMessage.Equals(object? obj) -> bool
+override Tarol.Messaging.DeadMessage.GetHashCode() -> int
+override Tarol.Messaging.DeadMessage.ToString() -> string!
+override Tarol.Messaging.EffectContext.Equals(object? obj) -> bool
+override Tarol.Messaging.EffectContext.GetHashCode() -> int
+override Tarol.Messaging.EffectContext.ToString() -> string!
+~override Tarol.Messaging.Handled.Equals(object obj) -> bool
+override Tarol.Messaging.Handled.GetHashCode() -> int
+~override Tarol.Messaging.Handled.ToString() -> string
+override Tarol.Messaging.Incoming.Equals(object? obj) -> bool
+override Tarol.Messaging.Incoming.GetHashCode() -> int
+override Tarol.Messaging.Incoming.ToString() -> string!
+override Tarol.Messaging.Message.Equals(object? obj) -> bool
+override Tarol.Messaging.Message.GetHashCode() -> int
+override Tarol.Messaging.Message.ToString() -> string!
+override Tarol.Messaging.MessagingStep.Equals(object? obj) -> bool
+override Tarol.Messaging.MessagingStep.GetHashCode() -> int
+override Tarol.Messaging.MessagingStep.ToString() -> string!
+override Tarol.Messaging.PublicationInfo.Equals(object? obj) -> bool
+override Tarol.Messaging.PublicationInfo.GetHashCode() -> int
+override Tarol.Messaging.PublicationInfo.ToString() -> string!
+override Tarol.Messaging.Subscription.Equals(object? obj) -> bool
+override Tarol.Messaging.Subscription.GetHashCode() -> int
+override Tarol.Messaging.Subscription.ToString() -> string!
+static Tarol.Messaging.ConsumerAttempt.operator !=(Tarol.Messaging.ConsumerAttempt? left, Tarol.Messaging.ConsumerAttempt? right) -> bool
+static Tarol.Messaging.ConsumerAttempt.operator ==(Tarol.Messaging.ConsumerAttempt? left, Tarol.Messaging.ConsumerAttempt? right) -> bool
+static Tarol.Messaging.ConsumerInfo.operator !=(Tarol.Messaging.ConsumerInfo? left, Tarol.Messaging.ConsumerInfo? right) -> bool
+static Tarol.Messaging.ConsumerInfo.operator ==(Tarol.Messaging.ConsumerInfo? left, Tarol.Messaging.ConsumerInfo? right) -> bool
+static Tarol.Messaging.ConsumerRun.Not(Tarol.Messaging.Mapped mapped) -> Tarol.Messaging.ConsumerRun
+static Tarol.Messaging.ConsumerRun.operator !=(Tarol.Messaging.ConsumerRun left, Tarol.Messaging.ConsumerRun right) -> bool
+static Tarol.Messaging.ConsumerRun.operator ==(Tarol.Messaging.ConsumerRun left, Tarol.Messaging.ConsumerRun right) -> bool
+static Tarol.Messaging.ConsumerSet.Combine(params Tarol.Messaging.ConsumerSet![]! sets) -> Tarol.Messaging.ConsumerSet!
+static Tarol.Messaging.DeadMessage.operator !=(Tarol.Messaging.DeadMessage? left, Tarol.Messaging.DeadMessage? right) -> bool
+static Tarol.Messaging.DeadMessage.operator ==(Tarol.Messaging.DeadMessage? left, Tarol.Messaging.DeadMessage? right) -> bool
+static Tarol.Messaging.EffectContext.operator !=(Tarol.Messaging.EffectContext? left, Tarol.Messaging.EffectContext? right) -> bool
+static Tarol.Messaging.EffectContext.operator ==(Tarol.Messaging.EffectContext? left, Tarol.Messaging.EffectContext? right) -> bool
+static Tarol.Messaging.EffectSet.RowOf(string! name) -> string!
+static Tarol.Messaging.Handled.operator !=(Tarol.Messaging.Handled left, Tarol.Messaging.Handled right) -> bool
+static Tarol.Messaging.Handled.operator ==(Tarol.Messaging.Handled left, Tarol.Messaging.Handled right) -> bool
+static Tarol.Messaging.Incoming.operator !=(Tarol.Messaging.Incoming? left, Tarol.Messaging.Incoming? right) -> bool
+static Tarol.Messaging.Incoming.operator ==(Tarol.Messaging.Incoming? left, Tarol.Messaging.Incoming? right) -> bool
+static Tarol.Messaging.Message.From(System.Func<string!, string?>! header, System.ReadOnlyMemory<byte> data) -> Tarol.Messaging.Message?
+static Tarol.Messaging.Message.Of(Tarol.Primitives.RecordedEvent! recorded, string! contract, int version, System.ReadOnlyMemory<byte> data, string? traceparent) -> Tarol.Messaging.Message!
+static Tarol.Messaging.Message.SystemOf(string! contract) -> string!
+static Tarol.Messaging.Message.operator !=(Tarol.Messaging.Message? left, Tarol.Messaging.Message? right) -> bool
+static Tarol.Messaging.Message.operator ==(Tarol.Messaging.Message? left, Tarol.Messaging.Message? right) -> bool
+static Tarol.Messaging.MessageTest.At(System.DateTimeOffset now, Tarol.Messaging.ConsumerSet! consumers, System.Text.Json.JsonSerializerOptions! json, string! application = "test", System.Text.Json.JsonSerializerOptions? stateOptions = null, Tarol.Sagas.DeliveryPolicy? policy = null) -> Tarol.Messaging.MessageTest!
+static Tarol.Messaging.MessagingStep.operator !=(Tarol.Messaging.MessagingStep? left, Tarol.Messaging.MessagingStep? right) -> bool
+static Tarol.Messaging.MessagingStep.operator ==(Tarol.Messaging.MessagingStep? left, Tarol.Messaging.MessagingStep? right) -> bool
+static Tarol.Messaging.MessagingTarolBuilderExtensions.AddMessaging(this Tarol.Persistence.TarolBuilder! builder, string! application, System.Action<Tarol.Messaging.MessagingBuilder!>! configure) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Messaging.MessagingTest.At(System.DateTimeOffset now) -> Tarol.Messaging.MessagingTest!
+static Tarol.Messaging.PublicationInfo.NameOf(string! contract, int version) -> string!
+static Tarol.Messaging.PublicationInfo.operator !=(Tarol.Messaging.PublicationInfo? left, Tarol.Messaging.PublicationInfo? right) -> bool
+static Tarol.Messaging.PublicationInfo.operator ==(Tarol.Messaging.PublicationInfo? left, Tarol.Messaging.PublicationInfo? right) -> bool
+static Tarol.Messaging.PublicationSet.Combine(params Tarol.Messaging.PublicationSet![]! sets) -> Tarol.Messaging.PublicationSet!
+static Tarol.Messaging.PublicationSet.Empty.get -> Tarol.Messaging.PublicationSet!
+static Tarol.Messaging.PublicationSet.Serialize<T>(T? value, System.Text.Json.JsonSerializerOptions! json) -> byte[]?
+static Tarol.Messaging.Subscription.operator !=(Tarol.Messaging.Subscription? left, Tarol.Messaging.Subscription? right) -> bool
+static Tarol.Messaging.Subscription.operator ==(Tarol.Messaging.Subscription? left, Tarol.Messaging.Subscription? right) -> bool
+virtual Tarol.Messaging.ConsumerRunner.Invoke(string! consumer, Tarol.Changes.ChangePipeline! pipeline, Tarol.Messaging.Message! message, Tarol.Messaging.MessageScope! scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Messaging.ConsumerRun>
+virtual Tarol.Messaging.MessageHandler.Invoke(Tarol.Messaging.Incoming! incoming, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Messaging.Handled>
+virtual Tarol.Messaging.PublicationMapper.Invoke(string! publication, Tarol.Primitives.RecordedEvent! recorded, System.Text.Json.JsonSerializerOptions! json) -> byte[]?

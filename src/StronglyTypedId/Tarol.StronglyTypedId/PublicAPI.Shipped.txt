@@ -1,0 +1,64 @@
+#nullable enable
+Tarol.StronglyTypedId.IStronglyTypedId
+Tarol.StronglyTypedId.IStronglyTypedId.Value.get -> System.Guid
+Tarol.StronglyTypedId.Id<T>
+Tarol.StronglyTypedId.Id<T>.CompareTo(Tarol.StronglyTypedId.Id<T> other) -> int
+Tarol.StronglyTypedId.Id<T>.Equals(System.Guid other) -> bool
+Tarol.StronglyTypedId.Id<T>.Equals(Tarol.StronglyTypedId.Id<T> other) -> bool
+Tarol.StronglyTypedId.Id<T>.Id() -> void
+Tarol.StronglyTypedId.Id<T>.ToString(string? format) -> string!
+Tarol.StronglyTypedId.Id<T>.ToString(string? format, System.IFormatProvider? formatProvider) -> string!
+Tarol.StronglyTypedId.Id<T>.TryFormat(System.Span<byte> utf8Destination, out int bytesWritten, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) -> bool
+Tarol.StronglyTypedId.Id<T>.TryFormat(System.Span<char> destination, out int charsWritten, System.ReadOnlySpan<char> format, System.IFormatProvider? provider) -> bool
+Tarol.StronglyTypedId.Id<T>.UnsafeAs<TNew>() -> Tarol.StronglyTypedId.Id<TNew>
+Tarol.StronglyTypedId.Id<T>.Value.get -> System.Guid
+Tarol.StronglyTypedId.IdConverterRegistry
+Tarol.StronglyTypedId.IdExtensions
+Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>)
+Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).IsEmpty.get -> bool
+Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).ThrowIfEmpty(string? paramName = null) -> Tarol.StronglyTypedId.Id<T>
+Tarol.StronglyTypedId.IdJsonConverter<T>
+Tarol.StronglyTypedId.IdJsonConverter<T>.IdJsonConverter() -> void
+Tarol.StronglyTypedId.IdTypeConverter<T>
+Tarol.StronglyTypedId.IdTypeConverter<T>.IdTypeConverter() -> void
+~override Tarol.StronglyTypedId.Id<T>.Equals(object obj) -> bool
+override Tarol.StronglyTypedId.Id<T>.GetHashCode() -> int
+override Tarol.StronglyTypedId.Id<T>.ToString() -> string!
+override Tarol.StronglyTypedId.IdJsonConverter<T>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.StronglyTypedId.Id<T>
+override Tarol.StronglyTypedId.IdJsonConverter<T>.ReadAsPropertyName(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.StronglyTypedId.Id<T>
+override Tarol.StronglyTypedId.IdJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.StronglyTypedId.Id<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.StronglyTypedId.IdJsonConverter<T>.WriteAsPropertyName(System.Text.Json.Utf8JsonWriter! writer, Tarol.StronglyTypedId.Id<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.StronglyTypedId.IdTypeConverter<T>.CanConvertFrom(System.ComponentModel.ITypeDescriptorContext? context, System.Type! sourceType) -> bool
+override Tarol.StronglyTypedId.IdTypeConverter<T>.CanConvertTo(System.ComponentModel.ITypeDescriptorContext? context, System.Type? destinationType) -> bool
+override Tarol.StronglyTypedId.IdTypeConverter<T>.ConvertFrom(System.ComponentModel.ITypeDescriptorContext? context, System.Globalization.CultureInfo? culture, object! value) -> object?
+override Tarol.StronglyTypedId.IdTypeConverter<T>.ConvertTo(System.ComponentModel.ITypeDescriptorContext? context, System.Globalization.CultureInfo? culture, object? value, System.Type! destinationType) -> object?
+static Tarol.StronglyTypedId.Id<T>.Parse(System.ReadOnlySpan<byte> utf8Text, System.IFormatProvider? provider) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.Id<T>.Parse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.Id<T>.Parse(string! s, System.IFormatProvider? provider) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.Id<T>.TryParse(System.ReadOnlySpan<byte> utf8Text, System.IFormatProvider? provider, out Tarol.StronglyTypedId.Id<T> result) -> bool
+static Tarol.StronglyTypedId.Id<T>.TryParse(System.ReadOnlySpan<char> s, System.IFormatProvider? provider, out Tarol.StronglyTypedId.Id<T> result) -> bool
+static Tarol.StronglyTypedId.Id<T>.TryParse(string? s, System.IFormatProvider? provider, out Tarol.StronglyTypedId.Id<T> result) -> bool
+static Tarol.StronglyTypedId.Id<T>.explicit operator System.Guid(Tarol.StronglyTypedId.Id<T> id) -> System.Guid
+static Tarol.StronglyTypedId.Id<T>.explicit operator Tarol.StronglyTypedId.Id<T>(System.Guid value) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.Id<T>.operator !=(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
+static Tarol.StronglyTypedId.Id<T>.operator <(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
+static Tarol.StronglyTypedId.Id<T>.operator <=(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
+static Tarol.StronglyTypedId.Id<T>.operator ==(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
+static Tarol.StronglyTypedId.Id<T>.operator >(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
+static Tarol.StronglyTypedId.Id<T>.operator >=(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
+static Tarol.StronglyTypedId.IdConverterRegistry.Register<T>() -> void
+static Tarol.StronglyTypedId.IdExtensions.From<T>(System.Guid value) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.New<T>() -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.New<T>(System.DateTimeOffset timestamp) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.New<T>(System.TimeProvider! timeProvider) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.Parse<T>(string! value) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.ThrowIfEmpty<T>(this Tarol.StronglyTypedId.Id<T> id, string? paramName = null) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.TryParse<T>(string? value, out Tarol.StronglyTypedId.Id<T> id) -> bool
+static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).From(System.Guid value) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).New() -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).New(System.DateTimeOffset timestamp) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).New(System.TimeProvider! timeProvider) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).Parse(string! value) -> Tarol.StronglyTypedId.Id<T>
+static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).TryParse(string? value, out Tarol.StronglyTypedId.Id<T> id) -> bool
+static Tarol.StronglyTypedId.IdExtensions.get_IsEmpty<T>(Tarol.StronglyTypedId.Id<T> id) -> bool
+static readonly Tarol.StronglyTypedId.Id<T>.Empty -> Tarol.StronglyTypedId.Id<T>

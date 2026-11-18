@@ -1,0 +1,13 @@
+# Global analyzer config for the runtime packages (src/Directory.Build.props adds it).
+# A global config reaches generated sources too; .editorconfig sections do not, and RS0041 fires in code System.Text.Json generates.
+is_global = true
+
+# RS0026/RS0027 (PublicApiAnalyzers): "do not add multiple overloads with optional parameters". Tarol's 12 such pairs differ in
+# a required parameter's type (Run<T>(IChange<T>, ...) / Run<T>(ICreation<T>, ...)); no call is ambiguous, and removing the
+# defaults would break callers. RS0016/RS0017 still make every change of a public signature an error (RL-5).
+dotnet_diagnostic.RS0026.severity = none
+dotnet_diagnostic.RS0027.severity = none
+# RS0041 (PublicApiAnalyzers): "public members should not use oblivious types". Nullable is enabled everywhere and its warnings
+# are errors; the 30 hits are members System.Text.Json generates into public contexts and nested types of generic types, which
+# the analyzer reads as oblivious (docs/migration/release.md §2.5, RL-5).
+dotnet_diagnostic.RS0041.severity = none

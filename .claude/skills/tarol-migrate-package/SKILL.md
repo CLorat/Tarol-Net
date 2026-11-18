@@ -15,7 +15,9 @@ description: >-
 4. Create `src/<Family>/Tarol.<Family>/` (+ `.Generators`, satellites) and `tests/<Family>/`
    (`.Tests`, `.Generators.Tests`, `.AotSmoke`, `.PackageTests`). Names = assembly names.
 5. Port, then improve. Keep csproj files minimal; inherit from the layered props.
-6. Add `README.md` and `skills/tarol-<topic>/SKILL.md` next to the runtime csproj.
+6. Add `README.md` and `skills/tarol-<topic>/SKILL.md` next to the runtime csproj, and an empty
+   `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt` (`#nullable enable` as the first line); then
+   `eng/public-api.py update` writes the package's public API into `Unshipped` (never by hand).
 7. Add every project to `Tarol.slnx` (`dotnet sln Tarol.slnx add <csproj> --solution-folder <path>`),
    except `*.PackageTests`, which restore from the local feed and are run by `eng/verify-packages.sh`.
 8. Verify, and paste the results into the migration note:

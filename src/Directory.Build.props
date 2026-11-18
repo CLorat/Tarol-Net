@@ -20,7 +20,17 @@
 
   <ItemGroup Condition="'$(TarolIsGenerator)' != 'true'">
     <PackageReference Include="MinVer" PrivateAssets="all" />
+    <!-- The public API baseline (D-6): RS0016/RS0017 make every public change an error until the files say so.
+         eng/public-api.py writes the files from the analyzer's own SARIF output. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt;PublicAPI.Unshipped.txt" />
+    <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)PublicApi.globalconfig" />
   </ItemGroup>
+
+  <!-- eng/public-api.py update: one SARIF log per project, read for the exact line the analyzer expects. -->
+  <PropertyGroup Condition="'$(TarolIsGenerator)' != 'true' and '$(TarolPublicApiLog)' != ''">
+    <ErrorLog>$(TarolPublicApiLog)/$(MSBuildProjectName).sarif,version=2.1</ErrorLog>
+  </PropertyGroup>
 
   <!-- Source generators and analyzers: netstandard2.0, never packed on their own (D-10: they ship
        inside their runtime package, see eng/Tarol.Packaging.targets). -->

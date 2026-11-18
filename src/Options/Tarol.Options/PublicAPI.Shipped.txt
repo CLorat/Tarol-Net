@@ -1,0 +1,48 @@
+#nullable enable
+Tarol.Options.Json.OptionJsonConverter<T>
+Tarol.Options.Json.OptionJsonConverter<T>.OptionJsonConverter() -> void
+Tarol.Options.None
+Tarol.Options.None.Equals(Tarol.Options.None other) -> bool
+Tarol.Options.None.None() -> void
+Tarol.Options.Option
+Tarol.Options.Option<T>
+Tarol.Options.Option<T>.Bind<TNew>(System.Func<T, Tarol.Options.Option<TNew>>! bind) -> Tarol.Options.Option<TNew>
+Tarol.Options.Option<T>.Equals(Tarol.Options.Option<T> other) -> bool
+Tarol.Options.Option<T>.Filter(System.Func<T, bool>! predicate) -> Tarol.Options.Option<T>
+Tarol.Options.Option<T>.GetValueOrDefault(System.Func<T>! fallback) -> T
+Tarol.Options.Option<T>.GetValueOrDefault(T fallback) -> T
+Tarol.Options.Option<T>.GetValueOrThrow() -> T
+Tarol.Options.Option<T>.HasValue.get -> bool
+Tarol.Options.Option<T>.IsNone.get -> bool
+Tarol.Options.Option<T>.IsSome.get -> bool
+Tarol.Options.Option<T>.Map<TNew>(System.Func<T, TNew>! map) -> Tarol.Options.Option<TNew>
+Tarol.Options.Option<T>.Match<TOut>(System.Func<T, TOut>! some, System.Func<TOut>! none) -> TOut
+Tarol.Options.Option<T>.Option() -> void
+Tarol.Options.Option<T>.Option(T value) -> void
+Tarol.Options.Option<T>.Option(Tarol.Options.None none) -> void
+Tarol.Options.Option<T>.TryGetValue(out T value) -> bool
+Tarol.Options.Option<T>.TryGetValue(out Tarol.Options.None none) -> bool
+Tarol.Options.Option<T>.Value.get -> object!
+Tarol.Options.OptionExtensions
+Tarol.Options.OptionValueTypeExtensions
+override Tarol.Options.Json.OptionJsonConverter<T>.HandleNull.get -> bool
+override Tarol.Options.Json.OptionJsonConverter<T>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Options.Option<T>
+override Tarol.Options.Json.OptionJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Options.Option<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.Options.None.Equals(object? obj) -> bool
+override Tarol.Options.None.GetHashCode() -> int
+override Tarol.Options.None.ToString() -> string!
+override Tarol.Options.Option<T>.Equals(object? obj) -> bool
+override Tarol.Options.Option<T>.GetHashCode() -> int
+override Tarol.Options.Option<T>.ToString() -> string!
+static Tarol.Options.None.operator !=(Tarol.Options.None left, Tarol.Options.None right) -> bool
+static Tarol.Options.None.operator ==(Tarol.Options.None left, Tarol.Options.None right) -> bool
+static Tarol.Options.Option.None.get -> Tarol.Options.None
+static Tarol.Options.Option.Some<T>(T value) -> Tarol.Options.Option<T>
+static Tarol.Options.Option<T>.implicit operator Tarol.Options.Option<T>(T value) -> Tarol.Options.Option<T>
+static Tarol.Options.Option<T>.implicit operator Tarol.Options.Option<T>(Tarol.Options.None none) -> Tarol.Options.Option<T>
+static Tarol.Options.Option<T>.operator !=(Tarol.Options.Option<T> left, Tarol.Options.Option<T> right) -> bool
+static Tarol.Options.Option<T>.operator ==(Tarol.Options.Option<T> left, Tarol.Options.Option<T> right) -> bool
+static Tarol.Options.OptionExtensions.ToNullable<T>(this Tarol.Options.Option<T!> option) -> T?
+static Tarol.Options.OptionExtensions.ToOption<T>(this T? value) -> Tarol.Options.Option<T!>
+static Tarol.Options.OptionExtensions.ToOption<T>(this T? value) -> Tarol.Options.Option<T>
+static Tarol.Options.OptionValueTypeExtensions.ToNullable<T>(this Tarol.Options.Option<T> option) -> T?

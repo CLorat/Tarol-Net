@@ -1,0 +1,77 @@
+#nullable enable
+Tarol.Messaging.Npgsql.NpgsqlBus
+Tarol.Messaging.Npgsql.NpgsqlBus.Backlog(string! application, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<(string! Subscription, long Count)>!>!
+Tarol.Messaging.Npgsql.NpgsqlBus.Consume(Tarol.Messaging.Subscription! subscription, Tarol.Messaging.MessageHandler! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Npgsql.NpgsqlBus.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Tarol.Messaging.Npgsql.NpgsqlBus.EnsureSchema(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Npgsql.NpgsqlBus.EnsureSchema(Tarol.Persistence.Npgsql.SchemaMode mode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Persistence.Npgsql.SchemaState>!
+Tarol.Messaging.Npgsql.NpgsqlBus.NpgsqlBus(Npgsql.NpgsqlDataSource! dataSource, System.TimeProvider! time, Tarol.Messaging.Npgsql.NpgsqlBusOptions? options = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+Tarol.Messaging.Npgsql.NpgsqlBus.Pending(string! subscription, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Tarol.Messaging.Npgsql.NpgsqlBus.Prepare(System.Collections.Generic.IReadOnlyList<string!>! topics, System.Collections.Generic.IReadOnlyList<Tarol.Messaging.Subscription!>! subscriptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Npgsql.NpgsqlBus.Publish(Tarol.Messaging.Message! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Npgsql.NpgsqlBus.PurgeMessages(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Messaging.Npgsql.NpgsqlBus.Schema.get -> string!
+Tarol.Messaging.Npgsql.NpgsqlBusOptions
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.<Clone>$() -> Tarol.Messaging.Npgsql.NpgsqlBusOptions!
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Batch.get -> int
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Batch.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.EnsureSchema.get -> bool
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.EnsureSchema.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Equals(Tarol.Messaging.Npgsql.NpgsqlBusOptions? other) -> bool
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Notify.get -> bool
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Notify.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.NpgsqlBusOptions() -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.PollInterval.get -> System.TimeSpan
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.PollInterval.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.PurgeBatch.get -> int
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.PurgeBatch.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Retention.get -> System.TimeSpan
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Retention.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Roles.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Roles.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Schema.get -> string!
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.Schema.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.SchemaLockTimeout.get -> System.TimeSpan
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.SchemaLockTimeout.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.SchemaMode.get -> Tarol.Persistence.Npgsql.SchemaMode
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.SchemaMode.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.TraceRootCommands.get -> bool
+Tarol.Messaging.Npgsql.NpgsqlBusOptions.TraceRootCommands.init -> void
+Tarol.Messaging.Npgsql.NpgsqlBusSchema
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Add(string! subscription, Tarol.Messaging.Incoming! incoming, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Count(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Discard(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Discard(long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.EnsureSchema(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.EnsureSchema(Tarol.Persistence.Npgsql.SchemaMode mode, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Persistence.Npgsql.SchemaState>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.List(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.DeadMessage!>!>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.List(int max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Messaging.DeadMessage!>!>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.NpgsqlMessageDeadLetters(Npgsql.NpgsqlDataSource! dataSource, System.TimeProvider! time, string! schema = "tarol", Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Purge(System.DateTimeOffset olderThan, int max, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Schema.get -> string!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Take(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Messaging.DeadMessage?>!
+Tarol.Messaging.Npgsql.NpgsqlMessageDeadLetters.Take(long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Messaging.DeadMessage?>!
+Tarol.Messaging.Npgsql.NpgsqlMessagingBuilderExtensions
+const Tarol.Messaging.Npgsql.NpgsqlBusSchema.DeadLettersVersion = 2 -> int
+const Tarol.Messaging.Npgsql.NpgsqlBusSchema.DefaultSchema = "bus" -> string!
+const Tarol.Messaging.Npgsql.NpgsqlBusSchema.Version = 1 -> int
+const Tarol.Messaging.Npgsql.NpgsqlMessagingBuilderExtensions.PurgeMessagesJob = "tarol.purge-messages" -> string!
+override Tarol.Messaging.Npgsql.NpgsqlBusOptions.Equals(object? obj) -> bool
+override Tarol.Messaging.Npgsql.NpgsqlBusOptions.GetHashCode() -> int
+override Tarol.Messaging.Npgsql.NpgsqlBusOptions.ToString() -> string!
+static Tarol.Messaging.Npgsql.NpgsqlBusOptions.operator !=(Tarol.Messaging.Npgsql.NpgsqlBusOptions? left, Tarol.Messaging.Npgsql.NpgsqlBusOptions? right) -> bool
+static Tarol.Messaging.Npgsql.NpgsqlBusOptions.operator ==(Tarol.Messaging.Npgsql.NpgsqlBusOptions? left, Tarol.Messaging.Npgsql.NpgsqlBusOptions? right) -> bool
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.DeadLettersDefinition(string! schema = "tarol") -> Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.DeadLettersScript(string! schema = "tarol") -> string!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.DeadLettersSteps(string! schema = "tarol") -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.Npgsql.UpgradeStep!>!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.DeadLettersUpgradeScript(string! schema, int from) -> string!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.Definition(string! schema = "bus") -> Tarol.Persistence.Npgsql.NpgsqlSchemaDefinition!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.GrantScript(string! role, string! schema = "bus") -> string!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.RowLevelSecurityScript(string! schema = "bus") -> string!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.Script(string! schema = "bus") -> string!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.Steps(string! schema = "bus") -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.Npgsql.UpgradeStep!>!
+static Tarol.Messaging.Npgsql.NpgsqlBusSchema.UpgradeScript(string! schema, int from) -> string!
+static Tarol.Messaging.Npgsql.NpgsqlMessagingBuilderExtensions.UseNpgsqlBus(this Tarol.Messaging.MessagingBuilder! messaging, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSource, Tarol.Messaging.Npgsql.NpgsqlBusOptions? options = null) -> Tarol.Messaging.MessagingBuilder!
+static Tarol.Messaging.Npgsql.NpgsqlMessagingBuilderExtensions.UseNpgsqlBus(this Tarol.Messaging.MessagingBuilder! messaging, string! connectionString, Tarol.Messaging.Npgsql.NpgsqlBusOptions? options = null) -> Tarol.Messaging.MessagingBuilder!
+static Tarol.Messaging.Npgsql.NpgsqlMessagingBuilderExtensions.UseNpgsqlDeadLetters(this Tarol.Messaging.MessagingBuilder! messaging, string! schema = "tarol", System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>? dataSource = null, bool ensureSchema = true) -> Tarol.Messaging.MessagingBuilder!

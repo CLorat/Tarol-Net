@@ -1,0 +1,37 @@
+#nullable enable
+Tarol.Messaging.Nats.NatsMessagingBuilderExtensions
+Tarol.Messaging.Nats.NatsTransport
+Tarol.Messaging.Nats.NatsTransport.Consume(Tarol.Messaging.Subscription! subscription, Tarol.Messaging.MessageHandler! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Nats.NatsTransport.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Tarol.Messaging.Nats.NatsTransport.Duplicates.get -> long
+Tarol.Messaging.Nats.NatsTransport.NatsTransport(Tarol.Messaging.Nats.NatsTransportOptions! options, Microsoft.Extensions.Logging.ILogger? logger = null) -> void
+Tarol.Messaging.Nats.NatsTransport.Prepare(System.Collections.Generic.IReadOnlyList<string!>! topics, System.Collections.Generic.IReadOnlyList<Tarol.Messaging.Subscription!>! subscriptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Nats.NatsTransport.Publish(Tarol.Messaging.Message! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Messaging.Nats.NatsTransport.StreamOf(string! contract) -> string!
+Tarol.Messaging.Nats.NatsTransportOptions
+Tarol.Messaging.Nats.NatsTransportOptions.<Clone>$() -> Tarol.Messaging.Nats.NatsTransportOptions!
+Tarol.Messaging.Nats.NatsTransportOptions.ClientName.get -> string!
+Tarol.Messaging.Nats.NatsTransportOptions.ClientName.init -> void
+Tarol.Messaging.Nats.NatsTransportOptions.DuplicateWindow.get -> System.TimeSpan
+Tarol.Messaging.Nats.NatsTransportOptions.DuplicateWindow.init -> void
+Tarol.Messaging.Nats.NatsTransportOptions.Equals(Tarol.Messaging.Nats.NatsTransportOptions? other) -> bool
+Tarol.Messaging.Nats.NatsTransportOptions.MaxAge.get -> System.TimeSpan
+Tarol.Messaging.Nats.NatsTransportOptions.MaxAge.init -> void
+Tarol.Messaging.Nats.NatsTransportOptions.NatsTransportOptions() -> void
+Tarol.Messaging.Nats.NatsTransportOptions.Password.get -> string?
+Tarol.Messaging.Nats.NatsTransportOptions.Password.init -> void
+Tarol.Messaging.Nats.NatsTransportOptions.Prefix.get -> string?
+Tarol.Messaging.Nats.NatsTransportOptions.Prefix.init -> void
+Tarol.Messaging.Nats.NatsTransportOptions.PublishTimeout.get -> System.TimeSpan
+Tarol.Messaging.Nats.NatsTransportOptions.PublishTimeout.init -> void
+Tarol.Messaging.Nats.NatsTransportOptions.Url.get -> string!
+Tarol.Messaging.Nats.NatsTransportOptions.Url.init -> void
+Tarol.Messaging.Nats.NatsTransportOptions.Username.get -> string?
+Tarol.Messaging.Nats.NatsTransportOptions.Username.init -> void
+override Tarol.Messaging.Nats.NatsTransportOptions.Equals(object? obj) -> bool
+override Tarol.Messaging.Nats.NatsTransportOptions.GetHashCode() -> int
+override Tarol.Messaging.Nats.NatsTransportOptions.ToString() -> string!
+static Tarol.Messaging.Nats.NatsMessagingBuilderExtensions.UseNats(this Tarol.Messaging.MessagingBuilder! messaging, Tarol.Messaging.Nats.NatsTransportOptions! options) -> Tarol.Messaging.MessagingBuilder!
+static Tarol.Messaging.Nats.NatsMessagingBuilderExtensions.UseNats(this Tarol.Messaging.MessagingBuilder! messaging, string! url) -> Tarol.Messaging.MessagingBuilder!
+static Tarol.Messaging.Nats.NatsTransportOptions.operator !=(Tarol.Messaging.Nats.NatsTransportOptions? left, Tarol.Messaging.Nats.NatsTransportOptions? right) -> bool
+static Tarol.Messaging.Nats.NatsTransportOptions.operator ==(Tarol.Messaging.Nats.NatsTransportOptions? left, Tarol.Messaging.Nats.NatsTransportOptions? right) -> bool

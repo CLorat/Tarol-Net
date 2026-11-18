@@ -1,0 +1,85 @@
+#nullable enable
+Tarol.Sagas.DeliveryPolicy
+Tarol.Sagas.DeliveryPolicy.<Clone>$() -> Tarol.Sagas.DeliveryPolicy!
+Tarol.Sagas.DeliveryPolicy.Backoff(long rowId, int attempt) -> System.TimeSpan
+Tarol.Sagas.DeliveryPolicy.DeliveryPolicy() -> void
+Tarol.Sagas.DeliveryPolicy.Equals(Tarol.Sagas.DeliveryPolicy? other) -> bool
+Tarol.Sagas.DeliveryPolicy.FirstDelay.get -> System.TimeSpan
+Tarol.Sagas.DeliveryPolicy.FirstDelay.init -> void
+Tarol.Sagas.DeliveryPolicy.MaxAttempts.get -> int
+Tarol.Sagas.DeliveryPolicy.MaxAttempts.init -> void
+Tarol.Sagas.DeliveryPolicy.MaxDelay.get -> System.TimeSpan
+Tarol.Sagas.DeliveryPolicy.MaxDelay.init -> void
+Tarol.Sagas.ReactionAttempt
+Tarol.Sagas.ReactionAttempt.<Clone>$() -> Tarol.Sagas.ReactionAttempt!
+Tarol.Sagas.ReactionAttempt.Deconstruct(out Tarol.Persistence.OutboxRow! Row, out Tarol.Changes.Verdict Verdict, out Tarol.Options.Option<string!> Reason, out bool Kept) -> void
+Tarol.Sagas.ReactionAttempt.Equals(Tarol.Sagas.ReactionAttempt? other) -> bool
+Tarol.Sagas.ReactionAttempt.Kept.get -> bool
+Tarol.Sagas.ReactionAttempt.Kept.init -> void
+Tarol.Sagas.ReactionAttempt.ReactionAttempt(Tarol.Persistence.OutboxRow! Row, Tarol.Changes.Verdict Verdict, Tarol.Options.Option<string!> Reason, bool Kept) -> void
+Tarol.Sagas.ReactionAttempt.Reason.get -> Tarol.Options.Option<string!>
+Tarol.Sagas.ReactionAttempt.Reason.init -> void
+Tarol.Sagas.ReactionAttempt.Row.get -> Tarol.Persistence.OutboxRow!
+Tarol.Sagas.ReactionAttempt.Row.init -> void
+Tarol.Sagas.ReactionAttempt.Verdict.get -> Tarol.Changes.Verdict
+Tarol.Sagas.ReactionAttempt.Verdict.init -> void
+Tarol.Sagas.ReactionHost
+Tarol.Sagas.ReactionHost.ReactionHost(Tarol.Persistence.IOutbox! outbox, Tarol.Changes.IOutboxRowHandler! rows, Tarol.Changes.ChangePipeline! pipeline, System.TimeProvider! time, Tarol.Sagas.ReactionOptions! options, Microsoft.Extensions.Logging.ILogger<Tarol.Sagas.ReactionHost!>? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Sagas.ReactionOptions
+Tarol.Sagas.ReactionOptions.Batch.get -> int
+Tarol.Sagas.ReactionOptions.Batch.set -> void
+Tarol.Sagas.ReactionOptions.KeyRetention.get -> System.TimeSpan
+Tarol.Sagas.ReactionOptions.KeyRetention.set -> void
+Tarol.Sagas.ReactionOptions.Lease.get -> System.TimeSpan
+Tarol.Sagas.ReactionOptions.Lease.set -> void
+Tarol.Sagas.ReactionOptions.Policy.get -> Tarol.Sagas.DeliveryPolicy!
+Tarol.Sagas.ReactionOptions.Policy.set -> void
+Tarol.Sagas.ReactionOptions.PollInterval.get -> System.TimeSpan
+Tarol.Sagas.ReactionOptions.PollInterval.set -> void
+Tarol.Sagas.ReactionOptions.PurgeBatch.get -> int
+Tarol.Sagas.ReactionOptions.PurgeBatch.set -> void
+Tarol.Sagas.ReactionOptions.PurgeEvery.get -> System.TimeSpan
+Tarol.Sagas.ReactionOptions.PurgeEvery.set -> void
+Tarol.Sagas.ReactionOptions.PurgeKeys.get -> System.Func<System.DateTimeOffset, int, System.Threading.CancellationToken, System.Threading.Tasks.Task<int>!>?
+Tarol.Sagas.ReactionOptions.PurgeKeys.set -> void
+Tarol.Sagas.ReactionOptions.ReactionOptions() -> void
+Tarol.Sagas.ReactionOptions.Workers.get -> int
+Tarol.Sagas.ReactionOptions.Workers.set -> void
+Tarol.Sagas.ReactionServiceCollectionExtensions
+Tarol.Sagas.ReactionTest
+Tarol.Sagas.ReactionTest.As(Tarol.Kernel.Actor! actor) -> Tarol.Sagas.ReactionTest!
+Tarol.Sagas.ReactionTest.At(System.DateTimeOffset now) -> Tarol.Sagas.ReactionTest!
+Tarol.Sagas.ReactionTest.Clock.get -> System.TimeProvider!
+Tarol.Sagas.ReactionTest.Context(Tarol.Kernel.Actor? actor = null) -> Tarol.Kernel.OperationContext!
+Tarol.Sagas.ReactionTest.DeadLetters() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetter!>!>!
+Tarol.Sagas.ReactionTest.Drain() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Sagas.ReactionAttempt!>!>!
+Tarol.Sagas.ReactionTest.Given<T>(T! aggregate) -> Tarol.Sagas.ReactionTest!
+Tarol.Sagas.ReactionTest.InTenant(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant) -> Tarol.Sagas.ReactionTest!
+Tarol.Sagas.ReactionTest.Later(System.TimeSpan delta) -> Tarol.Sagas.ReactionTest!
+Tarol.Sagas.ReactionTest.Load<T>(Tarol.StronglyTypedId.Id<T!> id) -> T!
+Tarol.Sagas.ReactionTest.Outbox.get -> Tarol.Persistence.IOutbox!
+Tarol.Sagas.ReactionTest.Pipeline.get -> Tarol.Changes.ChangePipeline!
+Tarol.Sagas.ReactionTest.Store.get -> Tarol.Persistence.InMemoryAggregateStore!
+Tarol.Sagas.ReactionTest.When<T>(Tarol.Changes.IChange<T!>! change, Tarol.Kernel.Actor? actor = null) -> System.Threading.Tasks.Task<Tarol.Changes.ChangeTestOutcome!>!
+Tarol.Sagas.ReactionTest.When<T>(Tarol.Changes.ICreation<T!>! creation, Tarol.Kernel.Actor? actor = null) -> System.Threading.Tasks.Task<Tarol.Changes.ChangeTestOutcome!>!
+Tarol.Sagas.ReactionWorker
+Tarol.Sagas.ReactionWorker.Drain(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Sagas.ReactionAttempt!>!>!
+Tarol.Sagas.ReactionWorker.ReactionWorker(Tarol.Persistence.IOutbox! outbox, Tarol.Changes.IOutboxRowHandler! rows, Tarol.Changes.ChangePipeline! pipeline, System.TimeProvider! time, Tarol.Sagas.ReactionOptions? options = null, Microsoft.Extensions.Logging.ILogger? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Sagas.ReactionWorker.Run(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Sagas.ReactionWorker.RunOnce(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Sagas.ReactionAttempt!>!>!
+const Tarol.Sagas.ReactionWorker.ActivitySourceName = "Tarol.Sagas" -> string!
+const Tarol.Sagas.ReactionWorker.MeterName = "Tarol.Sagas" -> string!
+override Tarol.Sagas.DeliveryPolicy.Equals(object? obj) -> bool
+override Tarol.Sagas.DeliveryPolicy.GetHashCode() -> int
+override Tarol.Sagas.DeliveryPolicy.ToString() -> string!
+override Tarol.Sagas.ReactionAttempt.Equals(object? obj) -> bool
+override Tarol.Sagas.ReactionAttempt.GetHashCode() -> int
+override Tarol.Sagas.ReactionAttempt.ToString() -> string!
+static Tarol.Sagas.DeliveryPolicy.Classify(Tarol.Results.Result<Tarol.Changes.ChangeOutcome> result) -> Tarol.Changes.Verdict
+static Tarol.Sagas.DeliveryPolicy.operator !=(Tarol.Sagas.DeliveryPolicy? left, Tarol.Sagas.DeliveryPolicy? right) -> bool
+static Tarol.Sagas.DeliveryPolicy.operator ==(Tarol.Sagas.DeliveryPolicy? left, Tarol.Sagas.DeliveryPolicy? right) -> bool
+static Tarol.Sagas.ReactionAttempt.operator !=(Tarol.Sagas.ReactionAttempt? left, Tarol.Sagas.ReactionAttempt? right) -> bool
+static Tarol.Sagas.ReactionAttempt.operator ==(Tarol.Sagas.ReactionAttempt? left, Tarol.Sagas.ReactionAttempt? right) -> bool
+static Tarol.Sagas.ReactionServiceCollectionExtensions.AddReactionWorker(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Sagas.ReactionOptions!>? configure = null, Tarol.Changes.ReactionSet? reactions = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Sagas.ReactionServiceCollectionExtensions.AddTarolReactions(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Tarol.Changes.ReactionSet! reactions, System.Action<Tarol.Sagas.ReactionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Tarol.Sagas.ReactionTest.At(System.DateTimeOffset now, Tarol.Changes.ReactionSet! reactions, System.Text.Json.JsonSerializerOptions? stateOptions = null, Tarol.Sagas.DeliveryPolicy? policy = null) -> Tarol.Sagas.ReactionTest!

@@ -1,0 +1,728 @@
+#nullable enable
+Tarol.Persistence.ConfiguredKeyEncryptionKey
+Tarol.Persistence.ConfiguredKeyEncryptionKey.ConfiguredKeyEncryptionKey(string! keyId, System.ReadOnlySpan<byte> key, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, byte[]!>>? previous = null) -> void
+Tarol.Persistence.ConfiguredKeyEncryptionKey.Dispose() -> void
+Tarol.Persistence.ConfiguredKeyEncryptionKey.KeyId.get -> string!
+Tarol.Persistence.ConfiguredKeyEncryptionKey.Unwrap(string! keyId, System.ReadOnlySpan<byte> wrapped, System.ReadOnlySpan<byte> associatedData, System.Span<byte> tenantKey) -> void
+Tarol.Persistence.ConfiguredKeyEncryptionKey.Wrap(System.ReadOnlySpan<byte> tenantKey, System.ReadOnlySpan<byte> associatedData) -> byte[]!
+Tarol.Persistence.DataProtectionErrors
+Tarol.Persistence.DeadJob
+Tarol.Persistence.DeadJob.<Clone>$() -> Tarol.Persistence.DeadJob!
+Tarol.Persistence.DeadJob.Attempts.get -> int
+Tarol.Persistence.DeadJob.Attempts.init -> void
+Tarol.Persistence.DeadJob.DeadAt.get -> System.DateTimeOffset
+Tarol.Persistence.DeadJob.DeadAt.init -> void
+Tarol.Persistence.DeadJob.DeadJob(long Id, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, string! Name, System.DateTimeOffset Occurrence, int Attempts, Tarol.Options.Option<string!> LastError, System.DateTimeOffset DeadAt, bool Redriven) -> void
+Tarol.Persistence.DeadJob.Deconstruct(out long Id, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out string! Name, out System.DateTimeOffset Occurrence, out int Attempts, out Tarol.Options.Option<string!> LastError, out System.DateTimeOffset DeadAt, out bool Redriven) -> void
+Tarol.Persistence.DeadJob.Equals(Tarol.Persistence.DeadJob? other) -> bool
+Tarol.Persistence.DeadJob.Id.get -> long
+Tarol.Persistence.DeadJob.Id.init -> void
+Tarol.Persistence.DeadJob.LastError.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.DeadJob.LastError.init -> void
+Tarol.Persistence.DeadJob.Name.get -> string!
+Tarol.Persistence.DeadJob.Name.init -> void
+Tarol.Persistence.DeadJob.Occurrence.get -> System.DateTimeOffset
+Tarol.Persistence.DeadJob.Occurrence.init -> void
+Tarol.Persistence.DeadJob.Redriven.get -> bool
+Tarol.Persistence.DeadJob.Redriven.init -> void
+Tarol.Persistence.DeadJob.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.DeadJob.Tenant.init -> void
+Tarol.Persistence.DeadJob.ToItem() -> Tarol.Persistence.DeadLetterItem!
+Tarol.Persistence.DeadLetter
+Tarol.Persistence.DeadLetter.<Clone>$() -> Tarol.Persistence.DeadLetter!
+Tarol.Persistence.DeadLetter.Attempts.get -> int
+Tarol.Persistence.DeadLetter.Attempts.init -> void
+Tarol.Persistence.DeadLetter.DeadAt.get -> System.DateTimeOffset
+Tarol.Persistence.DeadLetter.DeadAt.init -> void
+Tarol.Persistence.DeadLetter.DeadLetter(long Id, string! Reaction, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, string! StreamType, System.Guid StreamId, System.Guid EventId, int Attempts, Tarol.Options.Option<string!> LastError, System.DateTimeOffset DeadAt) -> void
+Tarol.Persistence.DeadLetter.Deconstruct(out long Id, out string! Reaction, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out string! StreamType, out System.Guid StreamId, out System.Guid EventId, out int Attempts, out Tarol.Options.Option<string!> LastError, out System.DateTimeOffset DeadAt) -> void
+Tarol.Persistence.DeadLetter.Equals(Tarol.Persistence.DeadLetter? other) -> bool
+Tarol.Persistence.DeadLetter.EventId.get -> System.Guid
+Tarol.Persistence.DeadLetter.EventId.init -> void
+Tarol.Persistence.DeadLetter.Id.get -> long
+Tarol.Persistence.DeadLetter.Id.init -> void
+Tarol.Persistence.DeadLetter.LastError.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.DeadLetter.LastError.init -> void
+Tarol.Persistence.DeadLetter.Reaction.get -> string!
+Tarol.Persistence.DeadLetter.Reaction.init -> void
+Tarol.Persistence.DeadLetter.StreamId.get -> System.Guid
+Tarol.Persistence.DeadLetter.StreamId.init -> void
+Tarol.Persistence.DeadLetter.StreamType.get -> string!
+Tarol.Persistence.DeadLetter.StreamType.init -> void
+Tarol.Persistence.DeadLetter.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.DeadLetter.Tenant.init -> void
+Tarol.Persistence.DeadLetter.ToItem() -> Tarol.Persistence.DeadLetterItem!
+Tarol.Persistence.DeadLetterItem
+Tarol.Persistence.DeadLetterItem.<Clone>$() -> Tarol.Persistence.DeadLetterItem!
+Tarol.Persistence.DeadLetterItem.Attempts.get -> int
+Tarol.Persistence.DeadLetterItem.Attempts.init -> void
+Tarol.Persistence.DeadLetterItem.DeadAt.get -> System.DateTimeOffset
+Tarol.Persistence.DeadLetterItem.DeadAt.init -> void
+Tarol.Persistence.DeadLetterItem.DeadLetterItem(long Id, string! Kind, string! Name, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, string! Subject, int Attempts, Tarol.Options.Option<string!> Error, System.DateTimeOffset DeadAt) -> void
+Tarol.Persistence.DeadLetterItem.Deconstruct(out long Id, out string! Kind, out string! Name, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out string! Subject, out int Attempts, out Tarol.Options.Option<string!> Error, out System.DateTimeOffset DeadAt) -> void
+Tarol.Persistence.DeadLetterItem.Equals(Tarol.Persistence.DeadLetterItem? other) -> bool
+Tarol.Persistence.DeadLetterItem.Error.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.DeadLetterItem.Error.init -> void
+Tarol.Persistence.DeadLetterItem.Id.get -> long
+Tarol.Persistence.DeadLetterItem.Id.init -> void
+Tarol.Persistence.DeadLetterItem.Kind.get -> string!
+Tarol.Persistence.DeadLetterItem.Kind.init -> void
+Tarol.Persistence.DeadLetterItem.Name.get -> string!
+Tarol.Persistence.DeadLetterItem.Name.init -> void
+Tarol.Persistence.DeadLetterItem.Subject.get -> string!
+Tarol.Persistence.DeadLetterItem.Subject.init -> void
+Tarol.Persistence.DeadLetterItem.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.DeadLetterItem.Tenant.init -> void
+Tarol.Persistence.DeadLetterKinds
+Tarol.Persistence.DeadLetterPage
+Tarol.Persistence.DeadLetterPage.<Clone>$() -> Tarol.Persistence.DeadLetterPage!
+Tarol.Persistence.DeadLetterPage.DeadLetterPage(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetterItem!>! Items, long? Next) -> void
+Tarol.Persistence.DeadLetterPage.Deconstruct(out System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetterItem!>! Items, out long? Next) -> void
+Tarol.Persistence.DeadLetterPage.Equals(Tarol.Persistence.DeadLetterPage? other) -> bool
+Tarol.Persistence.DeadLetterPage.Items.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetterItem!>!
+Tarol.Persistence.DeadLetterPage.Items.init -> void
+Tarol.Persistence.DeadLetterPage.Next.get -> long?
+Tarol.Persistence.DeadLetterPage.Next.init -> void
+Tarol.Persistence.DeadLetterQuery
+Tarol.Persistence.DeadLetterQuery.<Clone>$() -> Tarol.Persistence.DeadLetterQuery!
+Tarol.Persistence.DeadLetterQuery.After.get -> long
+Tarol.Persistence.DeadLetterQuery.After.init -> void
+Tarol.Persistence.DeadLetterQuery.DeadLetterQuery() -> void
+Tarol.Persistence.DeadLetterQuery.Equals(Tarol.Persistence.DeadLetterQuery? other) -> bool
+Tarol.Persistence.DeadLetterQuery.Limit.get -> int
+Tarol.Persistence.DeadLetterQuery.Limit.init -> void
+Tarol.Persistence.DeadLetterQuery.Name.get -> string?
+Tarol.Persistence.DeadLetterQuery.Name.init -> void
+Tarol.Persistence.DeadLetterQuery.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.DeadLetterQuery.Tenant.init -> void
+Tarol.Persistence.Envelope
+Tarol.Persistence.ErasureParticipant
+Tarol.Persistence.ErasureParticipant.ErasureParticipant() -> void
+Tarol.Persistence.EventCodec
+Tarol.Persistence.EventCodec.Add<T>() -> Tarol.Persistence.EventCodec!
+Tarol.Persistence.EventCodec.Decode(string! streamType, Tarol.Primitives.EventType stored, System.ReadOnlySpan<byte> payload) -> Tarol.Primitives.DomainEvent!
+Tarol.Persistence.EventCodec.Decode(string! streamType, Tarol.Primitives.EventType stored, System.ReadOnlySpan<byte> payload, Tarol.Persistence.KeyRing! keys) -> Tarol.Primitives.DomainEvent!
+Tarol.Persistence.EventCodec.Encode<T>(Tarol.Primitives.DomainEvent! domainEvent, System.Buffers.IBufferWriter<byte>! payload) -> Tarol.Primitives.EventType
+Tarol.Persistence.EventCodec.Encode<T>(Tarol.Primitives.DomainEvent! domainEvent, System.Buffers.IBufferWriter<byte>! payload, System.Guid stream, Tarol.Persistence.KeyRing! keys) -> Tarol.Primitives.EventType
+Tarol.Persistence.EventCodec.EventCodec(System.Text.Json.JsonSerializerOptions! options) -> void
+Tarol.Persistence.EventCodec.HasPersonalData(string! streamType) -> bool
+Tarol.Persistence.EventCodec.HasPersonalData<T>() -> bool
+Tarol.Persistence.EventCodec.IsRegistered<T>() -> bool
+Tarol.Persistence.EventCodec.Options.get -> System.Text.Json.JsonSerializerOptions!
+Tarol.Persistence.EventCodec.RetentionDays.get -> System.Collections.Generic.IReadOnlyDictionary<string!, int>!
+Tarol.Persistence.EventCodec.Seal<T>(Tarol.Primitives.EventType type, System.ReadOnlySpan<byte> payload, System.Guid stream, Tarol.Persistence.KeyRing! keys, System.Buffers.IBufferWriter<byte>! sealedPayload) -> bool
+Tarol.Persistence.EventCodec.SealState<T>(System.ReadOnlySpan<byte> state, System.Guid stream, Tarol.Persistence.KeyRing! keys, System.Buffers.IBufferWriter<byte>! sealedState) -> bool
+Tarol.Persistence.EventCodec.SealStored<T>(Tarol.Primitives.EventType type, System.ReadOnlySpan<byte> payload, System.Guid stream, Tarol.Persistence.KeyRing! keys, System.Buffers.IBufferWriter<byte>! sealedPayload) -> bool
+Tarol.Persistence.EventCodec.StateSubjectsOf<T>(System.ReadOnlySpan<byte> state, System.Guid stream, System.Collections.Generic.ICollection<System.Guid>! subjects) -> void
+Tarol.Persistence.EventCodec.StreamTypeOf<T>() -> string!
+Tarol.Persistence.EventCodec.StreamTypes.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Tarol.Persistence.EventCodec.SubjectsOf<T>(Tarol.Primitives.DomainEvent! domainEvent, System.Guid stream) -> System.Collections.Generic.IReadOnlyList<System.Guid>!
+Tarol.Persistence.EventCodec.SubjectsOf<T>(Tarol.Primitives.EventType type, System.ReadOnlySpan<byte> payload, System.Guid stream, System.Collections.Generic.ICollection<System.Guid>! subjects) -> void
+Tarol.Persistence.EventCodec.Upcast<T>(Tarol.Persistence.IEventUpcaster! upcaster) -> Tarol.Persistence.EventCodec!
+Tarol.Persistence.GlobalPosition
+Tarol.Persistence.GlobalPosition.CompareTo(Tarol.Persistence.GlobalPosition other) -> int
+Tarol.Persistence.GlobalPosition.Deconstruct(out ulong Transaction, out long Position) -> void
+Tarol.Persistence.GlobalPosition.Equals(Tarol.Persistence.GlobalPosition other) -> bool
+Tarol.Persistence.GlobalPosition.GlobalPosition() -> void
+Tarol.Persistence.GlobalPosition.GlobalPosition(ulong Transaction, long Position) -> void
+Tarol.Persistence.GlobalPosition.Position.get -> long
+Tarol.Persistence.GlobalPosition.Position.init -> void
+Tarol.Persistence.GlobalPosition.Transaction.get -> ulong
+Tarol.Persistence.GlobalPosition.Transaction.init -> void
+Tarol.Persistence.IAggregateReader
+Tarol.Persistence.IAggregateReader.Find<T>(string! lookup, string! key, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<Tarol.StronglyTypedId.Id<T!>>>
+Tarol.Persistence.IAggregateReader.Load<T>(Tarol.StronglyTypedId.Id<T!> id, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<T!>>
+Tarol.Persistence.IAggregateStore
+Tarol.Persistence.IAggregateStore.Append<T>(T! aggregate, long expectedVersion, Tarol.Kernel.OperationContext! context, Tarol.Options.Option<Tarol.Persistence.IdempotencyKey> key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Persistence.GlobalPosition>>
+Tarol.Persistence.IAggregateStore.Seen(Tarol.Persistence.IdempotencyKey key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<Tarol.Persistence.StoredOutcome>>
+Tarol.Persistence.IDataProtectionStore
+Tarol.Persistence.IDataProtectionStore.Audit(string! actor, string! action, string! target, string? detail, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.IDataProtectionStore.DeletePersonalLookups(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.IDataProtectionStore.DeleteStreams(string! streamType, System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.IDataProtectionStore.EventsOf(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>!>!
+Tarol.Persistence.IDataProtectionStore.PurgeAudit(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.IDataProtectionStore.ReadStream(Tarol.Persistence.StreamRef stream, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>!>!
+Tarol.Persistence.IDataProtectionStore.StateOf(Tarol.Persistence.StreamRef stream, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
+Tarol.Persistence.IDataProtectionStore.Streams(System.Guid tenant, string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.IDataProtectionStore.StreamsOf(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.IDataSubjects
+Tarol.Persistence.IDataSubjects.EraseSubject(System.Guid tenant, System.Guid subject, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.SubjectErasure!>
+Tarol.Persistence.IDataSubjects.EraseTenant(System.Guid tenant, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.SubjectErasure!>
+Tarol.Persistence.IDataSubjects.Export(System.Guid tenant, System.Guid subject, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.SubjectExport!>
+Tarol.Persistence.IDeadLetterRetention
+Tarol.Persistence.IDeadLetterRetention.Kind.get -> string!
+Tarol.Persistence.IDeadLetterRetention.Purge(System.DateTimeOffset olderThan, int max, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.IDeadLetterSource
+Tarol.Persistence.IDeadLetterSource.Discard(long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IDeadLetterSource.Kind.get -> string!
+Tarol.Persistence.IDeadLetterSource.List(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Persistence.DeadLetterPage!>!
+Tarol.Persistence.IDeadLetterSource.Redrive(long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IEventFeed
+Tarol.Persistence.IEventFeed.ReadAll(Tarol.Persistence.GlobalPosition after, int limit, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Tarol.Persistence.PositionedEvent!>!
+Tarol.Persistence.IEventUpcaster
+Tarol.Persistence.IEventUpcaster.From.get -> Tarol.Primitives.EventType
+Tarol.Persistence.IEventUpcaster.Into.get -> Tarol.Primitives.EventType
+Tarol.Persistence.IEventUpcaster.Upcast(System.Text.Json.Nodes.JsonObject! payload) -> void
+Tarol.Persistence.IIdempotencyKeyPurge
+Tarol.Persistence.IIdempotencyKeyPurge.PurgeKeys(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.IJobRows
+Tarol.Persistence.IJobRows.Advance(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IJobRows.Bury(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IJobRows.Claim(System.TimeSpan lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Options.Option<Tarol.Persistence.JobRow!>>!
+Tarol.Persistence.IJobRows.DeadJobs(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadJob!>!>!
+Tarol.Persistence.IJobRows.DeadJobs(int max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadJob!>!>!
+Tarol.Persistence.IJobRows.Discard(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IJobRows.Extend(Tarol.Persistence.JobRow! row, System.TimeSpan lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IJobRows.Move(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IJobRows.Overdue(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Options.Option<System.DateTimeOffset>>!
+Tarol.Persistence.IJobRows.Redrive(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IJobRows.Retry(Tarol.Persistence.JobRow! row, System.DateTimeOffset retryAt, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IJobRows.Rows(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.JobState!>!>!
+Tarol.Persistence.IJobRows.Sync(System.Collections.Generic.IReadOnlyCollection<Tarol.Persistence.JobSchedule!>! jobs, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.JobSyncChange!>!>!
+Tarol.Persistence.IKeyEncryptionKey
+Tarol.Persistence.IKeyEncryptionKey.KeyId.get -> string!
+Tarol.Persistence.IKeyEncryptionKey.Unwrap(string! keyId, System.ReadOnlySpan<byte> wrapped, System.ReadOnlySpan<byte> associatedData, System.Span<byte> tenantKey) -> void
+Tarol.Persistence.IKeyEncryptionKey.Wrap(System.ReadOnlySpan<byte> tenantKey, System.ReadOnlySpan<byte> associatedData) -> byte[]!
+Tarol.Persistence.IKeyStore
+Tarol.Persistence.IKeyStore.BlindIndex(System.Guid tenant, string! lookup, string! value, bool create, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+Tarol.Persistence.IKeyStore.EraseSubject(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Persistence.IKeyStore.EraseTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Persistence.IKeyStore.Erased -> System.EventHandler<Tarol.Persistence.KeyErasedEventArgs!>?
+Tarol.Persistence.IKeyStore.Keys(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! subjects, bool create, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.KeyRing!>
+Tarol.Persistence.IKeyStore.Rewrap(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Persistence.IMaintenanceHost
+Tarol.Persistence.IOutbox
+Tarol.Persistence.IOutbox.Bury(Tarol.Persistence.OutboxRow! row, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IOutbox.Claim(int max, System.TimeSpan lease, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.OutboxRow!>!>!
+Tarol.Persistence.IOutbox.Complete(Tarol.Persistence.OutboxRow! row, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IOutbox.DeadLetters(Tarol.Persistence.DeadLetterQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetter!>!>!
+Tarol.Persistence.IOutbox.DeadLetters(int max, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadLetter!>!>!
+Tarol.Persistence.IOutbox.Discard(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IOutbox.OldestDue(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Options.Option<System.DateTimeOffset>>!
+Tarol.Persistence.IOutbox.Pending(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Tarol.Persistence.IOutbox.Redrive(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IOutbox.Retry(Tarol.Persistence.OutboxRow! row, System.DateTimeOffset retryAt, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IOutbox.WaitForRows(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.IOutboxReactions
+Tarol.Persistence.IOutboxReactions.DueAt(Tarol.Primitives.DomainEvent! domainEvent, string! reaction) -> System.DateTimeOffset?
+Tarol.Persistence.IOutboxReactions.IsScheduled(string! reaction) -> bool
+Tarol.Persistence.IOutboxReactions.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
+Tarol.Persistence.IReadModelAdmin
+Tarol.Persistence.IReadModelAdmin.DropVersion(string! name, int version, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.IReadModelAdmin.Versions(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ProjectionVersion!>!>!
+Tarol.Persistence.IdempotencyKey
+Tarol.Persistence.IdempotencyKey.Equals(Tarol.Persistence.IdempotencyKey other) -> bool
+Tarol.Persistence.IdempotencyKey.Fingerprint.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.IdempotencyKey.Fingerprint.init -> void
+Tarol.Persistence.IdempotencyKey.IdempotencyKey() -> void
+Tarol.Persistence.IdempotencyKey.IdempotencyKey(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant, string! scope, string! key) -> void
+Tarol.Persistence.IdempotencyKey.Key.get -> string!
+Tarol.Persistence.IdempotencyKey.Scope.get -> string!
+Tarol.Persistence.IdempotencyKey.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.InMemoryAggregateStore
+Tarol.Persistence.InMemoryAggregateStore.Append<T>(T! aggregate, long expectedVersion, Tarol.Kernel.OperationContext! context, Tarol.Options.Option<Tarol.Persistence.IdempotencyKey> key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Persistence.GlobalPosition>>
+Tarol.Persistence.InMemoryAggregateStore.Audit(string! actor, string! action, string! target, string? detail, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Tarol.Persistence.InMemoryAggregateStore.AuditRows.get -> System.Collections.Generic.IReadOnlyList<(System.DateTimeOffset At, string! Actor, string! Action, string! Target, string? Detail)>!
+Tarol.Persistence.InMemoryAggregateStore.DefineLookup<T>(string! lookup, System.Func<T!, string?>! key) -> Tarol.Persistence.InMemoryAggregateStore!
+Tarol.Persistence.InMemoryAggregateStore.DeletePersonalLookups(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<Tarol.Persistence.StreamRef>! streams) -> int
+Tarol.Persistence.InMemoryAggregateStore.DeleteStreams(string! streamType, System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.InMemoryAggregateStore.EventsOf(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>!>!
+Tarol.Persistence.InMemoryAggregateStore.Find<T>(string! lookup, string! key, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<Tarol.StronglyTypedId.Id<T!>>>
+Tarol.Persistence.InMemoryAggregateStore.History<T>(Tarol.StronglyTypedId.Id<T!> id, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant) -> Tarol.Primitives.StreamEvent[]!
+Tarol.Persistence.InMemoryAggregateStore.InMemoryAggregateStore(System.TimeProvider! time, System.Text.Json.JsonSerializerOptions? stateOptions = null) -> void
+Tarol.Persistence.InMemoryAggregateStore.InMemoryAggregateStore(System.TimeProvider! time, Tarol.Persistence.InMemoryStoreOptions! options) -> void
+Tarol.Persistence.InMemoryAggregateStore.Jobs.get -> Tarol.Persistence.IJobRows!
+Tarol.Persistence.InMemoryAggregateStore.Load<T>(Tarol.StronglyTypedId.Id<T!> id, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<T!>>
+Tarol.Persistence.InMemoryAggregateStore.Loads.get -> int
+Tarol.Persistence.InMemoryAggregateStore.Outbox.get -> Tarol.Persistence.IOutbox!
+Tarol.Persistence.InMemoryAggregateStore.PurgeAudit(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.InMemoryAggregateStore.ReadAll(Tarol.Persistence.GlobalPosition after, int limit, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Tarol.Persistence.PositionedEvent!>!
+Tarol.Persistence.InMemoryAggregateStore.ReadStream(Tarol.Persistence.StreamRef stream, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>!>!
+Tarol.Persistence.InMemoryAggregateStore.Recorded.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>!
+Tarol.Persistence.InMemoryAggregateStore.Seen(Tarol.Persistence.IdempotencyKey key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<Tarol.Persistence.StoredOutcome>>
+Tarol.Persistence.InMemoryAggregateStore.StateOf(Tarol.Persistence.StreamRef stream, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
+Tarol.Persistence.InMemoryAggregateStore.Streams(System.Guid tenant, string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.InMemoryAggregateStore.StreamsOf(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
+Tarol.Persistence.InMemoryKeyStore
+Tarol.Persistence.InMemoryKeyStore.BlindIndex(System.Guid tenant, string! lookup, string! value, bool create, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<string?>
+Tarol.Persistence.InMemoryKeyStore.EraseSubject(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Persistence.InMemoryKeyStore.EraseTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Persistence.InMemoryKeyStore.Erased -> System.EventHandler<Tarol.Persistence.KeyErasedEventArgs!>?
+Tarol.Persistence.InMemoryKeyStore.ErasedAt(System.Guid tenant, System.Guid subject) -> System.DateTimeOffset?
+Tarol.Persistence.InMemoryKeyStore.InMemoryKeyStore(Tarol.Persistence.IKeyEncryptionKey! master, System.TimeProvider! time) -> void
+Tarol.Persistence.InMemoryKeyStore.Keys(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! subjects, bool create, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Persistence.KeyRing!>
+Tarol.Persistence.InMemoryKeyStore.Rewrap(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Persistence.InMemoryStoreOptions
+Tarol.Persistence.InMemoryStoreOptions.<Clone>$() -> Tarol.Persistence.InMemoryStoreOptions!
+Tarol.Persistence.InMemoryStoreOptions.Codec.get -> Tarol.Persistence.EventCodec?
+Tarol.Persistence.InMemoryStoreOptions.Codec.init -> void
+Tarol.Persistence.InMemoryStoreOptions.Equals(Tarol.Persistence.InMemoryStoreOptions? other) -> bool
+Tarol.Persistence.InMemoryStoreOptions.InMemoryStoreOptions() -> void
+Tarol.Persistence.InMemoryStoreOptions.Keys.get -> Tarol.Persistence.IKeyStore?
+Tarol.Persistence.InMemoryStoreOptions.Keys.init -> void
+Tarol.Persistence.InMemoryStoreOptions.Lookups.get -> Tarol.Persistence.StoreLookups!
+Tarol.Persistence.InMemoryStoreOptions.Lookups.init -> void
+Tarol.Persistence.InMemoryStoreOptions.Reactions.get -> Tarol.Persistence.IOutboxReactions?
+Tarol.Persistence.InMemoryStoreOptions.Reactions.init -> void
+Tarol.Persistence.InMemoryStoreOptions.StateOptions.get -> System.Text.Json.JsonSerializerOptions?
+Tarol.Persistence.InMemoryStoreOptions.StateOptions.init -> void
+Tarol.Persistence.JobRow
+Tarol.Persistence.JobRow.<Clone>$() -> Tarol.Persistence.JobRow!
+Tarol.Persistence.JobRow.Attempts.get -> int
+Tarol.Persistence.JobRow.Attempts.init -> void
+Tarol.Persistence.JobRow.ClaimId.get -> System.Guid
+Tarol.Persistence.JobRow.ClaimId.init -> void
+Tarol.Persistence.JobRow.Deconstruct(out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out string! Name, out string! Schedule, out System.DateTimeOffset NextAt, out System.Guid ClaimId, out int Attempts, out Tarol.Options.Option<string!> LastError, out Tarol.Options.Option<long> Redrive, out System.DateTimeOffset Occurrence) -> void
+Tarol.Persistence.JobRow.Equals(Tarol.Persistence.JobRow? other) -> bool
+Tarol.Persistence.JobRow.JobRow(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, string! Name, string! Schedule, System.DateTimeOffset NextAt, System.Guid ClaimId, int Attempts, Tarol.Options.Option<string!> LastError, Tarol.Options.Option<long> Redrive, System.DateTimeOffset Occurrence) -> void
+Tarol.Persistence.JobRow.LastError.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.JobRow.LastError.init -> void
+Tarol.Persistence.JobRow.Name.get -> string!
+Tarol.Persistence.JobRow.Name.init -> void
+Tarol.Persistence.JobRow.NextAt.get -> System.DateTimeOffset
+Tarol.Persistence.JobRow.NextAt.init -> void
+Tarol.Persistence.JobRow.Occurrence.get -> System.DateTimeOffset
+Tarol.Persistence.JobRow.Occurrence.init -> void
+Tarol.Persistence.JobRow.Redrive.get -> Tarol.Options.Option<long>
+Tarol.Persistence.JobRow.Redrive.init -> void
+Tarol.Persistence.JobRow.Schedule.get -> string!
+Tarol.Persistence.JobRow.Schedule.init -> void
+Tarol.Persistence.JobRow.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.JobRow.Tenant.init -> void
+Tarol.Persistence.JobSchedule
+Tarol.Persistence.JobSchedule.<Clone>$() -> Tarol.Persistence.JobSchedule!
+Tarol.Persistence.JobSchedule.Deconstruct(out string! Name, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out string! Schedule, out bool Enabled, out System.DateTimeOffset First) -> void
+Tarol.Persistence.JobSchedule.Enabled.get -> bool
+Tarol.Persistence.JobSchedule.Enabled.init -> void
+Tarol.Persistence.JobSchedule.Equals(Tarol.Persistence.JobSchedule? other) -> bool
+Tarol.Persistence.JobSchedule.First.get -> System.DateTimeOffset
+Tarol.Persistence.JobSchedule.First.init -> void
+Tarol.Persistence.JobSchedule.JobSchedule(string! Name, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, string! Schedule, bool Enabled, System.DateTimeOffset First) -> void
+Tarol.Persistence.JobSchedule.Name.get -> string!
+Tarol.Persistence.JobSchedule.Name.init -> void
+Tarol.Persistence.JobSchedule.Schedule.get -> string!
+Tarol.Persistence.JobSchedule.Schedule.init -> void
+Tarol.Persistence.JobSchedule.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.JobSchedule.Tenant.init -> void
+Tarol.Persistence.JobState
+Tarol.Persistence.JobState.<Clone>$() -> Tarol.Persistence.JobState!
+Tarol.Persistence.JobState.Attempts.get -> int
+Tarol.Persistence.JobState.Attempts.init -> void
+Tarol.Persistence.JobState.Deconstruct(out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out string! Name, out string! Schedule, out bool Enabled, out System.DateTimeOffset NextAt, out Tarol.Options.Option<System.DateTimeOffset> LeaseUntil, out int Attempts, out Tarol.Options.Option<string!> LastError) -> void
+Tarol.Persistence.JobState.Enabled.get -> bool
+Tarol.Persistence.JobState.Enabled.init -> void
+Tarol.Persistence.JobState.Equals(Tarol.Persistence.JobState? other) -> bool
+Tarol.Persistence.JobState.JobState(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, string! Name, string! Schedule, bool Enabled, System.DateTimeOffset NextAt, Tarol.Options.Option<System.DateTimeOffset> LeaseUntil, int Attempts, Tarol.Options.Option<string!> LastError) -> void
+Tarol.Persistence.JobState.LastError.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.JobState.LastError.init -> void
+Tarol.Persistence.JobState.LeaseUntil.get -> Tarol.Options.Option<System.DateTimeOffset>
+Tarol.Persistence.JobState.LeaseUntil.init -> void
+Tarol.Persistence.JobState.Name.get -> string!
+Tarol.Persistence.JobState.Name.init -> void
+Tarol.Persistence.JobState.NextAt.get -> System.DateTimeOffset
+Tarol.Persistence.JobState.NextAt.init -> void
+Tarol.Persistence.JobState.Schedule.get -> string!
+Tarol.Persistence.JobState.Schedule.init -> void
+Tarol.Persistence.JobState.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.JobState.Tenant.init -> void
+Tarol.Persistence.JobSyncChange
+Tarol.Persistence.JobSyncChange.<Clone>$() -> Tarol.Persistence.JobSyncChange!
+Tarol.Persistence.JobSyncChange.Deconstruct(out string! Name, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out Tarol.Persistence.JobSyncKind Kind) -> void
+Tarol.Persistence.JobSyncChange.Equals(Tarol.Persistence.JobSyncChange? other) -> bool
+Tarol.Persistence.JobSyncChange.JobSyncChange(string! Name, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, Tarol.Persistence.JobSyncKind Kind) -> void
+Tarol.Persistence.JobSyncChange.Kind.get -> Tarol.Persistence.JobSyncKind
+Tarol.Persistence.JobSyncChange.Kind.init -> void
+Tarol.Persistence.JobSyncChange.Name.get -> string!
+Tarol.Persistence.JobSyncChange.Name.init -> void
+Tarol.Persistence.JobSyncChange.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.JobSyncChange.Tenant.init -> void
+Tarol.Persistence.JobSyncKind
+Tarol.Persistence.JobSyncKind.Added = 0 -> Tarol.Persistence.JobSyncKind
+Tarol.Persistence.JobSyncKind.Disabled = 3 -> Tarol.Persistence.JobSyncKind
+Tarol.Persistence.JobSyncKind.Enabled = 2 -> Tarol.Persistence.JobSyncKind
+Tarol.Persistence.JobSyncKind.Rescheduled = 1 -> Tarol.Persistence.JobSyncKind
+Tarol.Persistence.KeyBinding
+Tarol.Persistence.KeyErasedEventArgs
+Tarol.Persistence.KeyErasedEventArgs.KeyErasedEventArgs(System.Guid tenant, System.Guid? subject) -> void
+Tarol.Persistence.KeyErasedEventArgs.Subject.get -> System.Guid?
+Tarol.Persistence.KeyErasedEventArgs.Tenant.get -> System.Guid
+Tarol.Persistence.KeyRing
+Tarol.Persistence.KeyRing.Add(Tarol.Persistence.SubjectKey! key) -> Tarol.Persistence.KeyRing!
+Tarol.Persistence.KeyRing.Contains(System.Guid subject) -> bool
+Tarol.Persistence.KeyRing.Count.get -> int
+Tarol.Persistence.KeyRing.KeyRing(System.Guid tenant) -> void
+Tarol.Persistence.KeyRing.Subjects.get -> System.Collections.Generic.IEnumerable<System.Guid>!
+Tarol.Persistence.KeyRing.Tenant.get -> System.Guid
+Tarol.Persistence.KeyRing.TryGet(System.Guid subject, out Tarol.Persistence.SubjectKey? key) -> bool
+Tarol.Persistence.KeyWrap
+Tarol.Persistence.KeyWrap.Dispose() -> void
+Tarol.Persistence.KeyWrap.KeyWrap(System.ReadOnlySpan<byte> key) -> void
+Tarol.Persistence.KeyWrap.Unwrap(System.ReadOnlySpan<byte> wrapped, System.ReadOnlySpan<byte> associatedData, System.Span<byte> key) -> void
+Tarol.Persistence.KeyWrap.Wrap(System.ReadOnlySpan<byte> key, System.ReadOnlySpan<byte> associatedData) -> byte[]!
+Tarol.Persistence.MaintenanceTask
+Tarol.Persistence.MaintenanceTask.<Clone>$() -> Tarol.Persistence.MaintenanceTask!
+Tarol.Persistence.MaintenanceTask.Deconstruct(out string! Name, out System.TimeSpan Every, out System.Func<System.IServiceProvider!, System.DateTimeOffset, System.Threading.CancellationToken, System.Threading.Tasks.Task<int>!>! Run) -> void
+Tarol.Persistence.MaintenanceTask.Equals(Tarol.Persistence.MaintenanceTask? other) -> bool
+Tarol.Persistence.MaintenanceTask.Every.get -> System.TimeSpan
+Tarol.Persistence.MaintenanceTask.Every.init -> void
+Tarol.Persistence.MaintenanceTask.MaintenanceTask(string! Name, System.TimeSpan Every, System.Func<System.IServiceProvider!, System.DateTimeOffset, System.Threading.CancellationToken, System.Threading.Tasks.Task<int>!>! Run) -> void
+Tarol.Persistence.MaintenanceTask.Name.get -> string!
+Tarol.Persistence.MaintenanceTask.Name.init -> void
+Tarol.Persistence.MaintenanceTask.Run.get -> System.Func<System.IServiceProvider!, System.DateTimeOffset, System.Threading.CancellationToken, System.Threading.Tasks.Task<int>!>!
+Tarol.Persistence.MaintenanceTask.Run.init -> void
+Tarol.Persistence.OperationsSignal
+Tarol.Persistence.OperationsSignal.<Clone>$() -> Tarol.Persistence.OperationsSignal!
+Tarol.Persistence.OperationsSignal.Deconstruct(out string! Meter, out string! Name, out string! Unit, out string! Description, out System.Func<System.IServiceProvider!, System.Threading.CancellationToken, System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.SignalValue>!>!>! Read) -> void
+Tarol.Persistence.OperationsSignal.Description.get -> string!
+Tarol.Persistence.OperationsSignal.Description.init -> void
+Tarol.Persistence.OperationsSignal.Equals(Tarol.Persistence.OperationsSignal? other) -> bool
+Tarol.Persistence.OperationsSignal.Meter.get -> string!
+Tarol.Persistence.OperationsSignal.Meter.init -> void
+Tarol.Persistence.OperationsSignal.Name.get -> string!
+Tarol.Persistence.OperationsSignal.Name.init -> void
+Tarol.Persistence.OperationsSignal.OperationsSignal(string! Meter, string! Name, string! Unit, string! Description, System.Func<System.IServiceProvider!, System.Threading.CancellationToken, System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.SignalValue>!>!>! Read) -> void
+Tarol.Persistence.OperationsSignal.Read.get -> System.Func<System.IServiceProvider!, System.Threading.CancellationToken, System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.SignalValue>!>!>!
+Tarol.Persistence.OperationsSignal.Read.init -> void
+Tarol.Persistence.OperationsSignal.Unit.get -> string!
+Tarol.Persistence.OperationsSignal.Unit.init -> void
+Tarol.Persistence.OperationsSignals
+Tarol.Persistence.OutboxReactions
+Tarol.Persistence.OutboxRow
+Tarol.Persistence.OutboxRow.<Clone>$() -> Tarol.Persistence.OutboxRow!
+Tarol.Persistence.OutboxRow.Attempts.get -> int
+Tarol.Persistence.OutboxRow.Attempts.init -> void
+Tarol.Persistence.OutboxRow.ClaimId.get -> System.Guid
+Tarol.Persistence.OutboxRow.ClaimId.init -> void
+Tarol.Persistence.OutboxRow.Deconstruct(out long Id, out System.Guid ClaimId, out string! Reaction, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out int Attempts, out Tarol.Options.Option<string!> LastError, out Tarol.Persistence.PositionedEvent! Event, out Tarol.Options.Option<string!> Traceparent) -> void
+Tarol.Persistence.OutboxRow.DueAt.get -> System.DateTimeOffset?
+Tarol.Persistence.OutboxRow.DueAt.init -> void
+Tarol.Persistence.OutboxRow.Equals(Tarol.Persistence.OutboxRow? other) -> bool
+Tarol.Persistence.OutboxRow.Event.get -> Tarol.Persistence.PositionedEvent!
+Tarol.Persistence.OutboxRow.Event.init -> void
+Tarol.Persistence.OutboxRow.Id.get -> long
+Tarol.Persistence.OutboxRow.Id.init -> void
+Tarol.Persistence.OutboxRow.LastError.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.OutboxRow.LastError.init -> void
+Tarol.Persistence.OutboxRow.OutboxRow(long Id, System.Guid ClaimId, string! Reaction, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, int Attempts, Tarol.Options.Option<string!> LastError, Tarol.Persistence.PositionedEvent! Event, Tarol.Options.Option<string!> Traceparent) -> void
+Tarol.Persistence.OutboxRow.Reaction.get -> string!
+Tarol.Persistence.OutboxRow.Reaction.init -> void
+Tarol.Persistence.OutboxRow.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Persistence.OutboxRow.Tenant.init -> void
+Tarol.Persistence.OutboxRow.Traceparent.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.OutboxRow.Traceparent.init -> void
+Tarol.Persistence.PositionedEvent
+Tarol.Persistence.PositionedEvent.<Clone>$() -> Tarol.Persistence.PositionedEvent!
+Tarol.Persistence.PositionedEvent.Deconstruct(out Tarol.Persistence.GlobalPosition Position, out string! StreamType, out Tarol.Primitives.RecordedEvent! Event) -> void
+Tarol.Persistence.PositionedEvent.Equals(Tarol.Persistence.PositionedEvent? other) -> bool
+Tarol.Persistence.PositionedEvent.Event.get -> Tarol.Primitives.RecordedEvent!
+Tarol.Persistence.PositionedEvent.Event.init -> void
+Tarol.Persistence.PositionedEvent.Position.get -> Tarol.Persistence.GlobalPosition
+Tarol.Persistence.PositionedEvent.Position.init -> void
+Tarol.Persistence.PositionedEvent.PositionedEvent(Tarol.Persistence.GlobalPosition Position, string! StreamType, Tarol.Primitives.RecordedEvent! Event) -> void
+Tarol.Persistence.PositionedEvent.StreamType.get -> string!
+Tarol.Persistence.PositionedEvent.StreamType.init -> void
+Tarol.Persistence.ProjectionVersion
+Tarol.Persistence.ProjectionVersion.<Clone>$() -> Tarol.Persistence.ProjectionVersion!
+Tarol.Persistence.ProjectionVersion.Bytes.get -> long
+Tarol.Persistence.ProjectionVersion.Bytes.init -> void
+Tarol.Persistence.ProjectionVersion.Deconstruct(out string! Name, out int Version, out string! State, out long Rows, out long Bytes, out bool Superseded) -> void
+Tarol.Persistence.ProjectionVersion.Equals(Tarol.Persistence.ProjectionVersion? other) -> bool
+Tarol.Persistence.ProjectionVersion.Name.get -> string!
+Tarol.Persistence.ProjectionVersion.Name.init -> void
+Tarol.Persistence.ProjectionVersion.ProjectionVersion(string! Name, int Version, string! State, long Rows, long Bytes, bool Superseded) -> void
+Tarol.Persistence.ProjectionVersion.Rows.get -> long
+Tarol.Persistence.ProjectionVersion.Rows.init -> void
+Tarol.Persistence.ProjectionVersion.State.get -> string!
+Tarol.Persistence.ProjectionVersion.State.init -> void
+Tarol.Persistence.ProjectionVersion.Superseded.get -> bool
+Tarol.Persistence.ProjectionVersion.Superseded.init -> void
+Tarol.Persistence.ProjectionVersion.Version.get -> int
+Tarol.Persistence.ProjectionVersion.Version.init -> void
+Tarol.Persistence.ReactionTable
+Tarol.Persistence.ReadinessCheck
+Tarol.Persistence.ReadinessCheck.<Clone>$() -> Tarol.Persistence.ReadinessCheck!
+Tarol.Persistence.ReadinessCheck.Deconstruct(out string! Name, out System.Func<System.IServiceProvider!, string?>! Problem) -> void
+Tarol.Persistence.ReadinessCheck.Equals(Tarol.Persistence.ReadinessCheck? other) -> bool
+Tarol.Persistence.ReadinessCheck.Name.get -> string!
+Tarol.Persistence.ReadinessCheck.Name.init -> void
+Tarol.Persistence.ReadinessCheck.Problem.get -> System.Func<System.IServiceProvider!, string?>!
+Tarol.Persistence.ReadinessCheck.Problem.init -> void
+Tarol.Persistence.ReadinessCheck.ReadinessCheck(string! Name, System.Func<System.IServiceProvider!, string?>! Problem) -> void
+Tarol.Persistence.RetentionPolicy
+Tarol.Persistence.RetentionPolicy.Add<T>() -> Tarol.Persistence.RetentionPolicy!
+Tarol.Persistence.RetentionPolicy.Days.get -> System.Collections.Generic.IReadOnlyDictionary<string!, int>!
+Tarol.Persistence.RetentionPolicy.RetentionPolicy() -> void
+Tarol.Persistence.RetentionPolicy.Set(string! streamType, int? days) -> Tarol.Persistence.RetentionPolicy!
+Tarol.Persistence.RetentionPolicy.TryGetDays(string! streamType, out int days) -> bool
+Tarol.Persistence.SignalValue
+Tarol.Persistence.SignalValue.Deconstruct(out double Value, out string? TagName, out string? TagValue) -> void
+Tarol.Persistence.SignalValue.Equals(Tarol.Persistence.SignalValue other) -> bool
+Tarol.Persistence.SignalValue.SignalValue() -> void
+Tarol.Persistence.SignalValue.SignalValue(double Value, string? TagName = null, string? TagValue = null) -> void
+Tarol.Persistence.SignalValue.TagName.get -> string?
+Tarol.Persistence.SignalValue.TagName.init -> void
+Tarol.Persistence.SignalValue.TagValue.get -> string?
+Tarol.Persistence.SignalValue.TagValue.init -> void
+Tarol.Persistence.SignalValue.Value.get -> double
+Tarol.Persistence.SignalValue.Value.init -> void
+Tarol.Persistence.StoreErrors
+Tarol.Persistence.StoreLookups
+Tarol.Persistence.StoreLookups.Define<T>(string! name, System.Func<T!, string?>! key) -> Tarol.Persistence.StoreLookups!
+Tarol.Persistence.StoreLookups.DefinePersonal<T>(string! name, System.Func<T!, string?>! key) -> Tarol.Persistence.StoreLookups!
+Tarol.Persistence.StoreLookups.HasPersonal<T>() -> bool
+Tarol.Persistence.StoreLookups.IsDefined<T>(string! name) -> bool
+Tarol.Persistence.StoreLookups.IsPersonal(string! streamType, string! name) -> bool
+Tarol.Persistence.StoreLookups.IsPersonal<T>(string! name) -> bool
+Tarol.Persistence.StoreLookups.KeysOf<T>(T! aggregate) -> System.Collections.Generic.IReadOnlyList<(string! Lookup, string? Key)>!
+Tarol.Persistence.StoreLookups.PersonalOf(string! streamType) -> System.Collections.Generic.IReadOnlyCollection<string!>!
+Tarol.Persistence.StoreLookups.StoreLookups() -> void
+Tarol.Persistence.StoredOutcome
+Tarol.Persistence.StoredOutcome.Deconstruct(out System.Guid StreamId, out long Version, out int Events, out Tarol.Options.Option<string!> Fingerprint) -> void
+Tarol.Persistence.StoredOutcome.Equals(Tarol.Persistence.StoredOutcome other) -> bool
+Tarol.Persistence.StoredOutcome.Events.get -> int
+Tarol.Persistence.StoredOutcome.Events.init -> void
+Tarol.Persistence.StoredOutcome.Fingerprint.get -> Tarol.Options.Option<string!>
+Tarol.Persistence.StoredOutcome.Fingerprint.init -> void
+Tarol.Persistence.StoredOutcome.StoredOutcome() -> void
+Tarol.Persistence.StoredOutcome.StoredOutcome(System.Guid StreamId, long Version, int Events, Tarol.Options.Option<string!> Fingerprint = default(Tarol.Options.Option<string!>)) -> void
+Tarol.Persistence.StoredOutcome.StreamId.get -> System.Guid
+Tarol.Persistence.StoredOutcome.StreamId.init -> void
+Tarol.Persistence.StoredOutcome.Version.get -> long
+Tarol.Persistence.StoredOutcome.Version.init -> void
+Tarol.Persistence.StreamRef
+Tarol.Persistence.StreamRef.Deconstruct(out System.Guid Tenant, out string! StreamType, out System.Guid Id) -> void
+Tarol.Persistence.StreamRef.Equals(Tarol.Persistence.StreamRef other) -> bool
+Tarol.Persistence.StreamRef.Id.get -> System.Guid
+Tarol.Persistence.StreamRef.Id.init -> void
+Tarol.Persistence.StreamRef.StreamRef() -> void
+Tarol.Persistence.StreamRef.StreamRef(System.Guid Tenant, string! StreamType, System.Guid Id) -> void
+Tarol.Persistence.StreamRef.StreamType.get -> string!
+Tarol.Persistence.StreamRef.StreamType.init -> void
+Tarol.Persistence.StreamRef.Tenant.get -> System.Guid
+Tarol.Persistence.StreamRef.Tenant.init -> void
+Tarol.Persistence.SubjectErasedException
+Tarol.Persistence.SubjectErasedException.Subject.get -> System.Guid
+Tarol.Persistence.SubjectErasedException.SubjectErasedException() -> void
+Tarol.Persistence.SubjectErasedException.SubjectErasedException(System.Guid tenant, System.Guid subject) -> void
+Tarol.Persistence.SubjectErasedException.SubjectErasedException(string! message) -> void
+Tarol.Persistence.SubjectErasedException.SubjectErasedException(string! message, System.Exception! innerException) -> void
+Tarol.Persistence.SubjectErasedException.Tenant.get -> System.Guid
+Tarol.Persistence.SubjectErasure
+Tarol.Persistence.SubjectErasure.<Clone>$() -> Tarol.Persistence.SubjectErasure!
+Tarol.Persistence.SubjectErasure.AlreadyErased.get -> bool
+Tarol.Persistence.SubjectErasure.AlreadyErased.init -> void
+Tarol.Persistence.SubjectErasure.Deconstruct(out System.Guid Tenant, out System.Guid? Subject, out bool AlreadyErased, out System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! Streams) -> void
+Tarol.Persistence.SubjectErasure.Equals(Tarol.Persistence.SubjectErasure? other) -> bool
+Tarol.Persistence.SubjectErasure.Streams.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!
+Tarol.Persistence.SubjectErasure.Streams.init -> void
+Tarol.Persistence.SubjectErasure.Subject.get -> System.Guid?
+Tarol.Persistence.SubjectErasure.Subject.init -> void
+Tarol.Persistence.SubjectErasure.SubjectErasure(System.Guid Tenant, System.Guid? Subject, bool AlreadyErased, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! Streams) -> void
+Tarol.Persistence.SubjectErasure.Tenant.get -> System.Guid
+Tarol.Persistence.SubjectErasure.Tenant.init -> void
+Tarol.Persistence.SubjectExport
+Tarol.Persistence.SubjectExport.<Clone>$() -> Tarol.Persistence.SubjectExport!
+Tarol.Persistence.SubjectExport.Deconstruct(out System.Guid Tenant, out System.Guid Subject, out System.ReadOnlyMemory<byte> Utf8Json) -> void
+Tarol.Persistence.SubjectExport.Equals(Tarol.Persistence.SubjectExport? other) -> bool
+Tarol.Persistence.SubjectExport.Subject.get -> System.Guid
+Tarol.Persistence.SubjectExport.Subject.init -> void
+Tarol.Persistence.SubjectExport.SubjectExport(System.Guid Tenant, System.Guid Subject, System.ReadOnlyMemory<byte> Utf8Json) -> void
+Tarol.Persistence.SubjectExport.Tenant.get -> System.Guid
+Tarol.Persistence.SubjectExport.Tenant.init -> void
+Tarol.Persistence.SubjectExport.Utf8Json.get -> System.ReadOnlyMemory<byte>
+Tarol.Persistence.SubjectExport.Utf8Json.init -> void
+Tarol.Persistence.SubjectKey
+Tarol.Persistence.SubjectKey.Dispose() -> void
+Tarol.Persistence.SubjectKey.IsErased.get -> bool
+Tarol.Persistence.SubjectKey.Subject.get -> System.Guid
+Tarol.Persistence.SubjectKey.SubjectKey(System.Guid tenant, System.Guid subject, int version, System.ReadOnlySpan<byte> key) -> void
+Tarol.Persistence.SubjectKey.Tenant.get -> System.Guid
+Tarol.Persistence.SubjectKey.Version.get -> int
+Tarol.Persistence.TarolBuilder
+Tarol.Persistence.TarolBuilder.Codec.get -> Tarol.Persistence.EventCodec!
+Tarol.Persistence.TarolBuilder.HasStore.get -> bool
+Tarol.Persistence.TarolBuilder.Json.get -> System.Text.Json.JsonSerializerOptions!
+Tarol.Persistence.TarolBuilder.OutboxTable.get -> Tarol.Persistence.IOutboxReactions?
+Tarol.Persistence.TarolBuilder.Reactions.get -> Tarol.Persistence.IOutboxReactions?
+Tarol.Persistence.TarolBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Tarol.Persistence.TarolBuilder.TarolBuilder(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Text.Json.JsonSerializerOptions! json, Tarol.Persistence.EventCodec! codec) -> void
+Tarol.Persistence.TarolBuilder.UseInMemoryStore(Tarol.Persistence.StoreLookups? lookups = null) -> Tarol.Persistence.TarolBuilder!
+Tarol.Persistence.TarolBuilder.UseStore<TStore>(System.Func<System.IServiceProvider!, TStore!>! factory, System.Func<TStore!, Tarol.Persistence.IOutbox!>! outbox) -> Tarol.Persistence.TarolBuilder!
+Tarol.Persistence.TarolBuilder.UseStore<TStore>(System.Func<System.IServiceProvider!, TStore!>! factory, System.Func<TStore!, Tarol.Persistence.IOutbox!>! outbox, System.Func<TStore!, Tarol.Persistence.IJobRows!>! jobs) -> Tarol.Persistence.TarolBuilder!
+Tarol.Persistence.TarolBuilder.WithOutboxRows(Tarol.Persistence.IOutboxReactions! rows) -> Tarol.Persistence.TarolBuilder!
+Tarol.Persistence.TarolBuilder.WithReactions(Tarol.Persistence.IOutboxReactions! reactions) -> Tarol.Persistence.TarolBuilder!
+abstract Tarol.Persistence.ErasureParticipant.Forget(System.Guid tenant, System.Guid subject, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+abstract Tarol.Persistence.ErasureParticipant.Name.get -> string!
+const Tarol.Persistence.DataProtectionErrors.SubjectErasedCode = "DataProtection.SubjectErased" -> string!
+const Tarol.Persistence.DeadLetterKinds.Jobs = "jobs" -> string!
+const Tarol.Persistence.DeadLetterKinds.Messages = "messages" -> string!
+const Tarol.Persistence.DeadLetterKinds.Reactions = "reactions" -> string!
+const Tarol.Persistence.DeadLetterQuery.MaxLimit = 200 -> int
+const Tarol.Persistence.Envelope.HeadSize = 48 -> int
+const Tarol.Persistence.Envelope.NonceSize = 12 -> int
+const Tarol.Persistence.Envelope.TagSize = 16 -> int
+const Tarol.Persistence.KeyWrap.WrappedSize = 60 -> int
+const Tarol.Persistence.OperationsSignals.JobsDead = "tarol.jobs.dead" -> string!
+const Tarol.Persistence.OperationsSignals.JobsOverdue = "tarol.jobs.overdue" -> string!
+const Tarol.Persistence.OperationsSignals.MessagesBacklog = "tarol.messages.backlog" -> string!
+const Tarol.Persistence.OperationsSignals.MessagesDead = "tarol.messages.dead" -> string!
+const Tarol.Persistence.OperationsSignals.Meter = "Tarol.Operations" -> string!
+const Tarol.Persistence.OperationsSignals.ProjectionsLag = "tarol.projections.lag" -> string!
+const Tarol.Persistence.OperationsSignals.ReactionsBacklog = "tarol.reactions.backlog" -> string!
+const Tarol.Persistence.OperationsSignals.ReactionsDead = "tarol.reactions.dead" -> string!
+const Tarol.Persistence.OperationsSignals.ReactionsOldestDue = "tarol.reactions.oldest_due" -> string!
+const Tarol.Persistence.StoreErrors.DuplicateKeyCode = "Idempotency.DuplicateKey" -> string!
+const Tarol.Persistence.StoreErrors.KeyReusedCode = "Idempotency.KeyReused" -> string!
+const Tarol.Persistence.StoreErrors.LookupTakenCode = "Lookup.Taken" -> string!
+const Tarol.Persistence.StoreErrors.VersionConflictCode = "Stream.VersionConflict" -> string!
+const Tarol.Persistence.SubjectKey.KeySize = 32 -> int
+override Tarol.Persistence.DeadJob.Equals(object? obj) -> bool
+override Tarol.Persistence.DeadJob.GetHashCode() -> int
+override Tarol.Persistence.DeadJob.ToString() -> string!
+override Tarol.Persistence.DeadLetter.Equals(object? obj) -> bool
+override Tarol.Persistence.DeadLetter.GetHashCode() -> int
+override Tarol.Persistence.DeadLetter.ToString() -> string!
+override Tarol.Persistence.DeadLetterItem.Equals(object? obj) -> bool
+override Tarol.Persistence.DeadLetterItem.GetHashCode() -> int
+override Tarol.Persistence.DeadLetterItem.ToString() -> string!
+override Tarol.Persistence.DeadLetterPage.Equals(object? obj) -> bool
+override Tarol.Persistence.DeadLetterPage.GetHashCode() -> int
+override Tarol.Persistence.DeadLetterPage.ToString() -> string!
+override Tarol.Persistence.DeadLetterQuery.Equals(object? obj) -> bool
+override Tarol.Persistence.DeadLetterQuery.GetHashCode() -> int
+override Tarol.Persistence.DeadLetterQuery.ToString() -> string!
+~override Tarol.Persistence.GlobalPosition.Equals(object obj) -> bool
+override Tarol.Persistence.GlobalPosition.GetHashCode() -> int
+~override Tarol.Persistence.GlobalPosition.ToString() -> string
+~override Tarol.Persistence.IdempotencyKey.Equals(object obj) -> bool
+override Tarol.Persistence.IdempotencyKey.GetHashCode() -> int
+~override Tarol.Persistence.IdempotencyKey.ToString() -> string
+override Tarol.Persistence.InMemoryStoreOptions.Equals(object? obj) -> bool
+override Tarol.Persistence.InMemoryStoreOptions.GetHashCode() -> int
+override Tarol.Persistence.InMemoryStoreOptions.ToString() -> string!
+override Tarol.Persistence.JobRow.Equals(object? obj) -> bool
+override Tarol.Persistence.JobRow.GetHashCode() -> int
+override Tarol.Persistence.JobRow.ToString() -> string!
+override Tarol.Persistence.JobSchedule.Equals(object? obj) -> bool
+override Tarol.Persistence.JobSchedule.GetHashCode() -> int
+override Tarol.Persistence.JobSchedule.ToString() -> string!
+override Tarol.Persistence.JobState.Equals(object? obj) -> bool
+override Tarol.Persistence.JobState.GetHashCode() -> int
+override Tarol.Persistence.JobState.ToString() -> string!
+override Tarol.Persistence.JobSyncChange.Equals(object? obj) -> bool
+override Tarol.Persistence.JobSyncChange.GetHashCode() -> int
+override Tarol.Persistence.JobSyncChange.ToString() -> string!
+override Tarol.Persistence.MaintenanceTask.Equals(object? obj) -> bool
+override Tarol.Persistence.MaintenanceTask.GetHashCode() -> int
+override Tarol.Persistence.MaintenanceTask.ToString() -> string!
+override Tarol.Persistence.OperationsSignal.Equals(object? obj) -> bool
+override Tarol.Persistence.OperationsSignal.GetHashCode() -> int
+override Tarol.Persistence.OperationsSignal.ToString() -> string!
+override Tarol.Persistence.OutboxRow.Equals(object? obj) -> bool
+override Tarol.Persistence.OutboxRow.GetHashCode() -> int
+override Tarol.Persistence.OutboxRow.ToString() -> string!
+override Tarol.Persistence.PositionedEvent.Equals(object? obj) -> bool
+override Tarol.Persistence.PositionedEvent.GetHashCode() -> int
+override Tarol.Persistence.PositionedEvent.ToString() -> string!
+override Tarol.Persistence.ProjectionVersion.Equals(object? obj) -> bool
+override Tarol.Persistence.ProjectionVersion.GetHashCode() -> int
+override Tarol.Persistence.ProjectionVersion.ToString() -> string!
+override Tarol.Persistence.ReadinessCheck.Equals(object? obj) -> bool
+override Tarol.Persistence.ReadinessCheck.GetHashCode() -> int
+override Tarol.Persistence.ReadinessCheck.ToString() -> string!
+~override Tarol.Persistence.SignalValue.Equals(object obj) -> bool
+override Tarol.Persistence.SignalValue.GetHashCode() -> int
+~override Tarol.Persistence.SignalValue.ToString() -> string
+~override Tarol.Persistence.StoredOutcome.Equals(object obj) -> bool
+override Tarol.Persistence.StoredOutcome.GetHashCode() -> int
+~override Tarol.Persistence.StoredOutcome.ToString() -> string
+~override Tarol.Persistence.StreamRef.Equals(object obj) -> bool
+override Tarol.Persistence.StreamRef.GetHashCode() -> int
+~override Tarol.Persistence.StreamRef.ToString() -> string
+override Tarol.Persistence.SubjectErasure.Equals(object? obj) -> bool
+override Tarol.Persistence.SubjectErasure.GetHashCode() -> int
+override Tarol.Persistence.SubjectErasure.ToString() -> string!
+override Tarol.Persistence.SubjectExport.Equals(object? obj) -> bool
+override Tarol.Persistence.SubjectExport.GetHashCode() -> int
+override Tarol.Persistence.SubjectExport.ToString() -> string!
+static Tarol.Persistence.ConfiguredKeyEncryptionKey.FromBase64(string! keyId, string! base64Key) -> Tarol.Persistence.ConfiguredKeyEncryptionKey!
+static Tarol.Persistence.DataProtectionErrors.SubjectErased(System.Guid subject) -> Tarol.Results.Error!
+static Tarol.Persistence.DeadJob.operator !=(Tarol.Persistence.DeadJob? left, Tarol.Persistence.DeadJob? right) -> bool
+static Tarol.Persistence.DeadJob.operator ==(Tarol.Persistence.DeadJob? left, Tarol.Persistence.DeadJob? right) -> bool
+static Tarol.Persistence.DeadLetter.operator !=(Tarol.Persistence.DeadLetter? left, Tarol.Persistence.DeadLetter? right) -> bool
+static Tarol.Persistence.DeadLetter.operator ==(Tarol.Persistence.DeadLetter? left, Tarol.Persistence.DeadLetter? right) -> bool
+static Tarol.Persistence.DeadLetterItem.operator !=(Tarol.Persistence.DeadLetterItem? left, Tarol.Persistence.DeadLetterItem? right) -> bool
+static Tarol.Persistence.DeadLetterItem.operator ==(Tarol.Persistence.DeadLetterItem? left, Tarol.Persistence.DeadLetterItem? right) -> bool
+static Tarol.Persistence.DeadLetterPage.operator !=(Tarol.Persistence.DeadLetterPage? left, Tarol.Persistence.DeadLetterPage? right) -> bool
+static Tarol.Persistence.DeadLetterPage.operator ==(Tarol.Persistence.DeadLetterPage? left, Tarol.Persistence.DeadLetterPage? right) -> bool
+static Tarol.Persistence.DeadLetterQuery.operator !=(Tarol.Persistence.DeadLetterQuery? left, Tarol.Persistence.DeadLetterQuery? right) -> bool
+static Tarol.Persistence.DeadLetterQuery.operator ==(Tarol.Persistence.DeadLetterQuery? left, Tarol.Persistence.DeadLetterQuery? right) -> bool
+static Tarol.Persistence.Envelope.IsEnvelope(System.ReadOnlySpan<byte> utf8) -> bool
+static Tarol.Persistence.Envelope.MaxLength(int plaintextLength) -> int
+static Tarol.Persistence.Envelope.Prefix.get -> System.ReadOnlySpan<byte>
+static Tarol.Persistence.Envelope.Seal(Tarol.Persistence.SubjectKey! key, System.ReadOnlySpan<byte> plaintext, System.Span<byte> destination) -> int
+static Tarol.Persistence.Envelope.TryOpen(Tarol.Persistence.KeyRing! keys, System.ReadOnlySpan<byte> utf8, System.Buffers.IBufferWriter<byte>! plaintext) -> bool
+static Tarol.Persistence.Envelope.TryReadSubject(System.ReadOnlySpan<byte> utf8, out System.Guid subject) -> bool
+static Tarol.Persistence.EventCodec.IsSealed(System.ReadOnlySpan<byte> stored) -> bool
+static Tarol.Persistence.EventCodec.OpenState(System.ReadOnlySpan<byte> stored, Tarol.Persistence.KeyRing? keys, System.Buffers.IBufferWriter<byte>! opened) -> bool
+static Tarol.Persistence.EventCodec.PersonalEventTypes<T>() -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.EventType>!
+static Tarol.Persistence.EventCodec.SealedSubjects(System.ReadOnlySpan<byte> stored, System.Collections.Generic.ICollection<System.Guid>! subjects) -> void
+static Tarol.Persistence.GlobalPosition.Start.get -> Tarol.Persistence.GlobalPosition
+static Tarol.Persistence.GlobalPosition.operator !=(Tarol.Persistence.GlobalPosition left, Tarol.Persistence.GlobalPosition right) -> bool
+static Tarol.Persistence.GlobalPosition.operator <(Tarol.Persistence.GlobalPosition left, Tarol.Persistence.GlobalPosition right) -> bool
+static Tarol.Persistence.GlobalPosition.operator <=(Tarol.Persistence.GlobalPosition left, Tarol.Persistence.GlobalPosition right) -> bool
+static Tarol.Persistence.GlobalPosition.operator ==(Tarol.Persistence.GlobalPosition left, Tarol.Persistence.GlobalPosition right) -> bool
+static Tarol.Persistence.GlobalPosition.operator >(Tarol.Persistence.GlobalPosition left, Tarol.Persistence.GlobalPosition right) -> bool
+static Tarol.Persistence.GlobalPosition.operator >=(Tarol.Persistence.GlobalPosition left, Tarol.Persistence.GlobalPosition right) -> bool
+static Tarol.Persistence.IdempotencyKey.operator !=(Tarol.Persistence.IdempotencyKey left, Tarol.Persistence.IdempotencyKey right) -> bool
+static Tarol.Persistence.IdempotencyKey.operator ==(Tarol.Persistence.IdempotencyKey left, Tarol.Persistence.IdempotencyKey right) -> bool
+static Tarol.Persistence.InMemoryKeyStore.Create(System.TimeProvider? time = null) -> Tarol.Persistence.InMemoryKeyStore!
+static Tarol.Persistence.InMemoryStoreOptions.operator !=(Tarol.Persistence.InMemoryStoreOptions? left, Tarol.Persistence.InMemoryStoreOptions? right) -> bool
+static Tarol.Persistence.InMemoryStoreOptions.operator ==(Tarol.Persistence.InMemoryStoreOptions? left, Tarol.Persistence.InMemoryStoreOptions? right) -> bool
+static Tarol.Persistence.JobRow.operator !=(Tarol.Persistence.JobRow? left, Tarol.Persistence.JobRow? right) -> bool
+static Tarol.Persistence.JobRow.operator ==(Tarol.Persistence.JobRow? left, Tarol.Persistence.JobRow? right) -> bool
+static Tarol.Persistence.JobSchedule.operator !=(Tarol.Persistence.JobSchedule? left, Tarol.Persistence.JobSchedule? right) -> bool
+static Tarol.Persistence.JobSchedule.operator ==(Tarol.Persistence.JobSchedule? left, Tarol.Persistence.JobSchedule? right) -> bool
+static Tarol.Persistence.JobState.operator !=(Tarol.Persistence.JobState? left, Tarol.Persistence.JobState? right) -> bool
+static Tarol.Persistence.JobState.operator ==(Tarol.Persistence.JobState? left, Tarol.Persistence.JobState? right) -> bool
+static Tarol.Persistence.JobSyncChange.operator !=(Tarol.Persistence.JobSyncChange? left, Tarol.Persistence.JobSyncChange? right) -> bool
+static Tarol.Persistence.JobSyncChange.operator ==(Tarol.Persistence.JobSyncChange? left, Tarol.Persistence.JobSyncChange? right) -> bool
+static Tarol.Persistence.KeyBinding.BlindIndex(System.ReadOnlySpan<byte> tenantKey, string! lookup, string! value) -> string!
+static Tarol.Persistence.KeyBinding.Subject(System.Guid tenant, System.Guid subject, int version) -> byte[]!
+static Tarol.Persistence.KeyBinding.Tenant(System.Guid tenant) -> byte[]!
+static Tarol.Persistence.MaintenanceTask.operator !=(Tarol.Persistence.MaintenanceTask? left, Tarol.Persistence.MaintenanceTask? right) -> bool
+static Tarol.Persistence.MaintenanceTask.operator ==(Tarol.Persistence.MaintenanceTask? left, Tarol.Persistence.MaintenanceTask? right) -> bool
+static Tarol.Persistence.OperationsSignal.operator !=(Tarol.Persistence.OperationsSignal? left, Tarol.Persistence.OperationsSignal? right) -> bool
+static Tarol.Persistence.OperationsSignal.operator ==(Tarol.Persistence.OperationsSignal? left, Tarol.Persistence.OperationsSignal? right) -> bool
+static Tarol.Persistence.OutboxReactions.Combine(params Tarol.Persistence.IOutboxReactions?[]! parts) -> Tarol.Persistence.IOutboxReactions?
+static Tarol.Persistence.OutboxReactions.From(Tarol.Persistence.ReactionTable! table) -> Tarol.Persistence.IOutboxReactions!
+static Tarol.Persistence.OutboxRow.operator !=(Tarol.Persistence.OutboxRow? left, Tarol.Persistence.OutboxRow? right) -> bool
+static Tarol.Persistence.OutboxRow.operator ==(Tarol.Persistence.OutboxRow? left, Tarol.Persistence.OutboxRow? right) -> bool
+static Tarol.Persistence.PositionedEvent.operator !=(Tarol.Persistence.PositionedEvent? left, Tarol.Persistence.PositionedEvent? right) -> bool
+static Tarol.Persistence.PositionedEvent.operator ==(Tarol.Persistence.PositionedEvent? left, Tarol.Persistence.PositionedEvent? right) -> bool
+static Tarol.Persistence.ProjectionVersion.operator !=(Tarol.Persistence.ProjectionVersion? left, Tarol.Persistence.ProjectionVersion? right) -> bool
+static Tarol.Persistence.ProjectionVersion.operator ==(Tarol.Persistence.ProjectionVersion? left, Tarol.Persistence.ProjectionVersion? right) -> bool
+static Tarol.Persistence.ReadinessCheck.operator !=(Tarol.Persistence.ReadinessCheck? left, Tarol.Persistence.ReadinessCheck? right) -> bool
+static Tarol.Persistence.ReadinessCheck.operator ==(Tarol.Persistence.ReadinessCheck? left, Tarol.Persistence.ReadinessCheck? right) -> bool
+static Tarol.Persistence.SignalValue.operator !=(Tarol.Persistence.SignalValue left, Tarol.Persistence.SignalValue right) -> bool
+static Tarol.Persistence.SignalValue.operator ==(Tarol.Persistence.SignalValue left, Tarol.Persistence.SignalValue right) -> bool
+static Tarol.Persistence.StoreErrors.DuplicateKey(Tarol.Persistence.IdempotencyKey key) -> Tarol.Results.Error!
+static Tarol.Persistence.StoreErrors.IsVersionConflict(Tarol.Results.Result result) -> bool
+static Tarol.Persistence.StoreErrors.IsVersionConflict<T>(Tarol.Results.Result<T> result) -> bool
+static Tarol.Persistence.StoreErrors.KeyReused(Tarol.Persistence.IdempotencyKey key) -> Tarol.Results.Error!
+static Tarol.Persistence.StoreErrors.LookupTaken(string! lookup, string! key) -> Tarol.Results.Error!
+static Tarol.Persistence.StoreErrors.VersionConflict(long expected, long actual) -> Tarol.Results.Error!
+static Tarol.Persistence.StoredOutcome.operator !=(Tarol.Persistence.StoredOutcome left, Tarol.Persistence.StoredOutcome right) -> bool
+static Tarol.Persistence.StoredOutcome.operator ==(Tarol.Persistence.StoredOutcome left, Tarol.Persistence.StoredOutcome right) -> bool
+static Tarol.Persistence.StreamRef.operator !=(Tarol.Persistence.StreamRef left, Tarol.Persistence.StreamRef right) -> bool
+static Tarol.Persistence.StreamRef.operator ==(Tarol.Persistence.StreamRef left, Tarol.Persistence.StreamRef right) -> bool
+static Tarol.Persistence.SubjectErasure.operator !=(Tarol.Persistence.SubjectErasure? left, Tarol.Persistence.SubjectErasure? right) -> bool
+static Tarol.Persistence.SubjectErasure.operator ==(Tarol.Persistence.SubjectErasure? left, Tarol.Persistence.SubjectErasure? right) -> bool
+static Tarol.Persistence.SubjectExport.operator !=(Tarol.Persistence.SubjectExport? left, Tarol.Persistence.SubjectExport? right) -> bool
+static Tarol.Persistence.SubjectExport.operator ==(Tarol.Persistence.SubjectExport? left, Tarol.Persistence.SubjectExport? right) -> bool
+static Tarol.Persistence.SubjectKey.Create(System.Guid tenant, System.Guid subject, System.Span<byte> material) -> Tarol.Persistence.SubjectKey!
+static Tarol.Persistence.SubjectKey.Erased(System.Guid tenant, System.Guid subject) -> Tarol.Persistence.SubjectKey!
+virtual Tarol.Persistence.ErasureParticipant.Deleted(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+virtual Tarol.Persistence.ErasureParticipant.Evict(System.Guid tenant, System.Guid? subject) -> void
+virtual Tarol.Persistence.ErasureParticipant.ForgetTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+virtual Tarol.Persistence.ReactionTable.Invoke(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
