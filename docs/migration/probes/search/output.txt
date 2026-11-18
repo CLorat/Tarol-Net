@@ -1,0 +1,201 @@
+
+## 1. Environment, build, licences
+# SDK 11.0.100, 2026-11-18, x86_64, 4 cores, 15 GB, Docker 29.10.0
+Build succeeded.
+INFO postgres (PostgreSQL) 17.12 (Debian 17.12-1.pgdg13+1)
+INFO meilisearch meilisearch 1.13.3
+INFO typesense image mirror.gcr.io/typesense/typesense:28.0, opensearch mirror.gcr.io/opensearchproject/opensearch:2.19.1
+INFO licence of the PostgreSQL server (image): Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/ Upstream-Name: PostgreSQL Source: https://www.postgresql.org/ftp/source/  ### PostgreSQL copyrights ###  Files: * Copyright: Portions Copyright (c) 1996-2019, PostgreSQL Global Development Group            Portions Copyright 
+INFO licence meilisearch v1.13.3: HTTP 200: MIT License;Copyright (c) 2019-2025 Meili SAS Permission is hereby granted, free ;copyright notice and this permission notice shall be included in all ;COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY;
+INFO licence meilisearch main: HTTP 200: Copyright (c) 2019-2025 Meili SAS Part of this work fall under the Me;Business Source License;MIT license;
+INFO licence meilisearch main, enterprise edition: HTTP 200: Business Source License;Business Source License;version 1.1;Business Source License;
+INFO licence typesense v28: HTTP 200: GNU GENERAL PUBLIC LICENSE;Version 3;Copyright (C) 2007 Free Software Foundation, Inc;GNU General Public License;
+INFO licence opensearch 2.19.1: HTTP 200: Apache License;Version 2.0;copyright owner or entity authorized by the copyright owner that is g;copyright notice that is included in or attached to the work (an exam;
+INFO licence elasticsearch main: HTTP 200: GNU Affero General Public License;Server Side Public License;Elastic License;Apache License;
+INFO licence pgvector: HTTP 200: Copyright (c) 1996-2026, PostgreSQL Global Development Group Portions;Copyright (c) 1994, The Regents of the University of California Permi;copyright notice and this paragraph and the following two paragraphs ;
+INFO licence paradedb pg_search: HTTP 200: GNU AFFERO GENERAL PUBLIC LICENSE;Version 3;Copyright (C) 2007 Free Software Foundation, Inc;GNU Affero General Public License;
+INFO licence file in the opensearch image:  Apache License Version 2.0, January 2004 
+
+## 2. Functional checks: the contract every candidate passes, languages, the feeder prototype (JIT)
+# selftest pg (JIT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000001,00000002,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (2 hits, pg_trgm word_similarity_threshold 0.4)
+INFO no  typo with pg_trgm's default word_similarity_threshold 0.6  (0 hits)
+PASS counts per type are exact  (artist=1,auction=1,lot=1)
+PASS snippet marks the matched word  (watercolour of a lake below <b>glaciers</b>)
+INFO yes stemming (english): 'paintings' finds 'painting' and 'paints'  (2 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO no  accents folded: 'cafe muller' finds 'Café Müller'  (0 hits)
+INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
+PASS pg: a per-document regconfig column drives the generated tsvector (german row stemmed german)
+PASS pg: german + unaccent: 'Gemalde' finds 'Gemälde'
+PASS pg: english + unaccent: 'café' finds 'Cafe Society', 'houses' finds 'house'
+PASS pg: unaccent() itself is refused in a generated column (42P17, not immutable): the configuration is the way
+PASS pg: websearch syntax: 'harbour -sunset' excludes a word
+PASS pg: websearch syntax: a quoted phrase matches adjacent words only
+PASS pg: websearch syntax: OR
+PASS pg: websearch_to_tsquery never fails on user input (no syntax error)
+ALL 19 CHECKS PASSED (selftest pg, JIT)
+# feeder selftest (JIT): Tarol.Persistence.Npgsql store with sealing, the feeder prototype, the index in the store's database
+PASS aggregate found by its own fields; another stream type (Note) is not indexed
+PASS an entity is found by its own field and shown through its aggregate (type, aggregate id, the aggregate's title)
+PASS tenant first: tenant B finds only its own
+PASS a sealed [PersonalData] field never lands in the index as text (blind token only)
+PASS blind index: the exact value (normalised) finds its aggregate
+PASS blind index: a part of the value does not (exact match only)
+PASS a change re-indexes the aggregate and its entities (the edition shows the new title)
+PASS a second runner from an older checkpoint is refused by the guard
+PASS a replay from the start is idempotent (documents replaced per stream, not duplicated)
+PASS after the tombstone alone the blind token still finds the subject (the index must take part in erasure)
+PASS after the participant re-indexed the subject's streams it is no longer found  (tombstone 4.6 ms, find streams + re-index 17.0 ms)
+PASS the rest of the erased aggregate stays searchable
+PASS plaintext variant: the personal value is found by a partial word
+PASS plaintext variant: after the tombstone the plaintext is still in the index
+PASS plaintext variant: after the re-index it is gone
+PASS export: the subject's streams locate its documents through (tenant, aggregate)
+PASS retention: deleted streams load as none and their documents go
+ALL 17 CHECKS PASSED (feeder, JIT)
+# selftest meili (JIT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000002,00000001,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (3 hits)
+PASS counts per type are exact  (artist=1,auction=1,lot=1)
+PASS snippet marks the matched word  (watercolour of a lake below <em>glaciers</em>)
+INFO no  stemming (english): 'paintings' finds 'painting' and 'paints'  (1 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO yes accents folded: 'cafe muller' finds 'Café Müller'  (1 hits)
+INFO yes german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (1 hits)
+ALL 11 CHECKS PASSED (selftest meili, JIT)
+# selftest typesense (JIT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000002,00000001,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (3 hits)
+PASS counts per type are exact  (lot=1,artist=1,auction=1)
+PASS snippet marks the matched word  (watercolour of a lake below <mark>glaciers</mark>)
+INFO yes stemming (english): 'paintings' finds 'painting' and 'paints'  (2 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO yes accents folded: 'cafe muller' finds 'Café Müller'  (1 hits)
+INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
+ALL 11 CHECKS PASSED (selftest typesense, JIT)
+# selftest opensearch (JIT)
+PASS tenant first: tenant A's search never returns tenant B's document  (3 hits)
+PASS tenant B sees only its own
+PASS type filter in the index (auction, lot)
+PASS ranking: a title match ranks above a body-only match  (00000002,00000001,00000003)
+PASS all words must match (AND)
+PASS prefix: 'moun' finds 'Mountain'
+PASS typo: 'harbuor' still finds 'harbour'  (3 hits)
+PASS counts per type are exact  (artist=1,auction=1,lot=1)
+PASS snippet marks the matched word  (watercolour of a lake below <em>glaciers</em>)
+INFO yes stemming (english): 'paintings' finds 'painting' and 'paints'  (2 hits)
+PASS an upsert replaces the document (same id, new words)
+PASS a delete removes the document (an erased subject is not found)
+INFO no  accents folded: 'cafe muller' finds 'Café Müller'  (0 hits)
+INFO no  german stemming: 'gemalden' finds 'Gemälde' (index configured english / default)  (0 hits)
+ALL 11 CHECKS PASSED (selftest opensearch, JIT)
+
+## 3. Bench pg alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
+# bench pg fts (gin) (JIT), sizes 10000 / 100000 / 1000000
+INFO pg fts (gin) load 0 -> 10,000: 0.5 s, 20,169 docs/s (empty index)
+INFO pg index build after the first load (gin + trgm): 0.3 s
+INFO pg fts (gin) size at 10,000: 13 MB (table+toast 9 MB, gin 2 MB, title trgm 1 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 1.17 | 1.53 | 20 |
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 0.88 | 1.56 | 1 |
+| 10,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 2.28 | 3.59 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 1.01 | 1.29 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.57 | 0.85 | 0 |
+| 10,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 0.96 | 1.20 | 20 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 0.59 | 3.05 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.39 | 0.61 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 0.38 | 0.63 | 7 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 0.36 | 0.60 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.37 | 0.59 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 0.43 | 0.53 | 1 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 1.06 | 3.11 | 20 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.51 | 0.80 | 1 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | all tenants | 100 | 1.04 | 4.64 | 20 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.41 | 0.61 | 0 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.44 | 0.74 | 0 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.28 | 0.59 | 0 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 1.42 | 1.97 | 20 of 25 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 0.89 | 1.34 | 0 of 0 |
+| 10,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 1.49 | 1.97 | 20 of 266 |
+| 10,000 | pg fts (gin) | medium + snippets | tenant 10 % | 100 | 1.37 | 2.17 | 20 |
+| 10,000 | pg fts (gin) | medium + snippets | tenant 0.1 % | 100 | 0.44 | 0.72 | 0 |
+| 10,000 | pg fts (gin) | medium + snippets | all tenants | 100 | 1.60 | 2.20 | 20 |
+INFO pg switch to btree_gin (tenant, tsv): 0.2 s
+INFO pg fts (gin) size at 10,000: 13 MB (table+toast 9 MB, btree_gin 3 MB, title trgm 1 MB)
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 0.84 | 1.11 | 20 |
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 0.39 | 0.54 | 1 |
+| 10,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 2.07 | 2.64 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 0.46 | 0.62 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.35 | 0.51 | 0 |
+| 10,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 0.85 | 1.18 | 20 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 0.37 | 0.59 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.40 | 0.99 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 0.40 | 0.64 | 7 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 0.38 | 0.68 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.36 | 0.58 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 0.35 | 0.49 | 1 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 0.66 | 1.64 | 20 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 0.52 | 0.85 | 1 |
+| 10,000 | pg fts (gin) | prefix (4 letters of rank 500) | all tenants | 100 | 1.28 | 6.45 | 20 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 0.35 | 0.50 | 0 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 0.34 | 0.55 | 0 |
+| 10,000 | pg fts (gin) | typo (rank 300, 1 substitution) | all tenants | 100 | 0.31 | 0.53 | 0 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 1.01 | 1.36 | 20 of 25 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 0.74 | 1.19 | 0 of 0 |
+| 10,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 1.70 | 2.97 | 20 of 266 |
+| 10,000 | pg fts (gin) | medium + snippets | tenant 10 % | 100 | 1.26 | 1.77 | 20 |
+| 10,000 | pg fts (gin) | medium + snippets | tenant 0.1 % | 100 | 0.43 | 0.62 | 0 |
+| 10,000 | pg fts (gin) | medium + snippets | all tenants | 100 | 1.60 | 2.38 | 20 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 10 % | 100 | 0.84 | 1.06 | 20 |
+| 10,000 | pg fts (gin) | common (rank 10) | tenant 0.1 % | 100 | 0.38 | 0.61 | 1 |
+| 10,000 | pg fts (gin) | common (rank 10) | all tenants | 100 | 2.10 | 2.66 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 10 % | 100 | 0.46 | 0.63 | 20 |
+| 10,000 | pg fts (gin) | medium (rank 100) | tenant 0.1 % | 100 | 0.32 | 0.49 | 0 |
+| 10,000 | pg fts (gin) | medium (rank 100) | all tenants | 100 | 0.88 | 1.30 | 20 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 10 % | 100 | 0.53 | 0.71 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | tenant 0.1 % | 100 | 0.33 | 0.49 | 0 |
+| 10,000 | pg fts (gin) | rare (rank 3000) | all tenants | 100 | 0.36 | 0.57 | 7 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 10 % | 100 | 0.41 | 0.70 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | tenant 0.1 % | 100 | 0.46 | 0.66 | 0 |
+| 10,000 | pg fts (gin) | two words (100 & 300) | all tenants | 100 | 0.45 | 0.63 | 1 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 10 % | 100 | 1.01 | 1.38 | 20 of 25 |
+| 10,000 | pg fts (gin) | medium + counts per type | tenant 0.1 % | 100 | 0.69 | 0.97 | 0 of 0 |
+| 10,000 | pg fts (gin) | medium + counts per type | all tenants | 100 | 1.64 | 2.24 | 20 of 266 |
+| docs | engine | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+Unhandled exception. System.InvalidCastException: Reading as 'System.Single' is not supported for fields having DataTypeName 'numeric'
+   at Npgsql.Internal.AdoSerializerHelpers.<GetTypeInfoForReading>g__ThrowReadingNotSupported|0_0(Type type, PgSerializerOptions options, PgTypeId pgTypeId, Exception inner)
+INFO container memory: tarol-search-pg 100.6MiB / 15.71GiB (CPU 0.18%)
+INFO pg data directory on disk: 72 MB
+
+| engine | write | n | p50 ms | p99 ms | max ms |
+|---|---|---|---|---|---|
+| pg fts (gin) | upsert | 50 | 1.8 | 225.2 | 225.2 |
+| pg fts (gin) | delete | 50 | 1.5 | 2.0 | 2.0 |
+
+## 4. Bench meili alone (others paused): load 10k -> 100k -> 1M, sizes, queries (round 2 of 2, page of 20), feeder upserts, rebuild; then write -> searchable
