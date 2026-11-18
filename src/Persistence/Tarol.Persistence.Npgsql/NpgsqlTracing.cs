@@ -21,4 +21,24 @@ public static class NpgsqlTracing
             .ConfigureBatchFilter(static _ => Activity.Current is not null));
         return builder;
     }
+
+    /// <summary>
+    /// Lets Npgsql prepare the statements a data source runs often (<c>Max Auto Prepare</c> = <paramref name="statements"/>)
+    /// unless the connection string sets it: Tarol's commits, claims and loads are the same few statements every time, and
+    /// without preparing each is parsed and planned again. Tarol sets it on the data sources it builds; set
+    /// <c>Max Auto Prepare=0</c> in the connection string behind a pooler that cannot keep prepared statements (PgBouncer in
+    /// transaction mode without <c>max_prepared_statements</c>).
+    /// </summary>
+    /// <param name="builder">The data source builder.</param>
+    /// <param name="statements">How many statements to keep prepared per connection (default 64).</param>
+    /// <returns>The builder.</returns>
+    public static NpgsqlSlimDataSourceBuilder AutoPrepareUnlessSet(this NpgsqlSlimDataSourceBuilder builder, int statements = 64)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentOutOfRangeException.ThrowIfNegative(statements);
+        var set = builder.ConnectionString.Replace(" ", "", StringComparison.Ordinal).Contains("MaxAutoPrepare=", StringComparison.OrdinalIgnoreCase);
+        if (!set)
+            builder.ConnectionStringBuilder.MaxAutoPrepare = statements;
+        return builder;
+    }
 }

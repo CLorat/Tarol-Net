@@ -247,7 +247,14 @@ public sealed partial class ChangePipeline
             return new ChangeOutcome(aggregate.Id.Value, aggregate.Version, 0);
         var appended = await _store.Append(aggregate, expected, context, options.Key, cancellationToken);
         if (appended.TryGetValue(out Violation? conflict))
+        {
+            // a concurrent run under the same key (a client retrying after a timeout) may have committed first: the version
+            // guard or the key's row refuses this one, and the stored outcome is the answer, not a 409
+            if (options.Key.IsSome && conflict is Error { Type: ErrorType.Conflict, Code: StoreErrors.VersionConflictCode or StoreErrors.DuplicateKeyCode }
+                && await Seen(options, cancellationToken) is { } replayed)
+                return replayed;
             return conflict;
+        }
         var position = appended.TryGetValue(out GlobalPosition at) ? at : GlobalPosition.Start;
         AggregateChanges.Committed(aggregate);
         return new ChangeOutcome(aggregate.Id.Value, aggregate.Version, events, Position: position);

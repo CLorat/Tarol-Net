@@ -92,6 +92,23 @@ public sealed class WorkerTests
     }
 
     [Fact]
+    public async Task A_batch_that_outlived_half_its_lease_hands_its_tail_back_unrun_and_uncounted()
+    {
+        var clock = new Clock(new DateTimeOffset(2026, 11, 15, 9, 0, 0, TimeSpan.Zero));
+        var (store, pipeline, alice) = Setup(clock);
+        _ = await Won(store, alice, clock);                                             // two rows, one batch
+        var slow = new SlowOutbox(store.Outbox, clock, TimeSpan.FromSeconds(31));       // each reaction takes more than half the lease
+        var worker = new ReactionWorker(slow, GeneratedReactions.Set, pipeline, clock, new ReactionOptions { Lease = TimeSpan.FromMinutes(1) });
+
+        var first = await worker.RunOnce(Ct);
+
+        first.ShouldHaveSingleItem().Verdict.ShouldBe(Verdict.Done);                     // the second was not started late
+        var tail = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).ShouldHaveSingleItem();   // due again at once
+        tail.Reaction.ShouldNotBe(first[0].Row.Reaction);
+        tail.Attempts.ShouldBe(1);                                                      // the released claim was not counted
+    }
+
+    [Fact]
     public async Task A_row_of_a_reaction_that_no_longer_exists_is_retried_then_buried_with_the_reason()
     {
         var clock = new Clock(new DateTimeOffset(2026, 11, 15, 9, 0, 0, TimeSpan.Zero));
@@ -126,6 +143,29 @@ public sealed class WorkerTests
 
         store.Recorded.ShouldContain(e => e.Event.Event is Payout.Due);
         loop.IsCompletedSuccessfully.ShouldBeTrue();
+    }
+
+    /// <summary>The outbox with every <see cref="IOutbox.Complete"/> taking <paramref name="took"/> on the clock.</summary>
+    private sealed class SlowOutbox(IOutbox inner, Clock clock, TimeSpan took) : IOutbox
+    {
+        public Task<IReadOnlyList<OutboxRow>> Claim(int max, TimeSpan lease, CancellationToken cancellationToken) => inner.Claim(max, lease, cancellationToken);
+
+        public Task<bool> Complete(OutboxRow row, CancellationToken cancellationToken)
+        {
+            clock.Now += took;
+            return inner.Complete(row, cancellationToken);
+        }
+
+        public Task<bool> Release(OutboxRow row, CancellationToken cancellationToken) => inner.Release(row, cancellationToken);
+        public Task<bool> Retry(OutboxRow row, DateTimeOffset retryAt, string reason, CancellationToken cancellationToken) => inner.Retry(row, retryAt, reason, cancellationToken);
+        public Task<bool> Bury(OutboxRow row, string reason, CancellationToken cancellationToken) => inner.Bury(row, reason, cancellationToken);
+        public Task<IReadOnlyList<DeadLetter>> DeadLetters(int max, CancellationToken cancellationToken) => inner.DeadLetters(max, cancellationToken);
+        public Task<IReadOnlyList<DeadLetter>> DeadLetters(DeadLetterQuery query, CancellationToken cancellationToken) => inner.DeadLetters(query, cancellationToken);
+        public Task<bool> Discard(long id, CancellationToken cancellationToken) => inner.Discard(id, cancellationToken);
+        public Task<Option<DateTimeOffset>> OldestDue(CancellationToken cancellationToken) => inner.OldestDue(cancellationToken);
+        public Task<bool> Redrive(long id, CancellationToken cancellationToken) => inner.Redrive(id, cancellationToken);
+        public Task<long> Pending(CancellationToken cancellationToken) => inner.Pending(cancellationToken);
+        public Task WaitForRows(TimeSpan timeout, CancellationToken cancellationToken) => inner.WaitForRows(timeout, cancellationToken);
     }
 
     private sealed class FailingOnce(IOutbox inner) : IOutbox

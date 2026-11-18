@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
 
 namespace Tarol.Results.Json;
 
@@ -28,13 +27,13 @@ public sealed class ResultJsonConverter<T> : JsonConverter<Result<T>>
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             var name = ResultJson.ReadPropertyName(ref reader);
-            if (name == ResultJson.ValueName)
+            if (name == ResultJson.Value)
             {
                 var info = options.GetTypeInfo<T>();
                 var value = JsonSerializer.Deserialize(ref reader, info) ?? throw new JsonException("\"value\" of a result must not be null.");
                 result = ResultJson.Once(result, new Result<T>(value));
             }
-            else if (name == ResultJson.FailureName)
+            else if (name == ResultJson.Failure)
             {
                 result = ResultJson.Once(result, new Result<T>(ResultJson.ReadViolation(ref reader, options)));
             }
@@ -83,7 +82,7 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             var name = ResultJson.ReadPropertyName(ref reader);
-            if (name == ResultJson.SuccessName)
+            if (name == ResultJson.Success)
             {
                 if (reader.TokenType != JsonTokenType.True)
                 {
@@ -92,7 +91,7 @@ public sealed class ResultJsonConverter : JsonConverter<Result>
 
                 result = ResultJson.Once(result, Result.Success());
             }
-            else if (name == ResultJson.FailureName)
+            else if (name == ResultJson.Failure)
             {
                 result = ResultJson.Once(result, new Result(ResultJson.ReadViolation(ref reader, options)));
             }
@@ -139,9 +138,18 @@ internal static class ResultJson
         }
     }
 
-    internal static string ReadPropertyName(ref Utf8JsonReader reader)
+    internal const int Other = 0;
+    internal const int Value = 1;
+    internal const int Success = 2;
+    internal const int Failure = 3;
+
+    /// <summary>Which member the reader is on (compared on the UTF-8 bytes: no string per name), and moves to its value.</summary>
+    internal static int ReadPropertyName(ref Utf8JsonReader reader)
     {
-        var name = reader.GetString()!;
+        var name = reader.ValueTextEquals("value"u8) ? Value
+            : reader.ValueTextEquals("failure"u8) ? Failure
+            : reader.ValueTextEquals("success"u8) ? Success
+            : Other;
         reader.Read();
         return name;
     }
@@ -151,26 +159,10 @@ internal static class ResultJson
         => existing is null ? value : throw new JsonException("A result has exactly one of \"value\", \"success\" or \"failure\".");
 
     internal static Violation ReadViolation(ref Utf8JsonReader reader, JsonSerializerOptions options)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize(ref reader, ViolationInfo(options)) ?? throw new JsonException("\"failure\" must not be null.");
-        }
-        catch (ArgumentException exception)
-        {
-            throw new JsonException($"Invalid violation: {exception.Message}", exception);
-        }
-    }
+        => reader.TokenType == JsonTokenType.Null
+            ? throw new JsonException("\"failure\" must not be null.")
+            : ViolationJsonConverter.ReadViolation(ref reader);
 
     internal static void WriteViolation(Utf8JsonWriter writer, Violation violation, JsonSerializerOptions options)
-        => JsonSerializer.Serialize(writer, violation, ViolationInfo(options));
-
-    // The user's context wins (its options, e.g. an encoder); otherwise this package's generated metadata.
-    // The property names are fixed by [JsonPropertyName], so both give the same JSON.
-    private static JsonTypeInfo<Violation> ViolationInfo(JsonSerializerOptions options)
-        => options.TryGetTypeInfo(typeof(Violation), out var info) ? (JsonTypeInfo<Violation>)info : ResultsJsonContext.Default.Violation;
+        => ViolationJsonConverter.WriteViolation(writer, violation);
 }
-
-/// <summary>Source-generated metadata for <see cref="Violation"/>, used when the caller's options do not provide it.</summary>
-[JsonSerializable(typeof(Violation))]
-internal sealed partial class ResultsJsonContext : JsonSerializerContext;

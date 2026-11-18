@@ -1058,3 +1058,27 @@ In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**, all checks passed;
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
 * the AppHost run: §18.3.
+
+## 19. Fix: the subject endpoints require the tenant (2026-11-18)
+
+**Behaviour change.** `POST {prefix}/subjects/{id}/erase` and `GET {prefix}/subjects/{id}/export` read an absent `tenant` query
+parameter as `Guid.Empty`, the tenant-less data. An erasure without `?tenant=` therefore wrote a tombstone for `(empty, subject)`,
+found no streams and answered 200, while the person's key in their real tenant stayed readable: a GDPR erasure that silently did
+nothing. Both endpoints now answer 400 without `tenant`; tenant-less data is named with the empty GUID
+(`?tenant=00000000-0000-0000-0000-000000000000`). A malformed tenant is still 400.
+
+Test: `DataProtectionIntegrationTests` (the admin endpoint test) erases and exports without `tenant` and expects 400.
+
+## 20. Fix: an erasure during a key read no longer leaves the old key cached (2026-11-18)
+
+**Security fix.** `NpgsqlKeyStore.Keys` reads a subject's wrapped key, then caches it. When an erasure committed and its eviction
+(in-process, or the NOTIFY from another process) ran between the read and the caching, the eviction found nothing and the old key
+was cached afterwards. Cache entries expire only after `IdleTime` without use, so a key in steady use stayed usable after the
+erasure indefinitely. The same race existed for the tenant key, and for `ClearCache()` right after a new `LISTEN`.
+
+Every eviction (`Evict`, `ClearCache`) now moves a counter before it removes entries. A read takes the counter before it queries
+and drops what it cached when the counter moved meanwhile. The read itself may still return the key it read before the erasure
+committed, as any read that ran before a commit does.
+
+Test: `DataProtectionTests.An_Erasure_Between_Reading_A_Key_And_Caching_It_Does_Not_Leave_The_Key_Cached` (an internal hook erases
+between the read and the cache; fails without the counter). Not changed: an absolute lifetime for cached keys (open).

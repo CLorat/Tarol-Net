@@ -110,6 +110,7 @@ public sealed class DataProtectionTests(Postgres postgres)
     public async Task A_Cached_Key_Costs_No_Key_Query()
     {
         var (store, keys) = await Sealed();
+        await keys.StartListening(Ct);                          // its LISTEN clears the cache once: not while the test counts
         var context = NewTenant();
         var (alice, _) = await Seed(store, context);
         await Load(store, alice.Id, context);
@@ -118,6 +119,26 @@ public sealed class DataProtectionTests(Postgres postgres)
         for (var i = 0; i < 5; i++)
             (await Load(store, alice.Id, context)).Name.ShouldBe("Alice Example");
         keys.KeyQueries.ShouldBe(before);
+    }
+
+    [Fact]
+    public async Task An_Erasure_Between_Reading_A_Key_And_Caching_It_Does_Not_Leave_The_Key_Cached()
+    {
+        var (_, keys) = await Sealed();
+        var (tenant, subject) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        (await keys.Keys(tenant, [subject], create: true, Ct)).TryGet(subject, out var created).ShouldBeTrue();
+        created!.IsErased.ShouldBeFalse();
+        keys.ClearCache();
+        keys.AfterKeyRead = async () =>
+        {
+            keys.AfterKeyRead = null;
+            (await keys.EraseSubject(tenant, subject, Ct)).ShouldBeTrue();             // commits after the read, before the cache
+        };
+
+        _ = await keys.Keys(tenant, [subject], create: false, Ct);                       // read before the erasure: may still open
+
+        (await keys.Keys(tenant, [subject], create: false, Ct)).TryGet(subject, out var after).ShouldBeTrue();
+        after!.IsErased.ShouldBeTrue();                                                 // the old key was not kept in the cache
     }
 
     [Fact]
@@ -375,7 +396,7 @@ public sealed class DataProtectionTests(Postgres postgres)
     {
         var schema = postgres.NewSchema();
         var plain = new NpgsqlAggregateStore(postgres.DataSource, Codec(), _time, new NpgsqlStoreOptions { Schema = schema });
-        (await plain.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(3, 1, 8));
+        (await plain.EnsureSchema(SchemaMode.Upgrade, Ct)).ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 9));
         // older code (version 2) still runs on the version 3 schema of a store that does not seal
         await Version2Code(schema).Ensure(SchemaMode.VerifyOnly, Ct);
 
@@ -429,7 +450,7 @@ public sealed class DataProtectionTests(Postgres postgres)
         await stop.CancelAsync();
         await Task.WhenAll(writers);
 
-        state.ShouldBe(new SchemaState(3, 1, 5));
+        state.ShouldBe(new SchemaState(NpgsqlSchema.Version, 1, 6));
         errors.ShouldBe(0);
         (await postgres.Scalar($"SELECT indisvalid FROM pg_index WHERE indexrelid = '{schema}.events_subjects'::regclass")).ShouldBe(true);
     }

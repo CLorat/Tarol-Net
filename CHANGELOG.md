@@ -6,6 +6,35 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* `IOutbox.Release` (default member) hands a claimed row back unrun and uncounted; `IPageCache.Clears` (default member) counts
+  cache clears; `NpgsqlTracing.AutoPrepareUnlessSet`; `ViolationJsonConverter`.
+* Store schema version 4 (compatible from 1): the index `streams_retention` on `streams (type, updated_at)`.
+
+### Changed
+
+* `NpgsqlSchema.Version` is 4. The data sources Tarol builds set `Max Auto Prepare=64` unless the connection string sets it.
+* The data-subject endpoints (`…/subjects/{id}/export|erase`) require `?tenant=` (400 without it).
+* `Violation` JSON is read in any member order and accepts only `ErrorType` names for `type`.
+* Zitadel: roles come only from this project's claim and only when granted in the user's organisation, which also sets the tenant.
+
+### Fixed
+
+* Messaging: one failed subscription restarts all of them instead of staying dead; a re-drive never loses its dead letter, and a
+  `SourceMismatch` letter stays dead; the Npgsql bus hands a batch's tail back once half its lease has passed; RabbitMQ nacks a
+  delivery whose retry copy the broker refused.
+* Jobs: a failed lease extension is retried, and the run is cancelled before its lease could run out.
+* Persistence: an undecodable outbox row no longer stalls its batch; commits ignore a late cancellation; an erased key is never
+  cached across a read; each SQL text is built once; `RebuildStates` pages in primary-key order.
+* Sagas: a slow batch no longer runs its tail after the lease.
+* Changes: a concurrent run under the same idempotency key returns the stored outcome instead of a 409.
+* Caching: a page read before an erasure is not cached after it.
+* Kernel: actor kinds are matched by name only (`"1"`, `"User,Service"` refused); `OperationContext.Actor` is never null.
+* Generators and analyzers: no id registration for markers nested in generic types; a record deriving from an input that adds
+  parameters is reported (TVAL002); TRES002 does not report the awaited `Tap` extensions.
+* CI runs every integration-test project (DataProtection and Operations were left out).
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 25 packages (24 and the meta-package `Tarol`), the public API baseline

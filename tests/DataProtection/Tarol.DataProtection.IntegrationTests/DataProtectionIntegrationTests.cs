@@ -161,6 +161,9 @@ public sealed class DataProtectionIntegrationTests(Postgres postgres)
         (await client.SendAsync(As(HttpMethod.Get, export, user: null, role: null), Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         (await client.SendAsync(As(HttpMethod.Get, export, role: "member"), Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await client.SendAsync(As(HttpMethod.Get, $"/tarol/admin/subjects/{ada.Id.Value}/export?tenant=nope"), Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        // without a tenant an erasure would act on the tenant-less data only and leave ada's key readable
+        (await client.SendAsync(As(HttpMethod.Post, $"/tarol/admin/subjects/{ada.Id.Value}/erase"), Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await client.SendAsync(As(HttpMethod.Get, $"/tarol/admin/subjects/{ada.Id.Value}/export"), Ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         var exported = await client.SendAsync(As(HttpMethod.Get, export), Ct);
         exported.StatusCode.ShouldBe(HttpStatusCode.OK);
         var document = JsonElement.Parse(await exported.Content.ReadAsByteArrayAsync(Ct));

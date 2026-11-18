@@ -91,7 +91,7 @@ _ = await store.PurgeKeys(TimeProvider.System.GetUtcNow() - TimeSpan.FromDays(7)
 ```csharp
 await using var keys = new NpgsqlKeyStore(db, master, TimeProvider.System, new NpgsqlKeyStoreOptions { Schema = "tarol" });
 var store = new NpgsqlAggregateStore(db, codec, TimeProvider.System, new NpgsqlStoreOptions { Keys = keys, Lookups = lookups });
-await store.EnsureSchema(ct);                       // version 3, compatible_from raised to 3
+await store.EnsureSchema(ct);                       // version 4, compatible_from raised to 3
 ```
 
 ## Common mistakes

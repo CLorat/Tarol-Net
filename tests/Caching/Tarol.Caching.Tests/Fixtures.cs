@@ -131,6 +131,9 @@ internal sealed class CountingReadModels(IReadModels inner) : IReadModels
 
     public TaskCompletionSource? Entered { get; set; }
 
+    /// <summary>Runs after the inner search read its rows, before the page is cached (where an erasure can come in).</summary>
+    public Func<Task>? AfterSearch { get; set; }
+
     public IReadModelStore<TRow> Store<TRow>()
         where TRow : class, IProjection<TRow>
     {
@@ -191,7 +194,13 @@ internal sealed class CountingReadModels(IReadModels inner) : IReadModels
             owner.Entered?.TrySetResult();
             if (owner.Gate is { } gate)
                 await gate.Task.WaitAsync(cancellationToken);
-            return await inner.Search(query, cancellationToken);
+            var result = await inner.Search(query, cancellationToken);
+            if (owner.AfterSearch is { } after)
+            {
+                owner.AfterSearch = null;
+                await after();
+            }
+            return result;
         }
     }
 }

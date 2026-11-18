@@ -712,3 +712,18 @@ None.
 | `rm -rf artifacts`, `dotnet build -c Release`, `eng/verify-packages.sh` | OK: `Tarol.Sagas` consumer 3/3, `skills/tarol-sagas/SKILL.md` listed |
 | `TAROL_PG=… eng/aot-smoke.sh` | 10 apps, each 0 IL warnings, all checks natively |
 | `samples/Sagas/apphost.sh` (JIT and Native AOT worker) | 20 payouts, 20 sagas, 40 reaction spans with links; native worker 0 IL warnings |
+
+## 19. Fix: a slow batch no longer runs its tail after the lease (2026-11-18)
+
+**Behaviour change, public API addition.** `ReactionWorker.RunOnce` claims up to `Batch` (32) rows on one lease (1 min) and runs
+them one after another. With reactions of about 2 s the tail of the batch ran after its lease had expired, while another worker
+that had claimed those rows ran them too: the idempotency key stopped a second commit, but effects outside the pipeline ran twice
+and the work was done twice.
+
+The worker now starts a row only while at least half of the lease is left. The rest of the batch is handed back unrun through the
+new `IOutbox.Release(row, ct)` (log 9012), due again at once, with the claim not counted as an attempt. `Release` is a default
+interface member that returns `false`, so another store compiles unchanged and its rows come back after the lease as before;
+`InMemoryOutbox` and `NpgsqlOutbox` implement it (the Npgsql row keeps its `due_at`, so its order and lateness do not change).
+
+Tests: `WorkerTests.A_batch_that_outlived_half_its_lease_hands_its_tail_back_unrun_and_uncounted` (fails without the fix) and
+`NpgsqlOutboxTests.A_released_row_is_due_again_at_once_uncounted_and_the_old_claim_is_void`.

@@ -30,6 +30,7 @@ public sealed class MemoryPageCache : IPageCache, IDisposable
     private readonly Counter<long> _evictions;
     private int _count;
     private long _bytes;
+    private long _clears;
 
     /// <summary>Creates the cache.</summary>
     /// <param name="options">The bounds (default <see cref="CacheOptions"/>); copied.</param>
@@ -118,8 +119,12 @@ public sealed class MemoryPageCache : IPageCache, IDisposable
     }
 
     /// <inheritdoc />
+    public long Clears => Interlocked.Read(ref _clears);
+
+    /// <inheritdoc />
     public void Clear()
     {
+        Interlocked.Increment(ref _clears);
         foreach (var (key, entry) in _entries)
             Remove(key, entry, null);
     }
@@ -127,6 +132,7 @@ public sealed class MemoryPageCache : IPageCache, IDisposable
     /// <inheritdoc />
     public void Clear(Guid tenant)
     {
+        Interlocked.Increment(ref _clears);
         foreach (var (key, entry) in _entries)
             if (key.Tenant == tenant)
                 Remove(key, entry, null);

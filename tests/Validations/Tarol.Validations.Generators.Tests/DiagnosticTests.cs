@@ -32,11 +32,18 @@ public class DiagnosticTests
         var found = Of("TVAL002",
             "public readonly partial record struct Box<T>([Range(1, 2)] int Value);",
             "file readonly partial record struct Local([Range(1, 2)] int Value);",
-            "public partial record BaseCmd(string A) : IValidatable; public sealed partial record Derived(string A, string B) : BaseCmd(A), IValidatable;");
+            "public partial record BaseCmd(string A) : IValidatable; public sealed partial record Derived(string A, string B) : BaseCmd(A), IValidatable;",
+            // not naming IValidatable again: still an input whose new parameter the inherited Validate would not check
+            "public partial record BaseOrder(string A) : IValidatable; public sealed partial record Order(string A, [Range(1, 10)] int B) : BaseOrder(A);");
 
-        found.Length.ShouldBe(3);
+        found.Length.ShouldBe(4);
         found.ShouldAllBe(d => d.Severity == DiagnosticSeverity.Error);
     }
+
+    [Fact]
+    public void A_Derived_Input_Without_Parameters_Of_Its_Own_Inherits_The_Bases_Validate()
+        => GeneratorTestHost.Diagnose([Usings + "public partial record BaseQuery([Length(1, 5)] string A) : IValidatable; public sealed partial record Query(string A) : BaseQuery(A);"])
+            .Where(d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
 
     [Fact]
     public void TVAL003_Rules_Outside_A_Record_Primary_Constructor()

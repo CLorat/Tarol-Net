@@ -34,6 +34,7 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
     private readonly string _claim;
     private readonly string _complete;
     private readonly string _retry;
+    private readonly string _release;
     private readonly string _channel;
     private volatile bool _schemaEnsured;
 
@@ -81,6 +82,7 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
             """;
         _complete = $"DELETE FROM {s}.deliveries WHERE id = $1 AND claim_id = $2";
         _retry = $"UPDATE {s}.deliveries SET due_at = $3, claim_id = NULL WHERE id = $1 AND claim_id = $2";
+        _release = $"UPDATE {s}.deliveries SET due_at = $3, claim_id = NULL, attempts = greatest(attempts - 1, 0) WHERE id = $1 AND claim_id = $2";
     }
 
     /// <summary>The bus schema.</summary>
@@ -304,9 +306,18 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
                 }
                 continue;
             }
-            foreach (var row in rows)
+            // the batch shares one lease: a row starts only while half of it is left, so the tail of a slow batch is never
+            // run after the lease, alongside another instance that claimed it again; the rest goes back unrun and uncounted
+            var startBefore = now + subscription.Lease / 2;
+            for (var i = 0; i < rows.Count; i++)
             {
+                var row = rows[i];
                 cancellationToken.ThrowIfCancellationRequested();                     // the rest of the batch comes back after the lease
+                if (_time.GetUtcNow() >= startBefore)
+                {
+                    await Release(subscription.Name, rows, i, claimId, now).ConfigureAwait(false);
+                    break;
+                }
                 var headers = Headers(row.Headers);
                 var message = headers is null ? null : Message.From(h => headers.TryGetValue(h, out var v) ? v : null, row.Data);
                 var handled = await handler(new Incoming(message, row.Attempts, AuthenticatedAs(row.Publisher), row.Data, row.Type), cancellationToken)
@@ -320,6 +331,19 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
                 if (await settle.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false) == 0)
                     LeaseLost(_log, subscription.Name, row.Id, row.Attempts);
             }
+        }
+    }
+
+    private async Task Release(string subscription, List<Claimed> rows, int from, Guid claimId, DateTimeOffset dueAt)
+    {
+        BatchOutlived(_log, subscription, rows.Count - from, rows.Count);
+        for (var i = from; i < rows.Count; i++)                                         // one by one: the slim data source has no arrays
+        {
+            await using var release = _db.CreateCommand(_release);
+            release.Parameters.Add(new() { Value = rows[i].Id });
+            release.Parameters.Add(new() { Value = claimId });
+            release.Parameters.Add(new() { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = dueAt });
+            _ = await release.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -384,6 +408,9 @@ public sealed partial class NpgsqlBus : IMessageTransport, IAsyncDisposable
 
     [LoggerMessage(EventId = 11101, Level = LogLevel.Warning, Message = "Delivery {DeliveryId} of {Subscription} (attempt {Attempt}) outlived its lease; another consumer owns it")]
     private static partial void LeaseLost(ILogger logger, string subscription, long deliveryId, int attempt);
+
+    [LoggerMessage(EventId = 11103, Level = LogLevel.Warning, Message = "A batch of {Subscription} outlived half its lease; {Count} of {Batch} deliveries were handed back unrun (lower NpgsqlBusOptions.Batch or raise the lease)")]
+    private static partial void BatchOutlived(ILogger logger, string subscription, int count, int batch);
 
     [LoggerMessage(EventId = 11102, Level = LogLevel.Warning, Message = "The bus LISTEN connection failed; the consumers poll and listen again later")]
     private static partial void ListenFailed(ILogger logger, Exception exception);

@@ -63,6 +63,10 @@ public partial class KernelJsonTests
     [InlineData("""{"kind":"User","id":""}""")]
     [InlineData("""{"kind":"Robot","id":"r2"}""")]
     [InlineData("""{"kind":"user","id":"alice"}""")] // the contract is case-sensitive
+    [InlineData("""{"kind":"1","id":"alice"}""")] // a number in a string is not a kind
+    [InlineData("""{"kind":"User,Service","id":"alice"}""")] // nor are combined flags (1 | 2 would be System)
+    [InlineData("""{"kind":" User","id":"alice"}""")]
+    [InlineData("""{"kind":2,"id":"alice"}""")]
     [InlineData("""{"id":"alice"}""")]
     [InlineData("""{"kind":"User"}""")]
     [InlineData("""["User","alice"]""")]

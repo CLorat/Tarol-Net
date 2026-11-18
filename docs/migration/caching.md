@@ -691,3 +691,17 @@ On this branch (`4408ede`, 13A and 13B merged in):
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK.
 
 Step 13 in numbers: tests 1395 → 1442 (+10 in 13A, +32 in 13B, +5 in 13C); AOT smoke apps 20 → 21.
+
+## 18. Fix: a page read before an erasure is not cached after it (2026-11-18)
+
+**Behaviour change, public API addition.** `Replace` and `Remove` (the erasure and re-fold paths, DP-5) change rows without
+moving the checkpoint, so they clear the tenant's pages instead. A `Search` that had read the checkpoint and the rows before such
+a clear called `Put` after it and cached the pre-erasure page at the same position. That page was then served until the
+checkpoint moved, which matters most when the replace is a personal-data erasure.
+
+`IPageCache.Clears` (new, a default interface member returning 0) moves on every `Clear()` and `Clear(tenant)`, before the entries
+go; `MemoryPageCache` counts it. `Search` takes it before reading the rows and, when it moved by the time the page is cached,
+clears the tenant again after its `Put`, so no such page stays behind. A cache of your own that keeps the default behaves as
+before.
+
+Test: `CachedReadModelsTests.A_replace_during_the_search_does_not_leave_the_page_read_before_it_cached` (fails without the fix).

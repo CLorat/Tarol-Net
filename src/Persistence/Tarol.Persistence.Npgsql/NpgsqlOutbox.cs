@@ -74,18 +74,51 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
         }
 
         // the reactions see the events opened, as a load does (step 16)
-        var events = await RecordedEvents.Decode([.. claimed.Select(static c => c.Event)], _codec, _keys, cancellationToken).ConfigureAwait(false);
+        PositionedEvent?[] events;
+        try
+        {
+            events = await RecordedEvents.Decode([.. claimed.Select(static c => c.Event)], _codec, _keys, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException && !cancellationToken.IsCancellationRequested)
+        {
+            // one row the codec cannot read (an alias of a newer version during a rolling deploy, a key store that is down) must
+            // not hold back its batch: decode them one by one and release only the rows that fail, without counting the claim
+            events = new PositionedEvent?[claimed.Count];
+            for (var i = 0; i < claimed.Count; i++)
+            {
+                try
+                {
+                    events[i] = (await RecordedEvents.Decode([claimed[i].Event], _codec, _keys, cancellationToken).ConfigureAwait(false))[0];
+                }
+                catch (Exception one) when (one is not OutOfMemoryException && !cancellationToken.IsCancellationRequested)
+                {
+                    await Release(claimed[i].Id, claimed[i].ClaimId, now + lease, Undecodable + one.GetType().Name + ": " + one.Message).ConfigureAwait(false);
+                }
+            }
+        }
         var rows = new List<OutboxRow>(claimed.Count);
         for (var i = 0; i < claimed.Count; i++)
         {
+            if (events[i] is not { } recorded)
+                continue;
             var c = claimed[i];
-            var recorded = events[i];
             rows.Add(new OutboxRow(c.Id, c.ClaimId, c.Reaction, recorded.Event.Context.Tenant, c.Attempts,
                 c.LastError is null ? Option.None : c.LastError, recorded, c.TraceParent is null ? Option.None : c.TraceParent)
             { DueAt = c.DueAt });
         }
 
         return rows;
+    }
+
+    /// <summary>The <c>last_error</c> prefix of a row the store released because its event could not be decoded.</summary>
+    internal const string Undecodable = "Outbox.Undecodable: ";
+
+    /// <summary>Hands a claimed row back for <paramref name="retryAt"/> without counting the claim as an attempt of its reaction.</summary>
+    private async Task Release(long id, Guid claimId, DateTimeOffset retryAt, string reason)
+    {
+        await using var command = _db.CreateCommand(_sql.Release);
+        Add(command, id, claimId, retryAt, reason);
+        _ = await command.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -102,6 +135,16 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
         ArgumentNullException.ThrowIfNull(reason);
         await using var command = _db.CreateCommand(_sql.Retry);
         Add(command, row.Id, row.ClaimId, retryAt, reason);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> Release(OutboxRow row, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        await using var command = _db.CreateCommand(_sql.Release);
+        Add(command, row.Id, row.ClaimId, row.DueAt ?? _time.GetUtcNow());                    // keeps its place and its lateness
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = row.LastError.TryGetValue(out string? error) ? error : DBNull.Value });
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
@@ -242,7 +285,7 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
                 if (actor is not null)
                     Add(redrive, actor);
                 var moved = await redrive.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is 1L;
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 return moved;
             }
         }
@@ -331,7 +374,7 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
                 await using var command = new NpgsqlCommand(change, connection, transaction);
                 Add(command, values);
                 var done = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is long n && n == 1;
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 return done;
             }
         }
@@ -353,7 +396,7 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
                   RETURNING 1)
             """;
 
-        public string Claim => $"""
+        public string Claim => field ??= $"""
             WITH c AS (
                 SELECT o.id FROM {schema}.outbox o
                 WHERE o.head AND o.due_at <= $1 AND (o.lease_until IS NULL OR o.lease_until <= $1)
@@ -371,21 +414,26 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
 
         // statement 1 of Complete and Bury: share-lock the stream row, so a commit of this stream (which updates that row)
         // either finished before the promotion's snapshot or waits until the promotion committed
-        public string LockForRow => $"""
+        public string LockForRow => field ??= $"""
             SELECT 1 FROM {schema}.streams s JOIN {schema}.outbox o ON s.tenant = o.tenant AND s.type = o.type AND s.id = o.stream_id
             WHERE o.id = $1 AND o.claim_id = $2
             FOR SHARE OF s
             """;
 
-        public string Complete => $"""
+        public string Complete => field ??= $"""
             WITH d AS (DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2 RETURNING id, tenant, type, stream_id, reaction),
             {Promote("d")}
             SELECT count(*) FROM d
             """;
 
-        public string Retry => $"UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4 WHERE id = $1 AND claim_id = $2";
+        public string Retry => field ??= $"UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4 WHERE id = $1 AND claim_id = $2";
 
-        public string Bury => $"""
+        public string Release => field ??= $"""
+            UPDATE {schema}.outbox SET due_at = $3, claim_id = NULL, lease_until = NULL, last_error = $4, attempts = greatest(attempts - 1, 0)
+            WHERE id = $1 AND claim_id = $2
+            """;
+
+        public string Bury => field ??= $"""
             WITH d AS (DELETE FROM {schema}.outbox WHERE id = $1 AND claim_id = $2
                        RETURNING id, tenant, reaction, type, stream_id, version, event_id, attempts),
             i AS (INSERT INTO {schema}.outbox_dead (id, tenant, reaction, type, stream_id, version, event_id, attempts, last_error, dead_at)
@@ -394,12 +442,12 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
             SELECT count(*) FROM d
             """;
 
-        public string DeadLetters => $"""
+        public string DeadLetters => field ??= $"""
             SELECT d.id, d.reaction, d.tenant, d.type, d.stream_id, d.event_id, d.attempts, d.last_error, d.dead_at
             FROM {schema}.outbox_dead d ORDER BY d.id LIMIT $1
             """;
 
-        public string LockForDead => $"""
+        public string LockForDead => field ??= $"""
             SELECT d.reaction FROM {schema}.streams s JOIN {schema}.outbox_dead d ON s.tenant = d.tenant AND s.type = d.type AND s.id = d.stream_id
             WHERE d.id = $1
             FOR NO KEY UPDATE OF s
@@ -415,10 +463,10 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
             SELECT count(*) FROM i
             """;
 
-        public string Redrive => RedriveOf("");
+        public string Redrive => field ??= RedriveOf("");
 
         // the audit row in the same statement (O-3): DELETE … RETURNING feeds it
-        public string RedriveAudited => RedriveOf(Audit("redrive", "$2", "$4"));
+        public string RedriveAudited => field ??= RedriveOf(Audit("redrive", "$2", "$4"));
 
         private string Audit(string action, string at, string actor) => $"""
             ,
@@ -429,14 +477,14 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
 
         private const string DeadColumns = "d.id, d.reaction, d.tenant, d.type, d.stream_id, d.event_id, d.attempts, d.last_error, d.dead_at";
 
-        public string Purge => $"""
+        public string Purge => field ??= $"""
             WITH d AS (DELETE FROM {schema}.outbox_dead WHERE id IN (SELECT id FROM {schema}.outbox_dead WHERE dead_at < $1 ORDER BY dead_at LIMIT $2) RETURNING id),
             a AS (INSERT INTO {schema}.operations_audit (at, actor, action, target, detail)
                   SELECT $3, $4, 'purge', 'reactions', jsonb_build_object('rows', count(*), 'before', $1) FROM d HAVING count(*) > 0)
             SELECT count(*) FROM d
             """;
 
-        public string DeadPage => $"""
+        public string DeadPage => field ??= $"""
             SELECT {DeadColumns} FROM {schema}.outbox_dead d
             WHERE d.id > $1 AND ($3::uuid IS NULL OR d.tenant = $3) AND ($4::text IS NULL OR d.reaction = $4)
             ORDER BY d.id LIMIT $2
@@ -447,13 +495,13 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
             SELECT count(*) FROM d
             """;
 
-        public string Discard => DiscardOf("");
+        public string Discard => field ??= DiscardOf("");
 
-        public string DiscardAudited => DiscardOf(Audit("discard", "$2", "$3"));
+        public string DiscardAudited => field ??= DiscardOf(Audit("discard", "$2", "$3"));
 
         // the oldest due head: an index lookup on outbox_heads (due_at, id) WHERE head
-        public string OldestDue => $"SELECT min(due_at) FROM {schema}.outbox WHERE head AND due_at <= $1";
+        public string OldestDue => field ??= $"SELECT min(due_at) FROM {schema}.outbox WHERE head AND due_at <= $1";
 
-        public string Pending => $"SELECT count(*) FROM {schema}.outbox";
+        public string Pending => field ??= $"SELECT count(*) FROM {schema}.outbox";
     }
 }

@@ -290,3 +290,15 @@ internal sealed class EventLog : ILogger
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) => _ids.Enqueue(eventId.Id);
 }
+
+/// <summary>The data sources Tarol builds prepare their statements unless the connection string says otherwise.</summary>
+public sealed class AutoPrepareTests
+{
+    [Fact]
+    public void Auto_prepare_is_set_unless_the_connection_string_sets_it()
+    {
+        new NpgsqlSlimDataSourceBuilder("Host=db").AutoPrepareUnlessSet().ConnectionStringBuilder.MaxAutoPrepare.ShouldBe(64);
+        new NpgsqlSlimDataSourceBuilder("Host=db;Max Auto Prepare=0").AutoPrepareUnlessSet().ConnectionStringBuilder.MaxAutoPrepare.ShouldBe(0);
+        new NpgsqlSlimDataSourceBuilder("Host=db;maxautoprepare=10").AutoPrepareUnlessSet(32).ConnectionStringBuilder.MaxAutoPrepare.ShouldBe(10);
+    }
+}

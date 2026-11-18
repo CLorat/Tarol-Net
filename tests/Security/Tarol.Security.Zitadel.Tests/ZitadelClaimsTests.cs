@@ -61,6 +61,41 @@ public sealed class ZitadelClaimsTests
     }
 
     [Fact]
+    public async Task The_generic_roles_claim_of_the_clients_own_project_is_not_read()
+    {
+        // a client of another project that asked for this project's audience: its own project's roles come in the generic claim
+        var user = await Transform(Token(("urn:zitadel:iam:org:project:roles", $$$"""{"admin":{"{{{Organisation}}}":"zitadel.localhost"}}""")));
+
+        user.IsInRole("admin").ShouldBeFalse();
+        user.FindAll("role").Select(r => r.Value).Order().ShouldBe(["bidder", "seller"]);
+    }
+
+    [Fact]
+    public async Task A_role_granted_in_another_organisation_is_not_a_role_in_the_users_tenant()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim("sub", "1"),
+            new Claim($"urn:zitadel:iam:org:project:{Project}:roles",
+                $$$"""{"admin":{"111":"other.localhost"},"bidder":{"111":"other.localhost","{{{Organisation}}}":"zitadel.localhost"}}"""),
+            new Claim("urn:zitadel:iam:user:resourceowner:id", Organisation),
+        ], "AuthenticationTypes.Federation", "sub", "role"));
+
+        var user = await Transform(principal);
+
+        user.IsInRole("admin").ShouldBeFalse();
+        user.IsInRole("bidder").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task The_users_organisation_replaces_a_tenant_claim_in_the_token()
+    {
+        var user = await Transform(Token(("tenant", Guid.NewGuid().ToString())));
+
+        user.FindAll("tenant").ShouldHaveSingleItem().Value.ShouldBe(ZitadelTenants.Of(Organisation).ToString());
+    }
+
+    [Fact]
     public async Task An_anonymous_principal_is_left_alone()
         => (await Transform(new ClaimsPrincipal(new ClaimsIdentity()))).Claims.ShouldBeEmpty();
 

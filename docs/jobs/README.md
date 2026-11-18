@@ -134,7 +134,8 @@ in-memory rows. Never count runs inside a wall-clock window.
 ## Observe
 
 * Logs 14001 retry, 14002 dead job, 14003 lease lost, 14004 schedule changed, 14005 missed occurrences skipped, 14006 rows
-  synced, 14007 loop failed, 14008 a row this process does not declare, 14009 sync failed, 14010 a system job's count.
+  synced, 14007 loop failed, 14008 a row this process does not declare, 14009 sync failed, 14010 a system job's count, 14011 a lease extension failed (tried again),
+  14012 the lease could not be extended before it ran out (the run is cancelled).
 * `ActivitySource "Tarol.Jobs"`: one activity per occurrence (`job <name>`; `tarol.job`, `tarol.occurrence`, `tarol.tenant`,
   `tarol.attempt`, `tarol.verdict`); the commits carry its `traceparent`.
 * `IJobRows.Overdue(ct)`: the oldest due cursor (now − it = how late jobs run). Meters and health checks: step 15.

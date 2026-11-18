@@ -48,6 +48,77 @@ public sealed class HostingTests
         host.Services.GetRequiredService<MessageConsumers>().Subscriptions.Select(s => s.Name).ShouldBe(["shop.IssueInvoice", "shop.RecordPayment", "shop.Sales"]);
     }
 
+    private static MessageConsumers Consumers() => new(GeneratedConsumers.Set,
+        new ChangePipeline(new InMemoryAggregateStore(TimeProvider.System), TimeProvider.System), new InMemoryMessageDeadLetters(TimeProvider.System),
+        new MessagingOptions { Application = "shop" }, ShopJson.Default.Options);
+
+    [Fact]
+    public async Task When_one_subscription_fails_the_others_are_stopped_and_the_failure_is_thrown()
+    {
+        var transport = new OneFails("shop.RecordPayment");
+        var consumers = Consumers();
+
+        var failure = await Should.ThrowAsync<InvalidOperationException>(
+            consumers.Run(transport, TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+
+        failure.Message.ShouldBe("the broker closed shop.RecordPayment");
+        transport.Stopped.Order().ShouldBe(["shop.IssueInvoice", "shop.Sales"]);           // the healthy ones were stopped, not left running
+    }
+
+    [Fact]
+    public async Task The_host_consumes_every_subscription_again_after_one_failed()
+    {
+        var transport = new OneFails("shop.RecordPayment");
+        using var host = new MessagingHost(transport, Consumers(), TimeProvider.System) { RestartDelay = TimeSpan.FromMilliseconds(10) };
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        var deadline = Stopwatch.StartNew();
+        while (transport.Prepared < 3 && deadline.Elapsed < TimeSpan.FromSeconds(10))
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        transport.Prepared.ShouldBeGreaterThanOrEqualTo(3);                               // declared and consumed again, not stuck
+        transport.Consumed("shop.RecordPayment").ShouldBeGreaterThanOrEqualTo(3);
+    }
+
+    /// <summary>A transport whose <c>Consume</c> of one subscription fails at once; the others run until cancelled.</summary>
+    private sealed class OneFails(string failing) : IMessageTransport
+    {
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _consumed = new();
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _stopped = new();
+        private int _prepared;
+
+        public int Prepared => Volatile.Read(ref _prepared);
+
+        public IReadOnlyList<string> Stopped => [.. _stopped];
+
+        public int Consumed(string subscription) => _consumed.GetValueOrDefault(subscription);
+
+        public Task Prepare(IReadOnlyList<string> topics, IReadOnlyList<Subscription> subscriptions, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _prepared);
+            return Task.CompletedTask;
+        }
+
+        public Task Publish(Message message, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public async Task Consume(Subscription subscription, MessageHandler handler, CancellationToken cancellationToken)
+        {
+            _consumed.AddOrUpdate(subscription.Name, 1, static (_, n) => n + 1);
+            await Task.Yield();
+            if (subscription.Name == failing)
+                throw new InvalidOperationException("the broker closed " + failing);
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            finally
+            {
+                _stopped.Enqueue(subscription.Name);
+            }
+        }
+    }
+
     [Fact]
     public void AddMessaging_needs_a_transport_and_a_dead_letter_store_and_runs_once()
     {

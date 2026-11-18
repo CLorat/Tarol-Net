@@ -638,3 +638,39 @@ Status: checklist written; **not yet run** (needs a model-evaluation harness out
 * **Consumers** (Persistence, Sagas, Changes, CQRS) adopt the new API in their own steps; Sagas' persisted
   `Violation` uses the JSON contract of §7.
 * **Skill evaluation** (§10) is not run yet.
+
+## 12. Fix: violations read back from jsonb, with fixed names under any options (2026-11-18)
+
+**Behaviour change, public API addition.** `Violation` was `[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]`.
+System.Text.Json reads the discriminator only as the first property (unless `AllowOutOfOrderMetadataProperties`, which nothing
+set), and PostgreSQL's `jsonb` stores keys sorted by length, then bytewise: `{"kind":"error","type":…,"code":…}` came back as
+`{"code":…,"kind":…,"type":…}` and could not be read, although the docs promise that persisted violations stay readable. Second,
+the violation was written through the caller's options when they had metadata for it, and a converter in `options.Converters`
+wins over a type's `[JsonConverter]`: a common `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)` wrote `"type":"notFound"`.
+
+`Violation` now carries `[JsonConverter(typeof(ViolationJsonConverter))]` (new, public, like `ActorJsonConverter`), and
+`Result`/`Result<T>` use the same code for `"failure"`. It writes the same JSON as before, reads the members in any order, and
+accepts only the `ErrorType` names for `type` (not a number, `"1"` or a camel-cased name; those now throw `JsonException`, where
+the enum converter accepted a number). Unknown members are skipped, as before. `ResultsJsonContext` is removed (internal).
+Serializing an `Error` or `Invalid` as its own type (not as `Violation`) is unchanged: it has no `kind`, as before.
+
+Tests: `ResultJsonTests.A_Violation_Read_Back_From_Jsonb_With_Its_Keys_Reordered_Is_The_Same`,
+`The_Error_Type_Keeps_Its_Name_Under_A_Camel_Case_Enum_Converter`, `A_Violation_With_An_Unknown_Kind_Or_Type_Is_Refused` (7 cases,
+all failing without the fix). `Tarol.Results.AotSmoke`: 0 IL warnings, all checks passed.
+
+## 13. Fix: TRES002 no longer reports the awaited `Tap` (2026-11-18)
+
+**Behaviour change (analyzer).** TRES002 (a discarded result) exempts `Tap`, `TapFailure` and `TapAsync`, which exist for their side
+effect and hand back the result, but only when called on an instance. The awaited forms are extensions
+(`ResultExtensions.Tap`/`TapFailure` on a `ValueTask<Result<T>>`), whose invocation has no instance, so
+`await LoadAsync().Tap(Log);` was reported while `loaded.Tap(Log);` was not. Extensions of `Tarol.Results.ResultExtensions` with
+those names are exempt too; a method of the same name elsewhere is still reported.
+
+Test: `ResultAnalyzerTests.TRES002_Should_NotReport_HandledResultsAndTaps` (two awaited cases; fails without the fix).
+
+## 14. Performance: fewer allocations reading results and building `Invalid` (2026-11-18)
+
+No behaviour change. `ResultJsonConverter` read each member name with `GetString()` (a string per property per read); it compares
+the UTF-8 bytes now (`ValueTextEquals`), as the Kernel and id converters do. `new Invalid(params ReadOnlySpan<FieldError>)` copied
+its errors twice (the span's `ToArray()`, then the list constructor's copy), and so did `Combine`; both now hand their array to a
+private constructor that keeps it. The checks and their exceptions are the same. The unit suite passes (1543).

@@ -17,8 +17,8 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
 
 | Zitadel issues | Tarol gets |
 |---|---|
-| `urn:zitadel:iam:org:project:<project>:roles` = `{"seller":{"<org>":"…"}}` (one JSON-object claim) | `role` claims → the `Tarol.Security` role map |
-| `urn:zitadel:iam:user:resourceowner:id` (the user's organisation, numeric) | the `tenant` claim: `ZitadelTenants.Of(organisation)`, a stable `Id<ITenant>` |
+| `urn:zitadel:iam:org:project:<project>:roles` = `{"seller":{"<org>":"…"}}` (one JSON-object claim) | `role` claims → the `Tarol.Security` role map; only roles granted in the user's organisation; the generic `urn:zitadel:iam:org:project:roles` is not read |
+| `urn:zitadel:iam:user:resourceowner:id` (the user's organisation, numeric) | the `tenant` claim: `ZitadelTenants.Of(organisation)`, a stable `Id<ITenant>`; it replaces a `tenant` claim the token carried |
 | a machine user (`sub` = its user id, `client_id` = its name) with the project role `service` | `Actor.Service(client_id)` (others: `Actor.User(sub)`) |
 | `aud` = the project id (when requested) | JwtBearer's audience; another audience → 401 |
 | no `scope` claim | scope-based endpoint policies do not apply: let the role map decide |

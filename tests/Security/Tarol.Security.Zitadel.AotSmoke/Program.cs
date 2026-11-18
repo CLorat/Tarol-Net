@@ -28,7 +28,7 @@ Check("JwtBearer against the issuer and the project", jwt.Authority == "http://l
 var identity = new ClaimsIdentity(
 [
     new Claim("sub", "399724483734142979"), new Claim("client_id", "billing"),
-    new Claim($"urn:zitadel:iam:org:project:{Project}:roles", """{"service":{"1":"x"},"seller":{"1":"x"}}""", "JSON"),
+    new Claim($"urn:zitadel:iam:org:project:{Project}:roles", """{"service":{"399724476671000579":"x"},"seller":{"399724476671000579":"x"}}""", "JSON"),
     new Claim("urn:zitadel:iam:user:resourceowner:id", "399724476671000579"),
 ], "AuthenticationTypes.Federation", "sub", "role");
 var user = await app.Services.GetRequiredService<IClaimsTransformation>().TransformAsync(new ClaimsPrincipal(identity));

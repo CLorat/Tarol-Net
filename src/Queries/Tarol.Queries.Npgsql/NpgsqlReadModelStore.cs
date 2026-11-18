@@ -112,7 +112,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                 }
                 await using (var create = new NpgsqlCommand(NpgsqlReadModelSchema.Script<TRow>(_schema), connection, transaction))
                     await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
             }
         }
     }
@@ -182,7 +182,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                     AddRows(upsert.Parameters, batch.Rows);
                     await upsert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 }
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 return true;
             }
         }

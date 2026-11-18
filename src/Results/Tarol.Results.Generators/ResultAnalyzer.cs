@@ -96,7 +96,9 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
         }
 
         // Tap/TapFailure/TapAsync exist for their side effect and hand back the result they were called on.
-        if (invocation.TargetMethod.Name is "Tap" or "TapFailure" or "TapAsync" && invocation.Instance is not null)
+        // The awaited forms are extensions (ResultExtensions.Tap on a ValueTask<Result<T>>): no instance, the same contract.
+        if (invocation.TargetMethod.Name is "Tap" or "TapFailure" or "TapAsync"
+            && (invocation.Instance is not null || IsResultExtension(invocation.TargetMethod)))
         {
             return;
         }
@@ -104,6 +106,9 @@ public sealed class ResultAnalyzer : DiagnosticAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(Diagnostics.DiscardedResult, statement.Syntax.GetLocation(),
             expression.Type!.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), invocation.TargetMethod.Name));
     }
+
+    private static bool IsResultExtension(IMethodSymbol method)
+        => method.IsExtensionMethod && method.ContainingType is { Name: "ResultExtensions", ContainingNamespace: { Name: "Results", ContainingNamespace: { Name: "Tarol", ContainingNamespace.IsGlobalNamespace: true } } };
 
     // TRES003: result.Value.
     private static void AnalyzePropertyReference(OperationAnalysisContext context, KnownTypes types)

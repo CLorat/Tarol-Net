@@ -661,3 +661,59 @@ complete, natively.
 ### 22.6 Suppressions and analyzer configuration
 
 None.
+
+## 23. Fix: an undecodable outbox row no longer stalls its batch (2026-11-18)
+
+**Behaviour change.** `NpgsqlOutbox.Claim` commits the lease and `attempts + 1` for up to `Batch` rows, then decodes their
+events together. When one payload could not be decoded (an alias of a newer version during a rolling deploy, a key store that is
+down), the whole call threw: the reaction worker logged it and claimed the same batch again after the lease, over and over.
+`Handle` never ran, so no row of the batch progressed, and every row's `attempts` grew past `MaxAttempts`. Once a worker could
+decode them, the healthy rows were buried at their first ordinary failure.
+
+Now a failed batch decode falls back to decoding row by row. A row that still fails is released for one lease with
+`last_error = 'Outbox.Undecodable: …'` and its claim not counted (`attempts - 1`); the other rows are returned and run. The
+released row comes back once the lease has passed and runs when the event can be decoded. A cancellation still throws, as before.
+
+Test: `NpgsqlOutboxTests.A_row_whose_event_cannot_be_decoded_is_released_alone_and_does_not_hold_back_its_batch` (fails without the
+fix). The in-memory outbox does not decode, so the unit tests cannot show it.
+
+## 24. Fix: a commit's outcome no longer depends on a late cancellation (2026-11-18)
+
+**Behaviour change.** Every Npgsql transaction (`Append`, the outbox re-drive and bury, `Sync` of the job rows, the schema steps,
+the read-model batches) committed with the caller's `CancellationToken`. A cancellation arriving during `COMMIT` threw
+`OperationCanceledException` although the transaction may have committed, so the caller could not tell whether to retry; without
+an idempotency key a retry appended twice. `CommitAsync` now gets `CancellationToken.None`, as the rollbacks already did; the
+cancellation still stops the statements before it. No test: the window is the COMMIT round trip itself.
+
+## 25. Performance: statements are built once and prepared (2026-11-18)
+
+**Behaviour change, public API addition.**
+* The SQL texts of the store, the outbox and the job rows were expression-bodied interpolated strings, so each access built the
+  string again (several KB per commit and per claim), although the remarks said "built once per schema name". Each is now built on
+  first use and kept (`=> field ??= …`).
+* No statement was prepared: the data sources Tarol builds did not set `Max Auto Prepare`, so every commit sent its batch of up to
+  seven statements to be parsed and planned again, and so did every claim and load. `NpgsqlTracing.AutoPrepareUnlessSet(builder,
+  statements = 64)` (new) sets it unless the connection string does; `UseNpgsqlStore(connectionString)` and
+  `UseNpgsqlBus(connectionString)` call it. Behind PgBouncer in transaction mode without `max_prepared_statements`, set
+  `Max Auto Prepare=0` in the connection string. A data source the application builds is unchanged.
+
+Test: `AutoPrepareTests.Auto_prepare_is_set_unless_the_connection_string_sets_it`; the whole suite with Docker (1883 tests) passes
+with both changes. Not measured here: the gain per commit.
+
+## 26. Performance: schema version 4 and the rebuild's paging (2026-11-18)
+
+**Schema change, public API change.**
+* Retention (`DeleteStreams`) selects `type = $1 AND updated_at < $2 ORDER BY updated_at LIMIT n`, and no index served it (the
+  primary key is `(tenant, type, id)`): every batch of 500 was a sequential scan and a sort. Schema **version 4** (compatible from
+  1, so code of version 1–3 still runs on it) adds `streams_retention ON streams (type, updated_at)`, built `CONCURRENTLY` like the
+  earlier indexes. `NpgsqlSchema.Version` is now 4; it is a `const`, so code compiled against 3 keeps 3 until it is rebuilt
+  (the shipped API baseline lists the change). `SealingVersion` stays 3. It is the one store query that does not filter by tenant,
+  by design: retention runs across tenants.
+* `RebuildStates` paged with `type = $1 AND (tenant, id) > ($3, $4) ORDER BY tenant, id`, an order no index serves, so each page
+  scanned and sorted every stream of the type (quadratic over a large table). It now pages on the primary key's order,
+  `(tenant, type, id) > ($3, $1, $4) ORDER BY tenant, type, id`, as `UnsealedStates` already did; the rows and their order are the
+  same because `type` is fixed.
+
+Tests: the schema state assertions move to version 4 (`DataProtectionTests`: 9 and 6 steps run); the suite with Docker passes
+(1883). `A_Cached_Key_Costs_No_Key_Query` now waits for the key store's `LISTEN` first: the cache clear that follows it could land
+while the test counted (it failed once in a full run).

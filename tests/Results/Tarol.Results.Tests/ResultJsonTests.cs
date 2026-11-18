@@ -40,6 +40,38 @@ public partial class ResultJsonTests
 
     [Theory]
     [MemberData(nameof(Modes))]
+    public void A_Violation_Read_Back_From_Jsonb_With_Its_Keys_Reordered_Is_The_Same(string mode)
+    {
+        // PostgreSQL's jsonb sorts keys by length, then bytewise: "kind" comes after "code"
+        var error = JsonSerializer.Deserialize<Violation>("""{"code":"User.NotFound","kind":"error","type":"NotFound","detail":"No user 7."}""", Options(mode));
+        var invalid = JsonSerializer.Deserialize<Violation>("""{"kind":"invalid","errors":[{"code":"Name.Required","field":"Name"}]}""", Options(mode));
+
+        error.ShouldBe(Error.NotFound("User.NotFound", "No user 7."));
+        invalid.ShouldBe(new Invalid(new FieldError("Name", "Name.Required")));
+        JsonSerializer.Deserialize<Result<User>>("""{"failure":{"code":"User.NotFound","kind":"error","type":"NotFound"}}""", Options(mode))
+            .ShouldBe(Result<User>.Failure(Error.NotFound("User.NotFound")));
+    }
+
+    [Fact]
+    public void The_Error_Type_Keeps_Its_Name_Under_A_Camel_Case_Enum_Converter()
+    {
+        var camel = new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
+
+        JsonSerializer.Serialize<Violation>(Error.NotFound("User.NotFound"), camel).ShouldBe("""{"kind":"error","type":"NotFound","code":"User.NotFound"}""");
+        JsonSerializer.Serialize(Result<User>.Failure(Error.NotFound("User.NotFound")), camel).ShouldContain("\"type\":\"NotFound\"");
+    }
+
+    [Theory]
+    [InlineData("""{"kind":"error","type":1,"code":"X"}""")]
+    [InlineData("""{"kind":"error","type":"1","code":"X"}""")]
+    [InlineData("""{"kind":"error","type":"notFound","code":"X"}""")]
+    [InlineData("""{"kind":"other","code":"X"}""")]
+    [InlineData("""{"type":"NotFound","code":"X"}""")]
+    public void A_Violation_With_An_Unknown_Kind_Or_Type_Is_Refused(string json)
+        => Should.Throw<JsonException>(() => JsonSerializer.Deserialize<Violation>(json, Generated));
+
+    [Theory]
+    [MemberData(nameof(Modes))]
     public void Error_Should_UseTheFixedContract(string mode)
     {
         Result<User> result = Error.NotFound("User.NotFound", "No user 7.");

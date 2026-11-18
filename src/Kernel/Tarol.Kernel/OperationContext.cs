@@ -26,7 +26,7 @@ public sealed record OperationContext(
     Option<Id<ICausation>> CausationId)
 {
     /// <summary>The actor; not <see langword="null"/>.</summary>
-    public Actor Actor { get; init; } = Actor ?? throw new ArgumentNullException(nameof(Actor));
+    public Actor Actor { get; init => field = value ?? throw new ArgumentNullException(nameof(Actor)); } = Actor ?? throw new ArgumentNullException(nameof(Actor));
 
     /// <summary>Starts a conversation: a new UUIDv7 correlation id read from <paramref name="clock"/>, no causation.</summary>
     /// <param name="actor">Who acts.</param>

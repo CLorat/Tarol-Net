@@ -173,6 +173,18 @@ public interface IOutbox
     /// <returns><see langword="false"/> when the lease was lost.</returns>
     Task<bool> Retry(OutboxRow row, DateTimeOffset retryAt, string reason, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Hands a claimed row back unrun: due again now and its claim not counted as an attempt. A worker does this with the
+    /// rest of a batch it has no lease left for, so another worker does not run those rows alongside it.
+    /// </summary>
+    /// <param name="row">The claimed row.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>
+    /// <see langword="false"/> when the lease was lost, or when the store cannot release (the default): the row then comes
+    /// back once its lease has expired.
+    /// </returns>
+    Task<bool> Release(OutboxRow row, CancellationToken cancellationToken) => Task.FromResult(false);
+
     /// <summary>Moves a row to the dead letters; the next row of its stream and reaction becomes the head.</summary>
     /// <param name="row">The claimed row.</param>
     /// <param name="reason">Why it is given up.</param>

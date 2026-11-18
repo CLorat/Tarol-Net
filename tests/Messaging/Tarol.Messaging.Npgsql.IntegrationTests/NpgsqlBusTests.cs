@@ -117,6 +117,29 @@ public sealed class NpgsqlBusTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task A_batch_that_outlived_half_its_lease_hands_its_tail_back_so_nothing_runs_twice()
+    {
+        var schema = Postgres.NewSchema();
+        var bus = Bus(schema);
+        var subscription = new Subscription("t.Batch", ["t.batch"]) { Concurrency = 2, Lease = TimeSpan.FromSeconds(4) };
+        await bus.Prepare([], [subscription], Ct);
+        for (var i = 0; i < 3; i++)
+            await bus.Publish(Raw("t.batch"), Ct);                                              // one loop claims all three
+
+        // each delivery takes more than half the lease: without handing the tail back, the second loop claims it again
+        // once the lease ran out and runs it alongside
+        var seen = await Collect(bus, subscription, 3, static async _ =>
+        {
+            await Task.Delay(2500);
+            return new Handled(Ack.Ack);
+        });
+
+        seen.Select(i => i.Attempt).ShouldBe([1, 1, 1]);                                        // released claims are not counted
+        seen.Select(i => i.Message!.Id).Distinct().Count().ShouldBe(3);
+        (await bus.Pending("t.Batch", Ct)).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task A_retry_presents_its_claim_and_counts_the_attempt()
     {
         var schema = Postgres.NewSchema();

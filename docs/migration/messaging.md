@@ -900,3 +900,65 @@ failed twice in full suite runs, `client.State` still `Disconnected` after 60 s,
   * the whole `Tarol.Messaging.SignalR.Tests` project (19 tests) passes 10 of 10 in Release, alone.
 * **Public API**: none. **Behaviour**: a client that was not stopped keeps restarting after a timed-out attempt, as its
   documentation always said.
+
+## 21. Fix: a re-drive no longer loses the dead letter (2026-11-18)
+
+**Behaviour change.** `MessageConsumers.Redrive` takes (deletes) the dead letter and then runs it as attempt 1. Two paths lost it:
+* a transient failure (a `Conflict`, `Unavailable`, …) returned `Verdict.Retry`, but a re-drive has no transport to deliver it
+  again, so the message was in neither the transport nor `messages_dead`;
+* an exception during the run (cancellation, a failing dead-letter store) left it nowhere either.
+
+Now a `Retry` verdict buries it again (a new dead letter with the run's reason), and an exception buries it again (the original
+reason on cancellation, `Messaging.HostFailed: …` otherwise) before it is rethrown.
+
+**Security.** The re-drive passed `AuthenticatedAs: null`, so a letter given up for `Messaging.SourceMismatch` because the transport
+saw another system publish it passed the check (M-13) on a re-drive. The transport's identity is not kept with the letter, and
+nothing about a mismatch changes between attempts, so such a letter is now given up again without a run.
+
+Tests: `ConsumerTests.A_dead_letter_redriven_before_the_cause_is_fixed_is_dead_again_not_lost` and
+`A_dead_letter_of_a_source_mismatch_is_not_run_again_by_a_redrive` (both fail without the fix).
+
+## 22. Fix: one failed subscription no longer stays dead until a restart (2026-11-18)
+
+**Behaviour change.** `MessageConsumers.Run` returned `Task.WhenAll` over every subscription's `IMessageTransport.Consume`, and
+`MessagingHost` declares and consumes again only once that task ends. Each transport ends `Consume` with an exception when its
+subscription fails (the Npgsql bus on a claim error, RabbitMQ on a channel shutdown, NATS when the consumer cannot be fetched).
+The healthy subscriptions kept running, so the task never ended. The failed subscription was never consumed again and nothing was
+logged until shutdown, contrary to the restart the `NpgsqlBus.Consume` remarks promise.
+
+`Run` now stops the other subscriptions when the first one stops and throws its failure (or an `InvalidOperationException` naming
+the subscription when it ended without one). The host logs 11004 and, after `RestartDelay`, declares and consumes all of them
+again. A cancellation by the caller still stops everything and returns as before. The healthy subscriptions' in-flight handlers
+are cancelled with the restart, and their deliveries come back after the lease, as on any restart.
+
+Tests: `HostingTests.When_one_subscription_fails_the_others_are_stopped_and_the_failure_is_thrown` and
+`The_host_consumes_every_subscription_again_after_one_failed` (both fail without the fix).
+
+## 23. Fix: the Npgsql bus no longer runs a batch's tail after its lease (2026-11-18)
+
+**Behaviour change.** A bus loop claims up to `Batch` (16) deliveries on one lease (`Subscription.Lease`, 1 min) and handles them
+one after another without extending it. With handlers slower than about 4 s the tail of the batch became due again: another
+instance (or loop) ran those deliveries at the same time, the first one's ack found its claim gone (11101), and the
+per-subscription order broke.
+
+A loop now starts a delivery only while at least half of the lease is left. The rest is handed back unrun (log 11103): due again at
+the claim time, so the order holds, and the claim not counted as an attempt. The release goes row by row, because the slim data
+source the bus uses has no array support.
+
+Test: `NpgsqlBusTests.A_batch_that_outlived_half_its_lease_hands_its_tail_back_so_nothing_runs_twice` (fails without the fix, with
+an attempt-2 duplicate; passed 5 of 5 with it). It uses real time: a 4 s lease and 2.5 s handlers.
+
+## 24. Fix: a refused RabbitMQ retry copy no longer stalls the queue (2026-11-18)
+
+**Behaviour change.** A `Retry` answer acks the delivery after publishing a copy to `<queue>.retry` with `mandatory: true` and
+publisher confirms. When the broker refused the copy (a nack, or returned as unroutable: a `PublishException`), the failure was only
+logged (11302): the delivery was neither acked nor nacked and the channel stayed open. It held one prefetch slot (prefetch =
+concurrency) until the broker's consumer timeout (30 min by default), so with a concurrency of 1 the queue stopped. The delivery is
+now nacked with `requeue: true` when the channel is still open; the broker delivers it again (counted as a redelivery).
+
+Test: `RabbitMqTransportTests.A_retry_copy_the_broker_refuses_is_delivered_again_instead_of_stalling_the_queue` (deletes the
+retry queue; times out without the fix).
+
+Open: the shared `<queue>.retry` uses per-message TTLs, and RabbitMQ expires only the message at the head of a queue, so one long
+backoff holds back every shorter one behind it. Fixing that changes the queue topology (delay tiers or a delayed exchange) and is
+left for a decision.

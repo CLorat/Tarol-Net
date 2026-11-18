@@ -155,6 +155,46 @@ public sealed class NpgsqlOutboxTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task A_row_whose_event_cannot_be_decoded_is_released_alone_and_does_not_hold_back_its_batch()
+    {
+        var store = await Store(e => e is Member.Joined ? OnJoined : ReadOnlySpan<string>.Empty);
+        var poison = await Joined(store, Context, earnings: 0);
+        var healthy = await Joined(store, Context, earnings: 0);
+        var alias = (string)(await postgres.Scalar($"SELECT alias FROM {store.Schema}.events WHERE stream_id = '{poison.Id.Value}'"))!;
+        // a newer version's alias, as during a rolling deploy
+        await postgres.Execute($"UPDATE {store.Schema}.events SET alias = 'member.renamed' WHERE stream_id = '{poison.Id.Value}'");
+
+        var claimed = await store.Outbox.Claim(10, TimeSpan.FromSeconds(30), Ct);
+
+        claimed.ShouldHaveSingleItem().Event.Event.StreamId.ShouldBe(healthy.Id.Value);    // the batch-mate runs
+        (await store.Outbox.Complete(claimed[0], Ct)).ShouldBeTrue();
+        (await postgres.Scalar($"SELECT attempts FROM {store.Schema}.outbox WHERE stream_id = '{poison.Id.Value}'")).ShouldBe(0);   // not counted
+        ((string)(await postgres.Scalar($"SELECT last_error FROM {store.Schema}.outbox WHERE stream_id = '{poison.Id.Value}'"))!).ShouldStartWith("Outbox.Undecodable: ");
+        (await store.Outbox.Claim(10, TimeSpan.FromSeconds(30), Ct)).ShouldBeEmpty();      // released for a lease, not claimed again at once
+
+        await postgres.Execute($"UPDATE {store.Schema}.events SET alias = '{alias}' WHERE stream_id = '{poison.Id.Value}'");   // the new version is out
+        _time.Advance(TimeSpan.FromSeconds(31));
+        var later = (await store.Outbox.Claim(10, TimeSpan.FromSeconds(30), Ct)).ShouldHaveSingleItem();
+        (later.Event.Event.StreamId, later.Attempts).ShouldBe((poison.Id.Value, 1));
+    }
+
+    [Fact]
+    public async Task A_released_row_is_due_again_at_once_uncounted_and_the_old_claim_is_void()
+    {
+        var store = await Store(e => e is Member.Joined ? OnJoined : ReadOnlySpan<string>.Empty);
+        await Joined(store, Context, earnings: 0);
+        var first = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).Single();
+
+        (await store.Outbox.Release(first, Ct)).ShouldBeTrue();
+        var again = (await store.Outbox.Claim(10, TimeSpan.FromMinutes(1), Ct)).Single();          // no lease to wait out
+
+        (again.Id, again.Attempts, again.DueAt).ShouldBe((first.Id, 1, first.DueAt));
+        (await store.Outbox.Release(first, Ct)).ShouldBeFalse();
+        (await store.Outbox.Complete(first, Ct)).ShouldBeFalse();
+        (await store.Outbox.Complete(again, Ct)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task An_expired_lease_is_claimed_again_and_the_first_worker_cannot_complete()
     {
         var store = await Store(e => e is Member.Joined ? OnJoined : ReadOnlySpan<string>.Empty);

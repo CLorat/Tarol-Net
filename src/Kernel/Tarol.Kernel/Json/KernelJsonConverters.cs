@@ -24,8 +24,12 @@ public sealed class ActorJsonConverter : JsonConverter<Actor>
             if (reader.ValueTextEquals("kind"u8))
             {
                 reader.Read();
-                kind = Enum.TryParse(reader.GetString(), ignoreCase: false, out ActorKind parsed) && Enum.IsDefined(parsed)
-                    ? parsed
+                // the names only: Enum.TryParse would also take "1" or "User,Service" (1 | 2 = System)
+                kind = reader.TokenType != JsonTokenType.String ? throw new JsonException("An actor's 'kind' is a string.")
+                    : reader.ValueTextEquals("User"u8) ? ActorKind.User
+                    : reader.ValueTextEquals("Service"u8) ? ActorKind.Service
+                    : reader.ValueTextEquals("System"u8) ? ActorKind.System
+                    : reader.ValueTextEquals("Anonymous"u8) ? ActorKind.Anonymous
                     : throw new JsonException($"Unknown actor kind '{reader.GetString()}'.");
             }
             else if (reader.ValueTextEquals("id"u8))

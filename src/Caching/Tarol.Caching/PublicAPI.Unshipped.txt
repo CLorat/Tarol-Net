@@ -1,1 +1,3 @@
 #nullable enable
+Tarol.Caching.IPageCache.Clears.get -> long
+Tarol.Caching.MemoryPageCache.Clears.get -> long

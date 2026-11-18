@@ -640,3 +640,16 @@ Status: checklist written; **not yet run** (needs a model-evaluation harness out
   at the edge (`RespectRequiredConstructorParameters`), decided with the web package.
 * Invariant failure type: V-3 says the rule's `Error`; whether `Error.Internal` is ever right is decided with step 6.
 
+
+## 17. Fix: a derived input that adds parameters is reported, not silently unchecked (2026-11-18)
+
+**Behaviour change (generator).** An input was recognised only when it named `IValidatable` itself (`type.Interfaces`, the direct
+interfaces). A record deriving from an input without naming it again, `Order(string A, [Range(1, 10)] int B) : BaseOrder(A)`,
+was taken for a value object because of its rule (it got `Create`/`Check`, while `Symbols.IsValueObject`, on all interfaces,
+said it was none), and the inherited `Validate` never checked `B`; without a rule attribute nothing was reported at all.
+Such a record is now an input: when it adds parameters the base's primary constructor does not have, TVAL002 reports it, as it
+already did when the interface was named again. A derived record without parameters of its own still inherits the base's
+`Validate` without a diagnostic.
+
+Tests: `DiagnosticTests.TVAL002_Generic_File_Local_And_Derived_Inputs_Are_Unsupported` (a new case; fails without the fix) and
+`A_Derived_Input_Without_Parameters_Of_Its_Own_Inherits_The_Bases_Validate`.

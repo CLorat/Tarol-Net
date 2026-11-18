@@ -102,50 +102,18 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
-      - name: Integration tests (PostgreSQL via Testcontainers)
-        run: >-
-          dotnet test --project tests/Persistence/Tarol.Persistence.Npgsql.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests of the reaction worker (PostgreSQL via Testcontainers)
-        run: >-
-          dotnet test --project tests/Sagas/Tarol.Sagas.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests of the HTTP entries (PostgreSQL via Testcontainers)
-        run: >-
-          dotnet test --project tests/Changes/Tarol.Changes.AspNetCore.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests of the PostgreSQL message bus (PostgreSQL via Testcontainers)
-        run: >-
-          dotnet test --project tests/Messaging/Tarol.Messaging.Npgsql.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests of the read tables (PostgreSQL via Testcontainers)
-        run: >-
-          dotnet test --project tests/Queries/Tarol.Queries.Npgsql.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests of the page cache (PostgreSQL via Testcontainers)
-        run: >-
-          dotnet test --project tests/Caching/Tarol.Caching.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests of the NATS JetStream transport (nats:2.11 via Testcontainers)
-        run: >-
-          dotnet test --project tests/Messaging/Tarol.Messaging.Nats.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests of the RabbitMQ transport (rabbitmq:4-management via Testcontainers)
-        run: >-
-          dotnet test --project tests/Messaging/Tarol.Messaging.RabbitMq.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
-
-      - name: Integration tests against Zitadel (Testcontainers, ghcr.io/zitadel/zitadel)
-        run: >-
-          dotnet test --project tests/Security/Tarol.Security.Zitadel.IntegrationTests -c Release
-          --report-trx --results-directory artifacts/test-results
+      # every tests/*/*.IntegrationTests project, so a new one cannot be left out (the hand-written list missed
+      # DataProtection and Operations); each project runs even when an earlier one failed
+      - name: Integration tests (PostgreSQL, NATS, RabbitMQ, Zitadel via Testcontainers)
+        run: |
+          failed=0
+          for project in tests/*/*.IntegrationTests; do
+            echo "::group::$project"
+            dotnet test --project "$project" -c Release --report-trx --results-directory artifacts/test-results \
+              || { failed=1; echo "::error::$project failed"; }
+            echo "::endgroup::"
+          done
+          exit $failed
 
       - name: Upload test results
         if: always()
