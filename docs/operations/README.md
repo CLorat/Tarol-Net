@@ -142,4 +142,4 @@ Sample by parent (`ParentBasedSampler`) so a reaction's commands follow its deci
 | 15001–15005 | `Tarol.Operations` | re-drive, re-drive by filter, discard, drop (with the actor); a failed poll |
 | 16001–16008 | `Tarol.DataProtection` | subject erased, tenant erased, subject exported, retention deleted streams (with the actor or job), a failed erasure participant (Error), in-memory eviction (Debug), an erasure run again, streams skipped for pending reactions; ids and counts, never personal values |
 
-Earlier ids: 1001 (authorization denial), 9001–9012 (reactions), 11001–11415 (messaging), 12001–12103 (queries), 14001–14012 (jobs).
+Earlier ids: 1001 (authorization denial), 9001–9012 (reactions), 11001–11415, 11103 (messaging), 12001–12103 (queries), 14001–14012 (jobs).

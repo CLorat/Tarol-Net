@@ -933,3 +933,17 @@ are cancelled with the restart, and their deliveries come back after the lease, 
 
 Tests: `HostingTests.When_one_subscription_fails_the_others_are_stopped_and_the_failure_is_thrown` and
 `The_host_consumes_every_subscription_again_after_one_failed` (both fail without the fix).
+
+## 23. Fix: the Npgsql bus no longer runs a batch's tail after its lease (2026-11-18)
+
+**Behaviour change.** A bus loop claims up to `Batch` (16) deliveries on one lease (`Subscription.Lease`, 1 min) and handles them
+one after another without extending it. With handlers slower than about 4 s the tail of the batch became due again: another
+instance (or loop) ran those deliveries at the same time, the first one's ack found its claim gone (11101), and the
+per-subscription order broke.
+
+A loop now starts a delivery only while at least half of the lease is left. The rest is handed back unrun (log 11103): due again at
+the claim time, so the order holds, and the claim not counted as an attempt. The release goes row by row, because the slim data
+source the bus uses has no array support.
+
+Test: `NpgsqlBusTests.A_batch_that_outlived_half_its_lease_hands_its_tail_back_so_nothing_runs_twice` (fails without the fix, with
+an attempt-2 duplicate; passed 5 of 5 with it). It uses real time: a 4 s lease and 2.5 s handlers.
