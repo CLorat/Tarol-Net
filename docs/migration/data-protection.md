@@ -810,7 +810,8 @@ The first run of the benchmark found two faults, both fixed before the recorded 
 
 ### 16.5 Tests
 
-`Tarol.Persistence.Npgsql.IntegrationTests` (+19 data-protection tests, plus the contract runs below):
+`Tarol.Persistence.Npgsql.IntegrationTests` (+19 data-protection tests and +34 sealed contract tests, 157 → 210);
+`Tarol.Persistence.Tests` (+22, the in-memory sealed store contract). The data-protection tests:
 * the probe's scenarios on the real store:
   * no plaintext in `payload` or `state`, plain fields queryable, `subjects` recorded;
   * another process opens every field, and an order opens with the customer's key;
@@ -852,4 +853,14 @@ reads the erased field as `null`, natively (0 IL warnings).
 
 None.
 
-### 16.8 Verification
+### 16.8 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4 from `mirror.gcr.io`):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean. The first run found whitespace in `DataProtectionTests.cs`, fixed;
+* `dotnet test --solution Tarol.slnx`: **1843 of 1843** (16A's 1768 + 75). The first full run had 1809: the two sealed
+  PostgreSQL contract classes had not landed in their file. They were added, the 34 tests passed, and the suite was rerun;
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **23 apps, 0 IL warnings**, all checks passed (the
+  Npgsql app with a sealing store), run at `11920d9` (no package code changed afterwards);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+* the `SealHistory` measurement: §16.3.

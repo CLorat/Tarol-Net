@@ -22,9 +22,9 @@ public sealed class DataProtectionTests(Postgres postgres)
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static EventCodec Codec() => new EventCodec(new JsonSerializerOptions(PrivacyJson.Default.Options)
-        {
-            TypeInfoResolver = System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.Combine(PrivacyJson.Default, Contract.ContractJson.Default),
-        })
+    {
+        TypeInfoResolver = System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.Combine(PrivacyJson.Default, Contract.ContractJson.Default),
+    })
         .Add<Patron>().Add<Purchase>().Add<Contract.Member>().Add<Contract.Tally>()
         .Upcast<Patron>(new SignedUpToRegistered());
 
