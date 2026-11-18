@@ -70,6 +70,8 @@ public class OperationContextTests
         Should.Throw<ArgumentNullException>(() => new OperationContext(null!, Option.None, Id<ICorrelation>.New(), Option.None));
         Should.Throw<ArgumentNullException>(() => OperationContext.Start(null!, Option.None, TimeProvider.System));
         Should.Throw<ArgumentNullException>(() => OperationContext.Start(Actor.Anonymous, Option.None, null!));
+        var context = OperationContext.Start(Actor.Anonymous, Option.None, TimeProvider.System);
+        Should.Throw<ArgumentNullException>(() => context with { Actor = null! });                 // not only the constructor
     }
 
     // The 48-bit Unix millisecond timestamp of a UUIDv7 (RFC 9562 §5.7).

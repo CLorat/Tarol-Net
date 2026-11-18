@@ -451,3 +451,16 @@ Status: checklist written; **not yet run** (needs a model-evaluation harness out
 | 10 CQRS | the context per command (parameter or scoped service); build `Tarol.Security` (security.md §5, §8): resource permission with `IAuthorizationService`, outcome → `Error.Unauthorized`/`Forbidden`/`NotFound`, system principal |
 | 11 Messaging | envelope headers from `OperationContext`; inject `TimeProvider` into `MessageBackplaneRunner`; topic authorization with tenant-prefixed groups |
 | web package | context from `ClaimsPrincipal` at the edge; `Error` → problem details with `AddProblemDetails()` (AOT, K-8) |
+
+## 13. Fix: strict actor kinds in JSON, and an actor that is never null (2026-11-18)
+
+**Behaviour change.**
+* `ActorJsonConverter` parsed `kind` with `Enum.TryParse(…, ignoreCase: false)` and checked `Enum.IsDefined`. That also took
+  `"1"` (User), `" User"` (trimmed) and `"User,Service"` (`1 | 2` = 3 = `System`), so an event's metadata or a message envelope
+  could turn a user or service pair into a `System` actor. Only the four names are accepted now (compared on the UTF-8 bytes,
+  no string allocated); anything else is a `JsonException`.
+* `OperationContext.Actor` checked for `null` only in the constructor: `context with { Actor = null! }` got a context without an
+  actor. The `init` accessor checks it too.
+
+Tests: `KernelJsonTests.Invalid_Actor_Should_BeAJsonException` (4 new cases, 3 of them accepted before) and
+`OperationContextTests.NullArguments_Should_Throw` (the `with` case; fails without the fix).
