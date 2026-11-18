@@ -663,7 +663,8 @@ In the branch's worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
 * `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**;
 * `eng/verify-packages.sh`: OK (no `.snupkg`; every DLL carries its PDB).
 * **The release dry run with everything shipped** (#70, run 44275476672): `ci / build`, `ci / integration`, `ci / aot-smoke`, then
-  `pack` green (`release.py check` without warnings), `publish` skipped. An earlier run on the previous commit (44275336687) failed
+  `pack` green, `publish` skipped. On a branch MinVer makes `0.0.0-alpha.0.<height>`, which has no CHANGELOG section, so
+  `release.py check --dry-run` warns about that alone. The tag's own check (`0.1.0-preview.1`) passes locally (§20.1). An earlier run on the previous commit (44275336687) failed
   one test of `Tarol.Messaging.SignalR.Tests` in the called CI. That is the flake of §21 item 1, fixed by #71.
 
 ## 21. Open after 17A–17F
