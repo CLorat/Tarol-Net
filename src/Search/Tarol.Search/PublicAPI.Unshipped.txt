@@ -326,7 +326,9 @@ static Tarol.Search.SearchText.Cursor(Tarol.Search.SearchRequest! request, int v
 static Tarol.Search.SearchText.Normalize(string? text) -> string!
 static Tarol.Search.SearchText.Offset(Tarol.Search.SearchRequest! request, int version, out int offset) -> Tarol.Results.Invalid?
 static Tarol.Search.SearchText.Parse(string? text) -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchClause!>!
+static Tarol.Search.SearchText.TypoMatch(System.Collections.Generic.IReadOnlyList<string!>! query, System.Collections.Generic.IReadOnlyList<string!>! text) -> bool
 static Tarol.Search.SearchText.Validate(Tarol.Search.SearchRequest! request) -> Tarol.Results.Invalid?
+static Tarol.Search.SearchText.WithinOneEdit(string! a, string! b) -> bool
 static Tarol.Search.SearchText.Words(string? text) -> System.Collections.Generic.IReadOnlyList<string!>!
 static Tarol.Search.SearchType.operator !=(Tarol.Search.SearchType? left, Tarol.Search.SearchType? right) -> bool
 static Tarol.Search.SearchType.operator ==(Tarol.Search.SearchType? left, Tarol.Search.SearchType? right) -> bool

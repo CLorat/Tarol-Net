@@ -46,6 +46,20 @@ public sealed class SearchTextTests
         SearchText.Offset(request with { Tenant = Guid.NewGuid(), After = cursor }, 1, out _).ShouldNotBeNull();
     }
 
+    [Theory]
+    [InlineData("harbour", "harbuor", true)]    // a swap of neighbours
+    [InlineData("harbour", "harbor", true)]     // a deletion
+    [InlineData("harbour", "harbours", true)]   // an insertion
+    [InlineData("harbour", "harboxr", true)]    // a substitution
+    [InlineData("harbour", "hrabuor", false)]   // two edits
+    [InlineData("mountain", "moun", false)]     // a prefix is not a typo
+    [InlineData("cat", "cut", false)]           // short words are not typo-matched
+    public void The_typo_rule_allows_one_edit_between_words_of_four_letters(string a, string b, bool expected)
+    {
+        SearchText.WithinOneEdit(a, b).ShouldBe(expected);
+        SearchText.WithinOneEdit(b, a).ShouldBe(expected);
+    }
+
     [Fact]
     public void No_cursor_at_the_depth_limit() => SearchText.Cursor(new SearchRequest(Guid.Empty, "x"), 1, SearchLimits.MaxDepth).ShouldBeNull();
 

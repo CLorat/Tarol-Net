@@ -137,6 +137,41 @@ public static class SearchText
         return clauses;
     }
 
+    /// <summary>
+    /// The typo rule every index applies: at most one substitution, insertion, deletion or swap of neighbours, and only between
+    /// words of 4 letters or more (a shorter word, or a prefix, is not a typo).
+    /// </summary>
+    /// <param name="a">A normalised word.</param>
+    /// <param name="b">Another normalised word.</param>
+    /// <returns>Whether they are at most one edit apart.</returns>
+    public static bool WithinOneEdit(string a, string b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        if (a == b)
+            return true;
+        if (Math.Min(a.Length, b.Length) < 4 || Math.Abs(a.Length - b.Length) > 1)
+            return false;
+        var i = 0;
+        while (i < a.Length && i < b.Length && a[i] == b[i])
+            i++;
+        if (a.Length == b.Length)
+            return a[(i + 1)..] == b[(i + 1)..]
+                   || (i + 1 < a.Length && a[i] == b[i + 1] && a[i + 1] == b[i] && a[(i + 2)..] == b[(i + 2)..]);
+        return a.Length > b.Length ? a[(i + 1)..] == b[i..] : a[i..] == b[(i + 1)..];
+    }
+
+    /// <summary>Whether every word of the query is within one edit of a word of the text (the typo fallback).</summary>
+    /// <param name="query">The query's positive words.</param>
+    /// <param name="text">The document's words of weight A.</param>
+    /// <returns>Whether the document is a typo match.</returns>
+    public static bool TypoMatch(IReadOnlyList<string> query, IReadOnlyList<string> text)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(text);
+        return query.Count > 0 && query.All(q => text.Any(w => WithinOneEdit(w, q)));
+    }
+
     /// <summary>Checks the parts of a request every index checks the same way.</summary>
     /// <param name="request">The request.</param>
     /// <returns>A violation for a field the caller sent, or none.</returns>

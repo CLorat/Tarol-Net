@@ -208,25 +208,9 @@ public sealed class InMemorySearchIndex : ISearchIndex
     {
         var words = e.Fields[0];   // weight A: the document's own titles and names (an entity's display title is its aggregate's)
         foreach (var clause in clauses.Where(static c => !c.Excluded))
-            if (!clause.Alternatives.Any(alternative => alternative.All(q => words.Any(w => OneEdit(w, q)))))
+            if (!clause.Alternatives.Any(alternative => SearchText.TypoMatch(alternative, words)))
                 return null;
         return 0.1;
-    }
-
-    /// <summary>At most one substitution, insertion, deletion or swap of neighbours (words of 4 letters or more).</summary>
-    private static bool OneEdit(string a, string b)
-    {
-        if (a == b)
-            return true;
-        if (Math.Min(a.Length, b.Length) < 4 || Math.Abs(a.Length - b.Length) > 1)
-            return false;
-        var i = 0;
-        while (i < a.Length && i < b.Length && a[i] == b[i])
-            i++;
-        if (a.Length == b.Length)
-            return a[(i + 1)..] == b[(i + 1)..]
-                   || (i + 1 < a.Length && a[i] == b[i + 1] && a[i + 1] == b[i] && a[(i + 2)..] == b[(i + 2)..]);
-        return a.Length > b.Length ? a[(i + 1)..] == b[i..] : a[i..] == b[(i + 1)..];
     }
 
     private static string? Snippet(SearchDocument d, IReadOnlyList<SearchClause> clauses)
