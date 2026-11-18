@@ -90,6 +90,16 @@ public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<Aucti
   tables are not served by list endpoints: read them behind your own port.
 * Register the read models in the API process too (`UseNpgsqlReadModels()` / `UseInMemoryReadModels()`).
 
+## Personal data (step 16)
+
+* A projection copies personal fields into its rows. `AddProjections(p => p.Add<TRow>())` also registers
+  `ProjectionEraser<TRow>`: on an erasure it re-folds the subject's streams (the fields now read as `null`) and replaces
+  the rows with `IReadModelStore.Replace`, without moving the checkpoint. Retention removes rows with `Remove`.
+* Never rebuild a projection (a new `Version`) to forget one person. A rebuild replays the whole feed; the re-fold reads
+  only the subject's streams.
+* A personal row member stays nullable. It cannot be `[Sort]`: sort columns are non-nullable (TQRY004).
+* An `ISqlProjection` (your own SQL tables) has no automatic participant: register your own `ErasureParticipant`.
+
 ## Common mistakes
 
 | Mistake | What happens |

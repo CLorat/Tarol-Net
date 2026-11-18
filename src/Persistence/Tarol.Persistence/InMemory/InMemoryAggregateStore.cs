@@ -21,7 +21,7 @@ namespace Tarol.Persistence;
 /// store does. Without them, and for <c>[LoadByReplay]</c> aggregates, loads replay the history. With a codec, events go
 /// through JSON on every append. Streams are keyed by (tenant, <c>T.StreamType</c>, id). Thread-safe.
 /// </remarks>
-public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
+public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed, IDataProtectionStore
 {
     private readonly TimeProvider _time;
     private readonly JsonSerializerOptions? _stateOptions;
@@ -374,6 +374,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
                 _recorded.Add(new Entry(new PositionedEvent(new GlobalPosition(commit, _recorded.Count + 1), type, recorded), tenant, sealing?.Payloads[i]));
             }
             _outbox?.Write([.. _recorded.GetRange(first, changes.Length).Select(static e => e.Event)]);
+            stream.UpdatedAt = at;
             stream.State = state;
             foreach (var (lookup, newKey) in keys)
             {
@@ -441,6 +442,146 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         }
     }
 
+    // ------------------------------------------------------------------------------------------- IDataProtectionStore
+
+    /// <summary>The audit rows written through <see cref="Audit"/> (tests).</summary>
+    public IReadOnlyList<(DateTimeOffset At, string Actor, string Action, string Target, string? Detail)> AuditRows
+    {
+        get
+        {
+            lock (_gate)
+                return [.. _audit];
+        }
+    }
+
+    private readonly List<(DateTimeOffset At, string Actor, string Action, string Target, string? Detail)> _audit = [];
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<PositionedEvent>> ReadStream(StreamRef stream, CancellationToken cancellationToken)
+    {
+        Entry[] entries;
+        lock (_gate)
+            entries = [.. _recorded.Where(e => e.Tenant == stream.Tenant && e.Event.StreamType == stream.StreamType && e.Event.Event.StreamId == stream.Id)];
+        var events = new PositionedEvent[entries.Length];
+        for (var i = 0; i < entries.Length; i++)
+            events[i] = await Opened(entries[i]).ConfigureAwait(false);
+        return events;
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<StreamRef>> Streams(Guid tenant, string streamType, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+            return Task.FromResult<IReadOnlyList<StreamRef>>([.. _streams.Keys.Where(k => k.Tenant == tenant && k.Type == streamType).Select(static k => new StreamRef(k.Tenant, k.Type, k.Id))]);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<StreamRef>> StreamsOf(Guid tenant, Guid subject, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+            return Task.FromResult<IReadOnlyList<StreamRef>>([.. EntriesOf(tenant, subject).Select(static e => new StreamRef(e.Tenant, e.Event.StreamType, e.Event.Event.StreamId)).Distinct()
+                .OrderBy(static s => s.StreamType, StringComparer.Ordinal).ThenBy(static s => s.Id)]);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<PositionedEvent>> EventsOf(Guid tenant, Guid subject, CancellationToken cancellationToken)
+    {
+        Entry[] entries;
+        lock (_gate)
+            entries = [.. EntriesOf(tenant, subject)];
+        var events = new PositionedEvent[entries.Length];
+        for (var i = 0; i < entries.Length; i++)
+        {
+            var payload = entries[i].Payload!;
+            var subjects = new List<Guid>();
+            EventCodec.SealedSubjects(payload.Payload, subjects);
+            var keys = await OnlySubject(tenant, subject, subjects, cancellationToken).ConfigureAwait(false);
+            var e = entries[i].Event;
+            events[i] = e with { Event = e.Event with { Event = e.Event.Event with { Event = _codec!.Decode(e.StreamType, payload.Type, payload.Payload, keys) } } };
+        }
+        return events;
+    }
+
+    /// <inheritdoc />
+    public async Task<byte[]?> StateOf(StreamRef stream, Guid subject, CancellationToken cancellationToken)
+    {
+        byte[]? state;
+        lock (_gate)
+            state = _streams.TryGetValue(new StreamKey(stream.Tenant, stream.StreamType, stream.Id), out var row) ? row.State : null;
+        if (state is null || _keyStore is null || !EventCodec.IsSealed(state))
+            return state;
+        var subjects = new List<Guid>();
+        EventCodec.SealedSubjects(state, subjects);
+        var keys = await OnlySubject(stream.Tenant, subject, subjects, cancellationToken).ConfigureAwait(false);
+        var opened = new ArrayBufferWriter<byte>(state.Length);
+        EventCodec.OpenState(state, keys, opened);
+        return opened.WrittenSpan.ToArray();
+    }
+
+    private IEnumerable<Entry> EntriesOf(Guid tenant, Guid subject)
+        => _recorded.Where(e =>
+        {
+            if (e.Tenant != tenant || e.Payload is null)
+                return false;
+            var subjects = new List<Guid>();
+            EventCodec.SealedSubjects(e.Payload.Payload, subjects);
+            return subjects.Contains(subject);
+        });
+
+    private async Task<KeyRing> OnlySubject(Guid tenant, Guid subject, List<Guid> subjects, CancellationToken cancellationToken)
+    {
+        var found = await _keyStore!.Keys(tenant, subjects.Contains(subject) ? [subject] : [], create: false, cancellationToken).ConfigureAwait(false);
+        var ring = new KeyRing(tenant);
+        foreach (var s in subjects)
+            ring.Add(s == subject && found.TryGet(s, out var key) ? key : SubjectKey.Erased(tenant, s));
+        return ring;
+    }
+
+    /// <inheritdoc />
+    Task<int> IDataProtectionStore.DeletePersonalLookups(Guid tenant, IReadOnlyCollection<StreamRef> streams, CancellationToken cancellationToken)
+        => Task.FromResult(DeletePersonalLookups(tenant, streams));
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<StreamRef>> DeleteStreams(string streamType, DateTimeOffset olderThan, int batch, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(streamType);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batch);
+        lock (_gate)
+        {
+            var expired = _streams.Where(s => s.Key.Type == streamType && s.Value.UpdatedAt < olderThan
+                                              && _outbox?.HasRows(s.Key.Tenant, s.Key.Type, s.Key.Id) != true)
+                .OrderBy(static s => s.Value.UpdatedAt).Take(batch).ToArray();
+            foreach (var (key, stream) in expired)
+            {
+                _streams.Remove(key);
+                foreach (var (lookup, value) in stream.Lookups)
+                    _lookups.Remove((key.Tenant, key.Type, lookup, value));
+                _recorded.RemoveAll(e => e.Tenant == key.Tenant && e.Event.StreamType == key.Type && e.Event.Event.StreamId == key.Id);
+            }
+            return Task.FromResult<IReadOnlyList<StreamRef>>([.. expired.Select(static s => new StreamRef(s.Key.Tenant, s.Key.Type, s.Key.Id))]);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task Audit(string actor, string action, string target, string? detail, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+            _audit.Add((_time.GetUtcNow(), actor, action, target, detail));
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<int> PurgeAudit(DateTimeOffset olderThan, int batch, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            var old = _audit.Where(a => a.At < olderThan).Take(batch).ToList();
+            foreach (var row in old)
+                _audit.Remove(row);
+            return Task.FromResult(old.Count);
+        }
+    }
+
     /// <summary>A stream's stored state bytes as committed (sealed fields stay sealed; tests).</summary>
     internal byte[]? StoredStateForTests<T>(Id<T> id, Option<Id<ITenant>> tenant)
         where T : AggregateRoot<T>, IAggregateRoot<T>
@@ -481,5 +622,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed
         public byte[]? State { get; set; }
 
         public Dictionary<string, string> Lookups { get; } = [];
+
+        public DateTimeOffset UpdatedAt { get; set; }
     }
 }

@@ -84,6 +84,21 @@ public interface IReadModelStore<TRow>
     /// <returns>The page, or <see cref="Invalid"/> for a bad cursor, limit or offset (HTTP 400).</returns>
     /// <exception cref="ArgumentException">A filter or the sort names no column of the projection (a programming error).</exception>
     ValueTask<Result<Page<TRow>>> Search(ListQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces rows whatever their stored version (an erasure's re-fold, DP-5): the checkpoint does not move, and the rows
+    /// carry the stream version of their last event. Unlike <see cref="Write"/>, a row at the same version is rewritten.
+    /// </summary>
+    /// <param name="rows">The rows.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>A task.</returns>
+    ValueTask Replace(IReadOnlyList<Versioned<TRow>> rows, CancellationToken cancellationToken);
+
+    /// <summary>Deletes rows (a re-fold that yields no row, or retention, DP-7); the checkpoint does not move.</summary>
+    /// <param name="keys">The rows' keys.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>How many rows were deleted.</returns>
+    ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken);
 }
 
 /// <summary>The read stores of an application, one per projection version (<c>UseInMemoryReadModels</c>, <c>UseNpgsqlReadModels</c>).</summary>

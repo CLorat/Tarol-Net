@@ -866,3 +866,128 @@ In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4 from `m
   Npgsql app with a sealing store), run at `11920d9` (no package code changed afterwards);
 * `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
 * the `SealHistory` measurement: §16.3.
+
+## 17. Implementation 16C: `Tarol.DataProtection`: erasure, export, retention
+
+PR 16C builds §6.4 on top of 16B. The new package is the 24th AOT smoke app.
+
+### 17.1 Public API
+
+`Tarol.DataProtection` (new, per the conventions §8):
+* `DataProtectionTarolBuilderExtensions`:
+  * `AddDataProtection(Action<DataProtectionOptions>?)` registers the configured master key as `IKeyEncryptionKey`, the
+    retention policy, `DataSubjects` as `IDataSubjects`, the personal-lookups participant, the eviction listener and the
+    system job `tarol.retention`;
+  * `UseInMemoryKeyStore()`.
+* `DataProtectionOptions`: `MasterKey`, `MasterKeyId`, `PreviousKeys`, `Retention`, `RetentionEvery`, `RetentionBatch`.
+  Configuration overrides it: `Tarol:DataProtection:MasterKey`, `MasterKeyId`, `PreviousKeys:<id>`, and
+  `Tarol:Retention:<streamType>:Days` (`0` or empty = none).
+* `DataSubjects : IDataSubjects` (with `Participants`), `ErasureIncompleteException`, `PersonalLookupsEraser`.
+* Meter `Tarol.DataProtection`: `tarol.subjects.erased`, `tarol.subjects.exported`, `tarol.retention.streams` (no
+  tenant tag). Logs 16001–16008.
+
+Changes to other packages:
+* `Tarol.Persistence`:
+  * the port `IDataProtectionStore`: `ReadStream`, `Streams`, `StreamsOf`, `EventsOf`, `StateOf`,
+    `DeletePersonalLookups`, `DeleteStreams`, `Audit` and `PurgeAudit`;
+  * `TarolBuilder` registers the port for a store that implements it, and `UseInMemoryStore` takes the container's
+    `IKeyStore`;
+  * `ErasureParticipant.Evict(tenant, subject)`;
+  * `EventCodec.RetentionDays` and `StreamTypes`;
+  * the in-memory store implements the port (`AuditRows` for tests).
+* `Tarol.Persistence.Npgsql`: the store implements the port (`Streams`, `Audit`, `PurgeAudit` are new). `UseNpgsqlKeyStore`
+  starts the key store's `LISTEN` at process start.
+* `Tarol.Queries`: `IReadModelStore.Replace` and `Remove` (in memory and on Npgsql). `ProjectionEraser<TRow>` is
+  registered by `ProjectionsBuilder.Add<TRow>`.
+* `Tarol.Caching`: `IPageCache.Clear(Guid tenant)` and `PageCacheEraser` (registered by `AddCaching`). The cached store's
+  `Replace`/`Remove` clear the tenant.
+* `Tarol.Operations`:
+  * `MapTarolAdmin` maps `GET {prefix}/subjects/{id}/export?tenant=` and `POST {prefix}/subjects/{id}/erase?tenant=`
+    when `IDataSubjects` is registered (`ErasureView`);
+  * `OperationsOptions.AuditRetention` adds `tarol.purge-audit` (`OperationsTarolBuilderExtensions.PurgeAuditJob`).
+* `Tarol.Messaging.Nats`: `NatsTransportOptions.MaxAge`, 7 days by default. **Behaviour change:** the streams kept
+  messages for ever before.
+
+### 17.2 Deliberate differences from §6.4 and §11
+
+1. **No TQRY diagnostic.** §10 planned an Info when a `[PersonalData]` column is `[Sort]`ed. That cannot occur: sort
+   columns must be non-nullable (TQRY004) and personal members nullable (TPRM030). The id it reserved, TQRY005, was
+   already taken by `Tarol.Changes.AspNetCore` (TQRY005–006), so no id is used.
+2. **Every hosted projection gets a participant**, not only those with `[PersonalData]` columns. A row can copy a
+   personal field into an unmarked member, and the generator cannot see that. The participant re-folds only the erased
+   subject's streams of its stream type, so for other projections it costs a few reads.
+3. **The audit row is written after the tombstone, not in its statement** (O-3 wanted "in the same statement"). The key
+   store and the audit are separate ports and may live in different databases. The tombstone comes first, so the
+   erasure is in effect before it is recorded; a failure in between leaves an erased key without its audit row, and
+   rerunning the erasure writes the row.
+4. **A failing participant does not stop the others.** The erasure audits which participants failed and throws
+   `ErasureIncompleteException`; rerunning it runs the forgetting again (`AlreadyErased`).
+5. **Erasure signals reach participants through `ErasureParticipant.Evict`**, raised on `IKeyStore.Erased` in every
+   process. The page cache uses it; any in-memory participant can.
+6. **A tenant erasure re-folds every stream of the tenant** per projection (`IDataProtectionStore.Streams`), rather than
+   deleting the tenant's rows, so non-personal columns stay queryable.
+7. **The admin endpoints take the tenant as a query parameter** (`?tenant=`; absent = no tenant), as the dead-letter
+   endpoints do. A malformed tenant gets a 400.
+
+### 17.3 Changes against steps 7–15, 16A and 16B
+
+* `IReadModelStore<TRow>` gained two members. Its implementations in the repository forward them: the caching decorator
+  and three test decorators. A third-party implementation must add them.
+* `IPageCache` gained `Clear(Guid tenant)`.
+* NATS streams get `MaxAge` (7 days) on `Prepare`; existing streams are updated by `CreateOrUpdateStreamAsync`.
+
+### 17.4 Tests
+
+* `Tarol.DataProtection.Tests` (11), on the in-memory stack with two projections behind the page cache:
+  * an erasure forgets in the store, both projections, the cached page and the personal lookup, and is audited without
+    personal values;
+  * a second erasure runs again;
+  * new data is refused;
+  * the export holds the subject's events and state and no other subject's data;
+  * tenant erasure;
+  * retention with code and attribute days on a fake clock, rows removed, audited per batch;
+  * configuration overrides and turns off retention;
+  * a failing participant: the others ran, the audit names it, `ErasureIncompleteException`;
+  * the erasure signal evicts the page cache;
+  * a missing master key names the setting;
+  * invalid options.
+* `Tarol.DataProtection.IntegrationTests` (4, PostgreSQL):
+  * an erasure in process A empties process B's cached page, bounded by the notification; the rows are re-folded in
+    `rm_customers_v1` and `rm_orders_v1`, the lookup row is deleted, and the audit row written;
+  * the admin entry: 401 / 403 / 400 / 200 for the export, 403 / 200 for the erasure; the export afterwards has `null`;
+    three audit rows;
+  * retention on a fake clock with a configuration override;
+  * the skill's registration resolves.
+* Other packages:
+  * `Tarol.Queries.Tests` +1 and `Tarol.Queries.Npgsql.IntegrationTests` +1: `Replace` at the same version, `Remove`, the
+    checkpoint unchanged;
+  * `Tarol.Caching.Tests` +1: `Clear(tenant)`;
+  * `Tarol.Operations.Tests` +1 and one more validation: `tarol.purge-audit`;
+  * `Tarol.Messaging.Nats.IntegrationTests` +1: `MaxAge` 7 days by default and as configured, validated.
+* AOT smoke: `Tarol.DataProtection.AotSmoke`, the 24th app, runs the erasure, export, re-fold and retention in memory and,
+  with `TAROL_PG`, on PostgreSQL: 0 IL warnings.
+* `Tarol.DataProtection.PackageTests`: the packed package seals, exports and erases.
+
+### 17.5 Skill checklist (`tarol-data-protection`, new; §12 applies)
+
+The tasks of §12. In the skill, the API of each row is in **Rules** or **Example**, and the mistakes are in **Common
+mistakes**. Updated: `tarol-queries` (re-folds, no rebuild), `tarol-caching` (tenant eviction), `tarol-operations` (the
+subject endpoints, `AuditRetention`) and `tarol-messaging-nats` (`MaxAge`).
+
+### 17.6 Suppressions
+
+None.
+
+### 17.7 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+In a detached worktree with Docker (PostgreSQL 17, NATS 2.11, RabbitMQ 4):
+* `dotnet build Tarol.slnx`: 0 warnings, 0 errors;
+* `dotnet format Tarol.slnx --verify-no-changes`: clean. The first run found whitespace in a test decorator
+  (`CacheTests.cs`), fixed;
+* `dotnet test --solution Tarol.slnx`: **1863 of 1863** (16B's 1843 + 20: 11 unit and 4 integration tests of the new
+  package, and one each in Queries, Queries.Npgsql, Caching, Operations and Messaging.Nats);
+* `eng/aot-smoke.sh` with `TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`: **24 apps, 0 IL warnings**, all checks passed
+  (`Tarol.DataProtection.AotSmoke`, in memory and on PostgreSQL);
+* `dotnet pack -c Release` + `eng/verify-packages.sh`: OK, and `tarol-data-protection` is in the package. The first run
+  failed on CA1050 in the new package consumer; its types now sit in a namespace, and the consumer seals, exports and
+  erases from the packed package.

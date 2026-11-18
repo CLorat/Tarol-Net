@@ -28,6 +28,13 @@ public sealed record NatsTransportOptions
     /// <summary>The streams' duplicate window (default 2 minutes, JetStream's default): a republish within it is dropped.</summary>
     public TimeSpan DuplicateWindow { get; init; } = TimeSpan.FromMinutes(2);
 
+    /// <summary>
+    /// How long a stream keeps its messages (JetStream <c>MaxAge</c>): 7 days by default, the bus retention (DP-5, step 16C).
+    /// Before step 16 streams kept them for ever. <see cref="TimeSpan.Zero"/> = for ever (a contract must then carry no
+    /// personal data).
+    /// </summary>
+    public TimeSpan MaxAge { get; init; } = TimeSpan.FromDays(7);
+
     /// <summary>How long a publish waits for the stream's acknowledgement (default 5 s). A publish to a subject the user may not
     /// publish on is dropped by the server and ends in this timeout (docs/migration/messaging.md §5 item 7).</summary>
     public TimeSpan PublishTimeout { get; init; } = TimeSpan.FromSeconds(5);
@@ -41,6 +48,9 @@ public sealed record NatsTransportOptions
         if (Prefix is { } prefix && (prefix.Length == 0 || prefix.Any(static c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))))
             throw new ArgumentException($"The prefix '{prefix}' is letters, digits, '-' and '_'.", nameof(Prefix));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(DuplicateWindow, TimeSpan.Zero, nameof(DuplicateWindow));
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaxAge, TimeSpan.Zero, nameof(MaxAge));
+        if (MaxAge != TimeSpan.Zero && MaxAge < DuplicateWindow)
+            throw new ArgumentOutOfRangeException(nameof(MaxAge), "MaxAge must be at least the DuplicateWindow (or zero for no limit).");
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(PublishTimeout, TimeSpan.Zero, nameof(PublishTimeout));
     }
 }
@@ -113,6 +123,7 @@ public sealed partial class NatsTransport : IMessageTransport, IAsyncDisposable
             {
                 Storage = StreamConfigStorage.File,
                 DuplicateWindow = _options.DuplicateWindow,
+                MaxAge = _options.MaxAge,
             }, cancellationToken).ConfigureAwait(false);
         foreach (var subscription in subscriptions)
         {

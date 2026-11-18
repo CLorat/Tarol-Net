@@ -87,6 +87,7 @@ public sealed class TarolBuilder
             StateOptions = Json,
             Reactions = OutboxTable,
             Lookups = lookups ?? new StoreLookups(),
+            Keys = provider.GetService<IKeyStore>(),   // step 16: AddDataProtection with an in-memory key store seals in tests
         }), static store => store.Outbox, static store => store.Jobs).WithInMemorySignals();
 
     private TarolBuilder WithInMemorySignals()
@@ -153,6 +154,8 @@ public sealed class TarolBuilder
             Services.AddSingleton(static provider => (IEventFeed)provider.GetRequiredService<TStore>());
         if (typeof(IIdempotencyKeyPurge).IsAssignableFrom(typeof(TStore)))
             Services.AddSingleton(static provider => (IIdempotencyKeyPurge)provider.GetRequiredService<TStore>());
+        if (typeof(IDataProtectionStore).IsAssignableFrom(typeof(TStore)))
+            Services.AddSingleton(static provider => (IDataProtectionStore)provider.GetRequiredService<TStore>());
         return this;
     }
 }

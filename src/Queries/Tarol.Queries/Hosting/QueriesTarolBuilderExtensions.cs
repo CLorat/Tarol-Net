@@ -38,6 +38,7 @@ public sealed class ProjectionsBuilder
             provider.GetService<IMeterFactory>()));
         Services.AddSingleton<ProjectionHost>(static provider => provider.GetRequiredService<ProjectionHost<TRow>>());
         Services.AddSingleton<IHostedService>(static provider => provider.GetRequiredService<ProjectionHost<TRow>>());
+        Services.AddSingleton<ErasureParticipant>(static provider => new ProjectionEraser<TRow>(provider));   // step 16C (DP-5)
         return this;
     }
 

@@ -25,6 +25,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
     private readonly IReadOnlyList<ProjectionColumn<TRow>> _columns;
     private readonly string _schema;
     private readonly string _upsert;
+    private readonly string _replace;
     private readonly string _advance;
     private readonly string _checkpoint;
     private readonly string _load;
@@ -70,6 +71,12 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             SELECT * FROM unnest({arrays})
             ON CONFLICT (tenant, id) DO UPDATE SET {updates}
             WHERE t.version < excluded.version
+            """;
+        // an erasure's re-fold rewrites a row at the same version (DP-5): the guard above would refuse it
+        _replace = $"""
+            INSERT INTO {Table} AS t ({names})
+            SELECT * FROM unnest({arrays})
+            ON CONFLICT (tenant, id) DO UPDATE SET {updates}
             """;
         _advance = $"""
             UPDATE {schema}.projections SET tx = $3::text::xid8, pos = $4, state = $5, updated_at = now()
@@ -179,6 +186,29 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                 return true;
             }
         }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask Replace(IReadOnlyList<Versioned<TRow>> rows, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        if (rows.Count == 0)
+            return;
+        await using var command = _db.CreateCommand(_replace);
+        AddRows(command.Parameters, rows);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        if (keys.Count == 0)
+            return 0;
+        await using var command = _db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.id = k.id");
+        command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Tenant).ToArray() });
+        command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Id).ToArray() });
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

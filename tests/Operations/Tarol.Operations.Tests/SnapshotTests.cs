@@ -70,6 +70,27 @@ public sealed class SnapshotTests
         Should.Throw<ArgumentOutOfRangeException>(() => Services.With(knobs, new FakeTimeProvider(), o => o.Thresholds.LagUnhealthy = TimeSpan.FromSeconds(1)));
         Should.Throw<ArgumentOutOfRangeException>(() => Services.With(knobs, new FakeTimeProvider(), o => o.PollEvery = TimeSpan.Zero));
         Should.Throw<ArgumentOutOfRangeException>(() => Services.With(knobs, new FakeTimeProvider(), o => o.DeadRetention = TimeSpan.FromMinutes(1)));
+        Should.Throw<ArgumentOutOfRangeException>(() => Services.With(knobs, new FakeTimeProvider(), o => o.AuditRetention = TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public async Task An_audit_retention_registers_tarol_purge_audit_over_the_store()
+    {
+        // step 16C (DP-9): operations_audit rows are kept for ever unless AuditRetention is set
+        var time = new FakeTimeProvider(Services.Start);
+        var store = new InMemoryAggregateStore(time);
+        await store.Audit("ops", "redrive", "reactions:1", null, TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromDays(40));
+        await store.Audit("ops", "redrive", "reactions:2", null, TestContext.Current.CancellationToken);
+        var services = Services.With(new Knobs(), time, o => o.AuditRetention = TimeSpan.FromDays(30));
+        services.AddSingleton<IDataProtectionStore>(store);
+        await using var provider = services.BuildServiceProvider();
+        Services.With(new Knobs(), time).Any(static s => s.ImplementationInstance is MaintenanceTask { Name: "tarol.purge-audit" }).ShouldBeFalse();
+
+        var purge = provider.GetServices<MaintenanceTask>().Single(static t => t.Name == OperationsTarolBuilderExtensions.PurgeAuditJob);
+        (await purge.Run(provider, time.GetUtcNow(), TestContext.Current.CancellationToken)).ShouldBe(1);
+
+        store.AuditRows.ShouldHaveSingleItem().Target.ShouldBe("reactions:2");
     }
 
     [Fact]

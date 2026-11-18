@@ -37,6 +37,7 @@ public static class CachingTarolBuilderExtensions
         services.Remove(inner);
         services.Add(Keyed(inner));
         services.AddSingleton(new CachingMarker());
+        services.AddSingleton<ErasureParticipant>(static provider => new PageCacheEraser(provider.GetRequiredService<IPageCache>()));   // step 16C
         services.TryAddSingleton(options);
         services.TryAddSingleton<IPageCache>(static provider => new MemoryPageCache(provider.GetRequiredService<CacheOptions>(),
             provider.GetService<TimeProvider>(), provider.GetService<IMeterFactory>()));

@@ -26,6 +26,22 @@ public sealed class MemoryPageCacheTests
     }
 
     [Fact]
+    public void Clear_of_a_tenant_drops_only_its_pages()
+    {
+        // step 16C (DP-5): an erasure drops the tenant's pages, in every process
+        using var cache = new MemoryPageCache();
+        var at = new GlobalPosition(5, 50);
+        cache.Put(Key, at, PageAt(at), 100);
+        cache.Put(Key with { Tenant = Lab.TenantB }, at, PageAt(at), 100);
+
+        cache.Clear(Lab.TenantA);
+
+        cache.TryGet<AuctionRow>(Key, at, out _).ShouldBeFalse();
+        cache.TryGet<AuctionRow>(Key with { Tenant = Lab.TenantB }, at, out _).ShouldBeTrue();
+        (cache.Count, cache.Bytes).ShouldBe((1, 100L));
+    }
+
+    [Fact]
     public void A_slower_search_with_an_older_stamp_does_not_replace_a_newer_entry()
     {
         using var cache = new MemoryPageCache();

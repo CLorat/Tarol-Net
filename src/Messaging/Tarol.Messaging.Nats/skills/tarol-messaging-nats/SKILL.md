@@ -37,6 +37,12 @@ services.AddTarol(ContractJson.Default, codec => codec.Add<Auction>().Add<Invoic
         .UseInMemoryDeadLetters());
 ```
 
+## Retention (step 16)
+
+* `NatsTransportOptions.MaxAge` (default **7 days**, the bus retention) is the streams' JetStream `MaxAge`. Before step 16
+  streams kept messages for ever. `TimeSpan.Zero` keeps them for ever, and then contracts must carry no personal data
+  (they should carry ids anyway).
+
 ## Common mistakes
 
 | Mistake | What you get |

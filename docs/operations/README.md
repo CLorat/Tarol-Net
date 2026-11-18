@@ -140,5 +140,6 @@ Sample by parent (`ParentBasedSampler`) so a reaction's commands follow its deci
 | 8006–8008 | `Tarol.Persistence.Npgsql` (`NpgsqlKeyStore`) | data keys created, a key erased, cached keys evicted (Debug; the tenant id, never a subject or a value) |
 | 12010, 12011 | `Tarol.Queries` | this host is a projection's runner; it lost the gate |
 | 15001–15005 | `Tarol.Operations` | re-drive, re-drive by filter, discard, drop (with the actor); a failed poll |
+| 16001–16008 | `Tarol.DataProtection` | subject erased, tenant erased, subject exported, retention deleted streams (with the actor or job), a failed erasure participant (Error), in-memory eviction (Debug), an erasure run again, streams skipped for pending reactions; ids and counts, never personal values |
 
 Earlier ids: 1001 (authorization denial), 9001–9011 (reactions), 11001–11415 (messaging), 12001–12103 (queries), 14001–14010 (jobs).

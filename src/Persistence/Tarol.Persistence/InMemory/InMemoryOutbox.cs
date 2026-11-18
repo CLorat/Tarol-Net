@@ -231,6 +231,13 @@ internal sealed class InMemoryOutbox(TimeProvider time, IOutboxReactions reactio
 
     Task<bool> IDeadLetterSource.Discard(long id, string actor, CancellationToken cancellationToken) => Discard(id, cancellationToken);
 
+    /// <summary>Whether a stream has rows waiting (retention skips it).</summary>
+    public bool HasRows(Guid tenant, string type, Guid stream)
+    {
+        lock (_gate)
+            return _rows.Any(r => r.Key.Tenant == tenant && r.Key.Type == type && r.Key.Stream == stream);
+    }
+
     public Task<long> Pending(CancellationToken cancellationToken)
     {
         lock (_gate)
