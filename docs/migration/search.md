@@ -850,6 +850,12 @@ key) 9 checks pass natively.
 | run search on Typesense | `UseNpgsqlSearchCheckpoints()`, `UseTypesense(_ => Client(server, key))` | the API key in code or committed settings |
 | search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting the `de` locale to fold umlauts |
 
+### 20.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes (after one statement per line in `TypesenseIndex`, the rule 18E's run found);
+`dotnet test --solution Tarol.slnx` with Docker **2,044 passed** (Typesense in Testcontainers, a per-run key);
+`eng/aot-smoke.sh` **28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK.
+
 ## 21. Implementation: PR 18G (2026-11-18)
 
 `docs: the search guide; ArtFlow searches auctions`.
