@@ -6,6 +6,7 @@ Tarol.Changes.AspNetCore.SearchEndpoints
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Errors.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Errors.init -> void
 Tarol.Changes.AspNetCore.TarolHeaders
+const Tarol.Changes.AspNetCore.ChangeEndpoints.UnknownKeyCode = "Unknown" -> string!
 const Tarol.Changes.AspNetCore.SearchEndpoints.BuildingCode = "Search.Building" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.IdempotencyKey = "Idempotency-Key" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.IdempotentReplayed = "Idempotent-Replayed" -> string!

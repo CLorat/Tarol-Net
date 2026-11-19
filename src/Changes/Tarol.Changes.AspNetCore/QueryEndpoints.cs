@@ -161,9 +161,14 @@ public sealed partial class ChangeEndpoints
         return text.Length > 0 && !char.IsDigit(text[0]) && text[0] != '-' && Enum.TryParse(text, ignoreCase: true, out value) && Enum.IsDefined(value);
     }
 
+    /// <summary>The field code of a query key a list does not know (BC-14).</summary>
+    public const string UnknownKeyCode = "Unknown";
+
     /// <summary>
     /// Adds the paging keys of the query string to <paramref name="query"/>: <c>limit</c> (1 … <see cref="QueryEndpointOptions.MaxLimit"/>),
     /// <c>after</c> (the cursor), <c>offset</c> (0 … <see cref="QueryEndpointOptions.MaxOffset"/>, not with <c>after</c>) and <c>count</c>.
+    /// A key that is none of the entry's query parameters (its <see cref="TarolEndpointMetadata.Query"/>: filters, <c>sort</c>
+    /// and the paging keys) is a field error <c>Unknown</c> (BC-14): a typo would otherwise list unfiltered rows.
     /// </summary>
     /// <param name="http">The request.</param>
     /// <param name="query">The query with tenant, filters and sort.</param>
@@ -197,6 +202,10 @@ public sealed partial class ChangeEndpoints
         var count = false;
         if (!One(http, "count", out var countText) || (countText is not null && !bool.TryParse(countText, out count)))
             (errors ??= []).Add(new FieldError("count", "Format"));
+        if (http.GetEndpoint()?.Metadata.GetMetadata<TarolEndpointMetadata>()?.Query is { } known)
+            foreach (var key in http.Request.Query.Keys)
+                if (!known.Any(p => string.Equals(p.Name, key, StringComparison.OrdinalIgnoreCase)))
+                    (errors ??= []).Add(new FieldError(key, UnknownKeyCode, "not a filter, sort or paging key of this list"));
         return query with { Limit = limit, Offset = offset, After = after, Count = count };
     }
 

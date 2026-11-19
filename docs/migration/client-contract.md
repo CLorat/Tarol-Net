@@ -41,7 +41,7 @@ Labels as in the rest of the migration notes: **[verified]** reproduced (a faili
 | BC-11 | `Tarol-Request-Id` in every answer and `requestId` in every problem (the trace id when there is an activity, else `HttpContext.TraceIdentifier`). |
 | BC-12 | Hub errors as `<code>: <detail>` with documented codes (`Hub.Forbidden`, `Hub.Topic`, `Auth.Tenant`) and a constant class. |
 | BC-13 | `GET /me`: subject, tenant, roles of the caller. |
-| BC-14 | An unknown list query key answers 400 `List.UnknownKey`. |
+| BC-14 | An unknown list query key answers 400 (field code `Unknown`). |
 
 ## 2. Decisions asked of the owner
 
@@ -335,3 +335,17 @@ packages):
   the codes and details, the document test lists the member; the AOT smoke app checks `errorDetails` natively through
   `AddProblemDetails()` (0 IL warnings, passed **[verified]**). Snapshots accepted (the schema).
 * **Public API**: none. **Suppressions**: none.
+
+## 16. PR C2: 400 for unknown list keys (BC-14)
+
+* **Change**: `ChangeEndpoints.Paging` (called by every generated list entry) checks the query string's keys against the entry's
+  own `TarolEndpointMetadata.Query` (the filters the generator found, `sort`, `after`, `limit`, `offset`, `count`; the same list
+  the OpenAPI document shows), ignoring case like ASP.NET's query collection. Another key is a field error with the code
+  `Unknown` (`ChangeEndpoints.UnknownKeyCode`; a field code like `Range`, so it sits in `errors` and `errorDetails`). Nothing is
+  generated anew.
+* **Behaviour change**: a list request with an unknown key answers 400 instead of the unfiltered page. A claim-bound member in
+  the query (`/my/auctions?seller=bob`) is refused instead of ignored; the existing test pinned "ignored" and now pins the 400.
+  The sample's queries use known keys only (checked).
+* **Tests**: `An_unknown_query_key_is_400_instead_of_an_unfiltered_list` (`?selller=` 400 on `selller`; `?Seller=…&SORT=…` 200),
+  the claim-bound test. Red before: the typo answered 200 **[verified by reading]** (the generated binder reads named keys only).
+* **Public API** (generated): `+ ChangeEndpoints.UnknownKeyCode`. **Suppressions**: none.

@@ -57,6 +57,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* A list answers 400 (`errors.<key>: ["Unknown"]`) for a query key that is not one of its filters, `sort`, `after`, `limit`,
+  `offset` or `count` (BC-14); it ignored them, so a typo listed unfiltered rows and `?seller=` on a claim-bound list was
+  silently dropped. Keys compare without case. New: `ChangeEndpoints.UnknownKeyCode`.
+
 * `ProjectionHost` can be derived from outside `Tarol.Queries` (step 18A): its constructor and `Prepare`, `LoadCheckpoint` and
   `Write` are `protected` (were `private protected`); `Write`'s last position parameter is named `through`. Behaviour unchanged.
 
