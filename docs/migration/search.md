@@ -859,6 +859,10 @@ Build 0 warnings; format no changes (after one statement per line in `TypesenseI
 `dotnet test --solution Tarol.slnx` with Docker **2,044 passed** (Typesense in Testcontainers, a per-run key);
 `eng/aot-smoke.sh` **28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK.
 
+Again after the step's PRs were combined into three (the first part with the fixture fix merged in), on the top of the stack
+(18G, the same code plus the guide and the sample): build 0 warnings; format no changes; **2,044 passed**; 28 apps, 0 IL
+warnings; 29 packages; `eng/verify-packages.sh` OK.
+
 ## 21. Implementation: PR 18G (2026-11-18)
 
 `docs: the search guide; ArtFlow searches auctions`.
