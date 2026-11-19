@@ -35,7 +35,9 @@ var hit = (await test.Find("museum", tenant)).GetValueOrThrow().Items;
 Check("an entity hit is shown through its aggregate", hit is [{ } e] && e.Id == edition.Id.Value && e.Aggregate == art.Id.Value && e.Title == "Sunset over harbour");
 Check("prefix", (await test.Find(new SearchQuery("glac") { Prefix = true }, tenant)).GetValueOrThrow().Items.Count == 1);
 Check("typo", (await test.Find("harbuor", tenant)).GetValueOrThrow().Items.Count == 2);
-Check("snippet", (await test.Find(new SearchQuery("glaciers") { Snippets = true }, tenant)).GetValueOrThrow().Items[0].Snippet?.Contains("<b>glaciers</b>", StringComparison.Ordinal) == true);
+var snippet = (await test.Find(new SearchQuery("glaciers") { Snippets = true }, tenant)).GetValueOrThrow().Items[0];   // BC-8: text and offsets
+Check("snippet", snippet.Snippet is { } text && snippet.Highlights.Count == 1
+    && text.Substring(snippet.Highlights[0].Start, snippet.Highlights[0].Length) == "glaciers" && !text.Contains('<', StringComparison.Ordinal));
 Check("audience", (await test.Find(new SearchQuery("sunset") { Audience = ["bob"] }, tenant)).GetValueOrThrow().Items.Count == 0);
 Check("exact token, never text", (await test.Find("ada lovelace", tenant)).GetValueOrThrow().Items.Count == 1
                                  && (await test.Find("lovelace", tenant)).GetValueOrThrow().Items.Count == 0);
