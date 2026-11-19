@@ -8,6 +8,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `errorDetails` next to `errors` on every 400 (BC-5): per JSON path `[{code, detail?}]`, the rule's detail such as the bounds
+  (`"3..60"`); written directly and through `IProblemDetailsService`; in the `TarolProblem` schema.
+
 * `samples/Sagas` for a browser e2e (BC-9): a PKCE user-agent app and human users in Zitadel, the message hub with the topic
   `artflow.bid-placed`, a `[Range]` rule on `CreateAuction.Reserve`, CORS, short-lived tokens (`ARTFLOW_TOKEN_LIFETIME`), a
   stay-up mode (`ARTFLOW_STAY_UP=1`), and the sample built in CI. `ZitadelOptions.ClockSkew` (default: JwtBearer's 5 minutes).

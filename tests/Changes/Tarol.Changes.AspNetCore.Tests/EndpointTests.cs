@@ -50,6 +50,10 @@ public sealed class EndpointTests : IAsyncLifetime
         invalid.Response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
         invalid.Body.ShouldContain("\"title\":[\"Length\"]");
         invalid.Body.ShouldContain("\"reserve\":[\"Range\"]");
+        var details = System.Text.Json.JsonElement.Parse(invalid.Body).GetProperty("errorDetails");     // BC-5: through IProblemDetailsService too
+        details.GetProperty("title")[0].GetProperty("code").GetString().ShouldBe("Length");
+        details.GetProperty("title")[0].GetProperty("detail").GetString().ShouldBe("3..60");
+        details.GetProperty("reserve")[0].GetProperty("detail").GetString().ShouldBe("1..1000000");
     }
 
     [Fact]

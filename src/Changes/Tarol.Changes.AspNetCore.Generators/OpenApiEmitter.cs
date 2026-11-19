@@ -124,6 +124,21 @@ internal static class OpenApiEmitter
                         Description = "The rule codes per JSON path of the input",
                         AdditionalProperties = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = Text() },
                     },
+                    ["errorDetails"] = new global::Microsoft.OpenApi.OpenApiSchema
+                    {
+                        Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                        Description = "Per JSON path of the input: each error's code and the rule's detail (e.g. the bounds 3..60)",
+                        AdditionalProperties = new global::Microsoft.OpenApi.OpenApiSchema
+                        {
+                            Type = global::Microsoft.OpenApi.JsonSchemaType.Array,
+                            Items = new global::Microsoft.OpenApi.OpenApiSchema
+                            {
+                                Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                                Required = new global::System.Collections.Generic.HashSet<string> { "code" },
+                                Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema> { ["code"] = Text(), ["detail"] = Text() },
+                            },
+                        },
+                    },
                 },
             };
 

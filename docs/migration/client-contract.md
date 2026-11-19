@@ -322,3 +322,16 @@ packages):
 * **Tests**: `ZitadelClaimsTests.The_clock_skew_and_the_hub_path_are_options` (the default skew, 0, the checks of both options).
 * **Public API** (generated): `+ ZitadelOptions.ClockSkew`.
 * **Suppressions**: none. The sample's AppHost has Aspire's `ASPIRE010` warning from the Aspire SDK's own targets (as before).
+
+## 15. PR C1: field error details on the wire (BC-5)
+
+* **Change**: `ChangeEndpoints.Problem` writes `errorDetails: {"<path>": [{"code": "…", "detail": "…"}]}` next to `errors` for an
+  `Invalid` (the `FieldError.Detail` that was dropped). The generated value rules give their bounds as the detail (`Length`:
+  `3..60`, `Range`: `1..1000000`); a rule without one has no `detail`. With an `IProblemDetailsService` the member is an
+  extension holding a `JsonElement` (covered by ASP.NET's problem-details JSON metadata, also natively). `errors` is unchanged.
+  The `TarolProblem` schema (B3) has `errorDetails`.
+* **Behaviour**: one more member on 400 answers.
+* **Tests**: the direct-write test pins the exact body (red before: no `errorDetails` **[verified]**), the service path test reads
+  the codes and details, the document test lists the member; the AOT smoke app checks `errorDetails` natively through
+  `AddProblemDetails()` (0 IL warnings, passed **[verified]**). Snapshots accepted (the schema).
+* **Public API**: none. **Suppressions**: none.

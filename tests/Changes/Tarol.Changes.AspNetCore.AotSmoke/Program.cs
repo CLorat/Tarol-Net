@@ -92,6 +92,8 @@ var reused = await Send(HttpMethod.Post, "/auctions", auction.Replace("Sunflower
 Check("key replay 200, reuse with another body 422", replay.Status == HttpStatusCode.OK && replay.Body == created.Body && reused.Status == HttpStatusCode.UnprocessableEntity, $"{replay.Status}/{reused.Status}");
 var missing = await Send(HttpMethod.Post, "/auctions", """{"title":"x"}""", "alice");
 Check("binder: every field, JSON-cased (Length, Required)", missing.Status == HttpStatusCode.BadRequest && missing.Body.Contains("\"reserve\":[\"Required\"]") && missing.Body.Contains("\"endsAt\":[\"Required\"]"), missing.Body);
+Check("errorDetails through IProblemDetailsService natively (BC-5)", missing.Body.Contains("\"errorDetails\":{", StringComparison.Ordinal)
+    && missing.Body.Contains("{\"code\":\"Required\"", StringComparison.Ordinal), missing.Body);
 var bid = await Send(HttpMethod.Post, $"/auctions/{id}/bids", """{"amount":150}""", "bob");
 var low = await Send(HttpMethod.Post, $"/auctions/{id}/bids", """{"amount":120}""", "bob");
 Check("change 204 with ETag; guard 409 with its code", bid.Status == HttpStatusCode.NoContent && bid.R.Headers.ETag?.Tag == "\"2\"" && low.Status == HttpStatusCode.Conflict && low.Body.Contains("Bid.TooLow"), low.Body);

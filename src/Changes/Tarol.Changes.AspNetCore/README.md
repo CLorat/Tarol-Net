@@ -23,7 +23,7 @@ app.MapChanges();
 | a change committed | 204, `ETag: "<version>"`, `Tarol-Position: <tx>.<pos>` (the commit's place in the feed) |
 | a creation committed | 201, `Location`, `{"id":…,"version":…}`, `ETag` |
 | the same `Idempotency-Key` again | the first outcome (200 for a creation), `Idempotent-Replayed: true`; another body → 422 |
-| invalid input (binder or value rules) | 400 problem details, `errors` keyed by JSON paths, every field at once |
+| invalid input (binder or value rules) | 400 problem details, `errors` keyed by JSON paths (codes), every field at once; `errorDetails` the same paths with `{code, detail}` (the rule's detail, e.g. `3..60`) |
 | `If-Match` stale | 409 `Stream.VersionConflict` |
 | not authenticated / endpoint policy | 401 / 403 |
 | refused by the change's authorization (Tarol.Security) | 403 with the rule's `code` |

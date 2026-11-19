@@ -326,7 +326,7 @@ public sealed partial class ChangeEndpoints
         if (Options.UseProblemDetailsService && http.RequestServices.GetService<IProblemDetailsService>() is { } service)
         {
             ProblemDetails problem = violation is Invalid invalid
-                ? new HttpValidationProblemDetails(Errors(invalid, naming)) { Title = "One or more fields are invalid." }
+                ? new HttpValidationProblemDetails(Errors(invalid, naming)) { Title = "One or more fields are invalid.", Extensions = { ["errorDetails"] = Details(invalid, naming) } }
                 : new ProblemDetails { Title = ((Error)violation).Code, Detail = ((Error)violation).Detail };
             problem.Status = status;
             if (violation is Error error)
@@ -353,6 +353,8 @@ public sealed partial class ChangeEndpoints
                     writer.WriteEndArray();
                 }
                 writer.WriteEndObject();
+                writer.WritePropertyName("errorDetails");
+                WriteDetails(writer, invalid, naming);
             }
             else if (violation is Error error)
             {
@@ -363,6 +365,37 @@ public sealed partial class ChangeEndpoints
             }
             writer.WriteEndObject();
         }
+    }
+
+    /// <summary><c>errorDetails</c> (BC-5): per JSON path the errors with their code and, when the rule gave one, its detail
+    /// (e.g. the bounds); <c>errors</c> keeps the codes only.</summary>
+    private static void WriteDetails(Utf8JsonWriter writer, Invalid invalid, JsonNamingPolicy naming)
+    {
+        writer.WriteStartObject();
+        foreach (var group in invalid.Errors.GroupBy(f => JsonPath(f.Field, naming), StringComparer.Ordinal))
+        {
+            writer.WriteStartArray(group.Key);
+            foreach (var error in group)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("code", error.Code);
+                if (error.Detail is { } detail)
+                    writer.WriteString("detail", detail);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+        writer.WriteEndObject();
+    }
+
+    /// <summary><see cref="WriteDetails"/> as a <see cref="JsonElement"/> for an <see cref="IProblemDetailsService"/>
+    /// (its JSON metadata covers <see cref="JsonElement"/> also under Native AOT).</summary>
+    private static JsonElement Details(Invalid invalid, JsonNamingPolicy naming)
+    {
+        var buffer = new ArrayBufferWriter<byte>(256);
+        using (var writer = new Utf8JsonWriter(buffer))
+            WriteDetails(writer, invalid, naming);
+        return JsonElement.Parse(buffer.WrittenSpan);
     }
 
     private static Dictionary<string, string[]> Errors(Invalid invalid, JsonNamingPolicy naming)
