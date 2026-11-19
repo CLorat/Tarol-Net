@@ -12,8 +12,9 @@ description: >-
 
 1. **Register** `AddMessaging("<app>", m => m.….UseRabbitMq("amqp://<user>:<password>@<host>:5672/"))`. Publications
    still need `AddReactionWorker()`.
-2. **Topology is declared for you**: a topic exchange per source, a quorum queue and a `.retry` queue per subscription,
-   the bindings; `Prepare` runs when the host starts and before the first publish.
+2. **Topology is declared for you**: a topic exchange per source, a quorum queue per subscription with six delay queues
+   (`.retry.1s`, `.5s`, `.30s`, `.2m`, `.10m`, `.1h`; a backoff goes to the nearest), the bindings; `Prepare` runs when the
+   host starts and before the first publish.
 3. **One user per system, named like its prefix** (`billing`): configure and write on `billing` / `billing\..*` (and
    `amq.default` for retries), read on the exchanges it consumes. With the default `StampUserId = true` the broker checks
    `user_id`, and consumers see the user as `Incoming.AuthenticatedAs`: a user named otherwise is buried

@@ -41,11 +41,20 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          persist-credentials: false # no token on disk while the build runs
           fetch-depth: 0 # MinVer reads the version from the tag
 
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
           global-json-file: global.json
+
+      # a tag publishes only what is on main (a tag on another branch or a fork's commit is refused)
+      - name: The tag is on main
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main"; exit 1
+          fi
 
       - name: Pack and verify the packages
         run: eng/verify-packages.sh
@@ -61,12 +70,19 @@ jobs:
           [[ "$version" == *-* ]] && echo "prerelease=true" >> "$GITHUB_OUTPUT" || echo "prerelease=false" >> "$GITHUB_OUTPUT"
           echo "Tarol $version"
 
+      # values reach the scripts through env, not spliced into the script text
       - name: Check that the release ships its API, diagnostics and CHANGELOG section
-        run: python3 eng/release.py check "${{ steps.version.outputs.version }}" ${{ startsWith(github.ref, 'refs/tags/v') && ' ' || '--dry-run' }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DRY_RUN: ${{ startsWith(github.ref, 'refs/tags/v') && ' ' || '--dry-run' }} # ' ': an empty string is falsy here
+        run: python3 eng/release.py check "$VERSION" $DRY_RUN
 
       - name: Release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DRY_RUN: ${{ startsWith(github.ref, 'refs/tags/v') && ' ' || '--dry-run' }} # ' ': an empty string is falsy here
         run: |
-          python3 eng/release.py notes "${{ steps.version.outputs.version }}" ${{ startsWith(github.ref, 'refs/tags/v') && ' ' || '--dry-run' }} > artifacts/release-notes.md
+          python3 eng/release.py notes "$VERSION" $DRY_RUN > artifacts/release-notes.md
           cat artifacts/release-notes.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -92,23 +108,32 @@ jobs:
           name: release
           path: release
 
+      # global.json only: the same SDK as every other job
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+          sparse-checkout: global.json
+          sparse-checkout-cone-mode: false
+          path: sdk
+
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
-          dotnet-version: 11.0.x
+          global-json-file: sdk/global.json
 
       # The bytes `pack` verified; --skip-duplicate makes a re-run after a failed later step safe.
       - name: Push to GitHub Packages
-        run: >-
-          dotnet nuget push "release/package/release/*.nupkg"
-          --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
-          --api-key "${{ secrets.GITHUB_TOKEN }}"
-          --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
+          FEED: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+        run: dotnet nuget push "release/package/release/*.nupkg" --source "$FEED" --api-key "$NUGET_API_KEY" --skip-duplicate
 
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.pack.outputs.version }}
+          PRERELEASE: ${{ needs.pack.outputs.prerelease == 'true' && '--prerelease' || '' }}
         run: >-
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag
-          --title "Tarol ${{ needs.pack.outputs.version }}"
+          --title "Tarol $VERSION"
           --notes-file release/release-notes.md
-          ${{ needs.pack.outputs.prerelease == 'true' && '--prerelease' || '' }}
+          $PRERELEASE

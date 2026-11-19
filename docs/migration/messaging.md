@@ -962,3 +962,36 @@ retry queue; times out without the fix).
 Open: the shared `<queue>.retry` uses per-message TTLs, and RabbitMQ expires only the message at the head of a queue, so one long
 backoff holds back every shorter one behind it. Fixing that changes the queue topology (delay tiers or a delayed exchange) and is
 left for a decision.
+
+## 25. Fix: a short RabbitMQ retry no longer waits behind a long one (2026-11-18)
+
+**Behaviour change, topology change.** The open item of §24. Every retry copy went into one `<queue>.retry` with a per-message
+TTL, and RabbitMQ expires only the message at the head of a queue: an attempt-9 copy with a 4-minute backoff held back every
+attempt-1 copy behind it, so the backoff stopped being honoured. Owner's choice (2026-11-18): fixed delay queues, no plugin.
+
+Each subscription now has six delay queues, `<queue>.retry.1s`, `.5s`, `.30s`, `.2m`, `.10m` and `.1h`, quorum queues with a
+queue TTL (`x-message-ttl`) that dead-letter back to the queue (at-least-once, `reject-publish`, as before). A retry goes to the
+tier nearest its backoff on a log scale, so a delay is rounded: the default policy's attempts wait 1, 1, 5, 5, 30, 30 s, 2, 2,
+2, 10 min (about 17 min in all, where it asked for about 13). Every message in a tier has the same TTL, so none waits behind a
+longer one. The `<queue>.retry` queue of earlier versions is still declared with its old arguments, so copies already in it flow
+back; nothing new goes in, and it can be deleted once empty. The user's permissions need no change (`billing\..*` covers the new
+names).
+
+Tests: `RabbitMqTransportTests.A_short_retry_does_not_wait_behind_a_long_one` (1 h and 1 s retries; with the old routing the 1 s
+copy is still waiting after 20 s) and `DelayTierTests.A_backoff_goes_to_the_nearest_delay_queue` (10 cases).
+
+## 26. Fix: a connection that closes again during the client's restart is started again (2026-11-18)
+
+**Behaviour change.** `MessagePushClient` restarts a connection that closed for good in a background loop and ignores every
+`Closed` event while that loop runs (`_restarting`). When the restarted connection closed again right away (the server was still
+shutting down, or closed it after the handshake), its `Closed` was dropped; the loop's `Replay` failed quietly, the loop logged
+the restart as done and ended, and the client stayed `Disconnected` for good. This is what made
+`PushTests.A_connection_that_closed_for_good_is_started_again_by_the_client` fail now and then under the full suite's load (twice
+in this session's runs, after the fix of §20).
+
+The loop now reports a restart only when the connection is still connected after the replay, and tries again otherwise. After the
+loop ends it looks once more and starts a new restart if a `Closed` came between its last look and the reset of the flag.
+
+Test: `PushTests.A_connection_that_closes_again_while_the_client_restarts_is_started_again`. A hub filter in the test host closes
+the first connection after the restart right after its handshake, so the client's start succeeds and the connection then closes.
+Without the fix the client is still `Disconnected` after 60 s; with it the suite passed 5 of 5.

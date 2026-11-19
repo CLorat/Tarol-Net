@@ -247,7 +247,7 @@ public sealed class DataProtectionCodecTests
         codec.SealState<Customer>(state, customer.Id.Value, keys, sealedState).ShouldBeTrue();
         var text = Encoding.UTF8.GetString(sealedState.WrittenSpan);
         text.ShouldNotContain("ada@example.com");
-        text.ShouldNotContain("7946");
+        text.ShouldNotContain("+44 20 7946 0000");                                    // the whole number: a random id or nonce may hold "7946"
         text.ShouldContain("\"country\":\"GB\"");
 
         var opened = new ArrayBufferWriter<byte>();

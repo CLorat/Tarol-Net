@@ -292,6 +292,7 @@ internal sealed class EventLog : ILogger
 }
 
 /// <summary>The data sources Tarol builds prepare their statements unless the connection string says otherwise.</summary>
+[Trait("Category", "Integration")]                                          // no database needed, but this assembly's fixture starts one
 public sealed class AutoPrepareTests
 {
     [Fact]
