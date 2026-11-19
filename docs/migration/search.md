@@ -867,3 +867,8 @@ Build 0 warnings; format no changes (after one statement per line in `TypesenseI
   registers the same and maps `GET /search`; operators (`tarol-admin`) may read bidder profiles. Both projects build with warnings
   as errors **[verified]**; the AppHost run is not part of this PR's checks **[unverified]**.
 * Plan row 18 and the concept note's status updated; CHANGELOG.
+
+### 21.1 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,044 passed**; `eng/aot-smoke.sh`
+**28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK. The samples build with warnings as errors.
