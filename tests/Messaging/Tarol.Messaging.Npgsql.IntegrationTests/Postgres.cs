@@ -9,7 +9,9 @@ namespace Tarol.Messaging.Npgsql.IntegrationTests;
 /// <summary>One PostgreSQL 17 container per test run; every test gets a bus schema of its own.</summary>
 public sealed class Postgres : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17")
+        .WithCommand("-c", "max_connections=300")                 // above the test pools (up to 200) and their extra data sources
+        .Build();
 
     public string ConnectionString => _container.GetConnectionString();
 
