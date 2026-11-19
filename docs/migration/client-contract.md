@@ -377,3 +377,14 @@ packages):
 * **Tests**: the push tests check each code with its `": "`; `HubMappingTests.The_code_of_a_hub_error` (5 cases, a client-wrapped
   message included); the Zitadel WebSocket test reads `Hub.Forbidden`.
 * **Public API** (generated): `+ HubErrors`. **Suppressions**: none.
+
+## 19. PR C5: `GET /me` (BC-13, CC-8)
+
+* **Change**: `MeEndpoint.MapTarolMe(pattern = "/me")`, opt-in. It runs `ChangeEndpoints.Edge` (so the actor rule, e.g.
+  `AddZitadel`'s, and the tenant claim with its mapping decide, exactly as for a change) and answers `{"subject", "actor":
+  {"kind", "id"}, "tenant", "roles"}`; `tenant` is `null` without one; roles are the principal's role claims (after the identity
+  provider's claims transformation), sorted; 401 anonymously (the default authorization policy), 401 `Auth.Tenant` for an
+  unmappable tenant claim. Private, no-cache. `TarolEndpointMetadata("me")` puts it in the document with its schema.
+* **Tests**: `EdgeTests.Me_answers_who_the_caller_is_by_the_entries_rules` (a user, a service by its `client_id`, anonymous 401,
+  the document); the AOT smoke app calls `/me` natively (0 IL warnings, passed **[verified]**).
+* **Public API** (generated): `+ MeEndpoint.MapTarolMe`. **Behaviour**: none unless mapped. **Suppressions**: none.

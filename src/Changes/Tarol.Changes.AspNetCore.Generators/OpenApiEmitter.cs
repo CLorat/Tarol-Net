@@ -384,6 +384,15 @@ internal static class OpenApiEmitter
                         Content = ProblemContent(),
                     };
                 }
+                else if (metadata.Kind == "me")
+                    operation.Responses["200"] = new global::Microsoft.OpenApi.OpenApiResponse
+                    {
+                        Description = "Who the caller is to Tarol",
+                        Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType>
+                        {
+                            ["application/json"] = new global::Microsoft.OpenApi.OpenApiMediaType { Schema = MeSchema() },
+                        },
+                    };
                 else if (operation.Responses.TryGetValue("200", out var ok) && ok is global::Microsoft.OpenApi.OpenApiResponse view)
                 {
                     view.Headers = etag;
@@ -392,6 +401,8 @@ internal static class OpenApiEmitter
                 foreach (var (status, description) in Problems)
                 {
                     if (metadata.Kind is "view" or "list" or "search" && status is "409" or "415" or "422")
+                        continue;
+                    if (metadata.Kind == "me" && status != "401")
                         continue;
                     operation.Responses[status] = new global::Microsoft.OpenApi.OpenApiResponse
                     {
@@ -430,6 +441,28 @@ internal static class OpenApiEmitter
                     ["items"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = row },
                     ["next"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String | global::Microsoft.OpenApi.JsonSchemaType.Null, Description = "The cursor of the next page (after); null on the last" },
                     ["total"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int64", Description = "With count=true: the rows of the filters" },
+                },
+            };
+
+            private static global::Microsoft.OpenApi.OpenApiSchema MeSchema() => new()
+            {
+                Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                Required = new global::System.Collections.Generic.HashSet<string> { "subject", "actor", "tenant", "roles" },
+                Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+                {
+                    ["subject"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String | global::Microsoft.OpenApi.JsonSchemaType.Null, Description = "The subject claim" },
+                    ["actor"] = new global::Microsoft.OpenApi.OpenApiSchema
+                    {
+                        Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                        Required = new global::System.Collections.Generic.HashSet<string> { "kind", "id" },
+                        Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+                        {
+                            ["kind"] = Text("User, Service, System or Anonymous: what the caller's changes record"),
+                            ["id"] = Text(),
+                        },
+                    },
+                    ["tenant"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String | global::Microsoft.OpenApi.JsonSchemaType.Null, Format = "uuid" },
+                    ["roles"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = Text() },
                 },
             };
 

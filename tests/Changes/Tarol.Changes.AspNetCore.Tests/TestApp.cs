@@ -84,6 +84,7 @@ internal sealed class TestApp : IAsyncDisposable
         app.MapGroup("/v1").MapChanges(names: "V1");
         if (search)
             app.MapTarolSearch("/search", "auctions:read");
+        app.MapTarolMe();
         await app.StartAsync(TestContext.Current.CancellationToken);
         return new TestApp(app, app.GetTestClient());
     }

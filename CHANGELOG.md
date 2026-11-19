@@ -8,6 +8,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `MapTarolMe(pattern = "/me")` in `Tarol.Changes.AspNetCore` (BC-13, CC-8): `{subject, actor, tenant, roles}` of the caller by the
+  entries' rules, authenticated only, in the OpenAPI document (`x-tarol-kind: me`).
+
 * `Tarol-Request-Id` on every Tarol answer and `traceId` in every problem (BC-11, CC-6): the request activity's trace id, else
   `TraceIdentifier`; exposed by `TarolHeaders.Exposed`, in the OpenAPI document. New: `TarolHeaders.RequestId`,
   `ChangeEndpoints.RequestId`.

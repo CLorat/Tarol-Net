@@ -83,6 +83,7 @@ version is current, a weak `ETag` answers 304. A hit's `snippet` is plain text; 
 | the input not in the JSON context | `NotSupportedException` for its member types at the first request |
 | a role claim the identity does not use (`IsInRole` false) | 403 `Auth.Forbidden`: set `RoleClaimType` or map claims |
 | `If-Match: W/"2"` | 400 `If-Match: Format` (strong ETags only) |
+| decoding the IdP's JWT in the UI to find the roles or the tenant | `app.MapTarolMe()` answers `GET /me` with `subject`, `actor`, `tenant`, `roles` as Tarol sees them |
 | a browser client on another origin without a CORS policy, or one without `.WithTarolHeaders()` | the browser blocks the call, or the script reads `null` for `ETag`/`Tarol-Position`; `UseCors` goes before `UseAuthentication` |
 | a webhook factory that throws for a duplicate payment | 503 until the sender gives up; return success in the domain |
 | expecting a renamed member's value-rule errors under its JSON name | value rules report C# paths (converted by the naming policy); the binder reports `[JsonPropertyName]` names |

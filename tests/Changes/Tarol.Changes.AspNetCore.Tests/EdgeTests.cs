@@ -159,6 +159,27 @@ public sealed class EdgeTests
         view.Response.Headers.GetValues(TarolHeaders.RequestId).Single().ShouldNotBe(problem.Response.Headers.GetValues(TarolHeaders.RequestId).Single());
     }
 
+    [Fact]
+    public async Task Me_answers_who_the_caller_is_by_the_entries_rules()               // BC-13
+    {
+        await using var app = await Start();
+
+        var alice = JsonElement.Parse((await app.Get("/me", Alice)).Body);
+        var service = JsonElement.Parse((await app.Get("/me", new Caller("billing-sa", TenantA, Client: "billing-sa"))).Body);
+        var anonymous = await app.Get("/me", Nobody);
+        var document = JsonElement.Parse((await app.Get("/openapi/v1.json", Nobody)).Body).GetProperty("paths").GetProperty("/me").GetProperty("get");
+
+        alice.GetProperty("subject").GetString().ShouldBe("alice");
+        (alice.GetProperty("actor").GetProperty("kind").GetString(), alice.GetProperty("actor").GetProperty("id").GetString()).ShouldBe(("User", "alice"));
+        alice.GetProperty("tenant").GetGuid().ShouldBe(TenantA);
+        alice.GetProperty("roles").EnumerateArray().Select(r => r.GetString()).ShouldBe(Alice.Roles.Split(' ').Order(StringComparer.Ordinal));
+        service.GetProperty("actor").GetProperty("kind").GetString().ShouldBe("Service");
+        anonymous.Status.ShouldBe(System.Net.HttpStatusCode.Unauthorized);
+        document.GetProperty("x-tarol-kind").GetString().ShouldBe("me");
+        document.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema")
+            .GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["subject", "actor", "tenant", "roles"], ignoreOrder: true);
+    }
+
     private static string[] Statuses(JsonElement operation)
         => [.. operation.GetProperty("responses").EnumerateObject().Select(r => r.Name).Order(StringComparer.Ordinal)];
 

@@ -64,6 +64,9 @@ app.MapChanges();
   `Tarol-Stale` on reads; numbers typed `number`/`integer` (not the web defaults' `["number","string"]` with a pattern);
   `Option<T>` as `T` or `null`; `MapTarolSearch` and `MapTarolAdmin` (Tarol.Operations) with their parameters and answers.
 * **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
+* **`GET /me`** (opt-in, `app.MapTarolMe()`): `{subject, actor: {kind, id}, tenant, roles}` of an authenticated caller by the
+  entries' own rules (actor rule, tenant claim and mapping, role claims), so a UI shows role-dependent actions without
+  decoding the identity provider's token.
 * **Request id**: every answer of an entry, a list, search and the admin entry carries `Tarol-Request-Id` (the trace id of the
   request's activity, else `HttpContext.TraceIdentifier`), and every problem `traceId` with the same value: what a user quotes
   when reporting an error, and what the traces are found by.

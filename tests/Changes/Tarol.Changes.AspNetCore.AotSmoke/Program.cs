@@ -62,6 +62,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
 app.MapChanges();
+app.MapTarolMe();
 app.MapTarolSearch("/search", "auctions:read");
 await app.StartAsync();
 using var http = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
@@ -117,6 +118,8 @@ var searched = search.Status == HttpStatusCode.OK ? JsonElement.Parse(search.Bod
 Check("search after the bid's Tarol-Position: the auction, counts, a weak ETag (step 18D)", search.Status == HttpStatusCode.OK
     && searched.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id)
     && searched.GetProperty("counts").EnumerateObject().Any() && search.R.Headers.ETag is { IsWeak: true }, search.Body);
+var me = await Send(HttpMethod.Get, "/me", null, "alice");
+Check("GET /me natively (BC-13)", me.Status == HttpStatusCode.OK && me.Body.Contains("\"subject\":\"alice\"", StringComparison.Ordinal), me.Body);
 var page = await Send(HttpMethod.Get, "/auctions?limit=1&sort=Id", null, "alice");
 var badCursor = await Send(HttpMethod.Get, "/auctions?after=x", null, "alice");
 Check("list: cursor page, bad cursor 400", page.Status == HttpStatusCode.OK && badCursor.Status == HttpStatusCode.BadRequest && badCursor.Body.Contains("\"after\""), badCursor.Body);

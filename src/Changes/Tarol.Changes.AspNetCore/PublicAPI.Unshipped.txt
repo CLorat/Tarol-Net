@@ -1,5 +1,6 @@
 #nullable enable
 Tarol.Changes.AspNetCore.ChangeEndpoints.ReadJson(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<(byte[]? Bytes, int Status)>
+Tarol.Changes.AspNetCore.MeEndpoint
 Tarol.Changes.AspNetCore.RouteValue.Aggregate.get -> string?
 Tarol.Changes.AspNetCore.RouteValue.Aggregate.init -> void
 Tarol.Changes.AspNetCore.SearchEndpoints
@@ -14,6 +15,7 @@ const Tarol.Changes.AspNetCore.TarolHeaders.RequestId = "Tarol-Request-Id" -> st
 static Tarol.Changes.AspNetCore.ChangeEndpoints.IsJson(string? contentType) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.RequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.StampRequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
+static Tarol.Changes.AspNetCore.MeEndpoint.MapTarolMe(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern = "/me") -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Tarol.Changes.AspNetCore.SearchEndpoints.MapTarolSearch(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern = "/search", string? policy = null) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Tarol.Changes.AspNetCore.TarolHeaders.Allowed.get -> System.Collections.Generic.IReadOnlyList<string!>!
 static Tarol.Changes.AspNetCore.TarolHeaders.Exposed.get -> System.Collections.Generic.IReadOnlyList<string!>!
