@@ -603,6 +603,12 @@ Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Do
 
 None.
 
+### 16.7 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+Build 0 warnings; format no changes (after ordering one file's imports); `dotnet test --solution Tarol.slnx` with Docker **1,960
+passed** (+61: 43 unit and contract, 18 generator); `eng/aot-smoke.sh` **25 apps**, 0 IL warnings; pack **26 packages**;
+`eng/verify-packages.sh` OK (after dropping an unneeded import in the package consumer).
+
 ## 17. Implementation: PR 18C (2026-11-18)
 
 `search.npgsql: PostgreSQL full-text search` (new package `Tarol.Search.Npgsql`).
