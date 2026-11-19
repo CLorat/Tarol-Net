@@ -1,0 +1,84 @@
+# Client contract: evaluation (the browser client's backend findings)
+
+The design session of `CLorat/Tarol-Svelte` (the Svelte client) read Tarol-Net `main` at `73b35ff` and ran the
+`samples/Sagas` AppHost. Its list of backend bugs and gaps is Tarol-Svelte `docs/backend/changes.md` (BC-1 … BC-17). This
+note checks each finding against the code, proposes the fix and records the owner's decisions (**CC-**). Each fix is its
+own pull request; §4 lists them, and §5 onward records what each PR changed and how it was verified.
+
+Labels as in the rest of the migration notes: **[verified]** reproduced (a failing test or the running sample),
+**[verified by reading]** checked in the code at `73b35ff`, **[unverified]**.
+
+## 1. Findings and proposed fixes
+
+### Part A: bugs
+
+| # | Finding | Check | Proposed fix |
+|---|---|---|---|
+| BC-6 | The list ETag is a hash over the page's (id, version) pairs (`ListQuery.cs:286`, `Cursor.ETag`). It ignores `next` and `total`: a row appended behind a full last page turns `next` from `null` into a cursor and the client still gets a 304. | **[verified by reading]**; a failing test in PR A1 | hash `next` and `total` too (CC-3) |
+| BC-7 | The view's `If-None-Match` compares verbatim (`ChangeEndpoints.cs:394`), search too (`SearchEndpoints.cs:133`); lists use a weak, list-aware match (`QueryEndpoints.cs:286-303`). `W/"5"` or `"4", "5"` on a view answer 200. | **[verified by reading]** | one RFC 9110 §13.1.2 matcher (weak comparison, comma lists, `*`) for views, lists and search |
+| BC-8 | Search snippets are raw text with `<b>` markers in every provider: in-memory (`InMemorySearchIndex.cs:216`), Npgsql (`ts_headline … StartSel=<b>`), OpenSearch (`pre_tags`), Typesense (`highlight_start_tag`). A `<script>` in the text reaches the client unescaped. | **[verified by reading]** | plain text plus highlight offsets (CC-1) |
+| BC-10 | `ErasureIncompleteException` escapes `POST {admin}/subjects/{id}/erase` as a 500 (`DataSubjects.cs:90-92`, `AdminEndpoints.cs:201-211`); every admin error is `{"error":"<text>"}` (`OperationsJson.cs:35`, `AdminEndpoints.cs:72`). | **[verified by reading]** | 409 `DataProtection.ErasureIncomplete` with the failed participants (the re-run stays idempotent: the key is a tombstone); every admin error `application/problem+json` with `code` |
+| — | `samples/Sagas/apphost.sh:69-71` calls export and erase without `?tenant=`; since the tenant fix (`aca4182`) they answer 400 (`AdminEndpoints.cs:180-185`). data-protection.md §18.3 still shows the run before that fix. | **[verified by reading]** | pass `?tenant=00000000-0000-0000-0000-000000000000` (the bidder profile is tenant-less); note §18.3's run predates the fix |
+| BC-16 | OpenAPI lists 415 for changes, but `ChangeEndpoints.ReadBytes` (155-171) and the generated binders parse any body as JSON. | **[verified by reading]** | 415 for a non-empty body whose `Content-Type` is not `application/json` or `*/*+json` |
+| BC-17 | 422 `Idempotency.KeyReused` carries the detail `http:User:<sub>:POST /auctions: <key>`. | **[verified]** by the client session against the sample | the detail names the key only; the scope stays in the log |
+| — | The step 17 lesson "403 on publish: the package name is taken by another repository" is not on `main`. | **[verified by reading]** (`release.md`) | add it to `docs/migration/release.md` |
+
+### Part B: what blocks a browser client
+
+| # | Finding | Check | Proposed fix |
+|---|---|---|---|
+| BC-1 | No response carries `Access-Control-*`. | **[verified]** by the client session (`curl -H 'Origin: …' :5080/auctions`) | `TarolHeaders.Exposed` / `TarolHeaders.Allowed` in `Tarol.Changes.AspNetCore`, an `AddCors` recipe in its README, used in the sample; a preflight test |
+| BC-2 | `AddZitadel` never reads `access_token` from the query; browsers cannot set headers on a WebSocket. | **[verified by reading]** (`ZitadelTarolBuilderExtensions.cs:36-43`) | `ZitadelOptions.HubPath` (CC-2): `OnMessageReceived` reads the query token only for that path; `CloseOnAuthenticationExpiration` on the hub (BC-15); a real-JWT WebSocket test |
+| BC-3 | The OpenAPI document has empty problem responses, no operation kind, no id types, no Tarol headers, numbers as `["number","string"]` + pattern in responses, `Option<T>` not nullable, and neither search nor admin. | **[verified by reading]** (`OpenApiEmitter.cs`), numbers **[verified]** by the client session | `TarolProblem` component, `x-tarol-kind`, `x-tarol-id`, `x-tarol-errors`, the headers, `number` in responses, nullable options, search and admin in the document; emitter snapshot tests |
+| BC-9 | The sample cannot drive a browser e2e: no user-agent app, no human users, no hub, no validation rule on a change, no CORS, no short token, no "stay up" mode, not built in CI. | **[verified by reading]** | as listed in BC-9; the sample built in CI (conventions §4) |
+
+### Part C: improvements (owner chose to build all of them, CC-4)
+
+| # | Proposal |
+|---|---|
+| BC-4 | `x-tarol-rules: [{rule, code, min?, max?, pattern?, flags?}]` for class and multi-field value objects, `IValidatable` parameters, `Count`, `IgnoreCase`; patterns checked to be ECMAScript-compatible by a TVAL diagnostic. |
+| BC-5 | `errorDetails: {path: [{code, detail?}]}` next to `errors` on a 400 (`FieldError.Detail` is dropped today, `ChangeEndpoints.cs:339-341`). |
+| BC-11 | `Tarol-Request-Id` in every answer and `requestId` in every problem (the trace id when there is an activity, else `HttpContext.TraceIdentifier`). |
+| BC-12 | Hub errors as `<code>: <detail>` with documented codes (`Hub.Forbidden`, `Hub.Topic`, `Auth.Tenant`) and a constant class. |
+| BC-13 | `GET /me`: subject, tenant, roles of the caller. |
+| BC-14 | An unknown list query key answers 400 `List.UnknownKey`. |
+
+## 2. Decisions asked of the owner
+
+| # | Question | Answer (2026-11-19) |
+|---|---|---|
+| CC-1 | Search snippets: (a) plain text + `highlights: [{start, length}]` (UTF-16 offsets, the client never needs `{@html}`), or (b) HTML-escaped text that keeps only `<b>` | **(a) text + offsets** (recommended) |
+| CC-2 | Where the query `access_token` is read: (a) an `AddZitadel` option `HubPath` (default `/tarol/messages`, `null` = off) plus BC-15 in the same PR, or (b) also a generic helper in `Tarol.Security` | **(a) the `AddZitadel` option** (recommended) |
+| CC-3 | What the list ETag hashes besides the rows: (a) `next` and `total`, or (b) the projection position | **(a) `next` and `total`** (recommended) |
+| CC-4 | Which Part C items to build in this session | **all**: BC-5, BC-14, BC-11 + BC-12 + BC-13, BC-4 |
+
+Defaults taken without a question (recommendations; the owner may revise them in review):
+* BC-10's status for an incomplete erasure is 409 (`DataProtection.ErasureIncomplete`), as the session prompt suggests: the
+  request conflicts with a participant's state and can be repeated. Other admin codes: `Admin.Query` (400), `Admin.Kind`
+  (404 unknown dead-letter kind), `Admin.NotFound` (404), `Admin.Tenant` (400), `Projection.Drop` (409).
+* BC-16 treats a missing `Content-Type` on a non-empty body as not JSON (415). An empty body (a change without input) needs none.
+
+## 3. Behaviour changes for clients (summary)
+
+Every PR lists its own; together, for a client written against `73b35ff`:
+* search hits: `snippet` is plain text, highlights are in `highlights` (BC-8);
+* admin errors are `application/problem+json` with `code`; an incomplete erasure is 409, not 500 (BC-10);
+* a change with a non-JSON body is 415 (BC-16); `Idempotency.KeyReused`'s detail is the key only (BC-17);
+* views and search answer 304 for a weak or listed `If-None-Match` (BC-7); a list answers 200 when `next` or `total` changed
+  (BC-6).
+
+## 4. Pull requests
+
+| PR | Items |
+|---|---|
+| CC-0 | this note |
+| A1 | BC-6 |
+| A2 | BC-7 |
+| A3 | BC-8 |
+| A4 | BC-10 |
+| A5 | BC-16, BC-17, the AppHost tenant, the release lesson |
+| B1 | BC-1 |
+| B2 | BC-2, BC-15 |
+| B3 | BC-3 |
+| B4 | BC-9 |
+| C… | BC-5, BC-14, BC-11/12/13, BC-4 |
