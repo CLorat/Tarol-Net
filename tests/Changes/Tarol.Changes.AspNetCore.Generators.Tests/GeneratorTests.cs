@@ -185,6 +185,17 @@ public sealed class DiagnosticTests
         => Message("[Endpoint(\"GET /q\")] " + record, "TQRY005").ShouldContain(message);
 
     [Fact]
+    public void TWEB007_an_option_member_with_a_default_warns()                 // CC-5
+    {
+        Message("""[Endpoint("POST /orders/{order}/note")] public sealed record Note(Id<Order> Order, Tarol.Options.Option<string> Text = default) : IChange<Order> { public Result Execute(Order o, ChangeContext c) => o.Add(1); }""", "TWEB007")
+            .ShouldContain("'Note.Text' is an Option<T> with a default value");
+        Message("""[Endpoint("GET /orders/{order}")] public sealed record OrderView(Guid Id, Tarol.Options.Option<int> Items = default) : IView<Order, OrderView> { public static OrderView From(Order o) => new(o.Id.Value); }""", "TWEB007")
+            .ShouldContain("'OrderView.Items'");
+        Diagnose("""[Endpoint("POST /orders/{order}/note")] public sealed record Note(Id<Order> Order, Tarol.Options.Option<string> Text) : IChange<Order> { public Result Execute(Order o, ChangeContext c) => o.Add(1); }""")
+            .ShouldNotContain("TWEB007");
+    }
+
+    [Fact]
     public void TQRY006_a_claim_member_named_by_the_route_warns()
         => Message("""[Endpoint("GET /c/{customer}")] public sealed record Q([FromClaim("sub")] string Customer) : IQuery<OrderRow>;""", "TQRY006")
             .ShouldContain("the claim wins");

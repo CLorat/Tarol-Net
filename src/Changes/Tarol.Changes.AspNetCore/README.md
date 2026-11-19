@@ -84,6 +84,6 @@ app.MapChanges();
   app.UseAuthorization();
   ```
 * Fails closed: an entry without `Policy` needs an authenticated caller, the change is always authorized, `MapChanges`
-  refuses to start without `AddSecurity`. Diagnostics TWEB001–TWEB006.
+  refuses to start without `AddSecurity`. Diagnostics TWEB001–TWEB007.
 
 Guide: [docs/changes/README.md](../../../docs/changes/README.md) (HTTP entries). Design: `docs/architecture/rest.md`.

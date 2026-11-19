@@ -10,7 +10,7 @@ namespace Tarol.Changes.AspNetCore.Generators;
 ///     <c>[Webhook]</c> factory, a <c>RequestDelegate</c>; per assembly <c>GeneratedEndpoints.MapChanges()</c>, and, when the
 ///     application references <c>Microsoft.AspNetCore.OpenApi</c>, <c>GeneratedOpenApi.AddTarolEndpoints(OpenApiOptions)</c>.
 ///     The Request Delegate Generator does not see generated <c>MapPost</c> calls (C-12), so the delegates bind by
-///     themselves. Diagnostics TWEB001–TWEB006. Models are symbol-free; a body edit or an unrelated file regenerates nothing.
+///     themselves. Diagnostics TWEB001–TWEB007. Models are symbol-free; a body edit or an unrelated file regenerates nothing.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class EndpointGenerator : IIncrementalGenerator

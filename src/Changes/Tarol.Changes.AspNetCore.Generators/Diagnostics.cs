@@ -62,8 +62,16 @@ internal static class Diagnostics
         "Tarol.Queries", DiagnosticSeverity.Warning, isEnabledByDefault: true,
         description: "A [FromClaim] member is set from the caller's principal, never from the request (QR-6). Remove the route value, or the attribute.");
 
+    /// <summary>TWEB007: an Option&lt;T&gt; member with a parameter default (CC-5).</summary>
+    public static readonly DiagnosticDescriptor OptionDefault = new(
+        "TWEB007", "Option<T> member with a default value",
+        "'{0}.{1}' is an Option<T> with a default value; ASP.NET's OpenAPI document cannot describe it (it throws): drop the default, None is Option<T>'s default already",
+        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "Microsoft.AspNetCore.OpenApi reads a constructor parameter's default value through the JSON converter, which fails for Option<T> (CC-5, docs/migration/client-contract.md). An Option<T> member is None when the JSON omits it; the default adds nothing.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
+        "TWEB007" => OptionDefault,
         "TQRY005" => QueryMember,
         "TQRY006" => ClaimAlsoRouted,
         "TWEB001" => BadRoute,

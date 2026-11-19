@@ -269,7 +269,7 @@ packages):
   metadata without a type. The generated code therefore knows the admin operations by id; the test pins both sides.
 * **Found** **[verified]**: an input or view member `Option<T> X = default` (a parameter default) makes the document throw
   `JsonException: The JSON value could not be converted to Tarol.Options.Option`1[System.String]` inside ASP.NET's schema
-  exporter (it reads the default value); without the default the member works. Not fixed here: listed as CC-5 below.
+  exporter (it reads the default value); without the default the member works. The owner chose a diagnostic (CC-5): TWEB007, §20.
 * **Tests**: `EdgeTests.The_openapi_document_is_complete_enough_for_a_typed_client` (a–h against the test app: problem refs on
   every 4xx/5xx of five operations, kinds, codes including `Bid.TooLow`/`Bid.OwnAuction`/`Auction.NotOpen` found in the aggregate,
   `x-tarol-id`, headers, the search parameters and highlights, `number`, `Option<T>`), `OpenApiAdminTests` (operation id, kind,
@@ -388,3 +388,13 @@ packages):
 * **Tests**: `EdgeTests.Me_answers_who_the_caller_is_by_the_entries_rules` (a user, a service by its `client_id`, anonymous 401,
   the document); the AOT smoke app calls `/me` natively (0 IL warnings, passed **[verified]**).
 * **Public API** (generated): `+ MeEndpoint.MapTarolMe`. **Behaviour**: none unless mapped. **Suppressions**: none.
+
+## 20. PR C6: TWEB007, an `Option<T>` member with a default (CC-5)
+
+* **Finding** (B3, **[verified]**): `Option<T> X = default` on a view or input member makes ASP.NET's OpenAPI schema export throw
+  `JsonException: The JSON value could not be converted to Tarol.Options.Option`1[…]` when the document is requested.
+* **Change**: the endpoint generator warns TWEB007 for such a member of a change, a creation (constructor parameters) or a view
+  (its widest public constructor). The default adds nothing: an omitted `Option<T>` member is `None`.
+* **Tests**: `DiagnosticTests.TWEB007_an_option_member_with_a_default_warns` (a change, a view, and no warning without the
+  default). `AnalyzerReleases.Unshipped.md` lists TWEB007.
+* **Public API**: none. **Suppressions**: none.

@@ -62,11 +62,16 @@ internal static class Discovery
         var members = new List<Member>();
         var valueObjects = new List<ValueObjectModel>();
         var diagnostics = new List<DiagnosticInfo>();
+        var warnings = new List<DiagnosticInfo>();
         if (kind == EntryKind.View)
         {
             if (placeholders.Count != 1)
                 return Fail(Diagnostics.RouteValue, type.Name, "a view's route has exactly one value, the aggregate's id");
             members.Add(new Member("Id", $"global::Tarol.StronglyTypedId.Id<{aggregate}>", null, placeholders[0], "id", false, null));
+            if (type.InstanceConstructors.Where(c => c.DeclaredAccessibility == Accessibility.Public).OrderByDescending(c => c.Parameters.Length).FirstOrDefault() is { } shape)
+                foreach (var p in shape.Parameters)
+                    if (IsOptionWithDefault(p))
+                        diagnostics.Add(DiagnosticInfo.Create(Diagnostics.OptionDefault, location, type.Name, p.Name));
         }
         else
         {
@@ -97,6 +102,8 @@ internal static class Discovery
                 var optional = p.HasExplicitDefaultValue || p.NullableAnnotation == NullableAnnotation.Annotated
                                || p.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
                 members.Add(new Member(name, memberType, jsonName, placeholder, routeKind, optional, Default(p)));
+                if (IsOptionWithDefault(p))
+                    warnings.Add(DiagnosticInfo.Create(Diagnostics.OptionDefault, location, type.Name, name));
                 if (ValueObject(p.Type) is { } vo)
                     valueObjects.Add(vo);
             }
@@ -112,8 +119,13 @@ internal static class Discovery
         {
             Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct),
         };
-        return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), default);
+        warnings.AddRange(diagnostics);                                         // a view's warnings (an entry with errors returned earlier)
+        return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), new EquatableArray<DiagnosticInfo>(warnings.ToImmutableArray()));
     }
+
+    private static bool IsOptionWithDefault(IParameterSymbol p)
+        => p.HasExplicitDefaultValue && p.Type is INamedTypeSymbol { Name: "Option", TypeArguments.Length: 1 } option
+           && option.ContainingNamespace.ToDisplayString() == "Tarol.Options";
 
     private static readonly HashSet<string> Reserved = new(StringComparer.Ordinal) { "tenant", "id", "version", "doc" };
 

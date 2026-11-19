@@ -8,6 +8,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* TWEB007 (warning, CC-5): an entry's input or view member `Option<T>` with a parameter default; ASP.NET's OpenAPI document
+  throws on it.
+
 * `MapTarolMe(pattern = "/me")` in `Tarol.Changes.AspNetCore` (BC-13, CC-8): `{subject, actor, tenant, roles}` of the caller by the
   entries' rules, authenticated only, in the OpenAPI document (`x-tarol-kind: me`).
 

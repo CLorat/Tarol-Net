@@ -82,6 +82,7 @@ version is current, a weak `ETag` answers 304. A hit's `snippet` is plain text; 
 | a second `MapChanges()` without `names:` | "Duplicate endpoint name" at the first request |
 | the input not in the JSON context | `NotSupportedException` for its member types at the first request |
 | a role claim the identity does not use (`IsInRole` false) | 403 `Auth.Forbidden`: set `RoleClaimType` or map claims |
+| `Option<T> X = default` on an input or view member | TWEB007 (the OpenAPI document would throw): drop the default |
 | `If-Match: W/"2"` | 400 `If-Match: Format` (strong ETags only) |
 | decoding the IdP's JWT in the UI to find the roles or the tenant | `app.MapTarolMe()` answers `GET /me` with `subject`, `actor`, `tenant`, `roles` as Tarol sees them |
 | a browser client on another origin without a CORS policy, or one without `.WithTarolHeaders()` | the browser blocks the call, or the script reads `null` for `ETag`/`Tarol-Position`; `UseCors` goes before `UseAuthentication` |
