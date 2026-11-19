@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -59,6 +60,7 @@ public sealed class PushHost : IAsyncDisposable
         builder.Logging.ClearProviders();
         builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthentication>("Test", null);
         builder.Services.AddAuthorization();
+        builder.Services.Configure<HubOptions>(o => o.AddFilter(new AbortFilter(this)));
         builder.Services.AddTarol(PushTestJson.Default, _ => { })
             .UseInMemoryStore()
             .AddMessaging("artflow", m => m
@@ -74,6 +76,26 @@ public sealed class PushHost : IAsyncDisposable
         _app.UseAuthorization();
         _app.MapMessageHub();
         await _app.StartAsync();
+    }
+
+    private int _abortNext;
+
+    /// <summary>How many of the next connections the server closes right after their handshake (the client's start returned).</summary>
+    public int AbortNext
+    {
+        get => Volatile.Read(ref _abortNext);
+        set => Volatile.Write(ref _abortNext, value);
+    }
+
+    /// <summary>Closes a connection right after it connected while <see cref="AbortNext"/> is above 0.</summary>
+    private sealed class AbortFilter(PushHost host) : IHubFilter
+    {
+        public Task OnConnectedAsync(HubLifetimeContext context, Func<HubLifetimeContext, Task> next)
+        {
+            if (Interlocked.Decrement(ref host._abortNext) >= 0)
+                context.Context.Abort();
+            return next(context);
+        }
     }
 
     public async Task Stop()

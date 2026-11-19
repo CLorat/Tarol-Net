@@ -687,3 +687,20 @@ The `integration` job listed its test projects by hand and missed `Tarol.DataPro
 retention, the admin endpoints and the health checks never ran against PostgreSQL in CI or before a release. The job now runs
 every `tests/*/*.IntegrationTests` project in one step, keeps going after a failed project and fails at the end. A new
 integration project therefore runs without a CI change. Both missing suites pass locally with Docker (4 and 3 tests).
+
+## 23. Release hardening (2026-11-18)
+
+* **A tag publishes only what is on `main`.** `pack` checks `git merge-base --is-ancestor $GITHUB_SHA origin/main` on a tag push
+  and fails otherwise. Before, any `v*` tag on any commit published. A tag ruleset for `v*` and a required reviewer on the
+  `release` environment are still the owner's settings (§19.3).
+* **No token on disk.** Every `actions/checkout` sets `persist-credentials: false`, so `GITHUB_TOKEN` is not in `.git/config`
+  while PR-controlled MSBuild, generators and tests run, or while `pack` builds a release.
+* **Values through `env`.** The NuGet API key (`secrets.GITHUB_TOKEN`) and the step outputs (version, dry-run, prerelease) reach
+  the scripts as environment variables instead of being spliced into the script text. The empty dry-run value stays `' '`,
+  because an empty string is falsy in a workflow expression.
+* **One SDK.** `publish` installed `dotnet-version: 11.0.x`; it now checks out `global.json` alone (sparse) and uses it, like
+  every other job.
+
+Not done: NuGet lock files (`RestorePackagesWithLockFile` with `RestoreLockedMode` in CI). They pin transitive versions and
+hashes, but add a lock file per project (about 80) that Dependabot must keep current; left for the owner to decide. Not run here:
+the workflows themselves (they run on GitHub); the YAML parses, and the PR's own CI is the first run.
