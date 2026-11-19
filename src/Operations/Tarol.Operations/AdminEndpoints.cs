@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +19,7 @@ public static class TarolAdminEndpoints
     /// Maps the admin entry under <paramref name="prefix"/>, every endpoint behind <paramref name="policy"/> (fail closed: no
     /// policy, no endpoints):
     /// <list type="table">
+    /// <item><term>GET <c>dead</c></term><description>the dead-letter kinds</description></item>
     /// <item><term>GET <c>dead/{kind}?after=&amp;limit=&amp;tenant=&amp;name=</c></term><description>one page and <c>next</c></description></item>
     /// <item><term>POST <c>dead/{kind}/{id}/redrive</c></term><description>204, 404</description></item>
     /// <item><term>POST <c>dead/{kind}/redrive?tenant=&amp;name=&amp;max=</c></term><description><c>{ redriven }</c>, at most 1,000</description></item>
@@ -25,7 +27,8 @@ public static class TarolAdminEndpoints
     /// <item><term>GET <c>projections</c></term><description>the versions</description></item>
     /// <item><term>DELETE <c>projections/{name}/{version}</c></term><description>204; 409 when it is the newest, in use, or still read</description></item>
     /// </list>
-    /// The actor of every act is the principal's <c>Identity.Name</c> (else its <c>sub</c> claim).
+    /// The actor of every act is the principal's <c>Identity.Name</c> (else its <c>sub</c> claim). Every error is an RFC 9457
+    /// <c>application/problem+json</c> with a <c>code</c> (<see cref="AdminProblems"/>), like the change endpoints.
     /// </summary>
     /// <param name="endpoints">The routes.</param>
     /// <param name="prefix">The path prefix, e.g. <c>/tarol/admin</c>.</param>
@@ -40,6 +43,7 @@ public static class TarolAdminEndpoints
             throw new InvalidOperationException("MapTarolAdmin needs an authorization policy (e.g. \"tarol-admin\"): without one the admin entry would be open.");
         var group = endpoints.MapGroup(prefix.TrimEnd('/'));
         group.RequireAuthorization(policy);
+        group.MapGet("/dead", Kinds);
         group.MapGet("/dead/{kind}", List);
         group.MapPost("/dead/{kind}/{id:long}/redrive", RedriveOne);
         group.MapPost("/dead/{kind}/redrive", RedriveMany);
@@ -69,7 +73,32 @@ public static class TarolAdminEndpoints
         return context.Response.WriteAsJsonAsync(value, info, cancellationToken: context.RequestAborted);
     }
 
-    private static Task Problem(HttpContext context, int status, string error) => Json(context, status, new AdminError(error), OperationsJson.Default.AdminError);
+    /// <summary>An RFC 9457 problem with a <c>code</c> (BC-10; the shape of the change endpoints' problems).</summary>
+    private static async Task Problem(HttpContext context, int status, string code, string? detail, Action<Utf8JsonWriter>? extra = null)
+    {
+        context.Response.StatusCode = status;
+        context.Response.ContentType = "application/problem+json";
+        var writer = new Utf8JsonWriter(context.Response.Body);
+        await using (writer.ConfigureAwait(false))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", $"https://tools.ietf.org/html/rfc9110#section-15.{(status >= 500 ? 6 : 5)}.{(status >= 500 ? status - 499 : status - 399)}");
+            writer.WriteNumber("status", status);
+            writer.WriteString("title", code);
+            writer.WriteString("code", code);
+            if (detail is not null)
+                writer.WriteString("detail", detail);
+            extra?.Invoke(writer);
+            writer.WriteEndObject();
+        }
+    }
+
+    private static Task NotFound(HttpContext context, string detail) => Problem(context, StatusCodes.Status404NotFound, AdminProblems.NotFound, detail);
+
+    private static Task UnknownKind(HttpContext context, KeyNotFoundException e) => Problem(context, StatusCodes.Status404NotFound, AdminProblems.Kind, e.Message);
+
+    private static Task Kinds(HttpContext context)
+        => Json(context, StatusCodes.Status200OK, Admin(context).Kinds, OperationsJson.Default.IReadOnlyListString);
 
     /// <summary>Reads <c>after</c>, <c>limit</c>, <c>tenant</c>, <c>name</c>; <see langword="null"/> with a 400 written.</summary>
     private static DeadLetterQuery? Query(HttpContext context, out string? error)
@@ -100,7 +129,7 @@ public static class TarolAdminEndpoints
     {
         if (Query(context, out var error) is not { } query)
         {
-            await Problem(context, StatusCodes.Status400BadRequest, error!).ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status400BadRequest, AdminProblems.Query, error).ConfigureAwait(false);
             return;
         }
         try
@@ -111,7 +140,7 @@ public static class TarolAdminEndpoints
         }
         catch (KeyNotFoundException e)
         {
-            await Problem(context, StatusCodes.Status404NotFound, e.Message).ConfigureAwait(false);
+            await UnknownKind(context, e).ConfigureAwait(false);
         }
     }
 
@@ -121,11 +150,14 @@ public static class TarolAdminEndpoints
         {
             var done = await Admin(context).Redrive(Route(context, "kind"), long.Parse(Route(context, "id"), CultureInfo.InvariantCulture), Actor(context.User),
                 context.RequestAborted).ConfigureAwait(false);
-            context.Response.StatusCode = done ? StatusCodes.Status204NoContent : StatusCodes.Status404NotFound;
+            if (done)
+                context.Response.StatusCode = StatusCodes.Status204NoContent;
+            else
+                await NotFound(context, $"no dead letter {Route(context, "id")} of kind {Route(context, "kind")}").ConfigureAwait(false);
         }
         catch (KeyNotFoundException e)
         {
-            await Problem(context, StatusCodes.Status404NotFound, e.Message).ConfigureAwait(false);
+            await UnknownKind(context, e).ConfigureAwait(false);
         }
     }
 
@@ -133,13 +165,13 @@ public static class TarolAdminEndpoints
     {
         if (Query(context, out var error) is not { } filter)
         {
-            await Problem(context, StatusCodes.Status400BadRequest, error!).ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status400BadRequest, AdminProblems.Query, error).ConfigureAwait(false);
             return;
         }
         var max = IDeadLetterAdmin.MaxRedrive;
         if (context.Request.Query["max"] is [{ } text] && (!int.TryParse(text, CultureInfo.InvariantCulture, out max) || max < 1 || max > IDeadLetterAdmin.MaxRedrive))
         {
-            await Problem(context, StatusCodes.Status400BadRequest, $"max must be 1 … {IDeadLetterAdmin.MaxRedrive}").ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status400BadRequest, AdminProblems.Query, $"max must be 1 … {IDeadLetterAdmin.MaxRedrive}").ConfigureAwait(false);
             return;
         }
         try
@@ -149,7 +181,7 @@ public static class TarolAdminEndpoints
         }
         catch (KeyNotFoundException e)
         {
-            await Problem(context, StatusCodes.Status404NotFound, e.Message).ConfigureAwait(false);
+            await UnknownKind(context, e).ConfigureAwait(false);
         }
     }
 
@@ -159,11 +191,14 @@ public static class TarolAdminEndpoints
         {
             var done = await Admin(context).Discard(Route(context, "kind"), long.Parse(Route(context, "id"), CultureInfo.InvariantCulture), Actor(context.User),
                 context.RequestAborted).ConfigureAwait(false);
-            context.Response.StatusCode = done ? StatusCodes.Status204NoContent : StatusCodes.Status404NotFound;
+            if (done)
+                context.Response.StatusCode = StatusCodes.Status204NoContent;
+            else
+                await NotFound(context, $"no dead letter {Route(context, "id")} of kind {Route(context, "kind")}").ConfigureAwait(false);
         }
         catch (KeyNotFoundException e)
         {
-            await Problem(context, StatusCodes.Status404NotFound, e.Message).ConfigureAwait(false);
+            await UnknownKind(context, e).ConfigureAwait(false);
         }
     }
 
@@ -187,7 +222,7 @@ public static class TarolAdminEndpoints
     {
         if (SubjectTenantOf(context) is not { } tenant)
         {
-            await Problem(context, StatusCodes.Status400BadRequest, SubjectTenantRequired).ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status400BadRequest, AdminProblems.Tenant, SubjectTenantRequired).ConfigureAwait(false);
             return;
         }
         var subject = Guid.Parse(Route(context, "id"), CultureInfo.InvariantCulture);
@@ -202,11 +237,30 @@ public static class TarolAdminEndpoints
     {
         if (SubjectTenantOf(context) is not { } tenant)
         {
-            await Problem(context, StatusCodes.Status400BadRequest, SubjectTenantRequired).ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status400BadRequest, AdminProblems.Tenant, SubjectTenantRequired).ConfigureAwait(false);
             return;
         }
         var subject = Guid.Parse(Route(context, "id"), CultureInfo.InvariantCulture);
-        var erasure = await context.RequestServices.GetRequiredService<IDataSubjects>().EraseSubject(tenant, subject, Actor(context.User), context.RequestAborted).ConfigureAwait(false);
+        SubjectErasure erasure;
+        try
+        {
+            erasure = await context.RequestServices.GetRequiredService<IDataSubjects>().EraseSubject(tenant, subject, Actor(context.User), context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is IIncompleteErasure incomplete)
+        {
+            // the tombstone is written and the act audited; the failed participants forget on a re-run (idempotent)
+            await Problem(context, StatusCodes.Status409Conflict, AdminProblems.ErasureIncomplete,
+                "The key is erased, but some participants failed to forget; run the erasure again.", w =>
+                {
+                    w.WriteString("tenant", incomplete.Tenant);
+                    w.WriteString("subject", subject);
+                    w.WriteStartArray("failed");
+                    foreach (var name in incomplete.Failed)
+                        w.WriteStringValue(name);
+                    w.WriteEndArray();
+                }).ConfigureAwait(false);
+            return;
+        }
         await Json(context, StatusCodes.Status200OK, new ErasureView(erasure.Tenant, subject, erasure.AlreadyErased, erasure.Streams.Count), OperationsJson.Default.ErasureView).ConfigureAwait(false);
     }
 
@@ -224,7 +278,29 @@ public static class TarolAdminEndpoints
         }
         catch (Exception e) when (e is InvalidOperationException or TimeoutException or ArgumentException)
         {
-            await Problem(context, StatusCodes.Status409Conflict, e.Message).ConfigureAwait(false);
+            await Problem(context, StatusCodes.Status409Conflict, AdminProblems.ProjectionDrop, e.Message).ConfigureAwait(false);
         }
     }
+}
+
+/// <summary>The <c>code</c>s of the admin entry's problems (BC-10).</summary>
+public static class AdminProblems
+{
+    /// <summary>400: a malformed query parameter (<c>after</c>, <c>limit</c>, <c>tenant</c>, <c>max</c>).</summary>
+    public const string Query = "Admin.Query";
+
+    /// <summary>400: a data-subject call without a valid <c>tenant</c>.</summary>
+    public const string Tenant = "Admin.Tenant";
+
+    /// <summary>404: an unknown dead-letter kind.</summary>
+    public const string Kind = "Admin.Kind";
+
+    /// <summary>404: no dead letter with that id.</summary>
+    public const string NotFound = "Admin.NotFound";
+
+    /// <summary>409: the projection version cannot be dropped (the newest, in use, or still read).</summary>
+    public const string ProjectionDrop = "Projection.Drop";
+
+    /// <summary>409: the erasure wrote the tombstone, but participants failed (<c>failed</c> lists them); run it again.</summary>
+    public const string ErasureIncomplete = "DataProtection.ErasureIncomplete";
 }

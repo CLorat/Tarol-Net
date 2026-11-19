@@ -46,6 +46,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Fixed
 
+* The admin entry (`MapTarolAdmin`) answers every error as `application/problem+json` with a `code` (`AdminProblems`), and an
+  incomplete erasure as 409 `DataProtection.ErasureIncomplete` with the failed participants instead of an unhandled 500 (BC-10).
+  **Breaking (wire):** the body was `{"error":"…"}`; `AdminError` is no longer written. Redrive and discard of an unknown id
+  have a problem body now. New: `GET {prefix}/dead` lists the kinds; `IIncompleteErasure` in `Tarol.Persistence`, implemented
+  by `ErasureIncompleteException`.
+
 * Search snippets are plain text with highlight offsets (BC-8, CC-1): every provider (in-memory, Npgsql, OpenSearch,
   Typesense) returned raw text with `<b>` markers, so markup in a document reached the client unescaped. **Breaking (wire):**
   `GET /search` hits carry `snippet` as text and `highlights: [{start, length}]`. New in `Tarol.Search`: `SearchHit.Highlights`,

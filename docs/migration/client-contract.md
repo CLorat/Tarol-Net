@@ -133,3 +133,24 @@ Every PR lists its own; together, for a client written against `73b35ff`:
   `Parse`, `Hit`). `eng/public-api.py update` had to run twice: the first run, while `SearchHighlight` was still undeclared,
   dropped `SearchHit`'s record members; the second restored them (worth knowing for the script, not fixed here).
 * **Suppressions**: none.
+
+## 8. PR A4: admin problems and the incomplete erasure (BC-10)
+
+* **Change**: every error of `MapTarolAdmin` is an RFC 9457 `application/problem+json` (`type`, `status`, `title` = `code`,
+  `code`, `detail`), written directly like the change endpoints' fallback. Codes in `AdminProblems`: `Admin.Query` (400 a
+  malformed `after`/`limit`/`tenant`/`max`), `Admin.Tenant` (400 a data-subject call without a valid `tenant`), `Admin.Kind`
+  (404 an unknown dead-letter kind), `Admin.NotFound` (404 no dead letter with that id: had no body), `Projection.Drop` (409),
+  `DataProtection.ErasureIncomplete` (409 with `tenant`, `subject` and `failed`).
+* **The erasure**: `Tarol.Operations` does not reference `Tarol.DataProtection`, so it cannot catch
+  `ErasureIncompleteException` by type. `Tarol.Persistence` (where `IDataSubjects` lives) gets `IIncompleteErasure` (`Tenant`,
+  `Subject`, `Failed`), and the exception implements it; nothing else changes on it. The re-run is idempotent as before (the key
+  is a tombstone, the forgetting runs again): the test's second call answers 200 with `alreadyErased: true`.
+* **New**: `GET {prefix}/dead` lists the registered kinds (from BC-10's list; the admin UI needs it to build its menu).
+* **Behaviour change (breaking on the wire)**: `{"error":"<text>"}` becomes a problem. `AdminError` and
+  `OperationsJson.AdminError` stay public (shipped in 0.1.0) but are no longer written; they can go in the next major.
+* **Tests**: `AdminTests.Every_admin_error_is_a_problem_with_a_code` (8 errors), `An_incomplete_erasure_is_409_with_the_failed_participants_and_a_rerun_completes_it`,
+  `The_dead_letter_kinds_are_listed`, the projection-drop test reads the problem's `detail`; `DataSubjectsTests` checks the
+  interface. Red with the old endpoints **[verified]**: 4 of 19 failed, the erasure's exception escaped the endpoint (an
+  unhandled 500 in a real host), the kinds path did not exist, the errors were `{"error"}`.
+* **Public API** (generated): `+ AdminProblems` (6 constants), `+ OperationsJson.IReadOnlyListString`, `+ IIncompleteErasure`.
+* **Suppressions**: none.

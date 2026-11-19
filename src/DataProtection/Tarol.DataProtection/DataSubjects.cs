@@ -193,7 +193,7 @@ public sealed class DataSubjects : IDataSubjects
 }
 
 /// <summary>An erasure wrote the tombstone, but a participant failed; run it again (the forgetting is idempotent).</summary>
-public sealed class ErasureIncompleteException : Exception
+public sealed class ErasureIncompleteException : Exception, IIncompleteErasure
 {
     /// <summary>Creates the exception.</summary>
     /// <param name="tenant">The tenant.</param>

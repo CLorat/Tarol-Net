@@ -30,7 +30,8 @@ public sealed record DeadLetterPageView(IReadOnlyList<DeadLetterView> Items, lon
 /// <param name="Redriven">How many were re-driven.</param>
 public sealed record RedriveView(int Redriven);
 
-/// <summary>An error answer of the admin endpoints.</summary>
+/// <summary>The error answer of the admin endpoints before BC-10; they answer <c>application/problem+json</c> with a
+/// <c>code</c> (<see cref="AdminProblems"/>) now, and nothing writes this record any more.</summary>
 /// <param name="Error">What went wrong.</param>
 public sealed record AdminError(string Error);
 
@@ -41,6 +42,7 @@ public sealed record AdminError(string Error);
 [JsonSerializable(typeof(AdminError))]
 [JsonSerializable(typeof(ErasureView))]
 [JsonSerializable(typeof(IReadOnlyList<ProjectionVersion>))]
+[JsonSerializable(typeof(IReadOnlyList<string>))]
 public sealed partial class OperationsJson : JsonSerializerContext;
 
 /// <summary>The answer of <c>POST {prefix}/subjects/{id}/erase</c> (step 16C).</summary>

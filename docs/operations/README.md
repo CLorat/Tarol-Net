@@ -90,12 +90,17 @@ readinessProbe: { httpGet: { path: /health/ready, port: 8080 }, periodSeconds: 5
 
 | Method | Path | Answer |
 |---|---|---|
+| GET | `dead` | the dead-letter kinds (`["jobs","reactions",…]`) |
 | GET | `dead/{kind}?after=&limit=&tenant=&name=` | a page (`items`, `next`): `kind` is `reactions`, `jobs` or `messages`; `limit` ≤ 200 |
 | POST | `dead/{kind}/{id}/redrive` | 204, 404 |
 | POST | `dead/{kind}/redrive?tenant=&name=&max=` | `{ "redriven": n }`, at most 1,000 per call |
 | DELETE | `dead/{kind}/{id}` | 204, 404 |
 | GET | `projections` | name, version, state, rows, bytes, superseded |
 | DELETE | `projections/{name}/{version}` | 204; 409 for the newest version, one in use, or one still read |
+
+Errors are RFC 9457 `application/problem+json` with a `code`, like the change endpoints: `Admin.Query` and `Admin.Tenant`
+(400), `Admin.Kind` and `Admin.NotFound` (404), `Projection.Drop` and `DataProtection.ErasureIncomplete` (409, with `tenant`,
+`subject` and `failed`). The constants are in `AdminProblems`.
 
 The actor is the principal's name (else its `sub`). Every act writes an `operations_audit` row (when, actor, action, target,
 detail) in the same statement on PostgreSQL, and a log line (15001–15004). Code uses `IDeadLetterAdmin` the same way.
