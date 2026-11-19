@@ -109,3 +109,27 @@ Every PR lists its own; together, for a client written against `73b35ff`:
   and search with the tag without `W/` answered 200. (`"1", "2"` passed already: the test host splits header values at
   `", "`.)
 * **Public API**: none. **Suppressions**: none.
+
+## 7. PR A3: search snippets as text and offsets (BC-8, CC-1)
+
+* **Change**: every provider marks matched words with two private-use characters (`SearchSnippets.Open` U+E000,
+  `SearchSnippets.Close` U+E001) instead of `<b>`/`</b>`: the in-memory index, Npgsql (`ts_headline … StartSel/StopSel`),
+  OpenSearch (`pre_tags`/`post_tags`) and Typesense (`highlight_start_tag`/`highlight_end_tag`). `SearchSnippets.Parse` turns
+  the engine's answer into plain text and `SearchHighlight(Start, Length)` ranges (UTF-16 code units, a JavaScript string's
+  indexes); unbalanced or empty markers are dropped, adjacent ranges merge. `SearchHit.Highlights` (an `init` property, so the
+  record's constructor and deconstruction stay as they were) carries them.
+* **Wire (breaking)**: a hit of `GET /search?…&snippets=true` is `{…, "snippet": "<plain text>", "highlights": [{"start": n,
+  "length": n}]}`. The client renders the text escaped and marks the ranges; it never needs `{@html}`.
+* **Why private-use characters**: an engine highlights inside the text it stores, so the markers must be characters no
+  document contains. A document that does contain U+E000/U+E001 gets a spurious (harmless, text-only) highlight; nothing
+  becomes markup.
+* **Tests**: the shared `SearchContract.A_snippet_is_plain_text_and_markup_in_the_document_stays_text` (a title and body with
+  `<script>`, `<b>` and `<img onerror>`) for **in-memory, Npgsql, OpenSearch 2.19.1 and Typesense 28.0** (25 / 21 / 21
+  contract tests, 0 failed **[verified]**); `A_snippet_marks_the_matched_word` now checks the highlight ranges;
+  `SnippetTests` (parser: offsets, UTF-16, unbalanced markers); over HTTP `SearchEndpointTests.A_snippet_is_plain_text_with_highlight_offsets`.
+  Red before the fix: the contract asserted the `<b>` markup (`hit.Snippet.ShouldContain("<b>")`), i.e. the raw markup was the
+  specified behaviour; the new tests do not compile against `73b35ff` (no `Highlights`).
+* **Public API** (`Tarol.Search`, generated): `SearchHit.Highlights`, `SearchHighlight`, `SearchSnippets` (`Open`, `Close`,
+  `Parse`, `Hit`). `eng/public-api.py update` had to run twice: the first run, while `SearchHighlight` was still undeclared,
+  dropped `SearchHit`'s record members; the second restored them (worth knowing for the script, not fixed here).
+* **Suppressions**: none.

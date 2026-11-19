@@ -46,6 +46,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Fixed
 
+* Search snippets are plain text with highlight offsets (BC-8, CC-1): every provider (in-memory, Npgsql, OpenSearch,
+  Typesense) returned raw text with `<b>` markers, so markup in a document reached the client unescaped. **Breaking (wire):**
+  `GET /search` hits carry `snippet` as text and `highlights: [{start, length}]`. New in `Tarol.Search`: `SearchHit.Highlights`,
+  `SearchHighlight`, `SearchSnippets` (`Open`, `Close`, `Parse`, `Hit`) for index implementations.
+
 * Views and search answer 304 for a weak tag (`W/"5"`), a list of tags or `*` in `If-None-Match`, like lists (BC-7): one
   RFC 9110 §13.1.2 matcher for the three; they compared the header verbatim.
 

@@ -315,7 +315,7 @@ public sealed class NpgsqlSearchIndex : ISearchIndex
     private string Ranked(string table, string[] configs, SearchRequest request, string query, int offset)
     {
         var snippet = request.Snippets
-            ? $"ts_headline('{configs[0]}', coalesce(m.b, m.a, m.c, m.d, ''), m.q, 'MaxFragments=1, MaxWords=12, MinWords=4, StartSel=<b>, StopSel=</b>')"
+            ? $"ts_headline('{configs[0]}', coalesce(m.b, m.a, m.c, m.d, ''), m.q, 'MaxFragments=1, MaxWords=12, MinWords=4, StartSel={SearchSnippets.Open}, StopSel={SearchSnippets.Close}')"
             : "NULL";
         var exactBoost = request.ExactToken is null ? "" : " + CASE WHEN m.exact @> ARRAY[$6] THEN 1.0 ELSE 0 END";
         return $"""
@@ -343,7 +343,7 @@ public sealed class NpgsqlSearchIndex : ISearchIndex
     {
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            hits.Add(new SearchHit(reader.GetString(0), reader.GetGuid(1), reader.GetGuid(2), reader.GetString(3),
+            hits.Add(SearchSnippets.Hit(reader.GetString(0), reader.GetGuid(1), reader.GetGuid(2), reader.GetString(3),
                 Convert.ToDouble(reader.GetValue(4), CultureInfo.InvariantCulture), reader.IsDBNull(5) ? null : reader.GetString(5)));
     }
 

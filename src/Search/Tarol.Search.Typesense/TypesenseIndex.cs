@@ -284,7 +284,7 @@ public sealed class TypesenseIndex : ISearchIndex
                 var fuzzy = await Run(collection, [.. Combinations(clauses).Select(q => Search(request, q, typo: true))], PerPage, cancellationToken).ConfigureAwait(false);
                 foreach (var (hit, raw, a) in fuzzy.SelectMany(static f => f.Hits))
                     if (positives.All(c => c.Alternatives.Any(alt => SearchText.TypoMatch(alt, SearchText.Words(a)))))
-                        merged.TryAdd(hit.Type + hit.Id, (hit with { Snippet = null, Score = raw }, raw));
+                        merged.TryAdd(hit.Type + hit.Id, (hit with { Snippet = null, Highlights = [], Score = raw }, raw));
                 if (counts is not null)
                 {
                     counts.Clear();
@@ -294,7 +294,7 @@ public sealed class TypesenseIndex : ISearchIndex
             }
         }
         var ordered = merged.Values.OrderByDescending(static m => m.Score).ThenBy(static m => m.Hit.Id).Select(static m => m.Hit).Take(SearchLimits.MaxDepth).ToList();
-        var page = ordered.Skip(offset).Take(request.Limit).Select(h => request.Snippets ? h : h with { Snippet = null }).ToList();
+        var page = ordered.Skip(offset).Take(request.Limit).Select(h => request.Snippets ? h : h with { Snippet = null, Highlights = [] }).ToList();
         var next = offset + page.Count < ordered.Count ? SearchText.Cursor(request, version, offset + page.Count) : null;
         return new SearchPage(page, next, counts, capped, version, checkpoint.Position, checkpoint.State);
     }
@@ -356,8 +356,8 @@ public sealed class TypesenseIndex : ISearchIndex
             w.WriteNumber("max_facet_values", 200);
             w.WriteString("include_fields", "type,doc,aggregate,title,a,a_de");
             w.WriteString("highlight_fields", typo ? "none" : "b,b_de,a,a_de");
-            w.WriteString("highlight_start_tag", "<b>");
-            w.WriteString("highlight_end_tag", "</b>");
+            w.WriteString("highlight_start_tag", SearchSnippets.Open);
+            w.WriteString("highlight_end_tag", SearchSnippets.Close);
             w.WriteBoolean("exhaustive_search", false);
             w.WriteEndObject();
             w.Flush();
@@ -394,7 +394,7 @@ public sealed class TypesenseIndex : ISearchIndex
                     if (h.TryGetProperty("highlights", out var highlights) && highlights.GetArrayLength() > 0 && highlights[0].TryGetProperty("snippet", out var s))
                         snippet = s.GetString();
                     var a = d.TryGetProperty("a", out var av) ? av.GetString() : d.TryGetProperty("a_de", out var ad) ? ad.GetString() : null;
-                    found.Hits.Add((new SearchHit(d.GetProperty("type").GetString()!, Guid.ParseExact(d.GetProperty("doc").GetString()!, "N"),
+                    found.Hits.Add((SearchSnippets.Hit(d.GetProperty("type").GetString()!, Guid.ParseExact(d.GetProperty("doc").GetString()!, "N"),
                         Guid.ParseExact(d.GetProperty("aggregate").GetString()!, "N"), d.GetProperty("title").GetString()!, 0, snippet),
                         h.TryGetProperty("text_match", out var tm) ? tm.GetDouble() : 0, a));
                 }
@@ -417,6 +417,6 @@ public sealed class TypesenseIndex : ISearchIndex
         var request = new SearchRequest(tenant, "*");
         var search = Search(request, "*", typo: false, extraFilter: $"aggregate:=[{string.Join(',', aggregates.Select(static a => Quoted(a.ToString("N"))))}]");
         var found = await Run(CollectionOf(_version), [search], SearchLimits.MaxDepth, cancellationToken).ConfigureAwait(false);
-        return [.. found[0].Hits.Select(static h => h.Hit with { Snippet = null })];
+        return [.. found[0].Hits.Select(static h => h.Hit with { Snippet = null, Highlights = [] })];
     }
 }

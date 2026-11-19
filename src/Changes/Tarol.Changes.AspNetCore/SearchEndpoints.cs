@@ -245,7 +245,18 @@ public static class SearchEndpoints
             writer.WriteString("title", hit.Title);
             writer.WriteNumber("score", Math.Round(hit.Score, 6));
             if (hit.Snippet is { } snippet)
-                writer.WriteString("snippet", snippet);
+            {
+                writer.WriteString("snippet", snippet);                       // plain text; the matched words are offsets (BC-8)
+                writer.WriteStartArray("highlights");
+                foreach (var highlight in hit.Highlights)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("start", highlight.Start);
+                    writer.WriteNumber("length", highlight.Length);
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            }
             writer.WriteEndObject();
         }
         writer.WriteEndArray();

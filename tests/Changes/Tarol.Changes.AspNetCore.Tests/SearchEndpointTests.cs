@@ -76,6 +76,23 @@ public sealed class SearchEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_snippet_is_plain_text_with_highlight_offsets()        // BC-8
+    {
+        var (_, position) = await Create(Alice, "<script>alert(1)</script> Sunflowers");
+
+        var found = await Search("q=sunflowers&snippets=true", Alice, readAfter: position);
+
+        found.Status.ShouldBe(HttpStatusCode.OK, found.Body);
+        var item = JsonElement.Parse(found.Body).GetProperty("items").EnumerateArray().ShouldHaveSingleItem();
+        var snippet = item.GetProperty("snippet").GetString()!;
+        snippet.ShouldContain("<script>alert(1)</script>");                    // text: the client shows it, never renders it
+        var highlight = item.GetProperty("highlights").EnumerateArray().ShouldHaveSingleItem();
+        snippet.Substring(highlight.GetProperty("start").GetInt32(), highlight.GetProperty("length").GetInt32()).ShouldBe("Sunflowers");
+        found.Body.ShouldNotContain("<b>");
+        found.Body.ShouldNotContain("<script>");                                // JSON escapes '<' on the wire
+    }
+
+    [Fact]
     public async Task Another_tenant_never_sees_the_document()
     {
         var (_, position) = await Create(Alice, "Irises in the garden");

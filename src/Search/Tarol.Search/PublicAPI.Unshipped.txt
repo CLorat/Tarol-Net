@@ -89,12 +89,23 @@ Tarol.Search.SearchDocuments
 Tarol.Search.SearchEraser
 Tarol.Search.SearchEraser.Documents(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>!
 Tarol.Search.SearchEraser.SearchEraser(System.IServiceProvider! services) -> void
+Tarol.Search.SearchHighlight
+Tarol.Search.SearchHighlight.Deconstruct(out int Start, out int Length) -> void
+Tarol.Search.SearchHighlight.Equals(Tarol.Search.SearchHighlight other) -> bool
+Tarol.Search.SearchHighlight.Length.get -> int
+Tarol.Search.SearchHighlight.Length.init -> void
+Tarol.Search.SearchHighlight.SearchHighlight() -> void
+Tarol.Search.SearchHighlight.SearchHighlight(int Start, int Length) -> void
+Tarol.Search.SearchHighlight.Start.get -> int
+Tarol.Search.SearchHighlight.Start.init -> void
 Tarol.Search.SearchHit
 Tarol.Search.SearchHit.<Clone>$() -> Tarol.Search.SearchHit!
 Tarol.Search.SearchHit.Aggregate.get -> System.Guid
 Tarol.Search.SearchHit.Aggregate.init -> void
 Tarol.Search.SearchHit.Deconstruct(out string! Type, out System.Guid Id, out System.Guid Aggregate, out string! Title, out double Score, out string? Snippet) -> void
 Tarol.Search.SearchHit.Equals(Tarol.Search.SearchHit? other) -> bool
+Tarol.Search.SearchHit.Highlights.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHighlight>!
+Tarol.Search.SearchHit.Highlights.init -> void
 Tarol.Search.SearchHit.Id.get -> System.Guid
 Tarol.Search.SearchHit.Id.init -> void
 Tarol.Search.SearchHit.Score.get -> double
@@ -214,6 +225,7 @@ Tarol.Search.SearchShape.Fingerprint.get -> string!
 Tarol.Search.SearchShape.SearchShape(string! streamType, System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>! types, string! fingerprint) -> void
 Tarol.Search.SearchShape.StreamType.get -> string!
 Tarol.Search.SearchShape.Types.get -> System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchType!>!
+Tarol.Search.SearchSnippets
 Tarol.Search.SearchTarolBuilderExtensions
 Tarol.Search.SearchTest
 Tarol.Search.SearchTest.CatchUp() -> System.Threading.Tasks.Task<long>!
@@ -276,6 +288,8 @@ const Tarol.Search.SearchLimits.DefaultLimit = 20 -> int
 const Tarol.Search.SearchLimits.MaxDepth = 1000 -> int
 const Tarol.Search.SearchLimits.MaxLimit = 50 -> int
 const Tarol.Search.SearchLimits.MaxText = 256 -> int
+const Tarol.Search.SearchSnippets.Close = "" -> string!
+const Tarol.Search.SearchSnippets.Open = "" -> string!
 const Tarol.Search.SearchTokens.Lookup = "tarol.search" -> string!
 override Tarol.Search.SearchBatch.Equals(object? obj) -> bool
 override Tarol.Search.SearchBatch.GetHashCode() -> int
@@ -290,6 +304,9 @@ override Tarol.Search.SearchEraser.Deleted(System.Collections.Generic.IReadOnlyL
 override Tarol.Search.SearchEraser.Forget(System.Guid tenant, System.Guid subject, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Tarol.Search.SearchEraser.ForgetTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Tarol.Search.SearchEraser.Name.get -> string!
+~override Tarol.Search.SearchHighlight.Equals(object obj) -> bool
+override Tarol.Search.SearchHighlight.GetHashCode() -> int
+~override Tarol.Search.SearchHighlight.ToString() -> string
 override Tarol.Search.SearchHit.Equals(object? obj) -> bool
 override Tarol.Search.SearchHit.GetHashCode() -> int
 override Tarol.Search.SearchHit.ToString() -> string!
@@ -322,6 +339,8 @@ static Tarol.Search.SearchDocuments.Exact(params System.ReadOnlySpan<string?> va
 static Tarol.Search.SearchDocuments.Join(params System.ReadOnlySpan<string?> values) -> string?
 static Tarol.Search.SearchDocuments.StreamTypeOf<T>() -> string!
 static Tarol.Search.SearchDocuments.Text(System.Collections.Generic.IEnumerable<string?>? values) -> string?
+static Tarol.Search.SearchHighlight.operator !=(Tarol.Search.SearchHighlight left, Tarol.Search.SearchHighlight right) -> bool
+static Tarol.Search.SearchHighlight.operator ==(Tarol.Search.SearchHighlight left, Tarol.Search.SearchHighlight right) -> bool
 static Tarol.Search.SearchHit.operator !=(Tarol.Search.SearchHit? left, Tarol.Search.SearchHit? right) -> bool
 static Tarol.Search.SearchHit.operator ==(Tarol.Search.SearchHit? left, Tarol.Search.SearchHit? right) -> bool
 static Tarol.Search.SearchIndexDefinition.operator !=(Tarol.Search.SearchIndexDefinition? left, Tarol.Search.SearchIndexDefinition? right) -> bool
@@ -333,6 +352,8 @@ static Tarol.Search.SearchQuery.operator ==(Tarol.Search.SearchQuery? left, Taro
 static Tarol.Search.SearchRequest.operator !=(Tarol.Search.SearchRequest? left, Tarol.Search.SearchRequest? right) -> bool
 static Tarol.Search.SearchRequest.operator ==(Tarol.Search.SearchRequest? left, Tarol.Search.SearchRequest? right) -> bool
 static Tarol.Search.SearchShape.Of<T>(string! label, string! fingerprint, params (string! Suffix, string! Label)[]! entities) -> Tarol.Search.SearchShape!
+static Tarol.Search.SearchSnippets.Hit(string! type, System.Guid id, System.Guid aggregate, string! title, double score, string? marked) -> Tarol.Search.SearchHit!
+static Tarol.Search.SearchSnippets.Parse(string? marked) -> (string? Text, System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHighlight>! Highlights)
 static Tarol.Search.SearchTarolBuilderExtensions.AddSearch(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Search.SearchRegistry!>! configure) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Search.SearchTarolBuilderExtensions.UseInMemorySearch(this Tarol.Persistence.TarolBuilder! builder) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Search.SearchTest.Create(System.Action<Tarol.Search.SearchRegistry!>! configure, Tarol.Search.ISearchIndex? index = null, Tarol.Persistence.IKeyStore? keys = null, Tarol.Persistence.EventCodec? codec = null, System.TimeProvider? time = null) -> Tarol.Search.SearchTest!

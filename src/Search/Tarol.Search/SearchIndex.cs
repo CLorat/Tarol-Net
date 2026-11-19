@@ -45,7 +45,7 @@ public sealed record SearchRequest(Guid Tenant, string Text)
     /// <summary>Count the matches per type (up to <see cref="SearchLimits.CountCap"/>).</summary>
     public bool Counts { get; init; }
 
-    /// <summary>Return a snippet with the matched words marked (<c>&lt;b&gt;…&lt;/b&gt;</c>).</summary>
+    /// <summary>Return a plain-text snippet with the matched words as <see cref="SearchHit.Highlights"/>.</summary>
     public bool Snippets { get; init; }
 
     /// <summary>The page size (1 … <see cref="SearchLimits.MaxLimit"/>).</summary>
@@ -86,8 +86,79 @@ public static class SearchLimits
 /// <param name="Aggregate">The aggregate's id.</param>
 /// <param name="Title">The display title.</param>
 /// <param name="Score">The rank (higher first; comparable within one page only).</param>
-/// <param name="Snippet">The marked snippet, when asked for.</param>
-public sealed record SearchHit(string Type, Guid Id, Guid Aggregate, string Title, double Score, string? Snippet = null);
+/// <param name="Snippet">The snippet as plain text, when asked for; the matched words are in <see cref="Highlights"/> (BC-8: never
+/// markup, so a client shows it as text).</param>
+public sealed record SearchHit(string Type, Guid Id, Guid Aggregate, string Title, double Score, string? Snippet = null)
+{
+    /// <summary>The matched words of <see cref="Snippet"/> as UTF-16 offsets (a JavaScript string's indexes), in order and
+    /// without overlap; empty without a snippet.</summary>
+    public IReadOnlyList<SearchHighlight> Highlights { get; init; } = [];
+}
+
+/// <summary>A highlighted range of a <see cref="SearchHit.Snippet"/>.</summary>
+/// <param name="Start">The first UTF-16 code unit.</param>
+/// <param name="Length">The number of UTF-16 code units.</param>
+public readonly record struct SearchHighlight(int Start, int Length);
+
+/// <summary>
+/// Snippets for <see cref="ISearchIndex"/> implementations: an engine marks the matched words with <see cref="Open"/> and
+/// <see cref="Close"/> (two private-use characters no text needs), and <see cref="Parse"/> turns its answer into plain text and
+/// <see cref="SearchHighlight"/> offsets. Markup in the indexed text stays text.
+/// </summary>
+public static class SearchSnippets
+{
+    /// <summary>The start marker an engine puts before a matched word (U+E000).</summary>
+    public const string Open = "\uE000";
+
+    /// <summary>The end marker an engine puts after a matched word (U+E001).</summary>
+    public const string Close = "\uE001";
+
+    /// <summary>Splits an engine's marked snippet into text and highlights. Unbalanced or nested markers are dropped, empty
+    /// ranges are skipped, adjacent ranges merge.</summary>
+    /// <param name="marked">The snippet with <see cref="Open"/>/<see cref="Close"/> markers; <see langword="null"/> for none.</param>
+    /// <returns>The text (<see langword="null"/> for none) and the highlights.</returns>
+    public static (string? Text, IReadOnlyList<SearchHighlight> Highlights) Parse(string? marked)
+    {
+        if (marked is null)
+            return (null, []);
+        var text = new System.Text.StringBuilder(marked.Length);
+        var highlights = new List<SearchHighlight>();
+        var start = -1;
+        foreach (var c in marked)
+        {
+            if (c == Open[0])
+                start = text.Length;                                             // a second open restarts the range
+            else if (c == Close[0])
+            {
+                if (start >= 0 && text.Length > start)
+                {
+                    if (highlights.Count > 0 && highlights[^1].Start + highlights[^1].Length == start)
+                        highlights[^1] = highlights[^1] with { Length = highlights[^1].Length + text.Length - start };
+                    else
+                        highlights.Add(new SearchHighlight(start, text.Length - start));
+                }
+                start = -1;
+            }
+            else
+                text.Append(c);
+        }
+        return (text.ToString(), highlights);
+    }
+
+    /// <summary>A hit with its snippet parsed by <see cref="Parse"/>.</summary>
+    /// <param name="type">The document type.</param>
+    /// <param name="id">The document id.</param>
+    /// <param name="aggregate">The aggregate's id.</param>
+    /// <param name="title">The display title.</param>
+    /// <param name="score">The rank.</param>
+    /// <param name="marked">The engine's marked snippet, or <see langword="null"/>.</param>
+    /// <returns>The hit.</returns>
+    public static SearchHit Hit(string type, Guid id, Guid aggregate, string title, double score, string? marked)
+    {
+        var (text, highlights) = Parse(marked);
+        return new SearchHit(type, id, aggregate, title, score, text) { Highlights = highlights };
+    }
+}
 
 /// <summary>A page of hits.</summary>
 /// <param name="Items">The hits, best first.</param>
