@@ -46,6 +46,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Fixed
 
+* The search index's erasure participant failed in a process whose `SearchHost` never ran (an API process, where the host stays
+  gated): the Npgsql index had no table yet (`42P01`), so every erasure through the admin entry was incomplete (`failed:
+  ["search"]`). `SearchHost.Reindex` and `Remove` prepare the index once first.
+
 * A change entry answers 415 for a non-empty body without a JSON `Content-Type` (BC-16); routing refused other media types
   already, but a body with no `Content-Type` was parsed as JSON. New: `ChangeEndpoints.ReadJson`, `ChangeEndpoints.IsJson`;
   the generated entries call `ReadJson`.

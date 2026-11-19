@@ -117,6 +117,35 @@ public sealed class NpgsqlSearchTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task An_erasure_in_a_process_whose_host_never_ran_reaches_the_index()   // the API process: its host stays gated
+    {
+        var schema = postgres.Schema();
+        await using var keys = new NpgsqlKeyStore(postgres.DataSource, new ConfiguredKeyEncryptionKey("t", RandomNumberGenerator.GetBytes(32)), TimeProvider.System,
+            new NpgsqlKeyStoreOptions { Schema = schema });
+        var store = new NpgsqlAggregateStore(postgres.DataSource, ContractJson.Codec(), TimeProvider.System, new NpgsqlStoreOptions { Schema = schema, Keys = keys });
+        await store.EnsureSchema(SchemaMode.Upgrade, CancellationToken.None);
+        var registry = new SearchRegistry().Add<Artwork>();
+        var worker = new SearchHost(registry, new NpgsqlSearchIndex(postgres.DataSource, schema), store, store, new SearchTokens(keys));
+        var apiIndex = new NpgsqlSearchIndex(postgres.DataSource, schema);
+        var api = new SearchHost(registry, apiIndex, store, store, new SearchTokens(keys));      // never started, never caught up
+        var search = new SearchService(registry, apiIndex, new SearchTokens(keys));
+        var art = Artwork.Create("Portrait", "a portrait", owner: "Ada Lovelace");
+        var position = (await store.Append(art, 0, Context, Option.None, CancellationToken.None)).GetValueOrThrow();
+        Tarol.Primitives.AggregateChanges.Committed(art);
+        while (worker.Position < position)
+            await worker.CatchUp(CancellationToken.None);
+        (await search.Search(new SearchQuery("ada lovelace"), Context, CancellationToken.None)).GetValueOrThrow().Items.ShouldHaveSingleItem();
+
+        (await keys.EraseSubject(Tenant.Value, art.Id.Value, CancellationToken.None)).ShouldBeTrue();
+        (await api.Reindex(await store.StreamsOf(Tenant.Value, art.Id.Value, CancellationToken.None), CancellationToken.None)).ShouldBe(1);
+
+        (await search.Search(new SearchQuery("ada lovelace"), Context, CancellationToken.None)).GetValueOrThrow().Items.ShouldBeEmpty();
+        (await search.Search(new SearchQuery("portrait"), Context, CancellationToken.None)).GetValueOrThrow().Items.ShouldHaveSingleItem();
+        await api.Remove(await store.StreamsOf(Tenant.Value, art.Id.Value, CancellationToken.None), CancellationToken.None);
+        (await postgres.Scalar($"SELECT count(*) FROM {schema}.search_v1")).ShouldBe(0L);
+    }
+
+    [Fact]
     public async Task A_missing_extension_privilege_is_explained()
     {
         // a database of its own: its owner is the superuser, the app's role may connect and owns a schema, but may not create extensions

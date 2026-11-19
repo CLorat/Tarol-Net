@@ -181,3 +181,22 @@ Every PR lists its own; together, for a client written against `73b35ff`:
   bob 403`. The erasure line now shows what the missing `?tenant=` hid: `409 DataProtection.ErasureIncomplete … "failed":
   ["search"]`. The search participant fails in the API process; that is its own bug, fixed in the next PR (§10). The export
   afterwards reads `email None` (the key is erased).
+
+## 10. PR A6: the search participant of an erasure in the API process (found by the A5 AppHost run)
+
+* **Finding** **[verified]**: with the tenant passed (A5), the sample's erasure answered 409 with `failed: ["search"]`. The API
+  process registers `AddSearch` for `GET /search`, but its `SearchHost` stays gated (the worker is the runner), so `Prepare`
+  never ran there. `NpgsqlSearchIndex` resolves its version's table in `Prepare`; `Replace` then ran `DELETE FROM  d …` with an
+  empty table name: `42P01: relation "d" does not exist`. Before the tenant fix the same failure was an unhandled 500, and the
+  step 18G run never reached it (the call answered 400).
+* **Fix**: `SearchHost.Reindex` and `SearchHost.Remove` (the erasure and retention paths, outside the feed) prepare the index
+  once (`Prepare` is idempotent: `CREATE … IF NOT EXISTS` and the fingerprint check); a failed preparation is retried by the next
+  call. The OpenSearch and Typesense indexes resolve their index/collection the same way, so the fix in the host covers them.
+* **Test**: `NpgsqlSearchTests.An_erasure_in_a_process_whose_host_never_ran_reaches_the_index` (a worker host feeds the index; a
+  second host on its own index object, never started, re-indexes after the key is erased and removes the documents). Red before
+  the fix with `42P01` **[verified]**.
+* **Behaviour change**: none intended; an erasure in an API process completes instead of failing its search participant.
+* **Public API**: none. **Suppressions**: none.
+* **AppHost run** (`apphost.sh … 5`, JIT, NATS, 2026-11-19) **[verified]**: `erase by alice: {"tenant":"00000000-…","subject":"…",
+  "alreadyErased":false,"streams":1}; export afterwards: email None`; audit `export subject, erase subject, export subject`;
+  tombstone true; the rest as in §9.
