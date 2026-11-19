@@ -55,7 +55,13 @@ app.MapChanges();
   `POST /webhooks/payments` (and `/webhooks/payments/{tenant}`); HMAC-SHA256 over `timestamp.body`, ±5 minutes, secrets from
   `WebhookOptions` (rotation), delivery-id key; 200 / 202 (unknown type) / 401 / 422 / 503 (retry).
 * **OpenAPI**: with `Microsoft.AspNetCore.OpenApi`, `AddOpenApi(o => o.AddTarolEndpoints())` describes every entry
-  (path and header parameters, 2xx with `ETag`, problem responses, value-object rules).
+  (path and header parameters, 2xx with `ETag`, problem responses, value-object rules), complete enough for a typed client:
+  every problem response is the `TarolProblem` component (`type`, `status`, `title`, `code`, `detail`, `errors`);
+  `x-tarol-kind` (`creation`, `change`, `view`, `list`, `search`, `admin`) on every operation; `x-tarol-errors`, the codes
+  known at compile time (Tarol's own and the literal `Error.*("…")` codes of the change and the aggregate methods it calls);
+  `x-tarol-id: "<Aggregate>"` on `Id<T>` schemas and path parameters; `Tarol-Position` and `Idempotent-Replayed` on writes,
+  `Tarol-Stale` on reads; numbers typed `number`/`integer` (not the web defaults' `["number","string"]` with a pattern);
+  `Option<T>` as `T` or `null`; `MapTarolSearch` and `MapTarolAdmin` (Tarol.Operations) with their parameters and answers.
 * **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
 * **Browsers on another origin** (CORS): `TarolHeaders.Allowed` are the request headers a browser client sends,
   `TarolHeaders.Exposed` the response headers it must read (`ETag`, `Location`, `Tarol-Position`, `Tarol-Stale`,

@@ -22,12 +22,15 @@ internal sealed record QueryModel(string Row, EquatableArray<FilterModel> Filter
 internal sealed record EntryModel(string Name, string FullName, EntryKind Kind, string Aggregate, string Verb, string Pattern, string? Policy,
     bool Anonymous, EquatableArray<Member> Members, LocationInfo? Location, QueryModel? Query = null)
 {
+    /// <summary>The problem codes known at compile time (BC-3: <c>x-tarol-errors</c>), sorted.</summary>
+    public EquatableArray<string> Errors { get; init; }
+
     public bool HasBody => Kind is not (EntryKind.View or EntryKind.List) && Members.Count > 0 && System.Linq.Enumerable.Any(Members, m => m.RouteKind is null);
 
     // equality without the location, so a moved declaration regenerates nothing
     public bool Equals(EntryModel? other) => other is not null && Name == other.Name && FullName == other.FullName && Kind == other.Kind
         && Aggregate == other.Aggregate && Verb == other.Verb && Pattern == other.Pattern && Policy == other.Policy && Anonymous == other.Anonymous
-        && Members.Equals(other.Members) && Equals(Query, other.Query);
+        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors);
 
     public override int GetHashCode() => (FullName, Verb, Pattern).GetHashCode();
 }

@@ -8,6 +8,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* OpenAPI for typed clients (BC-3): the generated transformers add the `TarolProblem` component to every problem response,
+  `x-tarol-kind`, `x-tarol-errors` (static codes, also the domain's literal `Error.*` codes), `x-tarol-id`, the
+  `Tarol-Position`/`Idempotent-Replayed`/`Tarol-Stale` headers, `number` instead of `["number","string"]` + pattern,
+  `Option<T>` as `T | null`, and describe `MapTarolSearch` and `MapTarolAdmin`. New: `TarolEndpointMetadata.Errors`,
+  `RouteValue.Aggregate`, `TarolAdminEndpoints.OpenApiTag`; `AddOperations` adds `OperationsJson` to the HTTP JSON options.
+
 * `ZitadelOptions.HubPath` (default `/tarol/messages`, BC-2): under the hub's path `AddZitadel` reads the bearer token from the
   query string `access_token`, as browsers' WebSockets need; elsewhere a query token is ignored. `UiPushOptions.CloseOnAuthenticationExpiration`
   (default `true`, BC-15): the hub closes a connection when its token expires.

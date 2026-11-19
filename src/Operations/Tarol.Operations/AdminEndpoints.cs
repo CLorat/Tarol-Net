@@ -43,20 +43,35 @@ public static class TarolAdminEndpoints
             throw new InvalidOperationException("MapTarolAdmin needs an authorization policy (e.g. \"tarol-admin\"): without one the admin entry would be open.");
         var group = endpoints.MapGroup(prefix.TrimEnd('/'));
         group.RequireAuthorization(policy);
-        group.MapGet("/dead", Kinds);
-        group.MapGet("/dead/{kind}", List);
-        group.MapPost("/dead/{kind}/{id:long}/redrive", RedriveOne);
-        group.MapPost("/dead/{kind}/redrive", RedriveMany);
-        group.MapDelete("/dead/{kind}/{id:long}", Discard);
-        group.MapGet("/projections", Projections);
-        group.MapDelete("/projections/{name}/{version:int}", Drop);
+        group.WithTags(OpenApiTag);
+        // BC-3: each endpoint carries its handler's MethodInfo (OpenAPI describes endpoints that carry one), its answers and an
+        // operation id; the generated transformers of Tarol.Changes.AspNetCore add the parameters and codes by that id
+        Describe(group.MapGet("/dead", Kinds), "TarolAdminKinds", Kinds, typeof(IReadOnlyList<string>));
+        Describe(group.MapGet("/dead/{kind}", List), "TarolAdminDeadLetters", List, typeof(DeadLetterPageView));
+        Describe(group.MapPost("/dead/{kind}/{id:long}/redrive", RedriveOne), "TarolAdminRedrive", RedriveOne, null);
+        Describe(group.MapPost("/dead/{kind}/redrive", RedriveMany), "TarolAdminRedriveMany", RedriveMany, typeof(RedriveView));
+        Describe(group.MapDelete("/dead/{kind}/{id:long}", Discard), "TarolAdminDiscard", Discard, null);
+        Describe(group.MapGet("/projections", Projections), "TarolAdminProjections", Projections, typeof(IReadOnlyList<ProjectionVersion>));
+        Describe(group.MapDelete("/projections/{name}/{version:int}", Drop), "TarolAdminDropProjection", Drop, null);
         // step 16C (DP-6): a data subject's export and erasure, when data protection is registered
         if (endpoints.ServiceProvider.GetService<IDataSubjects>() is not null)
         {
-            group.MapGet("/subjects/{id:guid}/export", ExportSubject);
-            group.MapPost("/subjects/{id:guid}/erase", EraseSubject);
+            Describe(group.MapGet("/subjects/{id:guid}/export", ExportSubject), "TarolAdminExportSubject", ExportSubject, null);
+            Describe(group.MapPost("/subjects/{id:guid}/erase", EraseSubject), "TarolAdminEraseSubject", EraseSubject, typeof(ErasureView));
         }
         return group;
+    }
+
+    /// <summary>The OpenAPI tag of the admin endpoints; the generated OpenAPI transformers of <c>Tarol.Changes.AspNetCore</c>
+    /// give its operations <c>x-tarol-kind: admin</c>, the <c>TarolProblem</c> schema and their codes (BC-3).</summary>
+    public const string OpenApiTag = "Tarol.Admin";
+
+    private static void Describe(IEndpointConventionBuilder endpoint, string name, RequestDelegate handler, Type? answer)
+    {
+        endpoint.WithName(name);
+        endpoint.WithMetadata(handler.Method);
+        if (answer is not null)
+            endpoint.WithMetadata(new ProducesResponseTypeMetadata(StatusCodes.Status200OK, answer, ["application/json"]));
     }
 
     private static IDeadLetterAdmin Admin(HttpContext context) => context.RequestServices.GetRequiredService<IDeadLetterAdmin>();

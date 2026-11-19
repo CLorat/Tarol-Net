@@ -40,7 +40,21 @@ public static class SearchEndpoints
     public static IEndpointConventionBuilder MapTarolSearch(this IEndpointRouteBuilder endpoints, string pattern = "/search", string? policy = null)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        var builder = endpoints.MapGet(pattern, Search).WithName("TarolSearch");
+        var builder = endpoints.MapGet(pattern, Search).WithName("TarolSearch").WithMetadata(
+            ((RequestDelegate)Search).Method,                                   // OpenAPI describes endpoints that carry a MethodInfo (BC-3)
+            new ProducesResponseTypeMetadata(StatusCodes.Status200OK),
+            new TarolEndpointMetadata("search", typeof(SearchHit), [], [], policy,
+            [
+                new("q", "string", [], "The text: words (all must match), \"a phrase\", -word, a OR b; 1 to 256 characters"),
+                new("types", "string", [], "Comma-separated document types; default: every type the caller may read"),
+                new("prefix", "boolean", [], "The last word is a prefix"),
+                new("counts", "boolean", [], "Also count the matches per type"),
+                new("snippets", "boolean", [], "Return a plain-text snippet and its highlights"),
+                new("limit", "int32", [], $"The page size (1 to {SearchLimits.MaxLimit})"),
+                new("after", "string", [], "The cursor of the previous page (its next)"),
+                new("lang", "string", [], "The query's language (ISO 639-1); default: Accept-Language"),
+            ])
+            { Errors = [BuildingCode, "Auth.Forbidden", "Tenant.NotFound"] });
         if (policy is not null)
             builder.RequireAuthorization(policy);
         return builder;

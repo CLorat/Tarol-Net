@@ -142,6 +142,10 @@ var openapi = await Send(HttpMethod.Get, "/openapi/v1.json", null, null);
 var bids = JsonElement.Parse(openapi.Body).GetProperty("paths").GetProperty("/auctions/{auction}/bids").GetProperty("post");
 Check("OpenAPI natively: the generated entry with its path parameter and 204",
     bids.GetProperty("parameters")[0].GetProperty("name").GetString() == "auction" && bids.GetProperty("responses").TryGetProperty("204", out _), openapi.Body.Length);
+Check("OpenAPI natively: x-tarol-kind, x-tarol-errors, x-tarol-id and the TarolProblem schema (BC-3)",
+    bids.GetProperty("x-tarol-kind").GetString() == "change" && bids.GetProperty("x-tarol-errors").GetArrayLength() > 0
+    && bids.GetProperty("parameters")[0].GetProperty("x-tarol-id").GetString() == "Auction"
+    && JsonElement.Parse(openapi.Body).GetProperty("components").GetProperty("schemas").TryGetProperty("TarolProblem", out _), openapi.Body.Length);
 
 await app.StopAsync();
 Console.WriteLine(failures == 0 ? $"Tarol.Changes.AspNetCore AOT smoke ({(pg is { Length: > 0 } ? "Npgsql" : "in-memory")}): all checks passed" : $"{failures} failed");

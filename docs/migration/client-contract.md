@@ -51,6 +51,7 @@ Labels as in the rest of the migration notes: **[verified]** reproduced (a faili
 | CC-2 | Where the query `access_token` is read: (a) an `AddZitadel` option `HubPath` (default `/tarol/messages`, `null` = off) plus BC-15 in the same PR, or (b) also a generic helper in `Tarol.Security` | **(a) the `AddZitadel` option** (recommended) |
 | CC-3 | What the list ETag hashes besides the rows: (a) `next` and `total`, or (b) the projection position | **(a) `next` and `total`** (recommended) |
 | CC-4 | Which Part C items to build in this session | **all**: BC-5, BC-14, BC-11 + BC-12 + BC-13, BC-4 |
+| CC-5 | (found in B3) An `Option<T>` member with a parameter default breaks ASP.NET's OpenAPI schema export. (a) a TWEB diagnostic on such a member of an entry (recommended: cheap, explicit), (b) work around it in the schema transformer, (c) leave it | *open* |
 
 Defaults taken without a question (recommendations; the owner may revise them in review):
 * BC-10's status for an incomplete erasure is 409 (`DataProtection.ErasureIncomplete`), as the session prompt suggests: the
@@ -238,4 +239,40 @@ Every PR lists its own; together, for a client written against `73b35ff`:
   the hub endpoint's dispatcher options close on expiry by default and not when opted out. An expiry test needs a token that
   expires within the test: B4 adds the short-lived token option to the sample; here the mapping is what is tested.
 * **Public API** (generated): `+ ZitadelOptions.HubPath`, `+ UiPushOptions.CloseOnAuthenticationExpiration`.
+* **Suppressions**: none.
+
+## 13. PR B3: OpenAPI complete enough for a typed client (BC-3)
+
+What the generated `AddTarolEndpoints` transformers add (`OpenApiEmitter.cs`; the package still does not reference the OpenAPI
+packages):
+
+| BC-3 | Change |
+|---|---|
+| (a) problems | a document transformer adds the component `TarolProblem` (`type`, `status`, `title` required; `code`, `detail`, `errors` as codes per JSON path); every 4xx/5xx except 401 names it (401 has no body, it gets `WWW-Authenticate`) |
+| (b) kind | `x-tarol-kind`: `creation`, `change`, `view`, `list`, `search`; `admin` for `MapTarolAdmin` |
+| (c) codes | `x-tarol-errors` from `TarolEndpointMetadata.Errors` (new). The generator lists Tarol's codes for the kind (`<Aggregate>.NotFound`, `Auth.Forbidden`, `Stream.VersionConflict`, `Idempotency.KeyReused`, `Idempotency.DuplicateKey`, `<Aggregate>.AlreadyExists`, `Projection.Building`, `Tenant.NotFound` with a `{tenant}` route) and the constant `code` of every `Tarol.Results.Error` factory call in the change's methods and in the methods of the change or the aggregate those call (two levels, source only; a parameter default such as `Error.Forbidden()`'s counts). A code built at run time (`"Order." + id`) is not listed. Search lists `Search.Building`, `Auth.Forbidden`, `Tenant.NotFound`; the admin operations their `AdminProblems` |
+| (d) ids | `x-tarol-id: "<Aggregate>"` on `Id<T>` schemas and on `id` path parameters (`RouteValue.Aggregate`, new) |
+| (e) headers | writes (204, 201): `ETag`, `Tarol-Position`, `Idempotent-Replayed` (+ `Location` on 201); lists and search: `ETag`, `Tarol-Position`, `Tarol-Stale`; 503: `Retry-After` |
+| (g) numbers | a schema with `number`/`integer` **and** `string` plus a pattern (the web defaults' `AllowReadingFromString`) becomes the number type alone, for requests and answers (a client sends numbers) **[verified]**: `highestBid` was `["number","string"]` + pattern |
+| (h) `Option<T>` | its schema is `T`'s schema plus `null` (was `{}`): `OptionOfstring` = `["null","string"]` |
+| (f) search, admin | `MapTarolSearch` carries the handler's `MethodInfo` and `TarolEndpointMetadata("search")` with its query parameters; the transformer writes the page schema (hits with `snippet` and `highlights`, `counts`, `countsCapped`, `next`), 304, 503. `MapTarolAdmin` gives each endpoint its `MethodInfo`, an operation id (`TarolAdminDeadLetters`, …), the 200 answer type and the tag `Tarol.Admin` (`TarolAdminEndpoints.OpenApiTag`); the transformer adds the route and query values, statuses, `TarolProblem` and codes by operation id. `AddOperations` adds `OperationsJson` to the HTTP JSON options so the answer schemas resolve under Native AOT too |
+
+* **Why tables for admin**: `Tarol.Operations` does not reference `Tarol.Changes.AspNetCore` (so it cannot attach
+  `TarolEndpointMetadata`), ApiExplorer takes no parameters from a `RequestDelegate`'s `MethodInfo`, and it drops response
+  metadata without a type. The generated code therefore knows the admin operations by id; the test pins both sides.
+* **Found** **[verified]**: an input or view member `Option<T> X = default` (a parameter default) makes the document throw
+  `JsonException: The JSON value could not be converted to Tarol.Options.Option`1[System.String]` inside ASP.NET's schema
+  exporter (it reads the default value); without the default the member works. Not fixed here: listed as CC-5 below.
+* **Tests**: `EdgeTests.The_openapi_document_is_complete_enough_for_a_typed_client` (a–h against the test app: problem refs on
+  every 4xx/5xx of five operations, kinds, codes including `Bid.TooLow`/`Bid.OwnAuction`/`Auction.NotOpen` found in the aggregate,
+  `x-tarol-id`, headers, the search parameters and highlights, `number`, `Option<T>`), `OpenApiAdminTests` (operation id, kind,
+  codes, parameters, the answer `$ref`, `TarolProblem`, statuses), the generator test
+  `The_static_problem_codes_of_a_change_are_its_metadata` (a constant, a named argument, a parameter default; a computed code
+  is not listed), the `endpoints`/`lists`/`openapi` snapshots (accepted after review: `Errors`, `Aggregate`, the transformers),
+  and the AOT smoke app checks `x-tarol-kind`, `x-tarol-errors`, `x-tarol-id` and `TarolProblem` natively.
+* **AOT** **[verified]**: the first publish of `Tarol.Changes.AspNetCore.AotSmoke` failed with IL2026/IL3050 on the generated
+  `JsonArray.Add<T>(T)` (the generic overload); the codes are added as `JsonNode` now, and the app publishes with 0 IL warnings
+  and passes its new check natively.
+* **Public API** (generated): `+ TarolEndpointMetadata.Errors`, `+ RouteValue.Aggregate`, `+ TarolAdminEndpoints.OpenApiTag`.
+* **Behaviour**: only the OpenAPI document; `AddOperations` appends `OperationsJson` to the HTTP JSON resolver chain.
 * **Suppressions**: none.

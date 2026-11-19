@@ -13,20 +13,30 @@ public static class GeneratedOpenApi
     public static global::Microsoft.AspNetCore.OpenApi.OpenApiOptions AddTarolEndpoints(this global::Microsoft.AspNetCore.OpenApi.OpenApiOptions options)
     {
         global::System.ArgumentNullException.ThrowIfNull(options);
+        options.AddDocumentTransformer(static (document, _, _) =>
+        {
+            document.Components ??= new global::Microsoft.OpenApi.OpenApiComponents();
+            document.Components.Schemas ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>();
+            document.Components.Schemas[ProblemSchemaId] = ProblemSchema();
+            return global::System.Threading.Tasks.Task.CompletedTask;
+        });
         options.AddOperationTransformer(static (operation, context, _) =>
         {
             foreach (var item in context.Description.ActionDescriptor.EndpointMetadata)
                 if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)
                     Complete(operation, metadata);
+                else if (item is global::Microsoft.AspNetCore.Http.Metadata.ITagsMetadata tags && global::System.Linq.Enumerable.Contains(tags.Tags, AdminTag))
+                    Admin(operation);
             return global::System.Threading.Tasks.Task.CompletedTask;
         });
-        options.AddSchemaTransformer(static (schema, context, _) =>
-        {
-            Schema(schema, context.JsonTypeInfo.Type, context.ApplicationServices);
-            return global::System.Threading.Tasks.Task.CompletedTask;
-        });
+        options.AddSchemaTransformer(static (schema, context, cancellationToken) => Schema(schema, context, cancellationToken));
         return options;
     }
+
+    private const string ProblemSchemaId = "TarolProblem";
+
+    /// <summary>The tag of <c>Tarol.Operations</c>' admin endpoints.</summary>
+    private const string AdminTag = "Tarol.Admin";
 
     private static readonly (string Status, string Description)[] Problems =
     {
@@ -39,12 +49,170 @@ public static class GeneratedOpenApi
         ("422", "A read aggregate is missing, or the Idempotency-Key was used for another request"),
     };
 
+    private static global::Microsoft.OpenApi.OpenApiSchema Text(string? description = null, string? format = null)
+        => new() { Type = global::Microsoft.OpenApi.JsonSchemaType.String, Format = format, Description = description };
+
+    /// <summary>The RFC 9457 problem every Tarol endpoint answers (BC-3): <c>code</c> for an error, <c>errors</c> (codes per JSON path) for invalid input.</summary>
+    private static global::Microsoft.OpenApi.OpenApiSchema ProblemSchema() => new()
+    {
+        Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+        Description = "RFC 9457 problem details: code for an error, errors for invalid input",
+        Required = new global::System.Collections.Generic.HashSet<string> { "type", "status", "title" },
+        Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+        {
+            ["type"] = Text("The RFC 9110 section of the status"),
+            ["status"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int32" },
+            ["title"] = Text("The code, or \"One or more fields are invalid.\""),
+            ["code"] = Text("The error's code (e.g. Auction.NotOpen); absent for invalid input"),
+            ["detail"] = Text(),
+            ["errors"] = new global::Microsoft.OpenApi.OpenApiSchema
+            {
+                Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                Description = "The rule codes per JSON path of the input",
+                AdditionalProperties = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = Text() },
+            },
+        },
+    };
+
+    private static global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType> ProblemContent() => new()
+    {
+        ["application/problem+json"] = new global::Microsoft.OpenApi.OpenApiMediaType { Schema = new global::Microsoft.OpenApi.OpenApiSchemaReference(ProblemSchemaId) },
+    };
+
+    private static void Extension(global::System.Collections.Generic.IDictionary<string, global::Microsoft.OpenApi.IOpenApiExtension> extensions, string name,
+        global::System.Text.Json.Nodes.JsonNode? value)
+        => extensions[name] = new global::Microsoft.OpenApi.JsonNodeExtension(value!);
+
+    private static global::Microsoft.OpenApi.OpenApiHeader Header(string description)
+        => new() { Description = description, Schema = Text() };
+
+    /// <summary>The ASP.NET web defaults read numbers from strings too; answers write numbers: <c>number</c>, not <c>["number","string"]</c> with a pattern (BC-3).</summary>
+    private static void Numbers(global::Microsoft.OpenApi.OpenApiSchema schema)
+    {
+        const global::Microsoft.OpenApi.JsonSchemaType numeric = global::Microsoft.OpenApi.JsonSchemaType.Number | global::Microsoft.OpenApi.JsonSchemaType.Integer;
+        if (schema.Type is { } type && (type & global::Microsoft.OpenApi.JsonSchemaType.String) != 0 && (type & numeric) != 0 && schema.Pattern is not null)
+        {
+            schema.Type = type & ~global::Microsoft.OpenApi.JsonSchemaType.String;
+            schema.Pattern = null;
+        }
+    }
+
+    /// <summary><c>Option&lt;T&gt;</c> is <c>T</c> or <c>null</c> on the wire (BC-3).</summary>
+    private static async global::System.Threading.Tasks.Task Optional(global::Microsoft.OpenApi.OpenApiSchema schema,
+        global::Microsoft.AspNetCore.OpenApi.OpenApiSchemaTransformerContext context, global::System.Type inner, global::System.Threading.CancellationToken cancellationToken)
+    {
+        var value = await context.GetOrCreateSchemaAsync(inner, null, cancellationToken);
+        Numbers(value);
+        schema.Type = (value.Type ?? global::Microsoft.OpenApi.JsonSchemaType.Object) | global::Microsoft.OpenApi.JsonSchemaType.Null;
+        schema.Format = value.Format;
+        schema.Pattern = value.Pattern;
+        schema.MinLength = value.MinLength;
+        schema.MaxLength = value.MaxLength;
+        schema.Minimum = value.Minimum;
+        schema.Maximum = value.Maximum;
+        schema.Items = value.Items;
+        schema.Properties = value.Properties;
+        schema.Required = value.Required;
+        schema.Enum = value.Enum;
+    }
+
+    /// <summary>Tarol.Operations' admin endpoints by operation id: the success status, the problem statuses and the codes (its AdminProblems).</summary>
+    private static readonly global::System.Collections.Generic.Dictionary<string, (string Success, string[] Problems, string[] Codes)> AdminOperations = new()
+    {
+        ["TarolAdminKinds"] = ("200", new[] { "403" }, new[] { "Auth.Forbidden" }),
+        ["TarolAdminDeadLetters"] = ("200", new[] { "400", "403", "404" }, new[] { "Admin.Query", "Admin.Kind", "Auth.Forbidden" }),
+        ["TarolAdminRedrive"] = ("204", new[] { "403", "404" }, new[] { "Admin.Kind", "Admin.NotFound", "Auth.Forbidden" }),
+        ["TarolAdminRedriveMany"] = ("200", new[] { "400", "403", "404" }, new[] { "Admin.Query", "Admin.Kind", "Auth.Forbidden" }),
+        ["TarolAdminDiscard"] = ("204", new[] { "403", "404" }, new[] { "Admin.Kind", "Admin.NotFound", "Auth.Forbidden" }),
+        ["TarolAdminProjections"] = ("200", new[] { "403" }, new[] { "Auth.Forbidden" }),
+        ["TarolAdminDropProjection"] = ("204", new[] { "403", "409" }, new[] { "Projection.Drop", "Auth.Forbidden" }),
+        ["TarolAdminExportSubject"] = ("200", new[] { "400", "403" }, new[] { "Admin.Tenant", "Auth.Forbidden" }),
+        ["TarolAdminEraseSubject"] = ("200", new[] { "400", "403", "409" }, new[] { "Admin.Tenant", "DataProtection.ErasureIncomplete", "Auth.Forbidden" }),
+    };
+
+    /// <summary>The route and query values of the admin endpoints by operation id: (name, in, type, format, description).</summary>
+    private static readonly global::System.Collections.Generic.Dictionary<string, (string Name, string In, string Type, string? Format, string Description)[]> AdminParameters = new()
+    {
+        ["TarolAdminDeadLetters"] = new[]
+        {
+            ("kind", "path", "string", (string?)null, "reactions, jobs, messages, …"), ("after", "query", "integer", "int64", "The next of the previous page"),
+            ("limit", "query", "integer", "int32", "At most 200"), ("tenant", "query", "string", "uuid", "Only this tenant's"), ("name", "query", "string", null, "Only this reaction, job or subscription"),
+        },
+        ["TarolAdminRedrive"] = new[] { ("kind", "path", "string", (string?)null, "The kind"), ("id", "path", "integer", "int64", "The dead letter") },
+        ["TarolAdminRedriveMany"] = new[]
+        {
+            ("kind", "path", "string", (string?)null, "The kind"), ("tenant", "query", "string", "uuid", "Only this tenant's"),
+            ("name", "query", "string", null, "Only this reaction, job or subscription"), ("max", "query", "integer", "int32", "At most 1,000 (the default)"),
+        },
+        ["TarolAdminDiscard"] = new[] { ("kind", "path", "string", (string?)null, "The kind"), ("id", "path", "integer", "int64", "The dead letter") },
+        ["TarolAdminDropProjection"] = new[] { ("name", "path", "string", (string?)null, "The projection"), ("version", "path", "integer", "int32", "A superseded version") },
+        ["TarolAdminExportSubject"] = new[] { ("id", "path", "string", (string?)"uuid", "The data subject"), ("tenant", "query", "string", "uuid", "Required; the empty GUID for tenant-less data") },
+        ["TarolAdminEraseSubject"] = new[] { ("id", "path", "string", (string?)"uuid", "The data subject"), ("tenant", "query", "string", "uuid", "Required; the empty GUID for tenant-less data") },
+    };
+
+    private static void Admin(global::Microsoft.OpenApi.OpenApiOperation operation)
+    {
+        if (operation.OperationId is { } op && AdminParameters.TryGetValue(op, out var parameters))
+        {
+            operation.Parameters ??= new global::System.Collections.Generic.List<global::Microsoft.OpenApi.IOpenApiParameter>();
+            foreach (var (name, location, type, format, description) in parameters)
+                if (!global::System.Linq.Enumerable.Any(operation.Parameters, p => p.Name == name))
+                    operation.Parameters.Add(new global::Microsoft.OpenApi.OpenApiParameter
+                    {
+                        Name = name,
+                        In = location == "path" ? global::Microsoft.OpenApi.ParameterLocation.Path : global::Microsoft.OpenApi.ParameterLocation.Query,
+                        Required = location == "path" || (name == "tenant" && op.EndsWith("Subject", global::System.StringComparison.Ordinal)),
+                        Description = description,
+                        Schema = new global::Microsoft.OpenApi.OpenApiSchema
+                        {
+                            Type = type == "integer" ? global::Microsoft.OpenApi.JsonSchemaType.Integer : global::Microsoft.OpenApi.JsonSchemaType.String,
+                            Format = format,
+                        },
+                    });
+        }
+        var extensions = operation.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>();
+        Extension(extensions, "x-tarol-kind", global::System.Text.Json.Nodes.JsonValue.Create("admin"));
+        if (operation.OperationId is not { } id || !AdminOperations.TryGetValue(id, out var known))
+            return;
+        var codes = new global::System.Text.Json.Nodes.JsonArray();
+        foreach (var code in known.Codes)
+            codes.Add((global::System.Text.Json.Nodes.JsonNode)global::System.Text.Json.Nodes.JsonValue.Create(code));
+        Extension(extensions, "x-tarol-errors", codes);
+        operation.Responses ??= new global::Microsoft.OpenApi.OpenApiResponses();
+        if (known.Success == "204")
+        {
+            operation.Responses.Remove("200");
+            operation.Responses["204"] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "Done" };
+        }
+        else if (!operation.Responses.ContainsKey("200"))
+            operation.Responses["200"] = new global::Microsoft.OpenApi.OpenApiResponse
+            {
+                Description = "The subject's data as one JSON document (an attachment)",
+                Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType> { ["application/json"] = new global::Microsoft.OpenApi.OpenApiMediaType() },
+            };
+        operation.Responses["401"] = new global::Microsoft.OpenApi.OpenApiResponse
+        {
+            Description = "Not authenticated",
+            Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader> { ["WWW-Authenticate"] = Header("The scheme's challenge") },
+        };
+        foreach (var status in known.Problems)
+            operation.Responses[status] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "A problem with a code (x-tarol-errors)", Content = ProblemContent() };
+    }
+
     private static void Complete(global::Microsoft.OpenApi.OpenApiOperation operation, global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)
     {
+        var extensions = operation.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>();
+        Extension(extensions, "x-tarol-kind", global::System.Text.Json.Nodes.JsonValue.Create(metadata.Kind));
+        var codes = new global::System.Text.Json.Nodes.JsonArray();
+        foreach (var code in metadata.Errors)
+            codes.Add((global::System.Text.Json.Nodes.JsonNode)global::System.Text.Json.Nodes.JsonValue.Create(code));
+        Extension(extensions, "x-tarol-errors", codes);
         operation.Parameters ??= new global::System.Collections.Generic.List<global::Microsoft.OpenApi.IOpenApiParameter>();
         foreach (var route in metadata.RouteValues)
-            if (!global::System.Linq.Enumerable.Any(operation.Parameters, p => p.Name == route.Name))
-                operation.Parameters.Add(new global::Microsoft.OpenApi.OpenApiParameter
+        {
+            var parameter = global::System.Linq.Enumerable.FirstOrDefault(operation.Parameters, p => p.Name == route.Name) as global::Microsoft.OpenApi.OpenApiParameter;
+            if (parameter is null)
+                operation.Parameters.Add(parameter = new global::Microsoft.OpenApi.OpenApiParameter
                 {
                     Name = route.Name,
                     In = global::Microsoft.OpenApi.ParameterLocation.Path,
@@ -53,17 +221,23 @@ public static class GeneratedOpenApi
                     {
                         "int" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int32" },
                         "long" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int64" },
-                        "string" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String },
-                        _ => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String, Format = "uuid" },
+                        "string" => Text(),
+                        _ => Text(format: "uuid"),
                     },
                 });
+            if (route.Aggregate is { } aggregate)
+                Extension(parameter.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>(), "x-tarol-id",
+                    global::System.Text.Json.Nodes.JsonValue.Create(aggregate));
+        }
         var etag = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>
         {
-            ["ETag"] = new global::Microsoft.OpenApi.OpenApiHeader
-            {
-                Description = "The aggregate's version, for If-Match / If-None-Match",
-                Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String },
-            },
+            ["ETag"] = Header("The aggregate's version, for If-Match / If-None-Match"),
+        };
+        var written = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>
+        {
+            ["ETag"] = Header("The aggregate's version, for If-Match / If-None-Match"),
+            ["Tarol-Position"] = Header("The commit's position, for Tarol-Read-After on a list or search"),
+            ["Idempotent-Replayed"] = Header("true when the answer is the first outcome of a repeated Idempotency-Key"),
         };
         operation.Responses ??= new global::Microsoft.OpenApi.OpenApiResponses();
         if (metadata.Kind is "change" or "creation")
@@ -74,16 +248,16 @@ public static class GeneratedOpenApi
                     Name = name,
                     In = global::Microsoft.OpenApi.ParameterLocation.Header,
                     Description = description,
-                    Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String },
+                    Schema = Text(),
                 });
             operation.Responses.Remove("200");
             if (metadata.Kind == "change")
-                operation.Responses["204"] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "Committed", Headers = etag };
+                operation.Responses["204"] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "Committed", Headers = written };
             else
                 operation.Responses["201"] = new global::Microsoft.OpenApi.OpenApiResponse
                 {
                     Description = "Created (200 for a replayed Idempotency-Key); Location is the new aggregate",
-                    Headers = etag,
+                    Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>(written) { ["Location"] = Header("The new aggregate") },
                     Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType>
                     {
                         ["application/json"] = new global::Microsoft.OpenApi.OpenApiMediaType
@@ -94,7 +268,7 @@ public static class GeneratedOpenApi
                                 Required = new global::System.Collections.Generic.HashSet<string> { "id", "version" },
                                 Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
                                 {
-                                    ["id"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String, Format = "uuid" },
+                                    ["id"] = Text(format: "uuid"),
                                     ["version"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int64" },
                                 },
                             },
@@ -102,13 +276,14 @@ public static class GeneratedOpenApi
                     },
                 };
         }
-        else if (metadata.Kind == "list" && operation.Responses.TryGetValue("200", out var listed) && listed is global::Microsoft.OpenApi.OpenApiResponse page)
+        else if (metadata.Kind is "list" or "search" && operation.Responses.TryGetValue("200", out var listed) && listed is global::Microsoft.OpenApi.OpenApiResponse page)
         {
             foreach (var parameter in metadata.Query ?? global::System.Array.Empty<global::Tarol.Changes.AspNetCore.QueryParameter>())
                 operation.Parameters.Add(new global::Microsoft.OpenApi.OpenApiParameter
                 {
                     Name = parameter.Name,
                     In = global::Microsoft.OpenApi.ParameterLocation.Query,
+                    Required = parameter.Name == "q" && metadata.Kind == "search",
                     Description = parameter.Description,
                     Schema = QuerySchema(parameter),
                 });
@@ -116,39 +291,27 @@ public static class GeneratedOpenApi
             {
                 Name = "Tarol-Read-After",
                 In = global::Microsoft.OpenApi.ParameterLocation.Header,
-                Description = "Wait until the list contains the change that answered this Tarol-Position (bounded; then Tarol-Stale: true)",
-                Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String },
+                Description = "Wait until the " + metadata.Kind + " contains the change that answered this Tarol-Position (bounded; then Tarol-Stale: true)",
+                Schema = Text(),
             });
-            var row = page.Content is { } content && content.TryGetValue("application/json", out var media) ? media.Schema : null;
-            page.Description = "A page of the list";
+            page.Description = metadata.Kind == "list" ? "A page of the list" : "A page of hits, best first";
             page.Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>
             {
-                ["ETag"] = new global::Microsoft.OpenApi.OpenApiHeader { Description = "A weak ETag of the page's rows, for If-None-Match", Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String } },
-                ["Tarol-Position"] = new global::Microsoft.OpenApi.OpenApiHeader { Description = "The projection's position: every change at or before it is in the list", Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String } },
-                ["Tarol-Stale"] = new global::Microsoft.OpenApi.OpenApiHeader { Description = "true when Tarol-Read-After timed out", Schema = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String } },
+                ["ETag"] = Header("A weak ETag of the page, for If-None-Match"),
+                ["Tarol-Position"] = Header("The position read: every change at or before it is in the answer"),
+                ["Tarol-Stale"] = Header("true when Tarol-Read-After timed out"),
             };
+            var row = page.Content is { } content && content.TryGetValue("application/json", out var media) ? media.Schema : null;
             page.Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType>
             {
-                ["application/json"] = new global::Microsoft.OpenApi.OpenApiMediaType
-                {
-                    Schema = new global::Microsoft.OpenApi.OpenApiSchema
-                    {
-                        Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
-                        Required = new global::System.Collections.Generic.HashSet<string> { "items", "next" },
-                        Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
-                        {
-                            ["items"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = row },
-                            ["next"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String | global::Microsoft.OpenApi.JsonSchemaType.Null, Description = "The cursor of the next page (after); null on the last" },
-                            ["total"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int64", Description = "With count=true: the rows of the filters" },
-                        },
-                    },
-                },
+                ["application/json"] = new global::Microsoft.OpenApi.OpenApiMediaType { Schema = metadata.Kind == "list" ? PageSchema(row) : SearchSchema() },
             };
             operation.Responses["304"] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "Not modified (If-None-Match)" };
             operation.Responses["503"] = new global::Microsoft.OpenApi.OpenApiResponse
             {
-                Description = "The projection is being built (a new version); Retry-After says when to ask again",
-                Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType> { ["application/problem+json"] = new global::Microsoft.OpenApi.OpenApiMediaType() },
+                Description = "The " + (metadata.Kind == "list" ? "projection" : "search index") + " is being built (a new version); Retry-After says when to ask again",
+                Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader> { ["Retry-After"] = Header("Seconds") },
+                Content = ProblemContent(),
             };
         }
         else if (operation.Responses.TryGetValue("200", out var ok) && ok is global::Microsoft.OpenApi.OpenApiResponse view)
@@ -158,19 +321,68 @@ public static class GeneratedOpenApi
         }
         foreach (var (status, description) in Problems)
         {
-            if (metadata.Kind is "view" or "list" && status is "409" or "415" or "422")
+            if (metadata.Kind is "view" or "list" or "search" && status is "409" or "415" or "422")
                 continue;
             operation.Responses[status] = new global::Microsoft.OpenApi.OpenApiResponse
             {
                 Description = description,
-                Content = status == "401" ? null : new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType>
-                {
-                    ["application/problem+json"] = new global::Microsoft.OpenApi.OpenApiMediaType(),
-                },
+                Headers = status == "401" ? new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader> { ["WWW-Authenticate"] = Header("The scheme's challenge") } : null,
+                Content = status == "401" ? null : ProblemContent(),
             };
         }
         if (metadata.Policy is not null)
             operation.Description = (operation.Description is { Length: > 0 } d ? d + "\n\n" : "") + "Policy: " + metadata.Policy;
+    }
+
+    private static global::Microsoft.OpenApi.OpenApiSchema PageSchema(global::Microsoft.OpenApi.IOpenApiSchema? row) => new()
+    {
+        Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+        Required = new global::System.Collections.Generic.HashSet<string> { "items", "next" },
+        Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+        {
+            ["items"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = row },
+            ["next"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String | global::Microsoft.OpenApi.JsonSchemaType.Null, Description = "The cursor of the next page (after); null on the last" },
+            ["total"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int64", Description = "With count=true: the rows of the filters" },
+        },
+    };
+
+    private static global::Microsoft.OpenApi.OpenApiSchema SearchSchema()
+    {
+        static global::Microsoft.OpenApi.OpenApiSchema Int(string format) => new() { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = format };
+        var highlight = new global::Microsoft.OpenApi.OpenApiSchema
+        {
+            Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+            Description = "A matched range of the snippet in UTF-16 code units (a JavaScript string's indexes)",
+            Required = new global::System.Collections.Generic.HashSet<string> { "start", "length" },
+            Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema> { ["start"] = Int("int32"), ["length"] = Int("int32") },
+        };
+        var hit = new global::Microsoft.OpenApi.OpenApiSchema
+        {
+            Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+            Required = new global::System.Collections.Generic.HashSet<string> { "type", "id", "aggregate", "title", "score" },
+            Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+            {
+                ["type"] = Text("The document type (a stream type, or an entity's <stream type>.<name>)"),
+                ["id"] = Text("The document's id (an aggregate's or an entity's)", "uuid"),
+                ["aggregate"] = Text("The aggregate it is shown through", "uuid"),
+                ["title"] = Text("The display title (plain text)"),
+                ["score"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Number, Description = "The rank within this page" },
+                ["snippet"] = Text("With snippets=true: plain text, never markup"),
+                ["highlights"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = highlight, Description = "With snippets=true: the matched words of the snippet" },
+            },
+        };
+        return new()
+        {
+            Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+            Required = new global::System.Collections.Generic.HashSet<string> { "items", "next" },
+            Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+            {
+                ["items"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Array, Items = hit },
+                ["counts"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Object, AdditionalProperties = Int("int64"), Description = "With counts=true: matches per type" },
+                ["countsCapped"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Boolean, Description = "With counts=true: a count stopped at its cap" },
+                ["next"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String | global::Microsoft.OpenApi.JsonSchemaType.Null, Description = "The cursor of the next page (after); null on the last" },
+            },
+        };
     }
 
     private static global::Microsoft.OpenApi.OpenApiSchema QuerySchema(global::Tarol.Changes.AspNetCore.QueryParameter parameter)
@@ -180,8 +392,8 @@ public static class GeneratedOpenApi
             "boolean" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Boolean },
             "int32" or "int64" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = parameter.Kind },
             "number" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Number },
-            "uuid" or "date-time" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String, Format = parameter.Kind },
-            _ => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.String },
+            "uuid" or "date-time" => Text(format: parameter.Kind),
+            _ => Text(),
         };
         if (parameter.Values.Count > 0)
             schema.Enum = global::System.Linq.Enumerable.ToList(global::System.Linq.Enumerable.Select(parameter.Values,
@@ -189,11 +401,22 @@ public static class GeneratedOpenApi
         return schema;
     }
 
-    private static void Schema(global::Microsoft.OpenApi.OpenApiSchema schema, global::System.Type type, global::System.IServiceProvider services)
+    private static async global::System.Threading.Tasks.Task Schema(global::Microsoft.OpenApi.OpenApiSchema schema,
+        global::Microsoft.AspNetCore.OpenApi.OpenApiSchemaTransformerContext context, global::System.Threading.CancellationToken cancellationToken)
     {
+        var type = context.JsonTypeInfo.Type;
+        var services = context.ApplicationServices;
+        Numbers(schema);
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(global::Tarol.StronglyTypedId.Id<>))
         {
             (schema.Type, schema.Format) = (global::Microsoft.OpenApi.JsonSchemaType.String, "uuid");
+            Extension(schema.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>(), "x-tarol-id",
+                global::System.Text.Json.Nodes.JsonValue.Create(type.GetGenericArguments()[0].Name));
+            return;
+        }
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(global::Tarol.Options.Option<>))
+        {
+            await Optional(schema, context, type.GetGenericArguments()[0], cancellationToken);
             return;
         }
         if (type == typeof(global::Shop.Quantity))

@@ -31,7 +31,10 @@ public static class GeneratedEndpoints
                 new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata("creation", typeof(global::Shop.OpenOrder),
                     new global::Tarol.Changes.AspNetCore.RouteValue[] {  },
                     new string[] { web.Names(("Customer", null))[0] },
-                    "orders:write"));
+                    "orders:write")
+                {
+                    Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.AlreadyExists", "Stream.VersionConflict" },
+                });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:write");
         }
         {
@@ -41,9 +44,12 @@ public static class GeneratedEndpoints
                 new global::Microsoft.AspNetCore.Http.ProducesResponseTypeMetadata(200, typeof(global::Shop.OrderView), new[] { "application/json" }),
                 ((global::Microsoft.AspNetCore.Http.RequestDelegate)View_Shop_OrderView).Method,                // OpenAPI describes endpoints that carry a MethodInfo
                 new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata("view", typeof(global::Shop.OrderView),
-                    new global::Tarol.Changes.AspNetCore.RouteValue[] { new("order", "id", web.Names(("Id", null))[0]) },
+                    new global::Tarol.Changes.AspNetCore.RouteValue[] { new("order", "id", web.Names(("Id", null))[0]) { Aggregate = "Order" } },
                     new string[] {  },
-                    null));
+                    null)
+                {
+                    Errors = new string[] { "Auth.Forbidden", "Order.NotFound" },
+                });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
         {
@@ -54,9 +60,12 @@ public static class GeneratedEndpoints
                 new global::Microsoft.AspNetCore.Http.ProducesResponseTypeMetadata(204),
                 ((global::Microsoft.AspNetCore.Http.RequestDelegate)Run_Shop_AddItems).Method,                // OpenAPI describes endpoints that carry a MethodInfo
                 new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata("change", typeof(global::Shop.AddItems),
-                    new global::Tarol.Changes.AspNetCore.RouteValue[] { new("order", "id", web.Names(("Order", null))[0]) },
+                    new global::Tarol.Changes.AspNetCore.RouteValue[] { new("order", "id", web.Names(("Order", null))[0]) { Aggregate = "Order" } },
                     new string[] { web.Names(("Quantity", null))[0], web.Names(("Note", "note_text"))[0], web.Names(("Priority", null))[0] },
-                    null));
+                    null)
+                {
+                    Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.NotFound", "Stream.VersionConflict" },
+                });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
         {
@@ -67,9 +76,12 @@ public static class GeneratedEndpoints
                 new global::Microsoft.AspNetCore.Http.ProducesResponseTypeMetadata(204),
                 ((global::Microsoft.AspNetCore.Http.RequestDelegate)Run_Shop_RemoveLine).Method,                // OpenAPI describes endpoints that carry a MethodInfo
                 new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata("change", typeof(global::Shop.RemoveLine),
-                    new global::Tarol.Changes.AspNetCore.RouteValue[] { new("order", "id", web.Names(("Order", null))[0]), new("line", "int", web.Names(("Line", null))[0]) },
+                    new global::Tarol.Changes.AspNetCore.RouteValue[] { new("order", "id", web.Names(("Order", null))[0]) { Aggregate = "Order" }, new("line", "int", web.Names(("Line", null))[0]) },
                     new string[] {  },
-                    null));
+                    null)
+                {
+                    Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.NotFound", "Stream.VersionConflict" },
+                });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.AllowAnonymous(endpoint);
         }
         global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.AllowAnonymous(global::Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapPost(app, "/webhooks/carrier", (global::Microsoft.AspNetCore.Http.RequestDelegate)Webhook_carrier));

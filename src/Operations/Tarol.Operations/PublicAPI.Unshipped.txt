@@ -7,3 +7,4 @@ const Tarol.Operations.AdminProblems.NotFound = "Admin.NotFound" -> string!
 const Tarol.Operations.AdminProblems.ProjectionDrop = "Projection.Drop" -> string!
 const Tarol.Operations.AdminProblems.Query = "Admin.Query" -> string!
 const Tarol.Operations.AdminProblems.Tenant = "Admin.Tenant" -> string!
+const Tarol.Operations.TarolAdminEndpoints.OpenApiTag = "Tarol.Admin" -> string!

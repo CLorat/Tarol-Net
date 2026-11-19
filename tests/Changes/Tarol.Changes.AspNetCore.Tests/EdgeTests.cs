@@ -84,6 +84,62 @@ public sealed class EdgeTests
         paths.EnumerateObject().Select(p => p.Name).ShouldNotContain("/webhooks/payments");     // webhooks are not the API
     }
 
+    [Fact]
+    public async Task The_openapi_document_is_complete_enough_for_a_typed_client()      // BC-3
+    {
+        await using var app = await Start(search: true);
+
+        var root = JsonElement.Parse((await app.Get("/openapi/v1.json", Nobody)).Body);
+        var paths = root.GetProperty("paths");
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        var bids = paths.GetProperty("/auctions/{auction}/bids").GetProperty("post");
+        var create = paths.GetProperty("/auctions").GetProperty("post");
+        var view = paths.GetProperty("/auctions/{auction}").GetProperty("get");
+        var list = paths.GetProperty("/auctions").GetProperty("get");
+        var search = paths.GetProperty("/search").GetProperty("get");
+
+        // (a) every problem response names the TarolProblem schema
+        var problem = schemas.GetProperty("TarolProblem");
+        problem.GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["type", "status", "title"], ignoreOrder: true);
+        problem.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["type", "status", "title", "code", "detail", "errors"], ignoreOrder: true);
+        foreach (var operation in new[] { bids, create, view, list, search })
+            foreach (var response in operation.GetProperty("responses").EnumerateObject().Where(r => r.Name[0] is '4' or '5' && r.Name != "401"))
+                response.Value.GetProperty("content").GetProperty("application/problem+json").GetProperty("schema").GetProperty("$ref").GetString()
+                    .ShouldBe("#/components/schemas/TarolProblem", $"{operation.GetProperty("operationId")} {response.Name}");
+        // (b) the kind of every operation
+        new[] { bids, create, view, list, search }.Select(o => o.GetProperty("x-tarol-kind").GetString()).ShouldBe(["change", "creation", "view", "list", "search"]);
+        // (c) the static codes: Tarol's own and the domain's literal Error codes
+        Codes(bids).ShouldBe(["Auction.NotFound", "Auction.NotOpen", "Auth.Forbidden", "Bid.OwnAuction", "Bid.TooLow", "Idempotency.DuplicateKey",
+            "Idempotency.KeyReused", "Stream.VersionConflict"]);
+        Codes(view).ShouldBe(["Auction.NotFound", "Auth.Forbidden"]);
+        Codes(search).ShouldContain(SearchEndpoints.BuildingCode);
+        // (d) the aggregate of an id path parameter and of an Id<T> schema
+        bids.GetProperty("parameters")[0].GetProperty("x-tarol-id").GetString().ShouldBe("Auction");
+        // (e) the headers a client reads
+        Headers(bids, "204").ShouldBe(["ETag", "Idempotent-Replayed", "Tarol-Position"], ignoreOrder: true);
+        Headers(create, "201").ShouldBe(["ETag", "Idempotent-Replayed", "Location", "Tarol-Position"], ignoreOrder: true);
+        Headers(list, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale"], ignoreOrder: true);
+        Headers(search, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale"], ignoreOrder: true);
+        // (f) search with its parameters and its page; (g) numbers are numbers; (h) Option<T> is T or null
+        search.GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString())
+            .ShouldBe(["q", "types", "prefix", "counts", "snippets", "limit", "after", "lang", "Tarol-Read-After"]);
+        var hit = search.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema")
+            .GetProperty("properties").GetProperty("items").GetProperty("items").GetProperty("properties");
+        hit.GetProperty("highlights").GetProperty("items").GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["start", "length"], ignoreOrder: true);
+        var summary = schemas.GetProperty("AuctionSummary").GetProperty("properties");
+        summary.GetProperty("highestBid").GetProperty("type").GetString().ShouldBe("number");
+        summary.GetProperty("highestBid").TryGetProperty("pattern", out _).ShouldBeFalse();
+        summary.GetProperty("bids").GetProperty("type").GetString().ShouldBe("integer");
+        var payment = summary.GetProperty("payment");
+        var option = payment.TryGetProperty("$ref", out var reference) ? schemas.GetProperty(reference.GetString()!["#/components/schemas/".Length..]) : payment;
+        option.GetProperty("type").EnumerateArray().Select(t => t.GetString()).ShouldBe(["null", "string"], ignoreOrder: true);
+    }
+
+    private static string[] Codes(JsonElement operation) => [.. operation.GetProperty("x-tarol-errors").EnumerateArray().Select(c => c.GetString()!)];
+
+    private static string[] Headers(JsonElement operation, string status)
+        => [.. operation.GetProperty("responses").GetProperty(status).GetProperty("headers").EnumerateObject().Select(h => h.Name)];
+
     private static string[] Statuses(JsonElement operation)
         => [.. operation.GetProperty("responses").EnumerateObject().Select(r => r.Name).Order(StringComparer.Ordinal)];
 

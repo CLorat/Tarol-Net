@@ -1,6 +1,10 @@
 #nullable enable
 Tarol.Changes.AspNetCore.ChangeEndpoints.ReadJson(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<(byte[]? Bytes, int Status)>
+Tarol.Changes.AspNetCore.RouteValue.Aggregate.get -> string?
+Tarol.Changes.AspNetCore.RouteValue.Aggregate.init -> void
 Tarol.Changes.AspNetCore.SearchEndpoints
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Errors.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Errors.init -> void
 Tarol.Changes.AspNetCore.TarolHeaders
 const Tarol.Changes.AspNetCore.SearchEndpoints.BuildingCode = "Search.Building" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.IdempotencyKey = "Idempotency-Key" -> string!

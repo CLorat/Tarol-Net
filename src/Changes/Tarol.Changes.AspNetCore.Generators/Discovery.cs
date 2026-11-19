@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Tarol.Changes.AspNetCore.Generators;
 
@@ -107,7 +108,10 @@ internal static class Discovery
         var policy = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Policy").Value.Value as string;
         var anonymous = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Anonymous").Value.Value is true;
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), kind, aggregate, verb, pattern, policy, anonymous,
-            new EquatableArray<Member>(members.ToImmutableArray()), location);
+            new EquatableArray<Member>(members.ToImmutableArray()), location)
+        {
+            Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct),
+        };
         return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), default);
     }
 
@@ -243,7 +247,10 @@ internal static class Discovery
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), EntryKind.List, aggregate, verb, pattern, policy, anonymous,
             new EquatableArray<Member>(members.ToImmutableArray()), location,
             new QueryModel(row.ToDisplayString(Fq), new EquatableArray<FilterModel>(filters.ToImmutableArray()), sortMember,
-                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort));
+                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort))
+        {
+            Errors = Codes(EntryKind.List, aggregate, placeholders.Contains("tenant"), type, null, ct),
+        };
         return new(model, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
@@ -401,6 +408,93 @@ internal static class Discovery
             list.Add(cut < 0 ? inner : inner.Substring(0, cut));
         }
         return list;
+    }
+
+    /// <summary>
+    /// The problem codes an entry can answer that are known at compile time (BC-3): Tarol's own for the kind, and the constant
+    /// first argument of every <c>Tarol.Results.Error</c> factory called in the input's methods and in the methods of the input
+    /// or the aggregate that those call (two levels; source only). A code built at run time is not found.
+    /// </summary>
+    internal static EquatableArray<string> Codes(EntryKind kind, string aggregate, bool tenantRoute, INamedTypeSymbol input, Compilation? compilation,
+        CancellationToken ct)
+    {
+        var name = Short(aggregate);
+        var codes = new SortedSet<string>(StringComparer.Ordinal) { "Auth.Forbidden" };
+        if (tenantRoute)
+            codes.Add("Tenant.NotFound");
+        switch (kind)
+        {
+            case EntryKind.Change:
+                codes.UnionWith([name + ".NotFound", "Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
+                break;
+            case EntryKind.Creation:
+                codes.UnionWith([name + ".AlreadyExists", "Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
+                break;
+            case EntryKind.View:
+                codes.Add(name + ".NotFound");
+                break;
+            case EntryKind.List:
+                codes.Add("Projection.Building");
+                break;
+        }
+        if (kind is EntryKind.Change or EntryKind.Creation && compilation is not null)
+        {
+            var visited = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
+            foreach (var method in input.GetMembers().OfType<IMethodSymbol>())
+                if (!method.IsImplicitlyDeclared)
+                    Scan(method, 0);
+
+            void Scan(IMethodSymbol method, int depth)
+            {
+                if (!visited.Add(method.OriginalDefinition))
+                    return;
+                foreach (var reference in method.OriginalDefinition.DeclaringSyntaxReferences)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var node = reference.GetSyntax(ct);
+                    if (!compilation!.ContainsSyntaxTree(node.SyntaxTree))
+                        continue;
+                    var model = compilation.GetSemanticModel(node.SyntaxTree);
+                    foreach (var invocation in node.DescendantNodes().OfType<InvocationExpressionSyntax>())
+                    {
+                        if (model.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol called)
+                            continue;
+                        if (called.IsStatic && called.ContainingType?.ToDisplayString() == "Tarol.Results.Error")
+                        {
+                            if (Code(invocation, called, model, ct) is { } code)
+                                codes.Add(code);
+                        }
+                        else if (depth < 2 && called.DeclaringSyntaxReferences.Length > 0
+                                 && (SymbolEqualityComparer.Default.Equals(called.ContainingType, input)
+                                     || called.ContainingType?.ToDisplayString(Fq) == aggregate))
+                            Scan(called, depth + 1);
+                    }
+                }
+            }
+        }
+        return new EquatableArray<string>(codes.ToImmutableArray());
+    }
+
+    /// <summary>The code of an <c>Error</c> factory call: a constant <c>code</c> argument, or the parameter's default.</summary>
+    private static string? Code(InvocationExpressionSyntax invocation, IMethodSymbol called, SemanticModel model, CancellationToken ct)
+    {
+        var parameter = called.Parameters.FirstOrDefault(p => p.Name == "code");
+        if (parameter is null || parameter.Type.SpecialType != SpecialType.System_String)
+            return null;
+        var index = called.Parameters.IndexOf(parameter);
+        foreach (var (argument, i) in invocation.ArgumentList.Arguments.Select((a, i) => (a, i)))
+            if (argument.NameColon?.Name.Identifier.Text == "code" || (argument.NameColon is null && i == index))
+                return model.GetConstantValue(argument.Expression, ct).Value as string;
+        return parameter.HasExplicitDefaultValue ? parameter.ExplicitDefaultValue as string : null;
+    }
+
+    private static string Short(string fullName)
+    {
+        var name = fullName.StartsWith("global::", StringComparison.Ordinal) ? fullName.Substring(8) : fullName;
+        var generic = name.IndexOf('<');
+        if (generic >= 0)
+            name = name.Substring(0, generic);
+        return name.Substring(name.LastIndexOf('.') + 1);
     }
 
     private static string? RouteKind(ITypeSymbol type)

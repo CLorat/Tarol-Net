@@ -95,10 +95,12 @@ public partial class Payout : AggregateRoot<Payout>
 
 /// <summary>GET by id (R-8): a view of one aggregate (hides Reserve and the bidders), built from the loaded aggregate.</summary>
 [Endpoint("GET /auctions/{auction}", Policy = "auctions:read")]
-public sealed record AuctionSummary(Guid Id, string Title, string Seller, AuctionStatus Status, decimal HighestBid, int Bids, DateTimeOffset EndsAt)
+public sealed record AuctionSummary(Guid Id, string Title, string Seller, AuctionStatus Status, decimal HighestBid, int Bids, DateTimeOffset EndsAt,
+    Tarol.Options.Option<string> Payment)
     : IView<Auction, AuctionSummary>
 {
-    public static AuctionSummary From(Auction a) => new(a.Id.Value, a.Title, a.Seller, a.Status, a.Bids.Count == 0 ? 0 : a.HighestBid, a.Bids.Count, a.EndsAt);
+    public static AuctionSummary From(Auction a) => new(a.Id.Value, a.Title, a.Seller, a.Status, a.Bids.Count == 0 ? 0 : a.HighestBid, a.Bids.Count, a.EndsAt,
+        a.PaymentId is { } payment ? payment : Tarol.Options.Option.None);
 }
 
 /// <summary>The payment provider's own contract (anti-corruption: its names stay here).</summary>

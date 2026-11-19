@@ -35,7 +35,10 @@ public static class GeneratedEndpoints
                         new("limit", "int32", global::System.Array.Empty<string>(), "The page size (default and maximum: the endpoint options)"),
                         new("offset", "int32", global::System.Array.Empty<string>(), "Rows to skip, bounded; page deeper with after"),
                         new("count", "boolean", global::System.Array.Empty<string>(), "Also count every row of the filters (total)"),
-                    }));
+                    })
+                {
+                    Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
         {
@@ -57,7 +60,10 @@ public static class GeneratedEndpoints
                         new("limit", "int32", global::System.Array.Empty<string>(), "The page size (default and maximum: the endpoint options)"),
                         new("offset", "int32", global::System.Array.Empty<string>(), "Rows to skip, bounded; page deeper with after"),
                         new("count", "boolean", global::System.Array.Empty<string>(), "Also count every row of the filters (total)"),
-                    }));
+                    })
+                {
+                    Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:read");
         }
         return app;

@@ -40,6 +40,8 @@ public static class OperationsTarolBuilderExtensions
         options.Validate();
         services.AddSingleton(options);
         services.TryAddSingleton(TimeProvider.System);
+        // the admin answers' metadata for an OpenAPI document (BC-3), also under Native AOT (no reflection-based fallback)
+        services.ConfigureHttpJsonOptions(static json => json.SerializerOptions.TypeInfoResolverChain.Add(OperationsJson.Default));
         services.AddSingleton(static provider => new OperationsHost(provider.GetServices<OperationsSignal>(), provider,
             provider.GetRequiredService<OperationsOptions>(), provider.GetRequiredService<TimeProvider>(),
             provider.GetService<ILogger<OperationsHost>>(), provider.GetService<IMeterFactory>()));
