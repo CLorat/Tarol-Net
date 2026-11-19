@@ -753,7 +753,7 @@ gains the search check: 0 IL warnings, natively green.
 ### 18.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
 
 Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,004 passed** (after `main`'s #74;
-an earlier run failed one Persistence test with `53300 too many clients`, a fixture limit fixed separately in #79);
+an earlier run failed one Persistence test with `53300 too many clients`, a fixture limit: the PostgreSQL test containers now allow 300 connections, part 1 of this step);
 `eng/aot-smoke.sh` **26 apps**, 0 IL warnings (the AspNetCore smoke's search check natively); pack 27 packages;
 `eng/verify-packages.sh` OK.
 
