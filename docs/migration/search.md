@@ -743,19 +743,19 @@ only, one of "alice" by alice only); cursor pages and a prefix; 503 + `Retry-Aft
 row green. The test domain's `Auction`, `Payout` and a new `Memo` are `[Searchable]`. `Tarol.Changes.AspNetCore.AotSmoke`
 gains the search check: 0 IL warnings, natively green.
 
-### 18.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
-
-Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,004 passed** (after `main`'s #74;
-an earlier run failed one Persistence test with `53300 too many clients`, a fixture limit fixed separately in #79);
-`eng/aot-smoke.sh` **26 apps**, 0 IL warnings (the AspNetCore smoke's search check natively); pack 27 packages;
-`eng/verify-packages.sh` OK.
-
 ### 18.5 Skill evaluation checklist (`tarol-endpoints`)
 
 | Task | Expected API | Mistake to avoid |
 |---|---|---|
 | expose search over HTTP | `app.MapTarolSearch("/search", "policy")` after `AddSearch` | mapping without `AddSecurity` (entries fail closed) |
 | hide documents per user | `[SearchAudience]` on the aggregate | expecting row rules (`ChangeHandler<,>`) to filter hits |
+
+### 18.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,004 passed** (after `main`'s #74;
+an earlier run failed one Persistence test with `53300 too many clients`, a fixture limit fixed separately in #79);
+`eng/aot-smoke.sh` **26 apps**, 0 IL warnings (the AspNetCore smoke's search check natively); pack 27 packages;
+`eng/verify-packages.sh` OK.
 
 ## 19. Implementation: PR 18E (2026-11-18)
 
@@ -803,6 +803,13 @@ first assumed an order between two title matches; BM25 puts the shorter title fi
 | authenticate | the `HttpClient`'s handler or header from configuration | credentials in code or committed settings |
 | read your own write | `WaitForRefresh = true` | expecting it within milliseconds by default |
 
+### 19.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; `dotnet test --solution Tarol.slnx` with Docker **2,024 passed** (OpenSearch in Testcontainers);
+`eng/aot-smoke.sh` **27 apps**, 0 IL warnings; pack 28 packages; `eng/verify-packages.sh` OK. The first run's format check
+rejected the compact JSON writer lines in `OpenSearchIndex` (`WHITESPACE`); one statement per line since, and
+`dotnet format Tarol.slnx --verify-no-changes` reports no changes.
+
 ## 20. Implementation: PR 18F (2026-11-18)
 
 `search.typesense: the Typesense adapter` (new package `Tarol.Search.Typesense`, GS-3).
@@ -842,4 +849,3 @@ key) 9 checks pass natively.
 |---|---|---|
 | run search on Typesense | `UseNpgsqlSearchCheckpoints()`, `UseTypesense(_ => Client(server, key))` | the API key in code or committed settings |
 | search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting the `de` locale to fold umlauts |
-
