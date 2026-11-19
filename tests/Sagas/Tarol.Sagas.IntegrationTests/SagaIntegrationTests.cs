@@ -19,7 +19,9 @@ namespace Tarol.Sagas.IntegrationTests;
 /// <summary>One PostgreSQL 17 container per run; every test gets a schema of its own (claims cross tenants).</summary>
 public sealed class Postgres : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17")
+        .WithCommand("-c", "max_connections=300")                 // above the test pools (up to 200) and their extra data sources
+        .Build();
     private int _schemas;
 
     public NpgsqlDataSource DataSource { get; private set; } = null!;
