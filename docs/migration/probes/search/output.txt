@@ -939,3 +939,44 @@ INFO pg trigram index on (tenant, title): 8.8 s, 78 MB
 | 1,000,000 | pg_trgm | typo (rank 300, 1 substitution) | all tenants | 19 | 260.92 | 1583.84 | 20 |
 
 ## done 22:13
+
+## 12. The built index (PR 18C): NpgsqlSearchIndex at 1M documents, written through Replace, queried through Search (with the query's language, and without: three configurations OR-ed)
+# the built index (JIT): 1,000,000 documents through NpgsqlSearchIndex.Replace, then Search
+INFO written 1,000,000 documents in 113.4 s, 8,821 docs/s (batches of 2,000, one transaction each, indexes maintained)
+INFO table with indexes: 1364 MB
+| docs | language | query | scope | n | p50 ms | p99 ms | hits |
+|---|---|---|---|---|---|---|---|
+| 1,000,000 | en | common (rank 10) | tenant 10 % | 100 | 19.29 | 31.27 | 20 |
+| 1,000,000 | en | common (rank 10) | tenant 0.1 % | 100 | 3.00 | 6.54 | 20 |
+| 1,000,000 | en | medium (rank 100) | tenant 10 % | 100 | 7.80 | 12.21 | 20 |
+| 1,000,000 | en | medium (rank 100) | tenant 0.1 % | 100 | 2.62 | 3.12 | 20 |
+| 1,000,000 | en | rare (rank 3000) | tenant 10 % | 100 | 3.32 | 5.38 | 20 |
+| 1,000,000 | en | rare (rank 3000) | tenant 0.1 % | 100 | 2.46 | 14.32 | 1 |
+| 1,000,000 | en | two words (100 & 300) | tenant 10 % | 100 | 5.56 | 8.26 | 20 |
+| 1,000,000 | en | two words (100 & 300) | tenant 0.1 % | 100 | 17.44 | 26.19 | 0 |
+| 1,000,000 | en | prefix (4 letters of rank 500) | tenant 10 % | 100 | 22.13 | 96.59 | 20 |
+| 1,000,000 | en | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 14.47 | 66.43 | 20 |
+| 1,000,000 | en | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 51.60 | 135.40 | 7 |
+| 1,000,000 | en | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 8.58 | 11.86 | 1 |
+| 1,000,000 | en | medium + counts per type | tenant 10 % | 100 | 11.75 | 16.29 | 20 of 1,001+ |
+| 1,000,000 | en | medium + counts per type | tenant 0.1 % | 100 | 2.50 | 3.17 | 20 of 36 |
+| 1,000,000 | en | medium + snippets | tenant 10 % | 100 | 7.34 | 14.04 | 20 |
+| 1,000,000 | en | medium + snippets | tenant 0.1 % | 100 | 2.14 | 3.42 | 20 |
+| 1,000,000 | none (3 OR-ed) | common (rank 10) | tenant 10 % | 100 | 20.43 | 33.07 | 20 |
+| 1,000,000 | none (3 OR-ed) | common (rank 10) | tenant 0.1 % | 100 | 4.46 | 9.28 | 20 |
+| 1,000,000 | none (3 OR-ed) | medium (rank 100) | tenant 10 % | 100 | 6.98 | 7.69 | 20 |
+| 1,000,000 | none (3 OR-ed) | medium (rank 100) | tenant 0.1 % | 100 | 1.52 | 1.89 | 20 |
+| 1,000,000 | none (3 OR-ed) | rare (rank 3000) | tenant 10 % | 100 | 1.63 | 2.14 | 20 |
+| 1,000,000 | none (3 OR-ed) | rare (rank 3000) | tenant 0.1 % | 100 | 1.03 | 11.06 | 1 |
+| 1,000,000 | none (3 OR-ed) | two words (100 & 300) | tenant 10 % | 100 | 3.68 | 4.98 | 20 |
+| 1,000,000 | none (3 OR-ed) | two words (100 & 300) | tenant 0.1 % | 100 | 16.56 | 26.55 | 0 |
+| 1,000,000 | none (3 OR-ed) | prefix (4 letters of rank 500) | tenant 10 % | 100 | 24.79 | 66.99 | 20 |
+| 1,000,000 | none (3 OR-ed) | prefix (4 letters of rank 500) | tenant 0.1 % | 100 | 18.12 | 66.92 | 20 |
+| 1,000,000 | none (3 OR-ed) | typo (rank 300, 1 substitution) | tenant 10 % | 100 | 49.23 | 129.76 | 7 |
+| 1,000,000 | none (3 OR-ed) | typo (rank 300, 1 substitution) | tenant 0.1 % | 100 | 8.08 | 11.94 | 1 |
+| 1,000,000 | none (3 OR-ed) | medium + counts per type | tenant 10 % | 100 | 12.31 | 21.92 | 20 of 1,001+ |
+| 1,000,000 | none (3 OR-ed) | medium + counts per type | tenant 0.1 % | 100 | 2.60 | 3.51 | 20 of 36 |
+| 1,000,000 | none (3 OR-ed) | medium + snippets | tenant 10 % | 100 | 7.16 | 8.40 | 20 |
+| 1,000,000 | none (3 OR-ed) | medium + snippets | tenant 0.1 % | 100 | 1.87 | 2.22 | 20 |
+
+## done 00:32

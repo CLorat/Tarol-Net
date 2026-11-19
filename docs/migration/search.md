@@ -486,7 +486,19 @@ For each skill, an agent given only the skill and the package must do these task
 
 ## 13. Verification of this PR
 
-⟨verification⟩
+Design only: this PR adds the two notes, the plan row, a CHANGELOG line and the probes; no package code changes. Checked on
+this branch over `main` = `15c5706` (after #73) **[verified]**, SDK 11.0.100, 4 cores, Docker 29.10:
+
+| Check | Result |
+|---|---|
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet format Tarol.slnx --verify-no-changes` | no changes |
+| `dotnet test --solution Tarol.slnx` (Docker) | **1,896 passed**, 0 failed, 0 skipped (the session prompt expected 1,864: #73 added 32 tests). The first run failed 56 integration tests in two assemblies at fixture start: Docker Hub answered 429 for `postgres:17`; the images were pulled from `mirror.gcr.io` and tagged, the rerun passed |
+| `eng/aot-smoke.sh` (`TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`) | **24 apps**, 0 IL warnings, all checks pass |
+| `dotnet pack -c Release` | **25 packages** |
+| `eng/verify-packages.sh` | OK |
+| the probe (`probes/search/all.sh`) | sections 1–11, JIT and Native AOT (0 IL warnings), [`output.txt`](probes/search/output.txt) |
+| `main`'s CI on `15c5706` | `build`, `integration`, `aot-smoke`, CodeQL green; `v0.1.0-preview.1` released (2026-11-18) |
 
 ## 14. Open items
 
@@ -494,6 +506,7 @@ For each skill, an agent given only the skill and the package must do these task
   (`main` carries BUSL-1.1 parts, §4.1).
 * Semantic search (`pgvector`): later, if a scenario asks (§2.10).
 * Elasticsearch: the OpenSearch adapter's API family; not verified against Elasticsearch **[unverified]**.
+* PostgreSQL: a query without hits pays for the typo fallback (§17.4); skip it when every word of a multi-word query exists.
 
 ## 15. Implementation: PR 18A (2026-11-18)
 
@@ -602,6 +615,12 @@ Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Do
 
 None.
 
+### 16.7 Verification (SDK 11.0.100, 2026-11-18) **[verified]**
+
+Build 0 warnings; format no changes (after ordering one file's imports); `dotnet test --solution Tarol.slnx` with Docker **1,960
+passed** (+61: 43 unit and contract, 18 generator); `eng/aot-smoke.sh` **25 apps**, 0 IL warnings; pack **26 packages**;
+`eng/verify-packages.sh` OK (after dropping an unneeded import in the package consumer).
+
 ## 17. Implementation: PR 18C (2026-11-18)
 
 `search.npgsql: PostgreSQL full-text search` (new package `Tarol.Search.Npgsql`).
@@ -644,7 +663,26 @@ documents**; a database user without CREATE on the database gets the error namin
 
 ### 17.4 Measurement of the built index **[verified]** (probe §12, [`output.txt`](probes/search/output.txt))
 
-⟨impl⟩
+1,000,000 documents written through `NpgsqlSearchIndex.Replace` (batches of 2,000, one transaction each, indexes maintained):
+**113 s, 8,821 docs/s**; table with indexes 1,364 MB. Queried through `Search` (round 2 of 2, page of 20, p50 / p99 ms):
+
+| Query | tenant 10 %, language "en" | tenant 10 %, no language (3 OR-ed) | tenant 0.1 %, no language |
+|---|---|---|---|
+| common word | 19 / 31 | 20 / 33 | 4.5 / 9.3 |
+| medium word | 7.8 / 12 | 7.0 / 7.7 | 1.5 / 1.9 |
+| rare word | 3.3 / 5.4 | 1.6 / 2.1 | 1.0 / 11 |
+| two words | 5.6 / 8.3 | 3.7 / 5.0 | 17 / 27 (no hit: the typo fallback runs) |
+| prefix (4 letters) | 22 / 97 | 25 / 67 | 18 / 67 |
+| typo (fallback) | 52 / 135 | 49 / 130 | 8.1 / 12 |
+| medium + counts per type | 12 / 16 (counts stop at 1,001+) | 12 / 22 | 2.6 / 3.5 |
+| medium + snippets | 7.3 / 14 | 7.2 / 8.4 | 1.9 / 2.2 |
+
+* The built index answers like the probe's bounded GIN(tenant, tsv) (§4.2: common 16 / 26, medium 5.4 / 7.5): the three
+  configurations OR-ed and the phrase-built tsquery cost nothing measurable.
+* **A query without hits pays for the typo fallback** (17 ms in the small tenant for two words that never co-occur): the fallback
+  runs only on a first page with no hits; an open item is to skip it for multi-word queries whose words all exist.
+* The typo fallback finds fewer hits than raw trigrams (7 instead of 20 in the 10 % tenant): the shared one-edit rule drops the
+  prefix-like candidates, as designed.
 
 ### 17.5 Skill evaluation checklist (`tarol-search-npgsql`)
 
@@ -653,6 +691,12 @@ documents**; a database user without CREATE on the database gets the error namin
 | run search on PostgreSQL | `UseNpgsqlReadModels()`, `AddSearch(…)`, `UseNpgsqlSearch()` | a data source without `EnableArrays()` |
 | search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting `unaccent()` in an own generated column (42P17) |
 | a database user without rights | the error names `pg_trgm`, `btree_gin`, `unaccent` | granting superuser instead of creating the trusted extensions once |
+
+### 17.7 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **1,984 passed** (+24); `eng/aot-smoke.sh`
+**26 apps**, 0 IL warnings (`Tarol.Search.Npgsql.AotSmoke` with `TAROL_PG`); pack **27 packages**; `eng/verify-packages.sh` OK.
+The first full run failed one test (the extension race, §17.2); fixed, then green, and the Npgsql tests ran 5 times in a row green.
 
 ### 17.6 Suppressions and analyzer configuration
 
