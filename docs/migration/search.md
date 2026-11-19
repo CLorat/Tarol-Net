@@ -850,8 +850,6 @@ key) 9 checks pass natively.
 | run search on Typesense | `UseNpgsqlSearchCheckpoints()`, `UseTypesense(_ => Client(server, key))` | the API key in code or committed settings |
 | search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting the `de` locale to fold umlauts |
 
-
-
 ## 21. Implementation: PR 18G (2026-11-18)
 
 `docs: the search guide; ArtFlow searches auctions`.
