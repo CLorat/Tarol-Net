@@ -98,8 +98,14 @@ public sealed class OpenSearchIndex : ISearchIndex
         w.WriteNumber("number_of_replicas", _options.Replicas);
         w.WriteStartObject("analysis");
         w.WriteStartObject("filter");
-        w.WriteStartObject("tarol_en_stem"); w.WriteString("type", "stemmer"); w.WriteString("language", "english"); w.WriteEndObject();
-        w.WriteStartObject("tarol_de_stem"); w.WriteString("type", "stemmer"); w.WriteString("language", "light_german"); w.WriteEndObject();
+        w.WriteStartObject("tarol_en_stem");
+        w.WriteString("type", "stemmer");
+        w.WriteString("language", "english");
+        w.WriteEndObject();
+        w.WriteStartObject("tarol_de_stem");
+        w.WriteString("type", "stemmer");
+        w.WriteString("language", "light_german");
+        w.WriteEndObject();
         w.WriteEndObject();
         w.WriteStartObject("analyzer");
         Analyzer(w, "tarol", "lowercase", "asciifolding");
@@ -109,23 +115,39 @@ public sealed class OpenSearchIndex : ISearchIndex
         w.WriteEndObject();
         w.WriteEndObject();
         w.WriteStartObject("mappings");
-        w.WriteStartObject("_meta"); w.WriteString("fingerprint", definition.Fingerprint); w.WriteNumber("version", definition.Version); w.WriteEndObject();
+        w.WriteStartObject("_meta");
+        w.WriteString("fingerprint", definition.Fingerprint);
+        w.WriteNumber("version", definition.Version);
+        w.WriteEndObject();
         w.WriteString("dynamic", "strict");
         w.WriteStartObject("properties");
         foreach (var keyword in new[] { "tenant", "type", "id", "aggregate", "exact", "audience", "lang" })
         {
-            w.WriteStartObject(keyword); w.WriteString("type", "keyword"); w.WriteEndObject();
+            w.WriteStartObject(keyword);
+            w.WriteString("type", "keyword");
+            w.WriteEndObject();
         }
-        w.WriteStartObject("version"); w.WriteString("type", "long"); w.WriteEndObject();
-        w.WriteStartObject("title"); w.WriteString("type", "keyword"); w.WriteBoolean("index", false); w.WriteEndObject();
+        w.WriteStartObject("version");
+        w.WriteString("type", "long");
+        w.WriteEndObject();
+        w.WriteStartObject("title");
+        w.WriteString("type", "keyword");
+        w.WriteBoolean("index", false);
+        w.WriteEndObject();
         foreach (var (field, _) in Weights)
         {
             w.WriteStartObject(field);
             w.WriteString("type", "text");
             w.WriteString("analyzer", "tarol");
             w.WriteStartObject("fields");
-            w.WriteStartObject("en"); w.WriteString("type", "text"); w.WriteString("analyzer", "tarol_en"); w.WriteEndObject();
-            w.WriteStartObject("de"); w.WriteString("type", "text"); w.WriteString("analyzer", "tarol_de"); w.WriteEndObject();
+            w.WriteStartObject("en");
+            w.WriteString("type", "text");
+            w.WriteString("analyzer", "tarol_en");
+            w.WriteEndObject();
+            w.WriteStartObject("de");
+            w.WriteString("type", "text");
+            w.WriteString("analyzer", "tarol_de");
+            w.WriteEndObject();
             w.WriteEndObject();
             w.WriteEndObject();
         }
@@ -183,8 +205,12 @@ public sealed class OpenSearchIndex : ISearchIndex
                     {
                         using (var h = next())
                         {
-                            h.WriteStartObject(); h.WriteStartObject("index"); h.WriteString("_index", index); h.WriteString("_id", Key(stream.Tenant, d));
-                            h.WriteEndObject(); h.WriteEndObject();
+                            h.WriteStartObject();
+                            h.WriteStartObject("index");
+                            h.WriteString("_index", index);
+                            h.WriteString("_id", Key(stream.Tenant, d));
+                            h.WriteEndObject();
+                            h.WriteEndObject();
                         }
                         using var w = next();
                         Document(w, stream, d);
@@ -194,12 +220,15 @@ public sealed class OpenSearchIndex : ISearchIndex
                 throw new HttpRequestException("OpenSearch refused documents: " + bulk.RootElement.GetRawText()[..Math.Min(500, bulk.RootElement.GetRawText().Length)]);
         }
         // stale documents become visible to delete_by_query only after a refresh
-        using (var _ = await EngineJson.Send(_http, HttpMethod.Post, "/" + index + "/_refresh", null, cancellationToken).ConfigureAwait(false)) { }
+        using (var _ = await EngineJson.Send(_http, HttpMethod.Post, "/" + index + "/_refresh", null, cancellationToken).ConfigureAwait(false))
+        { }
         foreach (var tenant in streams.GroupBy(static s => s.Tenant))
         {
             using var deleted = await EngineJson.Send(_http, HttpMethod.Post, "/" + index + "/_delete_by_query?conflicts=proceed&refresh=true", EngineJson.Body(w =>
             {
-                w.WriteStartObject(); w.WriteStartObject("query"); w.WriteStartObject("bool");
+                w.WriteStartObject();
+                w.WriteStartObject("query");
+                w.WriteStartObject("bool");
                 w.WriteStartArray("filter");
                 Term(w, "tenant", tenant.Key.ToString("N"));
                 Terms(w, "aggregate", tenant.Select(static s => s.Aggregate.ToString("N")));
@@ -208,13 +237,19 @@ public sealed class OpenSearchIndex : ISearchIndex
                 if (keep.Count > 0)
                 {
                     w.WriteStartArray("must_not");
-                    w.WriteStartObject(); w.WriteStartObject("ids"); w.WriteStartArray("values");
+                    w.WriteStartObject();
+                    w.WriteStartObject("ids");
+                    w.WriteStartArray("values");
                     foreach (var k in keep)
                         w.WriteStringValue(k);
-                    w.WriteEndArray(); w.WriteEndObject(); w.WriteEndObject();
+                    w.WriteEndArray();
+                    w.WriteEndObject();
+                    w.WriteEndObject();
                     w.WriteEndArray();
                 }
-                w.WriteEndObject(); w.WriteEndObject(); w.WriteEndObject();
+                w.WriteEndObject();
+                w.WriteEndObject();
+                w.WriteEndObject();
             }), cancellationToken).ConfigureAwait(false);
         }
     }
@@ -330,21 +365,37 @@ public sealed class OpenSearchIndex : ISearchIndex
         w.WriteBoolean("track_total_hits", false);
         w.WriteStartArray("sort");
         w.WriteStringValue("_score");
-        w.WriteStartObject(); w.WriteString("id", "asc"); w.WriteEndObject();
+        w.WriteStartObject();
+        w.WriteString("id", "asc");
+        w.WriteEndObject();
         w.WriteEndArray();
-        w.WriteStartObject("query"); w.WriteStartObject("bool");
+        w.WriteStartObject("query");
+        w.WriteStartObject("bool");
         w.WriteStartArray("filter");
         Term(w, "tenant", request.Tenant.ToString("N"));
         if (request.Types is { } types)
             Terms(w, "type", types);
         if (request.Audience is { } audience)
         {
-            w.WriteStartObject(); w.WriteStartObject("bool"); w.WriteNumber("minimum_should_match", 1); w.WriteStartArray("should");
-            w.WriteStartObject(); w.WriteStartObject("bool"); w.WriteStartArray("must_not");
-            w.WriteStartObject(); w.WriteStartObject("exists"); w.WriteString("field", "audience"); w.WriteEndObject(); w.WriteEndObject();
-            w.WriteEndArray(); w.WriteEndObject(); w.WriteEndObject();
+            w.WriteStartObject();
+            w.WriteStartObject("bool");
+            w.WriteNumber("minimum_should_match", 1);
+            w.WriteStartArray("should");
+            w.WriteStartObject();
+            w.WriteStartObject("bool");
+            w.WriteStartArray("must_not");
+            w.WriteStartObject();
+            w.WriteStartObject("exists");
+            w.WriteString("field", "audience");
+            w.WriteEndObject();
+            w.WriteEndObject();
+            w.WriteEndArray();
+            w.WriteEndObject();
+            w.WriteEndObject();
             Terms(w, "audience", audience);
-            w.WriteEndArray(); w.WriteEndObject(); w.WriteEndObject();
+            w.WriteEndArray();
+            w.WriteEndObject();
+            w.WriteEndObject();
         }
         w.WriteEndArray();
         // the text (or the exact token): must match one of them
@@ -353,16 +404,22 @@ public sealed class OpenSearchIndex : ISearchIndex
         var positives = clauses.Where(static c => !c.Excluded).ToList();
         if (positives.Count > 0)
         {
-            w.WriteStartObject(); w.WriteStartObject("bool");
+            w.WriteStartObject();
+            w.WriteStartObject("bool");
             w.WriteStartArray("must");
             var last = request.Prefix && !typo ? positives[^1] : null;
             foreach (var clause in positives)
             {
-                w.WriteStartObject(); w.WriteStartObject("bool"); w.WriteNumber("minimum_should_match", 1); w.WriteStartArray("should");
+                w.WriteStartObject();
+                w.WriteStartObject("bool");
+                w.WriteNumber("minimum_should_match", 1);
+                w.WriteStartArray("should");
                 foreach (var alternative in clause.Alternatives)
                     Match(w, string.Join(' ', alternative), Fields(request, typo),
                         typo ? "best_fields" : ReferenceEquals(clause, last) && ReferenceEquals(alternative, clause.Alternatives[^1]) ? "phrase_prefix" : "phrase", typo);
-                w.WriteEndArray(); w.WriteEndObject(); w.WriteEndObject();
+                w.WriteEndArray();
+                w.WriteEndObject();
+                w.WriteEndObject();
             }
             w.WriteEndArray();
             if (!typo && clauses.Any(static c => c.Excluded))
@@ -373,31 +430,53 @@ public sealed class OpenSearchIndex : ISearchIndex
                         Match(w, string.Join(' ', alternative), Fields(request, false), "phrase", false);
                 w.WriteEndArray();
             }
-            w.WriteEndObject(); w.WriteEndObject();
+            w.WriteEndObject();
+            w.WriteEndObject();
         }
         if (request.ExactToken is { } token && !typo)
         {
-            w.WriteStartObject(); w.WriteStartObject("constant_score");
-            w.WriteStartObject("filter"); w.WriteStartObject("term"); w.WriteString("exact", token); w.WriteEndObject(); w.WriteEndObject();
-            w.WriteNumber("boost", 50); w.WriteEndObject(); w.WriteEndObject();
+            w.WriteStartObject();
+            w.WriteStartObject("constant_score");
+            w.WriteStartObject("filter");
+            w.WriteStartObject("term");
+            w.WriteString("exact", token);
+            w.WriteEndObject();
+            w.WriteEndObject();
+            w.WriteNumber("boost", 50);
+            w.WriteEndObject();
+            w.WriteEndObject();
         }
         w.WriteEndArray();
-        w.WriteEndObject(); w.WriteEndObject();
+        w.WriteEndObject();
+        w.WriteEndObject();
         if (request.Counts && !typo)
         {
-            w.WriteStartObject("aggs"); w.WriteStartObject("types"); w.WriteStartObject("terms"); w.WriteString("field", "type"); w.WriteNumber("size", 200);
-            w.WriteEndObject(); w.WriteEndObject(); w.WriteEndObject();
+            w.WriteStartObject("aggs");
+            w.WriteStartObject("types");
+            w.WriteStartObject("terms");
+            w.WriteString("field", "type");
+            w.WriteNumber("size", 200);
+            w.WriteEndObject();
+            w.WriteEndObject();
+            w.WriteEndObject();
         }
         if (request.Snippets && !typo)
         {
             w.WriteStartObject("highlight");
-            w.WriteStartArray("pre_tags"); w.WriteStringValue("<b>"); w.WriteEndArray();
-            w.WriteStartArray("post_tags"); w.WriteStringValue("</b>"); w.WriteEndArray();
+            w.WriteStartArray("pre_tags");
+            w.WriteStringValue("<b>");
+            w.WriteEndArray();
+            w.WriteStartArray("post_tags");
+            w.WriteStringValue("</b>");
+            w.WriteEndArray();
             w.WriteBoolean("require_field_match", false);
             w.WriteStartObject("fields");
             foreach (var field in new[] { "b", "b.en", "b.de", "a", "a.en", "a.de" })
             {
-                w.WriteStartObject(field); w.WriteNumber("fragment_size", 80); w.WriteNumber("number_of_fragments", 1); w.WriteEndObject();
+                w.WriteStartObject(field);
+                w.WriteNumber("fragment_size", 80);
+                w.WriteNumber("number_of_fragments", 1);
+                w.WriteEndObject();
             }
             w.WriteEndObject();
             w.WriteEndObject();
@@ -407,7 +486,8 @@ public sealed class OpenSearchIndex : ISearchIndex
 
     private static void Match(Utf8JsonWriter w, string text, string[] fields, string type, bool fuzzy)
     {
-        w.WriteStartObject(); w.WriteStartObject("multi_match");
+        w.WriteStartObject();
+        w.WriteStartObject("multi_match");
         w.WriteString("query", text);
         w.WriteString("type", type);
         w.WriteStartArray("fields");
@@ -419,20 +499,29 @@ public sealed class OpenSearchIndex : ISearchIndex
             w.WriteString("fuzziness", "1");
             w.WriteString("operator", "and");
         }
-        w.WriteEndObject(); w.WriteEndObject();
+        w.WriteEndObject();
+        w.WriteEndObject();
     }
 
     private static void Term(Utf8JsonWriter w, string field, string value)
     {
-        w.WriteStartObject(); w.WriteStartObject("term"); w.WriteString(field, value); w.WriteEndObject(); w.WriteEndObject();
+        w.WriteStartObject();
+        w.WriteStartObject("term");
+        w.WriteString(field, value);
+        w.WriteEndObject();
+        w.WriteEndObject();
     }
 
     private static void Terms(Utf8JsonWriter w, string field, IEnumerable<string> values)
     {
-        w.WriteStartObject(); w.WriteStartObject("terms"); w.WriteStartArray(field);
+        w.WriteStartObject();
+        w.WriteStartObject("terms");
+        w.WriteStartArray(field);
         foreach (var v in values)
             w.WriteStringValue(v);
-        w.WriteEndArray(); w.WriteEndObject(); w.WriteEndObject();
+        w.WriteEndArray();
+        w.WriteEndObject();
+        w.WriteEndObject();
     }
 
     /// <inheritdoc />
@@ -443,10 +532,14 @@ public sealed class OpenSearchIndex : ISearchIndex
         {
             w.WriteStartObject();
             w.WriteNumber("size", SearchLimits.MaxDepth);
-            w.WriteStartObject("query"); w.WriteStartObject("bool"); w.WriteStartArray("filter");
+            w.WriteStartObject("query");
+            w.WriteStartObject("bool");
+            w.WriteStartArray("filter");
             Term(w, "tenant", tenant.ToString("N"));
             Terms(w, "aggregate", aggregates.Select(static a => a.ToString("N")));
-            w.WriteEndArray(); w.WriteEndObject(); w.WriteEndObject();
+            w.WriteEndArray();
+            w.WriteEndObject();
+            w.WriteEndObject();
             w.WriteEndObject();
         }), cancellationToken).ConfigureAwait(false);
         var hits = new List<SearchHit>();
