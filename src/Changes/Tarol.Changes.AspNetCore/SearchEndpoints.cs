@@ -103,7 +103,6 @@ public static class SearchEndpoints
         }
         query = query with { Types = query.Types ?? readable, Audience = AudienceOf(principal, entries.Options.SubjectClaim) };
 
-        var host = http.RequestServices.GetRequiredService<SearchHost>();
         if (http.Request.Headers[Positions.ReadAfterHeader].ToString() is { Length: > 0 } readAfter)
         {
             if (!Positions.TryParse(readAfter, out var position))
@@ -111,7 +110,8 @@ public static class SearchEndpoints
                 await entries.Problem(http, Invalid.Field(Positions.ReadAfterHeader, "Format")).ConfigureAwait(false);
                 return;
             }
-            if (!await host.WaitFor(position, entries.Options.Queries.ReadAfterTimeout, http.RequestAborted).ConfigureAwait(false))
+            if (!await Passed(http.RequestServices.GetRequiredService<SearchHost>().Index, position, entries.Options.Queries.ReadAfterTimeout, time,
+                    http.RequestAborted).ConfigureAwait(false))
                 http.Response.Headers[Positions.StaleHeader] = "true";
         }
 
@@ -141,6 +141,24 @@ public static class SearchEndpoints
         using (var writer = new Utf8JsonWriter(buffer))
             Write(writer, page);
         await http.Response.Body.WriteAsync(buffer.WrittenMemory, http.RequestAborted).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Waits until the index's stored checkpoint passes <paramref name="position"/>, polling it every 5 ms (QR-5 measured p50 8.2 ms
+    /// from an API process). The stored checkpoint, not this process's host: in an API process the host is not the runner.
+    /// </summary>
+    private static async Task<bool> Passed(ISearchIndex index, Tarol.Persistence.GlobalPosition position, TimeSpan timeout, TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var until = time.GetUtcNow() + timeout;
+        while (true)
+        {
+            if ((await index.Checkpoint(cancellationToken).ConfigureAwait(false)).Position >= position)
+                return true;
+            if (time.GetUtcNow() >= until)
+                return false;
+            await Task.Delay(TimeSpan.FromMilliseconds(5), time, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static SearchQuery Read(HttpContext http, ref List<FieldError>? errors)
