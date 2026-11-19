@@ -673,7 +673,9 @@ None.
 * Edge as for lists: the tenant from the claim, `Cache-Control: private, no-cache`, `Vary: Authorization`, problems; 401
   anonymous; 403 for a requested type without `Read<T>` (`CheckList<T>`), or when no type is readable; 400 for an unknown type.
 * The caller's audience keys: the subject claim (`ChangeEndpointOptions.SubjectClaim`) and every role claim.
-* `Tarol-Read-After` waits on `SearchHost.WaitFor` (timeout `Queries.ReadAfterTimeout`; `Tarol-Stale: true` after it).
+* `Tarol-Read-After` polls the index's **stored** checkpoint every 5 ms (timeout `Queries.ReadAfterTimeout`; `Tarol-Stale: true`
+  after it). Not `SearchHost.WaitFor`: in an API process the host is not the runner (the gate, O-8), its own position never
+  moves, and a read-after would always time out. Found while wiring the sample (18G).
 * 503 with `Retry-After: 5` while the answering version is building (no version current yet).
 * `200 { "items": [{ "type", "id", "aggregate", "title", "score", "snippet"? }], "counts"?, "countsCapped"?, "next" }`,
   `Tarol-Position`, a weak `ETag` over (version, position, next, hits, counts); a matching `If-None-Match` answers 304.
