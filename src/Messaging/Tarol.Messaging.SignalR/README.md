@@ -46,6 +46,10 @@ A browser: `connection.invoke("Subscribe", "artflow.auction-settled")`, then `co
   the client; `ITopicAuthorizer` decides every subscribe and publish (`UiPushOptions.Rules`, or register your own); a
   client's publish is stamped with the caller's `sub` as `Sender`. Refusals are `HubException`s (`Forbidden`, `Topic`,
   `Auth.Tenant`).
+* **Token expiry**: `UiPushOptions.CloseOnAuthenticationExpiration` (default `true`) closes a connection when its bearer
+  token expires, so a revoked user stops receiving pushes; the client reconnects with a fresh token. Browsers send the token
+  as `?access_token=` (they cannot set WebSocket headers): `Tarol.Security.Zitadel` reads it under `ZitadelOptions.HubPath`;
+  with another identity provider, read it in `JwtBearerEvents.OnMessageReceived` for the hub's path only.
 * **Shutdown**: when the application stops, the hub aborts its connections, and any client that reconnects meanwhile, so a
   graceful stop does not wait for long-lived connections.
 * **The .NET client** (`MessagePushClient.Connect(hubUrl, accessToken)`): `Subscribe(topic, handler)` returns a handle

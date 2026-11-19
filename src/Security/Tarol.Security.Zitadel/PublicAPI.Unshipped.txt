@@ -1,1 +1,3 @@
 #nullable enable
+Tarol.Security.Zitadel.ZitadelOptions.HubPath.get -> string?
+Tarol.Security.Zitadel.ZitadelOptions.HubPath.set -> void

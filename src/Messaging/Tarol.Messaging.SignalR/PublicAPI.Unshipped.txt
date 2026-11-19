@@ -1,1 +1,3 @@
 #nullable enable
+Tarol.Messaging.SignalR.UiPushOptions.CloseOnAuthenticationExpiration.get -> bool
+Tarol.Messaging.SignalR.UiPushOptions.CloseOnAuthenticationExpiration.set -> void

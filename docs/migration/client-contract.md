@@ -219,3 +219,23 @@ Every PR lists its own; together, for a client written against `73b35ff`:
   answers 204 with `Access-Control-Allow-Headers: Authorization,Content-Type,Idempotency-Key,If-Match,If-None-Match,Tarol-Read-After,traceparent`;
   `GET /auctions` from that origin (401 without a token) carries `Access-Control-Expose-Headers: ETag,Location,Tarol-Position,Tarol-Stale,Idempotent-Replayed,Retry-After,WWW-Authenticate`.
   The script's run is unchanged.
+
+## 12. PR B2: the hub token from the query string (BC-2, CC-2) and closing on expiry (BC-15)
+
+* **Change**: `ZitadelOptions.HubPath` (default `/tarol/messages`, `UiPushOptions.HubPath`'s default; `null` = off). `AddZitadel`
+  sets `JwtBearerEvents.OnMessageReceived`: under that path, and only without an `Authorization` header, the query value
+  `access_token` is the token. Everywhere else a token in the URL is ignored (URLs reach logs and proxies). The path must start
+  with `/` (checked by `Validate`). An application with its own `JwtBearerEvents` would replace them: `AddZitadel` owns the
+  scheme's options, so that is no new constraint.
+* **BC-15** (asked to be considered in this PR): `UiPushOptions.CloseOnAuthenticationExpiration`, default `true`, maps to
+  `HttpConnectionDispatcherOptions.CloseOnAuthenticationExpiration`. **Behaviour change**: a hub connection closes when its
+  bearer token expires; `MessagePushClient` and the browser client reconnect with a fresh token from their token provider.
+* **Tests**: `ZitadelHubTests` against a real Zitadel v4.20.3 and a real Kestrel port: a raw `ClientWebSocket` to
+  `/tarol/messages?access_token=<JWT>` does the SignalR JSON handshake and `Subscribe("artflow.bids")` succeeds (the tenant from
+  the organisation), `Subscribe("billing.secret")` is refused `Forbidden`; without a token and with a tampered one the upgrade
+  is 401; `/whoami?access_token=…` stays anonymous while the header authenticates. Red with `HubPath = null` (the old
+  behaviour) **[verified]**: `The server returned status code '401' when status code '101' was expected`. `HubMappingTests`:
+  the hub endpoint's dispatcher options close on expiry by default and not when opted out. An expiry test needs a token that
+  expires within the test: B4 adds the short-lived token option to the sample; here the mapping is what is tested.
+* **Public API** (generated): `+ ZitadelOptions.HubPath`, `+ UiPushOptions.CloseOnAuthenticationExpiration`.
+* **Suppressions**: none.

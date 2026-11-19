@@ -8,6 +8,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `ZitadelOptions.HubPath` (default `/tarol/messages`, BC-2): under the hub's path `AddZitadel` reads the bearer token from the
+  query string `access_token`, as browsers' WebSockets need; elsewhere a query token is ignored. `UiPushOptions.CloseOnAuthenticationExpiration`
+  (default `true`, BC-15): the hub closes a connection when its token expires.
+
 * `TarolHeaders` in `Tarol.Changes.AspNetCore` (BC-1): the request headers a browser client sends (`Allowed`), the response
   headers it must read (`Exposed`), and `CorsPolicyBuilder.WithTarolHeaders()`; a CORS recipe in the README; the sample's API
   allows `http://localhost:5173`.

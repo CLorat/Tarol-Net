@@ -15,7 +15,8 @@ public static class ZitadelTarolBuilderExtensions
     /// issued, <c>sub</c> as the name, <c>role</c> as the role claim), the <see cref="ZitadelClaimsTransformation"/>, and
     /// the Zitadel actor rule on the HTTP entries. Call it after <c>AddEndpoints</c>. Clients request the scopes
     /// <c>openid urn:zitadel:iam:org:projects:roles urn:zitadel:iam:user:resourceowner
-    /// urn:zitadel:iam:org:project:id:&lt;project&gt;:aud</c>.
+    /// urn:zitadel:iam:org:project:id:&lt;project&gt;:aud</c>. Under <see cref="ZitadelOptions.HubPath"/> the token may also come
+    /// from the query string <c>access_token</c> (browsers' WebSockets).
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="configure">The instance and project.</param>
@@ -40,7 +41,21 @@ public static class ZitadelTarolBuilderExtensions
             jwt.RequireHttpsMetadata = options.RequireHttpsMetadata;
             jwt.MapInboundClaims = false;
             jwt.TokenValidationParameters = new TokenValidationParameters { NameClaimType = "sub", RoleClaimType = "role" };
+            if (options.HubPath is { } hub)
+                jwt.Events = new JwtBearerEvents { OnMessageReceived = context => QueryToken(context, hub) };
         });
         return builder;
+    }
+
+    /// <summary>The <c>access_token</c> query value as the bearer token, for requests under the hub's path only, and only when
+    /// no <c>Authorization</c> header is present (BC-2).</summary>
+    private static Task QueryToken(MessageReceivedContext context, string hub)
+    {
+        var request = context.Request;
+        if (request.Path.StartsWithSegments(hub, StringComparison.OrdinalIgnoreCase)
+            && request.Headers.Authorization.Count == 0
+            && request.Query["access_token"] is [{ Length: > 0 } token])
+            context.Token = token;
+        return Task.CompletedTask;
     }
 }
