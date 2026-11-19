@@ -871,4 +871,6 @@ Build 0 warnings; format no changes (after one statement per line in `TypesenseI
 ### 21.1 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
 
 Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,044 passed**; `eng/aot-smoke.sh`
-**28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK. The samples build with warnings as errors.
+**28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK. The samples are not in `Tarol.slnx`; built one by one with `-warnaserror`: `Api`, `Worker`,
+`Billing` and `ZitadelSetup` 0 warnings. `AppHost` (not changed here) reports `ASPIRE010` (`AspireUseCliBundle=false`) from
+Aspire's own targets, as on `main`: a warning without `-warnaserror`, left for the owner.
