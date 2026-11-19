@@ -18,8 +18,8 @@
 
   <ItemGroup Label="Roslyn (generators and generator tests)">
     <!-- Lowest Roslyn that provides every API the generators use; SDK 11 ships a newer compiler. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.12.0" />
   </ItemGroup>
 
   <ItemGroup Label="Messaging brokers (step 11D)">
