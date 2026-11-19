@@ -40,12 +40,15 @@ public sealed class ProjectionHost<TRow> : ProjectionHost
     /// <summary>Test hook: called with the number of changed rows after they were computed and before the write; true throws (a crash).</summary>
     internal Func<int, bool>? CrashBeforeWrite { get; set; }
 
-    private protected override ValueTask Prepare(CancellationToken cancellationToken) => _store.Prepare(cancellationToken);
+    /// <inheritdoc />
+    protected override ValueTask Prepare(CancellationToken cancellationToken) => _store.Prepare(cancellationToken);
 
-    private protected override ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken cancellationToken) => _store.Checkpoint(cancellationToken);
+    /// <inheritdoc />
+    protected override ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken cancellationToken) => _store.Checkpoint(cancellationToken);
 
-    private protected override async ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from,
-        GlobalPosition to, ProjectionState state, CancellationToken cancellationToken)
+    /// <inheritdoc />
+    protected override async ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from,
+        GlobalPosition through, ProjectionState state, CancellationToken cancellationToken)
     {
         var streamType = TRow.StreamType;
         var keys = new HashSet<RowKey>();
@@ -75,7 +78,7 @@ public sealed class ProjectionHost<TRow> : ProjectionHost
         }
         if (CrashBeforeWrite?.Invoke(changed.Count) == true)
             throw new InvalidOperationException("Test: crash before the write.");
-        var written = await _store.Write(new ProjectionBatch<TRow>([.. changed.Values], from, to, state), cancellationToken).ConfigureAwait(false);
+        var written = await _store.Write(new ProjectionBatch<TRow>([.. changed.Values], from, through, state), cancellationToken).ConfigureAwait(false);
         return (written, changed.Count);
     }
 

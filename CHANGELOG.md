@@ -8,11 +8,25 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol.Search.Npgsql` (step 18C): PostgreSQL full-text search in the store's database: a table per index version, a GIN led by
+  the tenant, ranking within the first 1,000 matches, German/English/simple with accents folded, a trigram typo fallback, counts,
+  snippets, blind tokens; documents and checkpoint in one transaction; the previous version answers while a new one builds.
+* `Tarol.Search` (step 18B): global search over aggregates and their entities: `[Searchable]`, `[SearchTitle]`,
+  `[SearchAudience]`, `[SearchLanguage]` with a generator (TSRCH001–TSRCH005), the port `ISearchIndex`, `SearchHost` on the
+  projection machinery, `ISearch`, the in-memory index, `SearchTest`, `SearchEraser` (erasure, retention, export); in the
+  meta-package `Tarol`.
+* Design of step 18, global search: `docs/architecture/search.md`, `docs/migration/search.md` (GS-0 … GS-12) and the probes under
+  `docs/migration/probes/search/` (PostgreSQL full-text search and `pg_trgm`, Meilisearch, Typesense, OpenSearch at 10k–1M
+  documents). No package code yet.
+
 * `IOutbox.Release` (default member) hands a claimed row back unrun and uncounted; `IPageCache.Clears` (default member) counts
   cache clears; `NpgsqlTracing.AutoPrepareUnlessSet`; `ViolationJsonConverter`.
 * Store schema version 4 (compatible from 1): the index `streams_retention` on `streams (type, updated_at)`.
 
 ### Changed
+
+* `ProjectionHost` can be derived from outside `Tarol.Queries` (step 18A): its constructor and `Prepare`, `LoadCheckpoint` and
+  `Write` are `protected` (were `private protected`); `Write`'s last position parameter is named `through`. Behaviour unchanged.
 
 * `NpgsqlSchema.Version` is 4. The data sources Tarol builds set `Max Auto Prepare=64` unless the connection string sets it.
 * The data-subject endpoints (`…/subjects/{id}/export|erase`) require `?tenant=` (400 without it).

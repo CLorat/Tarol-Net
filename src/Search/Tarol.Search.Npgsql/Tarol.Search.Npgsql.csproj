@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>PostgreSQL full-text search for Tarol.Search, in the event store's database: one table per index version with a tsvector generated from each document's language (german, english, simple, accents folded), a GIN led by the tenant (btree_gin), ranking within the first 1,000 matches, a trigram fallback on titles for typos, counts per type, snippets, blind exact tokens; documents and checkpoint in one transaction. Needs the trusted extensions pg_trgm, btree_gin and unaccent. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;search;full-text;postgresql;npgsql;tsvector;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Tarol.Search/Tarol.Search.csproj" />
+    <ProjectReference Include="../../Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).IntegrationTests" />
+  </ItemGroup>
+</Project>

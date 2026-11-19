@@ -103,14 +103,17 @@ public sealed class SqlProjectionHost : ProjectionHost
         return projection;
     }
 
-    private protected override ValueTask Prepare(CancellationToken cancellationToken) => _store.Prepare(_projection, cancellationToken);
+    /// <inheritdoc />
+    protected override ValueTask Prepare(CancellationToken cancellationToken) => _store.Prepare(_projection, cancellationToken);
 
-    private protected override ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken cancellationToken) => _store.Checkpoint(_projection, cancellationToken);
+    /// <inheritdoc />
+    protected override ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken cancellationToken) => _store.Checkpoint(_projection, cancellationToken);
 
-    private protected override ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition to,
+    /// <inheritdoc />
+    protected override ValueTask<(bool Written, int Rows)> Write(IReadOnlyList<PositionedEvent> events, GlobalPosition from, GlobalPosition through,
         ProjectionState state, CancellationToken cancellationToken)
     {
         IReadOnlyList<PositionedEvent> mine = _types is null ? events : [.. events.Where(e => _types.Contains(e.StreamType))];
-        return _store.Write(_projection, mine, from, to, state, cancellationToken);
+        return _store.Write(_projection, mine, from, through, state, cancellationToken);
     }
 }

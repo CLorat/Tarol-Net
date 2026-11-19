@@ -13,7 +13,9 @@ namespace Tarol.Persistence.Npgsql.IntegrationTests;
 /// </summary>
 public sealed class Postgres : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17").Build();
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17")
+        .WithCommand("-c", "max_connections=300")                 // above the test pools (up to 200) and their extra data sources
+        .Build();
     private int _schemas;
 
     /// <summary>The container's connection string.</summary>

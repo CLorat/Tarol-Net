@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Global search for Tarol: [Searchable] members of aggregates and their entities become ranked documents of one tenant-scoped index, generated from the loaded aggregate (no reflection). A projection host feeds the index from the event feed (checkpoint, gate, versions), the index takes part in erasure and retention, personal data is searchable only as a blind exact token. The port ISearchIndex, an in-memory index and SearchTest; PostgreSQL, OpenSearch and Typesense in their own packages. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;search;full-text;index;multi-tenant;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hosting, DI, logging and metrics abstractions are part of .NET 11's base framework. -->
+    <ProjectReference Include="../../Queries/Tarol.Queries/Tarol.Queries.csproj" />
+    <!-- D-10: the search generator ([Searchable]; TSRCH001-TSRCH005) ships inside this package. -->
+    <ProjectReference Include="../Tarol.Search.Generators/Tarol.Search.Generators.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>
