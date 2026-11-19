@@ -130,6 +130,10 @@ Every PR lists its own; together, for a client written against `73b35ff`:
   `SnippetTests` (parser: offsets, UTF-16, unbalanced markers); over HTTP `SearchEndpointTests.A_snippet_is_plain_text_with_highlight_offsets`.
   Red before the fix: the contract asserted the `<b>` markup (`hit.Snippet.ShouldContain("<b>")`), i.e. the raw markup was the
   specified behaviour; the new tests do not compile against `73b35ff` (no `Highlights`).
+* **AOT smoke**: the four search smoke apps checked `<b>` in the snippet (found by the first full `eng/aot-smoke.sh` run of this
+  branch: `Tarol.Search.AotSmoke` and `Tarol.Search.Npgsql.AotSmoke` failed their checks). They check the plain text and the
+  highlight ranges now; all four publish with 0 IL warnings and pass natively, OpenSearch 2.19.1 and Typesense 28.0 included
+  (`TAROL_OPENSEARCH`, `TAROL_TYPESENSE`) **[verified]**.
 * **Public API** (`Tarol.Search`, generated): `SearchHit.Highlights`, `SearchHighlight`, `SearchSnippets` (`Open`, `Close`,
   `Parse`, `Hit`). `eng/public-api.py update` had to run twice: the first run, while `SearchHighlight` was still undeclared,
   dropped `SearchHit`'s record members; the second restored them (worth knowing for the script, not fixed here).
