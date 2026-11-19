@@ -31,7 +31,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Invoice>())
 | a source system (`artflow`) | durable topic exchange `artflow`, routing key = contract |
 | a publish | `mandatory`, persistent, `message-id` = `Message.DedupId`, `user_id` = the connection's user; returns after the publisher confirm |
 | a subscription (`billing.IssueInvoice`) | quorum queue `billing.IssueInvoice` bound to its contracts, prefetch = concurrency |
-| retry after a delay | ack + a copy into `billing.IssueInvoice.retry` whose per-message TTL dead-letters it back; the attempt in `x-tarol-attempt` |
+| retry after a delay | ack + a copy into the delay queue nearest the backoff (`billing.IssueInvoice.retry.1s`, `.5s`, `.30s`, `.2m`, `.10m`, `.1h`), whose queue TTL dead-letters it back; the attempt in `x-tarol-attempt` |
 
 * **Unroutable** (no queue bound): the broker returns the message; it is logged (11301) and counts as delivered
   (`RabbitMqTransport.Unroutable`), since a publisher does not know its consumers.
