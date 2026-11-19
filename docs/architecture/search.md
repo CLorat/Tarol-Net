@@ -11,7 +11,7 @@ Labels as in the [conventions](conventions.md): **[verified]** means reproduced 
 [`probes/search/`](../migration/probes/search/)); **[verified by reading]** means read in the named code, not run;
 **[unverified]** means reasoned or read elsewhere, not run here.
 
-**Status: designed** (owner decisions GS-0 … GS-12, [migration/search.md](../migration/search.md) §9); PRs 18A–18G (§11 there).
+**Status: built** (owner decisions GS-0 … GS-12, [migration/search.md](../migration/search.md) §9); PRs 18A–18G (§15–§21 there). The guide: [docs/search/README.md](../search/README.md). Where the build differs from this note, the migration note says so (the typo fallback on weight A, the tsquery from Tarol's parser, the checkpoint port for engines, read-after polling the stored checkpoint).
 
 ## 1. What a user of Tarol needs
 

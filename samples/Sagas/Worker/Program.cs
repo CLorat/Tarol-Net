@@ -21,6 +21,8 @@ using Tarol.Persistence.Npgsql;
 using Tarol.Queries;
 using Tarol.Queries.Npgsql;
 using Tarol.Sagas;
+using Tarol.Search;
+using Tarol.Search.Npgsql;
 
 // ArtFlow's reaction worker. Under the AppHost the connection string "tarol" and the OTLP endpoint come from Aspire.
 // Arguments: the number of auctions to settle itself (default 20, one per second; 0 = only work: the API produces them).
@@ -32,6 +34,8 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
     .UseNpgsqlStore(connectionString, new NpgsqlStoreOptions { NotifyFeed = true })   // EnsureSchema when the host starts; NOTIFY per commit
     .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })   // the read tables (LISTEN on the feed); NOTIFY per batch
     .AddProjections(p => p.Add<AuctionRow>())                      // the auction list the API serves (GET /auctions)
+    .AddSearch(s => s.Add<Auction>().Add<BidderProfile>())         // step 18: the search index, fed here (one runner per version)
+    .UseNpgsqlSearch()
     .AddReactionWorker()                                           // reactions and publications; the store's key purge is used
     .AddMessaging("artflow", m => m
         .Publish(GeneratedPublications.Set)                        // artflow.auction-settled

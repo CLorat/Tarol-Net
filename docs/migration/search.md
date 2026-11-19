@@ -855,3 +855,22 @@ key) 9 checks pass natively.
 Build 0 warnings; format no changes (after one statement per line in `TypesenseIndex`, the rule 18E's run found);
 `dotnet test --solution Tarol.slnx` with Docker **2,044 passed** (Typesense in Testcontainers, a per-run key);
 `eng/aot-smoke.sh` **28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK.
+
+## 21. Implementation: PR 18G (2026-11-18)
+
+`docs: the search guide; ArtFlow searches auctions`.
+
+* The guide [`docs/search/README.md`](../search/README.md): marking, the indexes, versions, the HTTP entry, `SearchTest`, the
+  measured costs, operations.
+* `samples/Sagas`: `Auction` (its seller, `[SearchTitle]`) and its `Bid` entities (their bidder) and `BidderProfile` (its login;
+  the email as an exact blind token) are `[Searchable]`; the worker hosts the index (`AddSearch(…).UseNpgsqlSearch()`), the API
+  registers the same and maps `GET /search`; operators (`tarol-admin`) may read bidder profiles. Both projects build with warnings
+  as errors **[verified]**; the AppHost run is not part of this PR's checks **[unverified]**.
+* Plan row 18 and the concept note's status updated; CHANGELOG.
+
+### 21.1 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,044 passed**; `eng/aot-smoke.sh`
+**28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK. The samples are not in `Tarol.slnx`; built one by one with `-warnaserror`: `Api`, `Worker`,
+`Billing` and `ZitadelSetup` 0 warnings. `AppHost` (not changed here) reports `ASPIRE010` (`AspireUseCliBundle=false`) from
+Aspire's own targets, as on `main`: a warning without `-warnaserror`, left for the owner.
