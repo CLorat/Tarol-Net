@@ -692,15 +692,18 @@ documents**; a database user without CREATE on the database gets the error namin
 | search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting `unaccent()` in an own generated column (42P17) |
 | a database user without rights | the error names `pg_trgm`, `btree_gin`, `unaccent` | granting superuser instead of creating the trusted extensions once |
 
+### 17.6 Suppressions and analyzer configuration
+
+None.
+
 ### 17.7 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
 
 Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **1,984 passed** (+24); `eng/aot-smoke.sh`
 **26 apps**, 0 IL warnings (`Tarol.Search.Npgsql.AotSmoke` with `TAROL_PG`); pack **27 packages**; `eng/verify-packages.sh` OK.
 The first full run failed one test (the extension race, §17.2); fixed, then green, and the Npgsql tests ran 5 times in a row green.
 
-### 17.6 Suppressions and analyzer configuration
-
-None.
+Again on the combined branch (design, 18A–18C, `main` through #74 and the fixture fix): build 0 warnings; format no changes;
+**1,996 passed**; 26 apps, 0 IL warnings; 27 packages; `eng/verify-packages.sh` OK.
 
 ## 18. Implementation: PR 18D (2026-11-18)
 
