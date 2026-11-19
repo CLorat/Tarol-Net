@@ -743,6 +743,13 @@ only, one of "alice" by alice only); cursor pages and a prefix; 503 + `Retry-Aft
 row green. The test domain's `Auction`, `Payout` and a new `Memo` are `[Searchable]`. `Tarol.Changes.AspNetCore.AotSmoke`
 gains the search check: 0 IL warnings, natively green.
 
+### 18.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,004 passed** (after `main`'s #74;
+an earlier run failed one Persistence test with `53300 too many clients`, a fixture limit fixed separately in #79);
+`eng/aot-smoke.sh` **26 apps**, 0 IL warnings (the AspNetCore smoke's search check natively); pack 27 packages;
+`eng/verify-packages.sh` OK.
+
 ### 18.5 Skill evaluation checklist (`tarol-endpoints`)
 
 | Task | Expected API | Mistake to avoid |
