@@ -68,6 +68,11 @@ public sealed class SearchEndpointTests : IAsyncLifetime
 
         var again = await Search("q=sunflowers", Alice, ifNoneMatch: etag);
         again.Status.ShouldBe(HttpStatusCode.NotModified);
+        // BC-7: the weak comparison, a list of tags and * (RFC 9110 §13.1.2)
+        (await Search("q=sunflowers", Alice, ifNoneMatch: etag[2..])).Status.ShouldBe(HttpStatusCode.NotModified);
+        (await Search("q=sunflowers", Alice, ifNoneMatch: "W/\"0\", " + etag)).Status.ShouldBe(HttpStatusCode.NotModified);
+        (await Search("q=sunflowers", Alice, ifNoneMatch: "*")).Status.ShouldBe(HttpStatusCode.NotModified);
+        (await Search("q=sunflowers", Alice, ifNoneMatch: "W/\"0\"")).Status.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]

@@ -37,7 +37,8 @@ app.MapChanges();
   (or `ChangeEndpointOptions.Tenant`; a `{tenant}` route value must equal it), a new correlation, the principal for the
   authorization. Authentication itself is the app's.
 * **Views**: `[Endpoint("GET /auctions/{auction}")]` on a record implementing `IView<Auction, TSelf>` (`static TSelf
-  From(Auction)`): load, `Read<Auction>` authorization, `ETag`, 304 on `If-None-Match`.
+  From(Auction)`): load, `Read<Auction>` authorization, `ETag`, 304 on `If-None-Match`
+  (RFC 9110 weak comparison, a list of tags or `*`: the same matcher for views, lists and search).
 * **Lists** (step 12): `[Endpoint("GET /auctions", Policy = "auctions:read")]` on a record implementing `IQuery<TRow>`
   over a `[Projection]` row (`Tarol.Queries`): nullable members named like a row column are equality filters from the query
   string (`?status=Open`), a `Sort` enum member names `[Sort]` columns (`[Descending]`; the id breaks ties), route members

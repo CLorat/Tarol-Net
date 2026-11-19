@@ -46,6 +46,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Fixed
 
+* Views and search answer 304 for a weak tag (`W/"5"`), a list of tags or `*` in `If-None-Match`, like lists (BC-7): one
+  RFC 9110 §13.1.2 matcher for the three; they compared the header verbatim.
+
 * The list page's ETag covers `next` and `total` (BC-6): a row appended behind a full last page answered 304 and hid the new
   page. `Cursor.ETag(rows, next, total)` is new; `Cursor.ETag(rows)` is unchanged (docs/migration/client-contract.md §5).
 

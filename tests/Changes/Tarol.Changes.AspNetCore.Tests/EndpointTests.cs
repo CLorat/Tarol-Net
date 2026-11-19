@@ -291,6 +291,24 @@ public sealed class EndpointTests : IAsyncLifetime
         same.Status.ShouldBe(HttpStatusCode.NotModified);
     }
 
+    [Theory]                                                               // BC-7: RFC 9110 §13.1.2, the weak comparison
+    [InlineData("W/\"2\"", HttpStatusCode.NotModified)]
+    [InlineData("\"1\", \"2\"", HttpStatusCode.NotModified)]
+    [InlineData("\"1\",W/\"2\"", HttpStatusCode.NotModified)]
+    [InlineData("*", HttpStatusCode.NotModified)]
+    [InlineData("\"1\", W/\"3\"", HttpStatusCode.OK)]
+    [InlineData("\"20\"", HttpStatusCode.OK)]
+    public async Task A_view_matches_if_none_match_weakly_and_in_lists(string ifNoneMatch, HttpStatusCode expected)
+    {
+        var id = await _app.Created(Alice);
+        _ = await _app.Post($"/auctions/{id}/bids", """{"amount":150}""", Bob);
+
+        var view = await _app.Get($"/auctions/{id}", Rita, h => h.TryAddWithoutValidation("If-None-Match", ifNoneMatch));
+
+        view.Status.ShouldBe(expected);
+        view.ETag.ShouldBe("\"2\"");
+    }
+
     [Fact]
     public async Task A_view_is_authorized_by_role_or_ownership()
     {

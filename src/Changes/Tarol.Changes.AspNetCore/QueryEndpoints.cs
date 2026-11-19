@@ -247,7 +247,7 @@ public sealed partial class ChangeEndpoints
         }
         http.Response.Headers[Positions.PositionHeader] = Positions.Format(page.Position);
         http.Response.Headers.ETag = page.ETag;
-        if (Matches(http.Request.Headers.IfNoneMatch, page.ETag))
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, page.ETag))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;
             return;
@@ -279,25 +279,5 @@ public sealed partial class ChangeEndpoints
     {
         http.Response.Headers.RetryAfter = ((int)Math.Ceiling(Options.Queries.RetryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
         await Problem(http, error).ConfigureAwait(false);
-    }
-
-    // RFC 9110 §13.1.2: If-None-Match uses the weak comparison
-    private static bool Matches(StringValues ifNoneMatch, string etag)
-    {
-        var opaque = etag.StartsWith("W/", StringComparison.Ordinal) ? etag[2..] : etag;
-        foreach (var header in ifNoneMatch)
-        {
-            if (header is null)
-                continue;
-            foreach (var part in header.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (part == "*")
-                    return true;
-                var candidate = part.StartsWith("W/", StringComparison.Ordinal) ? part[2..] : part;
-                if (candidate == opaque)
-                    return true;
-            }
-        }
-        return false;
     }
 }

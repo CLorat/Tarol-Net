@@ -391,7 +391,7 @@ public sealed partial class ChangeEndpoints
         var etag = $"\"{aggregate.Version}\"";
         http.Response.Headers.ETag = etag;
         CacheHeaders.Apply(http);                                        // the view's 200 and 304
-        if (http.Request.Headers.IfNoneMatch.Any(value => value == etag || value == "*"))
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;
             return null;

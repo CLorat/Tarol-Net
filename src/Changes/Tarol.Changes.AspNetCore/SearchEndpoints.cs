@@ -130,7 +130,7 @@ public static class SearchEndpoints
         http.Response.Headers[Positions.PositionHeader] = Positions.Format(page.Position);
         var etag = ETag(page);
         http.Response.Headers.ETag = etag;
-        if (http.Request.Headers.IfNoneMatch.Any(value => value == etag || value == "*"))
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;
             return;
