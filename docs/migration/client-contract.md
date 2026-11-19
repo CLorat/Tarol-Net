@@ -51,7 +51,10 @@ Labels as in the rest of the migration notes: **[verified]** reproduced (a faili
 | CC-2 | Where the query `access_token` is read: (a) an `AddZitadel` option `HubPath` (default `/tarol/messages`, `null` = off) plus BC-15 in the same PR, or (b) also a generic helper in `Tarol.Security` | **(a) the `AddZitadel` option** (recommended) |
 | CC-3 | What the list ETag hashes besides the rows: (a) `next` and `total`, or (b) the projection position | **(a) `next` and `total`** (recommended) |
 | CC-4 | Which Part C items to build in this session | **all**: BC-5, BC-14, BC-11 + BC-12 + BC-13, BC-4 |
-| CC-5 | (found in B3) An `Option<T>` member with a parameter default breaks ASP.NET's OpenAPI schema export. (a) a TWEB diagnostic on such a member of an entry (recommended: cheap, explicit), (b) work around it in the schema transformer, (c) leave it | *open* |
+| CC-5 | (found in B3) An `Option<T>` member with a parameter default breaks ASP.NET's OpenAPI schema export: (a) a TWEB diagnostic on such a member of an entry, (b) work around it in the schema transformer, (c) leave it | **(a) a TWEB diagnostic** (recommended) |
+| CC-6 | (BC-11) The request id: (a) `Tarol-Request-Id` (the trace id, else `TraceIdentifier`) on every answer and `traceId` in problems, or (b) only the draft `traceresponse` header | **(a) `Tarol-Request-Id` + `traceId`** (recommended) |
+| CC-7 | (BC-12) Hub errors: (a) `Hub.Forbidden`, `Hub.Topic`, `Auth.Tenant` as a documented `<code>: <detail>` contract with constants (breaking for `Forbidden:` matchers), or (b) keep the prefixes and document them | **(a) `Hub.*` codes** (recommended) |
+| CC-8 | (BC-13) `GET /me`: (a) opt-in `MapTarolMe("/me")`, or (b) always mapped by `MapChanges` | **(a) opt-in `MapTarolMe`** (recommended) |
 
 Defaults taken without a question (recommendations; the owner may revise them in review):
 * BC-10's status for an incomplete erasure is 409 (`DataProtection.ErasureIncomplete`), as the session prompt suggests: the
