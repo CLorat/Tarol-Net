@@ -29,7 +29,7 @@ app.MapChanges();
 | refused by the change's authorization (Tarol.Security) | 403 with the rule's `code` |
 | missing, or another tenant's | 404 |
 | a guard or lifecycle step | 409 with the guard's `code` |
-| not JSON / too large | 415 / 413 |
+| not JSON (also a body without `Content-Type`) / too large | 415 / 413 |
 
 * **Binding**: route values bind the members of the same name (`Id<T>`, `Guid`, `string`, `int`, `long`); body members are
   read one by one through the app's JSON context (value objects included), `[JsonPropertyName]` and defaults honoured.

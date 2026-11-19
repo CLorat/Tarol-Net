@@ -27,7 +27,7 @@ public static class StoreErrors
     /// <summary>The idempotency key was stored by a concurrent commit.</summary>
     /// <param name="key">The key.</param>
     /// <returns>The error.</returns>
-    public static Error DuplicateKey(IdempotencyKey key) => Error.Conflict(DuplicateKeyCode, $"{key.Scope}: {key.Key}");
+    public static Error DuplicateKey(IdempotencyKey key) => Error.Conflict(DuplicateKeyCode, key.Key);
 
     /// <summary>A unique lookup key belongs to another aggregate.</summary>
     /// <param name="lookup">The lookup.</param>
@@ -35,10 +35,11 @@ public static class StoreErrors
     /// <returns>The error.</returns>
     public static Error LookupTaken(string lookup, string key) => Error.Conflict(LookupTakenCode, $"{lookup}: {key}");
 
-    /// <summary>An idempotency key presented again for a different request (another fingerprint): 422, nothing replayed.</summary>
+    /// <summary>An idempotency key presented again for a different request (another fingerprint): 422, nothing replayed. The
+    /// detail is the key only: the scope names the caller (<c>http:User:&lt;sub&gt;:…</c>) and stays in the log (BC-17).</summary>
     /// <param name="key">The key.</param>
     /// <returns>The error.</returns>
-    public static Error KeyReused(IdempotencyKey key) => Error.UnprocessableEntity(KeyReusedCode, $"{key.Scope}: {key.Key}");
+    public static Error KeyReused(IdempotencyKey key) => Error.UnprocessableEntity(KeyReusedCode, key.Key);
 
     /// <summary>Whether <paramref name="result"/> is a version conflict (the caller may reload and decide again).</summary>
     /// <param name="result">An append result.</param>

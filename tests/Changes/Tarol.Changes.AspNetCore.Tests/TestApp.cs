@@ -103,7 +103,9 @@ internal sealed class TestApp : IAsyncDisposable
     {
         using var request = new HttpRequestMessage(method, path);
         if (body is not null)
-            request.Content = new StringContent(body, Encoding.UTF8, contentType);
+            request.Content = contentType.Length == 0
+                ? new ByteArrayContent(Encoding.UTF8.GetBytes(body))                  // no Content-Type at all
+                : new StringContent(body, Encoding.UTF8, contentType);
         if (caller.User is not null)
         {
             request.Headers.Add("X-User", caller.User);

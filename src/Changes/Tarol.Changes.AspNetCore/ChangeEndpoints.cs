@@ -170,6 +170,35 @@ public sealed partial class ChangeEndpoints
         return (buffer.WrittenSpan.ToArray(), 0);
     }
 
+    /// <summary>
+    /// The body of a change entry: 415 when a non-empty body is not JSON (<c>Content-Type</c> missing, or not
+    /// <c>application/json</c> / <c>application/*+json</c>, or a charset other than UTF-8; BC-16), else <see cref="ReadBytes"/>.
+    /// An empty body needs no content type (the binder answers what is missing).
+    /// </summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The bytes, or <see langword="null"/> and the status to answer (413, 415).</returns>
+    public async ValueTask<(byte[]? Bytes, int Status)> ReadJson(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var (bytes, status) = await ReadBytes(http).ConfigureAwait(false);
+        if (bytes is null)
+            return (null, status);
+        return bytes.Length == 0 || IsJson(http.Request.ContentType) ? (bytes, 0) : (null, StatusCodes.Status415UnsupportedMediaType);
+    }
+
+    /// <summary>Whether a <c>Content-Type</c> names JSON in UTF-8: <c>application/json</c> or <c>application/*+json</c>.</summary>
+    /// <param name="contentType">The header value.</param>
+    /// <returns>Whether it is JSON.</returns>
+    public static bool IsJson(string? contentType)
+    {
+        if (!Microsoft.Net.Http.Headers.MediaTypeHeaderValue.TryParse(contentType, out var media))
+            return false;
+        if (media.Charset.HasValue && !media.Charset.Equals("utf-8", StringComparison.OrdinalIgnoreCase))
+            return false;
+        return media.Type.Equals("application", StringComparison.OrdinalIgnoreCase)
+            && (media.SubType.Equals("json", StringComparison.OrdinalIgnoreCase) || media.SubType.EndsWith("+json", StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>The JSON names of members, from the naming policy unless the member names its own (<c>[JsonPropertyName]</c>).</summary>
     /// <param name="members">Pairs of (C# name, explicit JSON name or <see langword="null"/>).</param>
     /// <returns>The JSON names, in order.</returns>

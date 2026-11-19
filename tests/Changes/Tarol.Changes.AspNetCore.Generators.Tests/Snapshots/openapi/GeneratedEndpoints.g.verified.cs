@@ -80,10 +80,10 @@ public static class GeneratedEndpoints
     private static async global::System.Threading.Tasks.Task Run_Shop_OpenOrder(global::Microsoft.AspNetCore.Http.HttpContext http)
     {
         var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
-        var (bytes, status) = await web.ReadBytes(http);
+        var (bytes, status) = await web.ReadJson(http);
         if (bytes is null)
         {
-            http.Response.StatusCode = status;                          // 413
+            http.Response.StatusCode = status;                          // 413, 415
             return;
         }
         var invalid = Bind_Shop_OpenOrder(web, bytes, out var input);
@@ -170,10 +170,10 @@ public static class GeneratedEndpoints
             await web.Problem(http, global::Tarol.Results.Invalid.Field("Order", "Format"));
             return;
         }
-        var (bytes, status) = await web.ReadBytes(http);
+        var (bytes, status) = await web.ReadJson(http);
         if (bytes is null)
         {
-            http.Response.StatusCode = status;                          // 413
+            http.Response.StatusCode = status;                          // 413, 415
             return;
         }
         var invalid = Bind_Shop_AddItems(web, bytes, route_Order, out var input);

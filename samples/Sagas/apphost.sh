@@ -65,10 +65,11 @@ echo "schema versions: store $(q "SELECT version || ' (compatible from ' || comp
 echo "dead letters: outbox $(q "SELECT count(*) FROM tarol.outbox_dead")/$(q "SELECT count(*) FROM tarol.outbox_dead" billingdb), messages $(q "SELECT count(*) FROM tarol.messages_dead")/$(q "SELECT count(*) FROM tarol.messages_dead" billingdb)"
 # step 16: bob's profile is sealed in the store; alice (tarol-admin) exports it, erases it and exports it again
 profile=$(q "SELECT stream_id FROM tarol.events WHERE type = 'bidder_profile' LIMIT 1")
+none=00000000-0000-0000-0000-000000000000   # the bidder profile is tenant-less; the data-subject calls require ?tenant= (400 without)
 email() { python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["events"][0]["data"]["email"])'; }
 echo "bidder profile: plaintext rows $(q "SELECT count(*) FROM tarol.events WHERE type = 'bidder_profile' AND payload::text LIKE '%artflow.example%'"), sealed rows $(q "SELECT count(*) FROM tarol.events WHERE type = 'bidder_profile' AND payload::text LIKE '%tdp1.%'"), subject keys $(q "SELECT count(*) FROM tarol.subject_keys")"
-echo "export by alice: email $(curl -s "$api/tarol/admin/subjects/$profile/export" -H "Authorization: Bearer $alice" | email); by bob $(curl -s -o /dev/null -w '%{http_code}' "$api/tarol/admin/subjects/$profile/export" -H "Authorization: Bearer $bob")"
-echo "erase by alice: $(curl -s -X POST "$api/tarol/admin/subjects/$profile/erase" -H "Authorization: Bearer $alice"); export afterwards: email $(curl -s "$api/tarol/admin/subjects/$profile/export" -H "Authorization: Bearer $alice" | email)"
+echo "export by alice: email $(curl -s "$api/tarol/admin/subjects/$profile/export?tenant=$none" -H "Authorization: Bearer $alice" | email); by bob $(curl -s -o /dev/null -w '%{http_code}' "$api/tarol/admin/subjects/$profile/export?tenant=$none" -H "Authorization: Bearer $bob")"
+echo "erase by alice: $(curl -s -X POST "$api/tarol/admin/subjects/$profile/erase?tenant=$none" -H "Authorization: Bearer $alice"); export afterwards: email $(curl -s "$api/tarol/admin/subjects/$profile/export?tenant=$none" -H "Authorization: Bearer $alice" | email)"
 echo "data-protection audit: $(q "SELECT string_agg(action || ' ' || split_part(target, ':', 1), ', ' ORDER BY id) FROM tarol.operations_audit WHERE action IN ('export', 'erase')"); tombstone: $(q "SELECT (wrapped IS NULL AND erased_at IS NOT NULL)::text FROM tarol.subject_keys WHERE subject = '$profile'")"
 sleep 6
 # metrics are exported once a minute (the OTLP exporter's default): wait for the first export of the api and the worker

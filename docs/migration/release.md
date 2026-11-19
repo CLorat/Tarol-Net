@@ -704,3 +704,18 @@ integration project therefore runs without a CI change. Both missing suites pass
 Not done: NuGet lock files (`RestorePackagesWithLockFile` with `RestoreLockedMode` in CI). They pin transitive versions and
 hashes, but add a lock file per project (about 80) that Dependabot must keep current; left for the owner to decide. Not run here:
 the workflows themselves (they run on GitHub); the YAML parses, and the PR's own CI is the first run.
+
+## 15. Lesson from the first publish: 403 when the package name belongs to another repository
+
+The first push of step 17 to GitHub Packages failed with **403 Forbidden** for package ids that already existed in the owner's
+namespace (`nuget.pkg.github.com/CLorat`) from an earlier publish out of another repository. A GitHub package is linked to the
+repository that first published it, and a workflow's `GITHUB_TOKEN` may write only to packages its own repository may write to;
+the push is refused although the token has `packages: write`. `--skip-duplicate` does not help: the refusal is not a duplicate
+version.
+
+What to do (the owner, in the package's settings on GitHub; **[unverified here]**: no push is made from a session):
+* give the Tarol-Net repository write access under the package's "Manage Actions access", or
+* delete the old package (its versions go with it) so the next push creates it linked to Tarol-Net.
+
+Before a release, check that no `Tarol*` package id is held by another repository; `eng/verify-packages.sh` cannot see it, only
+the feed can.

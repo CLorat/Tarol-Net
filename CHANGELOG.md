@@ -46,6 +46,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Fixed
 
+* A change entry answers 415 for a non-empty body without a JSON `Content-Type` (BC-16); routing refused other media types
+  already, but a body with no `Content-Type` was parsed as JSON. New: `ChangeEndpoints.ReadJson`, `ChangeEndpoints.IsJson`;
+  the generated entries call `ReadJson`.
+* `Idempotency.KeyReused` (422) and `Idempotency.DuplicateKey` (409) name the key only in their detail (BC-17); the scope
+  (`http:User:<sub>:POST /auctions`) is logged by the pipeline (events 7004, 7005) instead of answered.
+* `samples/Sagas/apphost.sh` passes `?tenant=` to the data-subject export and erase (400 since the tenant fix).
+
 * The admin entry (`MapTarolAdmin`) answers every error as `application/problem+json` with a `code` (`AdminProblems`), and an
   incomplete erasure as 409 `DataProtection.ErasureIncomplete` with the failed participants instead of an unhandled 500 (BC-10).
   **Breaking (wire):** the body was `{"error":"…"}`; `AdminError` is no longer written. Redrive and discard of an unknown id

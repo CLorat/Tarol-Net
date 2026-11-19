@@ -154,3 +154,30 @@ Every PR lists its own; together, for a client written against `73b35ff`:
   unhandled 500 in a real host), the kinds path did not exist, the errors were `{"error"}`.
 * **Public API** (generated): `+ AdminProblems` (6 constants), `+ OperationsJson.IReadOnlyListString`, `+ IIncompleteErasure`.
 * **Suppressions**: none.
+
+## 9. PR A5: 415, the key detail, the AppHost tenant, the release lesson
+
+* **BC-16, 415**: the finding is partly right. Routing (`Accepts` metadata) already answers 415 for another media type
+  (`text/plain`, the existing `A_body_that_is_not_json_is_415_from_routing_…` test), but a body **without** `Content-Type`
+  passed routing and was parsed as JSON (201). `ChangeEndpoints.ReadJson` answers 415 for a non-empty body whose
+  `Content-Type` is missing, not `application/json`/`application/*+json`, or not UTF-8 (`IsJson`); an empty body needs none
+  (a change without input, `POST /auctions/{id}/close`, still answers 204). The generated entries call `ReadJson`; webhooks
+  keep `ReadBytes` (the signature covers the bytes whatever their type). Snapshots `endpoints` and `openapi` accepted (only
+  `ReadBytes` → `ReadJson` and the comment).
+* **BC-17, the key detail** **[verified]** by a test: the 422 detail was `http:User:alice:POST /auctions: k-1`. `StoreErrors.KeyReused`
+  and `StoreErrors.DuplicateKey` (the same pattern, found here) name the key only; the pipeline logs the scope (7004 when a key
+  is reused for another request, 7005 when a concurrent request holds it).
+* **AppHost**: `apphost.sh` passes `?tenant=00000000-0000-0000-0000-000000000000` to export and erase; data-protection.md
+  §18.3 notes that its run predates the tenant fix.
+* **Release lesson**: release.md §15 (403 on push when the package id is linked to another repository).
+* **Behaviour changes**: 415 for a JSON body without `Content-Type` (a client that omitted the header must send it); the two
+  key errors' `detail` text.
+* **Tests** (red before the fix **[verified]**: 2 of 82 failed): `A_json_body_without_a_content_type_is_415_and_a_change_without_a_body_needs_none`,
+  `Json_content_types` (10 cases), the key test checks the detail is `k-1` and names neither the scope nor the user.
+* **Public API** (generated): `+ ChangeEndpoints.ReadJson(HttpContext)`, `+ static ChangeEndpoints.IsJson(string?)`.
+* **Suppressions**: none.
+* **AppHost run** (`apphost.sh … 5`, JIT, NATS, 2026-11-19) **[verified]**: health 200 after 27 s; bid 204, settle by bob
+  403 / alice 204; 5 sagas completed; list 304 by ETag; admin 200/403/401; `export by alice: email bob@artflow.example; by
+  bob 403`. The erasure line now shows what the missing `?tenant=` hid: `409 DataProtection.ErasureIncomplete … "failed":
+  ["search"]`. The search participant fails in the API process; that is its own bug, fixed in the next PR (§10). The export
+  afterwards reads `email None` (the key is erased).

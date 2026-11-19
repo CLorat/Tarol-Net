@@ -214,8 +214,8 @@ internal static class Emitter
             Route(sb, m);
         if (e.HasBody)
         {
-            sb.Append("        var (bytes, status) = await web.ReadBytes(http);\n");
-            sb.Append("        if (bytes is null)\n        {\n            http.Response.StatusCode = status;                          // 413\n            return;\n        }\n");
+            sb.Append("        var (bytes, status) = await web.ReadJson(http);\n");
+            sb.Append("        if (bytes is null)\n        {\n            http.Response.StatusCode = status;                          // 413, 415\n            return;\n        }\n");
             sb.Append("        var invalid = Bind_").Append(Key(e)).Append("(web, bytes").Append(string.Concat(route.Select(m => ", route_" + m.Name))).Append(", out var input);\n");
             sb.Append("        if (invalid is not null)\n        {\n            await web.Problem(http, invalid);\n            return;\n        }\n");
             sb.Append("        var (context, options, refused) = web.Edge(http, bytes);\n");

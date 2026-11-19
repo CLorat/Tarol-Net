@@ -1,4 +1,6 @@
 #nullable enable
+Tarol.Changes.AspNetCore.ChangeEndpoints.ReadJson(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<(byte[]? Bytes, int Status)>
 Tarol.Changes.AspNetCore.SearchEndpoints
 const Tarol.Changes.AspNetCore.SearchEndpoints.BuildingCode = "Search.Building" -> string!
+static Tarol.Changes.AspNetCore.ChangeEndpoints.IsJson(string? contentType) -> bool
 static Tarol.Changes.AspNetCore.SearchEndpoints.MapTarolSearch(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern = "/search", string? policy = null) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!

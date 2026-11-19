@@ -151,7 +151,8 @@ reports `reserve: Required, endsAt: Required`.
   characters. Replay: 200 (creation) / 204 (change) with the first outcome's `ETag` and `Idempotent-Replayed: true`
   **[verified]**. Another caller with the same key gets its own outcome **[verified]**. **The same key with another body
   replays silently today** **[verified]**; 10A stores a fingerprint (SHA-256 of method, path and body) with the key and
-  answers 422 `Idempotency.KeyReused` on a mismatch (R-9).
+  answers 422 `Idempotency.KeyReused` on a mismatch (R-9); its detail is the key only, the scope (caller, method, path)
+  is logged (event 7004), never answered (BC-17).
 * **`ETag: "<version>"`** on every success and every GET; `If-Match: "<n>"` → `ExpectedVersion` (stale → 409
   `Stream.VersionConflict`, changes.md §6; RFC 9110 would say 412, the 409 is Tarol's decided mapping); a malformed value →
   400 `errors.If-Match`; `If-None-Match` on GET → 304 **[verified]**.
