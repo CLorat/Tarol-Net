@@ -33,6 +33,7 @@ public static partial class NpgsqlSearchSchema
         var table = schema + "." + TableOf(version);
         var name = TableOf(version);
         return $$"""
+            SELECT pg_advisory_xact_lock(hashtext('tarol.search.extensions'));   -- extensions are per database: one creator at a time
             SELECT pg_advisory_xact_lock(hashtext('{{schema}}.search'));
             CREATE EXTENSION IF NOT EXISTS pg_trgm;
             CREATE EXTENSION IF NOT EXISTS btree_gin;
