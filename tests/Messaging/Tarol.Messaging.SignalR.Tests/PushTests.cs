@@ -168,6 +168,33 @@ public sealed class PushTests
     }
 
     [Fact]
+    public async Task A_connection_that_closes_again_while_the_client_restarts_is_started_again()
+    {
+        await using var host = await PushHost.Start();
+        var connection = new HubConnectionBuilder()                                                   // no automatic reconnect: Closed is final
+            .WithUrl(host.Hub, o =>
+            {
+                o.Headers["X-User"] = "alice";
+                o.Headers["X-Roles"] = "member";
+            })
+            .AddJsonProtocol(static o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, SignalRJson.Default))
+            .Build();
+        await using var client = new MessagePushClient(connection, ownsConnection: true);
+        var inbox = new Inbox();
+        await using var handle = await client.Subscribe("artflow.chat", inbox.Add, Ct);
+        await client.Start(Ct);
+
+        await host.Stop();
+        host.AbortNext = 1;                                                                           // the restart's start succeeds, then the server closes it
+        await host.Restart();
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (client.State != HubConnectionState.Connected && waited.Elapsed < ReconnectCap)
+            await Task.Delay(50, Ct);
+        client.State.ShouldBe(HubConnectionState.Connected);
+        await Replayed(client, inbox, "artflow.chat");
+    }
+
+    [Fact]
     public async Task A_timed_out_restart_attempt_does_not_end_the_restarts()
     {
         await using var host = await PushHost.Start();

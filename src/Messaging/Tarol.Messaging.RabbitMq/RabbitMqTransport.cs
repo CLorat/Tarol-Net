@@ -43,8 +43,10 @@ public sealed record RabbitMqTransportOptions
 /// <summary>
 /// The transport port over RabbitMQ (docs/architecture/messaging.md §6, T-3): one durable topic exchange per source system
 /// (routing key = contract), one quorum queue per subscription, publisher confirms (a publish returns after the broker's
-/// confirm), manual acknowledgement. A retry is an acknowledgement plus a copy into <c>&lt;queue&gt;.retry</c> whose per-message
-/// TTL dead-letters it back to the queue; the attempt travels in <c>x-tarol-attempt</c>.
+/// confirm), manual acknowledgement. A retry is an acknowledgement plus a copy into one of the queue's delay queues
+/// (<c>&lt;queue&gt;.retry.1s</c>, <c>.5s</c>, <c>.30s</c>, <c>.2m</c>, <c>.10m</c>, <c>.1h</c>; the one nearest the backoff) whose
+/// queue TTL dead-letters it back to the queue; the attempt travels in <c>x-tarol-attempt</c>. Every message in a delay queue has
+/// the same TTL, so none waits behind a longer one (RabbitMQ expires only a queue's head).
 /// </summary>
 /// <remarks>
 /// A publish is <c>mandatory</c>: a contract nobody subscribes is returned by the broker; it is logged and counts as
@@ -54,6 +56,28 @@ public sealed record RabbitMqTransportOptions
 public sealed partial class RabbitMqTransport : IMessageTransport, IAsyncDisposable
 {
     private const string AttemptHeader = "x-tarol-attempt";
+
+    /// <summary>The delay queues of a subscription: name suffix and TTL. A backoff goes to the nearest one (on a log scale).</summary>
+    internal static readonly (string Suffix, TimeSpan Delay)[] DelayTiers =
+    [
+        (".retry.1s", TimeSpan.FromSeconds(1)),
+        (".retry.5s", TimeSpan.FromSeconds(5)),
+        (".retry.30s", TimeSpan.FromSeconds(30)),
+        (".retry.2m", TimeSpan.FromMinutes(2)),
+        (".retry.10m", TimeSpan.FromMinutes(10)),
+        (".retry.1h", TimeSpan.FromHours(1)),
+    ];
+
+    /// <summary>The delay queue suffix for <paramref name="delay"/>: the tier nearest it on a log scale (at least 1 s, at most 1 h).</summary>
+    internal static string DelayQueueFor(TimeSpan delay)
+    {
+        var seconds = Math.Max(delay.TotalSeconds, DelayTiers[0].Delay.TotalSeconds);
+        var best = DelayTiers[0];
+        foreach (var tier in DelayTiers)
+            if (Math.Abs(Math.Log(seconds / tier.Delay.TotalSeconds)) < Math.Abs(Math.Log(seconds / best.Delay.TotalSeconds)))
+                best = tier;
+        return best.Suffix;
+    }
 
     private readonly RabbitMqTransportOptions _options;
     private readonly ILogger _log;
@@ -95,8 +119,8 @@ public sealed partial class RabbitMqTransport : IMessageTransport, IAsyncDisposa
     /// <inheritdoc />
     /// <remarks>
     /// Declares the exchanges of the published contracts, the exchanges of the subscribed ones (passively when this user may
-    /// not configure another system's exchange: it must exist then), and per subscription its quorum queue, its retry queue
-    /// and the bindings.
+    /// not configure another system's exchange: it must exist then), and per subscription its quorum queue, its delay queues
+    /// (and the <c>.retry</c> queue of earlier versions, so what is in it flows back) and the bindings.
     /// </remarks>
     public async Task Prepare(IReadOnlyList<string> topics, IReadOnlyList<Subscription> subscriptions, CancellationToken cancellationToken)
     {
@@ -120,19 +144,31 @@ public sealed partial class RabbitMqTransport : IMessageTransport, IAsyncDisposa
                 var queue = QueueOf(subscription.Name);
                 await channel.QueueDeclareAsync(queue, durable: true, exclusive: false, autoDelete: false,
                     arguments: new Dictionary<string, object?> { ["x-queue-type"] = "quorum" }, cancellationToken: cancellationToken).ConfigureAwait(false);
+                // the queue of earlier versions (per-message TTLs): still declared, so copies in it flow back; nothing new goes in
                 await channel.QueueDeclareAsync(queue + ".retry", durable: true, exclusive: false, autoDelete: false,
-                    arguments: new Dictionary<string, object?>
-                    {
-                        ["x-queue-type"] = "quorum",
-                        ["x-dead-letter-exchange"] = "",
-                        ["x-dead-letter-routing-key"] = queue,
-                        ["x-dead-letter-strategy"] = "at-least-once",
-                        ["x-overflow"] = "reject-publish",
-                    }, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    arguments: RetryArguments(queue, ttl: null), cancellationToken: cancellationToken).ConfigureAwait(false);
+                foreach (var (suffix, delay) in DelayTiers)
+                    await channel.QueueDeclareAsync(queue + suffix, durable: true, exclusive: false, autoDelete: false,
+                        arguments: RetryArguments(queue, delay), cancellationToken: cancellationToken).ConfigureAwait(false);
                 foreach (var topic in subscription.Topics)
                     await channel.QueueBindAsync(queue, ExchangeOf(topic), topic, cancellationToken: cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    private static Dictionary<string, object?> RetryArguments(string queue, TimeSpan? ttl)
+    {
+        var arguments = new Dictionary<string, object?>
+        {
+            ["x-queue-type"] = "quorum",
+            ["x-dead-letter-exchange"] = "",
+            ["x-dead-letter-routing-key"] = queue,
+            ["x-dead-letter-strategy"] = "at-least-once",
+            ["x-overflow"] = "reject-publish",
+        };
+        if (ttl is { } delay)
+            arguments["x-message-ttl"] = (long)delay.TotalMilliseconds;
+        return arguments;
     }
 
     private static async Task DeclareForeign(IConnection connection, string exchange, CancellationToken cancellationToken)
@@ -255,13 +291,13 @@ public sealed partial class RabbitMqTransport : IMessageTransport, IAsyncDisposa
             {
                 var copy = new BasicProperties(delivery.BasicProperties)
                 {
-                    Expiration = Math.Max(1L, (long)handled.RetryAfter.TotalMilliseconds).ToString(CultureInfo.InvariantCulture),
+                    Expiration = null,                                                         // the delay queue's TTL decides
                     Headers = new Dictionary<string, object?>(headers ?? new Dictionary<string, object?>())
                     {
                         [AttemptHeader] = (attempt + 1).ToString(CultureInfo.InvariantCulture),
                     },
                 };
-                await retry.BasicPublishAsync("", queue + ".retry", mandatory: true, copy, data, CancellationToken.None).ConfigureAwait(false);
+                await retry.BasicPublishAsync("", queue + DelayQueueFor(handled.RetryAfter), mandatory: true, copy, data, CancellationToken.None).ConfigureAwait(false);
             }
             await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false, CancellationToken.None).ConfigureAwait(false);
         }
