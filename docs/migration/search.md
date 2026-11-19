@@ -626,7 +626,10 @@ None.
 * The typo index is `GIN (tenant, a gin_trgm_ops)` (weight A), not the title (§16.2).
 * Within the rank bound the candidate set is the first 1,000 matches the GIN returns, unordered: pages are stable while the index
   does not change; a write between two pages can change a page of a query with more than 1,000 matches (documented).
-* The fingerprint is stored in `<schema>.search_versions`; `Prepare` runs under `pg_advisory_xact_lock(hashtext('<schema>.search'))`.
+* The fingerprint is stored in `<schema>.search_versions`; `Prepare` runs under `pg_advisory_xact_lock(hashtext('<schema>.search'))`
+  and, first, a database-wide `pg_advisory_xact_lock(hashtext('tarol.search.extensions'))`: two indexes in different schemas
+  preparing at once raced on `CREATE EXTENSION IF NOT EXISTS` (23505 on `pg_extension`). The full suite found it (the test
+  classes run in parallel on one database); a test now prepares four schemas at once in a fresh database.
 * Text-search configurations `<schema>.german`, `.english`, `.simple` map words through the `unaccent` dictionary of whatever schema
   the extension lives in (looked up in `pg_extension`).
 
