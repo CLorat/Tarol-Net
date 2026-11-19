@@ -60,14 +60,22 @@ public sealed class TypesenseIndex : ISearchIndex
         ArgumentNullException.ThrowIfNull(definition);
         await Ensure(Versions, w =>
         {
-            w.WriteStartObject(); w.WriteString("name", "fingerprint"); w.WriteString("type", "string"); w.WriteBoolean("index", false); w.WriteBoolean("optional", true);
+            w.WriteStartObject();
+            w.WriteString("name", "fingerprint");
+            w.WriteString("type", "string");
+            w.WriteBoolean("index", false);
+            w.WriteBoolean("optional", true);
             w.WriteEndObject();
         }, cancellationToken).ConfigureAwait(false);
         var key = definition.Version.ToString(CultureInfo.InvariantCulture);
         using (var import = await EngineJson.Send(_http, HttpMethod.Post, $"/collections/{Versions}/documents?action=create", EngineJson.Body(w =>
         {
-            w.WriteStartObject(); w.WriteString("id", key); w.WriteString("fingerprint", definition.Fingerprint); w.WriteEndObject();
-        }), cancellationToken, allowNotFound: false, allowConflict: true).ConfigureAwait(false)) { }
+            w.WriteStartObject();
+            w.WriteString("id", key);
+            w.WriteString("fingerprint", definition.Fingerprint);
+            w.WriteEndObject();
+        }), cancellationToken, allowNotFound: false, allowConflict: true).ConfigureAwait(false))
+        { }
         using (var stored = await EngineJson.Send(_http, HttpMethod.Get, $"/collections/{Versions}/documents/{key}", null, cancellationToken).ConfigureAwait(false))
         {
             var fingerprint = stored.RootElement.TryGetProperty("fingerprint", out var f) ? f.GetString() : null;
@@ -104,12 +112,18 @@ public sealed class TypesenseIndex : ISearchIndex
             w.WriteStartObject();
             w.WriteString("name", name);
             w.WriteString("type", type);
-            if (facet) w.WriteBoolean("facet", true);
-            if (optional) w.WriteBoolean("optional", true);
-            if (!index) w.WriteBoolean("index", false);
-            if (sort) w.WriteBoolean("sort", true);
-            if (locale is not null) w.WriteString("locale", locale);
-            if (stem) w.WriteBoolean("stem", true);
+            if (facet)
+                w.WriteBoolean("facet", true);
+            if (optional)
+                w.WriteBoolean("optional", true);
+            if (!index)
+                w.WriteBoolean("index", false);
+            if (sort)
+                w.WriteBoolean("sort", true);
+            if (locale is not null)
+                w.WriteString("locale", locale);
+            if (stem)
+                w.WriteBoolean("stem", true);
             w.WriteEndObject();
         }
         Field(w, "tenant", "string");
