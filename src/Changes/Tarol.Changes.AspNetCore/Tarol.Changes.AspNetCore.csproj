@@ -8,6 +8,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../Security/Tarol.Security/Tarol.Security.csproj" />
     <ProjectReference Include="../../Queries/Tarol.Queries/Tarol.Queries.csproj" />
+    <!-- step 18D (GS-12): MapTarolSearch, next to the list entries -->
+    <ProjectReference Include="../../Search/Tarol.Search/Tarol.Search.csproj" />
     <!-- D-10: the endpoint generator (TWEB001-TWEB006) ships inside this package. -->
     <ProjectReference Include="../Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj"
                       ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />

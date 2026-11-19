@@ -8,6 +8,16 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol.Search.Typesense` (step 18F): the Typesense adapter (HttpClient, no SDK): a collection per version, English and German
+  stemming with folding, Tarol's query syntax through one `multi_search` (OR alternatives, locales, the exact token), the shared
+  typo rule, counts, highlights, synchronous writes, a readiness problem while the server does not answer.
+* `Tarol.Search.OpenSearch` (step 18E): the OpenSearch adapter (HttpClient, no SDK): an index per version, folding and
+  English/German analysers, Tarol's query syntax, a fuzzy typo fallback by the shared rule, exact counts, highlights, a readiness
+  problem while the cluster does not answer. `ISearchCheckpoints` in `Tarol.Search`, `NpgsqlSearchCheckpoints` and
+  `UseNpgsqlSearchCheckpoints` in `Tarol.Search.Npgsql`. Test-only package `Testcontainers` (MIT) pinned.
+* `MapTarolSearch` in `Tarol.Changes.AspNetCore` (step 18D): `GET /search` over every searchable type the caller may read
+  (`Read<T>`), in its tenant, its subject and roles as the audience; read-after, 503 while building, weak ETag and 304.
+  `ISearchAccess` and `SearchRegistry.Readable` in `Tarol.Search`.
 * `Tarol.Search.Npgsql` (step 18C): PostgreSQL full-text search in the store's database: a table per index version, a GIN led by
   the tenant, ranking within the first 1,000 matches, German/English/simple with accents folded, a trigram typo fallback, counts,
   snippets, blind tokens; documents and checkpoint in one transaction; the previous version answers while a new one builds.

@@ -14,6 +14,7 @@ using Tarol.Changes.AspNetCore.Tests;
 using Tarol.Persistence.Npgsql;
 using Tarol.Queries;
 using Tarol.Queries.Npgsql;
+using Tarol.Search;
 using Tarol.Security;
 
 var failures = 0;
@@ -38,6 +39,7 @@ if (pg is { Length: > 0 })
 else
     tarol.UseInMemoryReadModels();
 tarol.AddProjections(p => p.Add<AuctionRow>(o => o.Poll = TimeSpan.FromMilliseconds(20)));
+tarol.AddSearch(s => { s.Add<Auction>(); s.Projection.Poll = TimeSpan.FromMilliseconds(20); }).UseInMemorySearch();   // step 18D
 tarol.AddSecurity(roles =>
     {
         roles.Role("seller").May<CreateAuction>().May<CloseAuction>();
@@ -60,6 +62,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
 app.MapChanges();
+app.MapTarolSearch("/search", "auctions:read");
 await app.StartAsync();
 using var http = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
 
@@ -107,6 +110,11 @@ var listed = list.Status == HttpStatusCode.OK ? JsonElement.Parse(list.Body) : d
 Check("list after the bid's Tarol-Position: the row, its ETag and the position", list.Status == HttpStatusCode.OK && position.Length > 0
     && listed.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id && i.GetProperty("bids").GetInt32() == 1)
     && list.R.Headers.ETag is { IsWeak: true } && list.R.Headers.Contains(Positions.PositionHeader) && !list.R.Headers.Contains(Positions.StaleHeader), list.Body);
+var search = await Send(HttpMethod.Get, "/search?q=sunflowers&counts=true&snippets=true", null, "alice", h => h.Add(Positions.ReadAfterHeader, position));
+var searched = search.Status == HttpStatusCode.OK ? JsonElement.Parse(search.Body) : default;
+Check("search after the bid's Tarol-Position: the auction, counts, a weak ETag (step 18D)", search.Status == HttpStatusCode.OK
+    && searched.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id)
+    && searched.GetProperty("counts").EnumerateObject().Any() && search.R.Headers.ETag is { IsWeak: true }, search.Body);
 var page = await Send(HttpMethod.Get, "/auctions?limit=1&sort=Id", null, "alice");
 var badCursor = await Send(HttpMethod.Get, "/auctions?after=x", null, "alice");
 Check("list: cursor page, bad cursor 400", page.Status == HttpStatusCode.OK && badCursor.Status == HttpStatusCode.BadRequest && badCursor.Body.Contains("\"after\""), badCursor.Body);

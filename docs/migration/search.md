@@ -702,3 +702,156 @@ The first full run failed one test (the extension race, §17.2); fixed, then gre
 
 None.
 
+## 18. Implementation: PR 18D (2026-11-18)
+
+`changes.aspnetcore: MapTarolSearch` (GS-7, GS-9; §10.2).
+
+### 18.1 Public API
+
+* `Tarol.Changes.AspNetCore`: `SearchEndpoints.MapTarolSearch(this IEndpointRouteBuilder, string pattern = "/search", string? policy = null)`
+  → `IEndpointConventionBuilder`; `SearchEndpoints.BuildingCode` (`Search.Building`). The package references `Tarol.Search`.
+* `Tarol.Search`: `ISearchAccess.CanRead<T>(CancellationToken)` and `SearchRegistry.Readable(ISearchAccess, CancellationToken)`:
+  the readable document types (an entity type follows its aggregate).
+
+### 18.2 Behaviour
+
+* Query string: `q` (one, 1–256 characters), `types` (comma-separated), `prefix`, `counts`, `snippets` (`true`/`false`, else
+  400), `limit` (1–50), `after`, `lang` (else the first `Accept-Language` code).
+* Edge as for lists: the tenant from the claim, `Cache-Control: private, no-cache`, `Vary: Authorization`, problems; 401
+  anonymous; 403 for a requested type without `Read<T>` (`CheckList<T>`), or when no type is readable; 400 for an unknown type.
+* The caller's audience keys: the subject claim (`ChangeEndpointOptions.SubjectClaim`) and every role claim.
+* `Tarol-Read-After` polls the index's **stored** checkpoint every 5 ms (timeout `Queries.ReadAfterTimeout`; `Tarol-Stale: true`
+  after it). Not `SearchHost.WaitFor`: in an API process the host is not the runner (the gate, O-8), its own position never
+  moves, and a read-after would always time out. Found while wiring the sample (18G).
+* 503 with `Retry-After: 5` while the answering version is building (no version current yet).
+* `200 { "items": [{ "type", "id", "aggregate", "title", "score", "snippet"? }], "counts"?, "countsCapped"?, "next" }`,
+  `Tarol-Position`, a weak `ETag` over (version, position, next, hits, counts); a matching `If-None-Match` answers 304.
+
+### 18.3 Deliberate differences from §11
+
+* The endpoint is in `SearchEndpoints` (a static class with the extension), not on `ChangeEndpoints`; it uses
+  `ChangeEndpoints.Edge` and `Problem` like the list entries.
+* No OpenAPI entry yet (the generated entries describe themselves; the runtime endpoint has `WithName("TarolSearch")`). Open item.
+
+### 18.4 Tests **[verified]**
+
+`SearchEndpointTests` (8, TestServer, in-memory index): read-after finds the caller's new auction with position, cache headers,
+a weak ETag and 304; another tenant sees nothing; a requested type without `Read<T>` is 403 and the default leaves it out of
+the counts; a caller with no readable type is 403; 400 for an unknown type, limit 51, a bad flag, a missing `q`, a bad cursor
+and a bad `Tarol-Read-After`; 401 anonymous; the audience is the subject and the roles (a memo for "bidder" is seen by bidders
+only, one of "alice" by alice only); cursor pages and a prefix; 503 + `Retry-After` while building. The class ran 5 times in a
+row green. The test domain's `Auction`, `Payout` and a new `Memo` are `[Searchable]`. `Tarol.Changes.AspNetCore.AotSmoke`
+gains the search check: 0 IL warnings, natively green.
+
+### 18.5 Skill evaluation checklist (`tarol-endpoints`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| expose search over HTTP | `app.MapTarolSearch("/search", "policy")` after `AddSearch` | mapping without `AddSecurity` (entries fail closed) |
+| hide documents per user | `[SearchAudience]` on the aggregate | expecting row rules (`ChangeHandler<,>`) to filter hits |
+
+### 18.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes; `dotnet test --solution Tarol.slnx` with Docker **2,004 passed** (after `main`'s #74;
+an earlier run failed one Persistence test with `53300 too many clients`, a fixture limit: the PostgreSQL test containers now allow 300 connections, part 1 of this step);
+`eng/aot-smoke.sh` **26 apps**, 0 IL warnings (the AspNetCore smoke's search check natively); pack 27 packages;
+`eng/verify-packages.sh` OK.
+
+## 19. Implementation: PR 18E (2026-11-18)
+
+`search.opensearch: the OpenSearch adapter` (new package `Tarol.Search.OpenSearch`, GS-3).
+
+### 19.1 Public API
+
+* `Tarol.Search.OpenSearch`: `OpenSearchIndex : ISearchIndex` (`IndexOf(version)`, `Problem`), `OpenSearchOptions`
+  (`IndexPrefix` = `tarol-search`, `WaitForRefresh`, `Shards` = 1, `Replicas` = 1), `UseOpenSearch(http, options)` (also a
+  `ReadinessCheck` "search-opensearch").
+* `Tarol.Search`: `ISearchCheckpoints` (`Prepare`, `Checkpoint`, `Move`, `NewestCurrent`), `InMemorySearchCheckpoints`.
+* `Tarol.Search.Npgsql`: `NpgsqlSearchCheckpoints` (the rows (`search`, n) of `projections`), `UseNpgsqlSearchCheckpoints`.
+
+### 19.2 Deliberate differences from §11
+
+* The checkpoint port is new (§11 assumed the engine adapters write `projections` directly): an engine has no transaction with
+  Tarol's, so the index writes the documents, then moves the checkpoint guarded; `Write` first compares the stored checkpoint
+  and writes nothing for another runner's batch.
+* Stale documents (a removed entity, a deleted stream) go with `_delete_by_query` (tenant, the batch's aggregates, not the new
+  ids) after a refresh, because a delete-by-query sees only refreshed documents. A batch therefore costs one refresh.
+* Readiness: `ReadinessCheck` is synchronous, so the adapter records its last failed connection and `ready` reports it until the
+  next answer; no request per probe.
+* No Elasticsearch claim: the API family is close, but nothing here ran against Elasticsearch **[unverified]**.
+* The CI `aot-smoke` job gets no OpenSearch service; the smoke app skips its engine checks without `TAROL_OPENSEARCH` and was run
+  natively against `opensearchproject/opensearch:2.19.1` here (§19.4). Adding the service is an owner's CI choice.
+
+### 19.3 Tests **[verified]**
+
+`Tarol.Search.OpenSearch.IntegrationTests` (20, Testcontainers OpenSearch 2.19.1 with the security plugin and the disk threshold
+off, PostgreSQL 17 for the checkpoints): the **contract suite** (17); German/English stemming and folding; the checkpoint in
+`projections` and a new version building while version 1 answers; an unreachable cluster is a readiness problem until it answers.
+Finding while testing: a Testcontainers wait path with a query string (`/_cluster/health?wait_for_status=yellow`) never succeeded
+and the fixture hung; the wait now asks `/`.
+
+### 19.4 AOT **[verified]**
+
+`Tarol.Search.OpenSearch.AotSmoke`: 0 IL warnings; with `TAROL_OPENSEARCH` (a local container) 9 checks pass natively. One check
+first assumed an order between two title matches; BM25 puts the shorter title first, which the contract allows.
+
+### 19.5 Skill evaluation checklist (`tarol-search-opensearch`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| run search on OpenSearch | `UseNpgsqlSearchCheckpoints()`, `UseOpenSearch(p => client)` | forgetting the checkpoints (start fails) |
+| authenticate | the `HttpClient`'s handler or header from configuration | credentials in code or committed settings |
+| read your own write | `WaitForRefresh = true` | expecting it within milliseconds by default |
+
+### 19.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; `dotnet test --solution Tarol.slnx` with Docker **2,024 passed** (OpenSearch in Testcontainers);
+`eng/aot-smoke.sh` **27 apps**, 0 IL warnings; pack 28 packages; `eng/verify-packages.sh` OK. The first run's format check
+rejected the compact JSON writer lines in `OpenSearchIndex` (`WHITESPACE`); one statement per line since, and
+`dotnet format Tarol.slnx --verify-no-changes` reports no changes.
+
+## 20. Implementation: PR 18F (2026-11-18)
+
+`search.typesense: the Typesense adapter` (new package `Tarol.Search.Typesense`, GS-3).
+
+### 20.1 Public API
+
+`TypesenseIndex : ISearchIndex` (`CollectionOf(version)`, `Problem`), `TypesenseOptions` (`CollectionPrefix` = `tarol_search`),
+`UseTypesense(http, options)` (also a `ReadinessCheck` "search-typesense"), `TypesenseTarolBuilderExtensions.Client(server, apiKey)`.
+
+### 20.2 Deliberate differences from §11
+
+* **One `multi_search` per query.** Typesense has no `OR`, cannot OR a text match with a filter (the exact token), and tokenizes
+  a query by the **first** field's locale: with a `de` field first, "gemalde" no longer matched the folded base field (probed by
+  hand, §20.3). So every combination of `OR` alternatives (at most 8) × every locale group (base, German) and the exact-token
+  lookup run as one `multi_search`, merged by score; counts over several searches come from the merged hits (fetched up to the
+  count bound; `CountsCapped` when a search found more).
+* **German documents are written to the folded base fields too**: the `de` locale keeps umlauts.
+* **An empty audience is a boolean field** (`open`): Typesense cannot filter on an empty array.
+* The fingerprint is a document of `<prefix>_versions` (collection metadata is not used).
+* The API key comes from the caller's configuration; the tests and the smoke app generate or pass a throwaway key for a local
+  container. CI needs no secret for the tests (the container takes any key); a production key is the owner's to configure.
+
+### 20.3 Tests **[verified]**
+
+`Tarol.Search.Typesense.IntegrationTests` (20, Testcontainers Typesense 28.0 with a per-run key, PostgreSQL 17 for the
+checkpoints): the **contract suite** (17), German/English stemming and folding, a new version building while version 1 answers,
+an unreachable server as a readiness problem. By hand against the image: `query_by=b_de,b` found 0 for "gemalde", `b,b_de` found 1.
+
+### 20.4 AOT **[verified]**
+
+`Tarol.Search.Typesense.AotSmoke`: 0 IL warnings; with `TAROL_TYPESENSE`/`TAROL_TYPESENSE_KEY` (a local container, a throwaway
+key) 9 checks pass natively.
+
+### 20.5 Skill evaluation checklist (`tarol-search-typesense`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| run search on Typesense | `UseNpgsqlSearchCheckpoints()`, `UseTypesense(_ => Client(server, key))` | the API key in code or committed settings |
+| search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting the `de` locale to fold umlauts |
+
+### 20.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; format no changes (after one statement per line in `TypesenseIndex`, the rule 18E's run found);
+`dotnet test --solution Tarol.slnx` with Docker **2,044 passed** (Typesense in Testcontainers, a per-run key);
+`eng/aot-smoke.sh` **28 apps**, 0 IL warnings; pack 29 packages; `eng/verify-packages.sh` OK.

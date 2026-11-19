@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Native-AOT smoke test of Tarol.Search.Typesense (with TAROL_TYPESENSE set to a server URL and TAROL_TYPESENSE_KEY to its API key: the index, the contract's core
+    checks, erasure and retention, checkpoints in memory). Publish with
+      dotnet publish tests/Search/Tarol.Search.Typesense.AotSmoke -c Release -r linux-x64
+    It must report 0 IL2xxx/IL3xxx warnings and exit 0 (eng/aot-smoke.sh does both).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PublishAot>true</PublishAot>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Search/Tarol.Search.Typesense/Tarol.Search.Typesense.csproj" />
+    <ProjectReference Include="../../../src/Search/Tarol.Search.Generators/Tarol.Search.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/ContractDomain.cs" LinkBase="Shared" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The OpenSearch adapter of Tarol.Search: an index per version with keyword tenant, type, exact tokens and audience, text per weight with folding, English and German analysers, phrase and prefix queries built from Tarol's parser, a fuzzy typo fallback decided by the shared rule, exact counts, highlights. HttpClient with hand-written JSON, no SDK; checkpoints through ISearchCheckpoints (Tarol.Search.Npgsql). Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;search;full-text;opensearch;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Tarol.Search/Tarol.Search.csproj" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

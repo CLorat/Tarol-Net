@@ -41,6 +41,24 @@ public sealed class SearchRegistry
     /// <summary>Every document type, ordered.</summary>
     public IReadOnlyList<SearchType> Types => [.. _sources.Values.SelectMany(static s => s.Shape.Types).OrderBy(static t => t.Type, StringComparer.Ordinal)];
 
+    /// <summary>
+    /// The document types the caller may read (GS-7): every type of an aggregate whose read <paramref name="access"/> grants
+    /// (an entity type follows its aggregate). The HTTP entry asks <c>CheckList&lt;T&gt;</c> (<c>Read&lt;T&gt;</c>) per aggregate.
+    /// </summary>
+    /// <param name="access">Answers whether the caller may read an aggregate type.</param>
+    /// <param name="cancellationToken">Cancels the checks.</param>
+    /// <returns>The readable document types, ordered.</returns>
+    public async ValueTask<IReadOnlyList<string>> Readable(ISearchAccess access, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        var readable = new List<string>();
+        foreach (var source in _sources.Values)
+            if (await source.CanRead(access, cancellationToken).ConfigureAwait(false))
+                readable.AddRange(source.Shape.Types.Select(static t => t.Type));
+        readable.Sort(StringComparer.Ordinal);
+        return readable;
+    }
+
     /// <summary>The definition the index is prepared with: the version and the combined fingerprint of every shape.</summary>
     public SearchIndexDefinition Definition()
     {
@@ -52,10 +70,23 @@ public sealed class SearchRegistry
     }
 }
 
+/// <summary>Whether the caller may read an aggregate type (the HTTP entry implements it with <c>CheckList&lt;T&gt;</c>).</summary>
+public interface ISearchAccess
+{
+    /// <summary>Whether the caller may read <typeparamref name="T"/> (<c>Read&lt;T&gt;</c>).</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="cancellationToken">Cancels the check.</param>
+    /// <returns>Whether it may.</returns>
+    ValueTask<bool> CanRead<T>(CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>;
+}
+
 /// <summary>Loads one searchable aggregate type and maps it to documents.</summary>
 internal abstract class SearchSource
 {
     public abstract SearchShape Shape { get; }
+
+    public abstract ValueTask<bool> CanRead(ISearchAccess access, CancellationToken cancellationToken);
 
     /// <summary>The stream's documents (none when the stream is gone) and its version.</summary>
     public abstract ValueTask<(long Version, List<SearchDocument> Documents)> Load(IAggregateReader reader, Guid tenant, Guid id, TimeProvider time,
@@ -68,6 +99,8 @@ internal sealed class SearchSource<T> : SearchSource
     private static readonly Actor Reader = Actor.System("tarol.search");
 
     public override SearchShape Shape => T.Shape;
+
+    public override ValueTask<bool> CanRead(ISearchAccess access, CancellationToken cancellationToken) => access.CanRead<T>(cancellationToken);
 
     public override async ValueTask<(long Version, List<SearchDocument> Documents)> Load(IAggregateReader reader, Guid tenant, Guid id, TimeProvider time,
         CancellationToken cancellationToken)
