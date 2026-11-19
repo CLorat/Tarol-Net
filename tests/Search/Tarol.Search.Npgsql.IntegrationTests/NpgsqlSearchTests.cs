@@ -136,4 +136,21 @@ public sealed class NpgsqlSearchTests(Postgres postgres)
 
         error.Message.ShouldContain("pg_trgm, btree_gin and unaccent");
     }
+
+    [Fact]
+    public async Task Indexes_in_different_schemas_prepare_at_once_in_a_fresh_database()
+    {
+        // CREATE EXTENSION IF NOT EXISTS from two transactions at once fails one of them (23505 on pg_extension) without a lock
+        var database = "x" + postgres.Schema();
+        await postgres.Execute($"CREATE DATABASE {database}");
+        var fresh = new NpgsqlConnectionStringBuilder(postgres.ConnectionString) { Database = database };
+        await using var db = new NpgsqlSlimDataSourceBuilder(fresh.ConnectionString).EnableArrays().Build();
+        var definition = new SearchRegistry().Add<Artwork>().Definition();
+
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(i => new NpgsqlSearchIndex(db, $"p{i}").Prepare(definition, TestContext.Current.CancellationToken).AsTask()));
+
+        await using var count = db.CreateCommand("SELECT count(*) FROM pg_extension WHERE extname IN ('pg_trgm', 'btree_gin', 'unaccent')");
+        (await count.ExecuteScalarAsync(TestContext.Current.CancellationToken)).ShouldBe(3L);
+    }
 }
+
