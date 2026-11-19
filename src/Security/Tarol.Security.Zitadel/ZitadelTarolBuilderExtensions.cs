@@ -41,6 +41,8 @@ public static class ZitadelTarolBuilderExtensions
             jwt.RequireHttpsMetadata = options.RequireHttpsMetadata;
             jwt.MapInboundClaims = false;
             jwt.TokenValidationParameters = new TokenValidationParameters { NameClaimType = "sub", RoleClaimType = "role" };
+            if (options.ClockSkew is { } skew)
+                jwt.TokenValidationParameters.ClockSkew = skew;
             if (options.HubPath is { } hub)
                 jwt.Events = new JwtBearerEvents { OnMessageReceived = context => QueryToken(context, hub) };
         });

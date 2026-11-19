@@ -137,6 +137,26 @@ public sealed class ZitadelClaimsTests
     }
 
     [Fact]
+    public void The_clock_skew_and_the_hub_path_are_options()                        // BC-9, BC-2
+    {
+        JwtBearerOptions Jwt(Action<ZitadelOptions> more)
+        {
+            var services = new ServiceCollection();
+            services.AddTarol(TestJson.Default, _ => { }).UseInMemoryStore().AddSecurity(_ => { }).AddEndpoints()
+                .AddZitadel(o => { (o.Authority, o.ProjectId, o.RequireHttpsMetadata) = ("http://localhost:8080", Project, false); more(o); });
+            return services.BuildServiceProvider().GetRequiredService<IOptionsMonitor<JwtBearerOptions>>().Get(JwtBearerDefaults.AuthenticationScheme);
+        }
+
+        Jwt(_ => { }).TokenValidationParameters.ClockSkew.ShouldBe(TimeSpan.FromMinutes(5));      // JwtBearer's default
+        Jwt(o => o.ClockSkew = TimeSpan.Zero).TokenValidationParameters.ClockSkew.ShouldBe(TimeSpan.Zero);
+        var tarol = new ServiceCollection().AddTarol(TestJson.Default, _ => { }).UseInMemoryStore().AddEndpoints();
+        Should.Throw<InvalidOperationException>(() => tarol.AddZitadel(o => (o.Authority, o.ProjectId, o.HubPath) = ("http://localhost:8080", Project, "tarol")))
+            .Message.ShouldContain("HubPath");
+        Should.Throw<InvalidOperationException>(() => tarol.AddZitadel(o => (o.Authority, o.ProjectId, o.ClockSkew) = ("http://localhost:8080", Project, TimeSpan.FromSeconds(-1))))
+            .Message.ShouldContain("ClockSkew");
+    }
+
+    [Fact]
     public void AddZitadel_needs_AddEndpoints_first_and_complete_options()
     {
         var tarol = new ServiceCollection().AddTarol(TestJson.Default, _ => { }).UseInMemoryStore();

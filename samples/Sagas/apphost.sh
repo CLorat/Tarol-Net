@@ -3,11 +3,14 @@
 # API over HTTP with Zitadel tokens (alice the seller, bob the bidder), and reads the result from both databases and the
 # dashboard. usage: apphost.sh <AppHost build dir> [auctions, default 5]
 #   [ARTFLOW_BROKER=rabbitmq] [ARTFLOW_API_NATIVE / ARTFLOW_WORKER_NATIVE / ARTFLOW_BILLING_NATIVE=<binary>]
+#   [ARTFLOW_TOKEN_LIFETIME=60s]  short-lived access tokens (an "expired token" test)
+#   [ARTFLOW_STAY_UP=1]           start, check readiness, print what a browser e2e needs, and stay up until Ctrl-C (BC-9)
 set -uo pipefail
 dir="$1"; count="${2:-5}"; log="$(mktemp)"; traces="$(mktemp)"; zt="${TMPDIR:-/tmp}/artflow-zitadel"
 export ASPIRE_ALLOW_UNSECURED_TRANSPORT=true DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true DOTNET_CLI_TELEMETRY_OPTOUT=1
 export ASPNETCORE_URLS=http://localhost:18888 ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL=http://localhost:18890
-( cd "$dir" && exec timeout 420 dotnet ArtFlow.AppHost.dll > "$log" 2>&1 ) &
+limit=420; [ "${ARTFLOW_STAY_UP:-}" = 1 ] && limit=0                                   # 0: timeout never stops it
+( cd "$dir" && exec timeout "$limit" dotnet ArtFlow.AppHost.dll > "$log" 2>&1 ) &
 apphost=$!
 api=http://localhost:5080
 worker=http://localhost:5081
@@ -20,6 +23,19 @@ token() { read -r _ _ cid sec _ < <(grep "^client $1 " "$zt/clients.txt")
   curl -s -u "$cid:$sec" -d grant_type=client_credentials --data-urlencode "scope=openid urn:zitadel:iam:org:projects:roles urn:zitadel:iam:user:resourceowner urn:zitadel:iam:org:project:id:$(cat "$zt/project.txt"):aud" \
     http://localhost:8080/oauth/v2/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])'; }
 alice=$(token alice); bob=$(token bob); headers="$(mktemp)"; listheaders="$(mktemp)"; stale_lists=0
+echo "access token lifetime: $(python3 -c 'import base64,json,sys; p=sys.argv[1].split(".")[1]; d=json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4))); print(d["exp"] - d["iat"], "s")' "$alice")"
+if [ "${ARTFLOW_STAY_UP:-}" = 1 ]; then
+  echo "up: api $api (CORS for http://localhost:5173), hub $api/tarol/messages, Zitadel http://localhost:8080, dashboard http://localhost:18888"
+  echo "    browser app $(cat "$zt/web.txt"); project $(cat "$zt/project.txt"); users and passwords in $zt/users.txt; Ctrl-C stops"
+  trap 'kill $apphost 2>/dev/null' INT TERM; wait $apphost; exit 0
+fi
+# BC-9: what a browser e2e relies on: the PKCE app, a 400 on the right field, the hub's push with the token in the query
+web=$(awk '{print $2}' "$zt/web.txt")
+echo "browser app: authorize with PKCE $(curl -s -o /dev/null -w '%{http_code} -> %{redirect_url}' "http://localhost:8080/oauth/v2/authorize?client_id=$web&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fcallback&response_type=code&scope=openid&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256" | cut -d'?' -f1); human users: $(awk '{printf "%s (%s) ", $2, $5}' "$zt/users.txt")"
+echo "validation: reserve 0 answers $(curl -s -w ' %{http_code}' -X POST "$api/auctions" -H "Authorization: Bearer $alice" -H 'Content-Type: application/json' -d '{"reserve":0}' | python3 -c 'import json,sys; t=sys.stdin.read(); b,s=t.rsplit(" ",1); print(s, json.loads(b)["errors"])')"
+pushed=$(curl -s -X POST "$api/auctions" -H "Authorization: Bearer $alice" -H 'Content-Type: application/json' -d '{"reserve":100}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+echo "hub push (WebSocket, ?access_token=): $(python3 "$(dirname "$0")/hubcheck.py" "ws://localhost:5080/tarol/messages" "$bob" artflow.bid-placed 30 -- \
+  curl -s -X POST "$api/auctions/$pushed/bids" -H "Authorization: Bearer $bob" -H 'Content-Type: application/json' -d '{"amount":120}' | cut -c1-200)"
 for n in $(seq 1 "$count"); do
   id=$(curl -s -X POST "$api/auctions" -H "Authorization: Bearer $alice" -H 'Content-Type: application/json' -d '{"reserve":100}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
   bid=$(curl -s -o /dev/null -D "$headers" -w '%{http_code}' -X POST "$api/auctions/$id/bids" -H "Authorization: Bearer $bob" -H 'Content-Type: application/json' -d '{"amount":150}')

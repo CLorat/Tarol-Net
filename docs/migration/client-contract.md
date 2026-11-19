@@ -276,3 +276,42 @@ packages):
 * **Public API** (generated): `+ TarolEndpointMetadata.Errors`, `+ RouteValue.Aggregate`, `+ TarolAdminEndpoints.OpenApiTag`.
 * **Behaviour**: only the OpenAPI document; `AddOperations` appends `OperationsJson` to the HTTP JSON resolver chain.
 * **Suppressions**: none.
+
+## 14. PR B4: a sample a browser e2e can drive (BC-9)
+
+* **Zitadel** (`ZitadelSetup`): the user-agent app `artflow-web` (`OIDC_APP_TYPE_USER_AGENT`, auth method none = PKCE,
+  authorization code + refresh token, JWT access tokens with role assertion, dev mode so `http://localhost:5173/*` is a valid
+  redirect); its client id goes to `web.txt` next to `clients.txt`. Human users ada (seller, tarol-admin), ben and cleo
+  (bidder) with grants and a password generated per run (`users.txt`; nothing in the repository). An optional third argument
+  sets the instance's access and id token lifetime (protobuf durations in seconds: `720h` is refused, `2592000s` works
+  **[verified]**).
+* **API**: `AddMessaging("artflow", m => m.UseBroker(…).PushToUi(…))` forwards `artflow.bid-placed` (a new publication of
+  `Bid.Placed` in the worker: auction, amount, time; no bidder identity) to the hub's tenant group, `MapMessageHub()`; CORS
+  (B1); `CreateAuction([Range(1, 1_000_000)] decimal Reserve) : IValidatable`; `Zitadel:ClockSkew`. The AppHost gives the API
+  the broker and, with `ARTFLOW_TOKEN_LIFETIME`, a clock skew of 0.
+* **Found** **[verified]**: with 30-second tokens the API still accepted an expired token for 5 minutes (JwtBearer's default
+  `ClockSkew`), so an "expired token" test could not be quick. `ZitadelOptions.ClockSkew` (new; `null` keeps the default)
+  lets the sample set 0: after expiry the API answers `401` with `WWW-Authenticate: Bearer error="invalid_token",
+  error_description="The token expired at …"`, and the hub closes the connection (35 s for a 30 s token: BC-15 holds).
+* **Script**: `ARTFLOW_STAY_UP=1` starts the AppHost without the 420 s limit, waits for readiness, prints the endpoints, the web
+  client id and where the users are, and stays up until Ctrl-C. Every run checks the browser path: the PKCE authorize request
+  (302 to Zitadel's login), the 400 on `reserve`, and a push over a real WebSocket with the token in the query
+  (`samples/Sagas/hubcheck.py`, the standard library only), and prints the token lifetime.
+* **CI**: the `build` job builds `samples/Sagas/AppHost` (conventions §4.7 says the sample is built by CI); it is not run there.
+  `README.md` of the sample said "not built by CI" and named step 18 for the full sample (it is step 19).
+* **AppHost run** (`apphost.sh … 5`, JIT, NATS, 2026-11-19) **[verified]**:
+
+  ```
+  access token lifetime: 43200 s
+  browser app: authorize with PKCE 302 -> http://localhost:8080/ui/v2/login/login; human users: ada (seller,tarol-admin) ben (bidder) cleo (bidder)
+  validation: reserve 0 answers 400 {'reserve': ['Range']}
+  hub push (WebSocket, ?access_token=): {"topic": "artflow.bid-placed", "id": "…", "version": 1, "subject": "…", "time": "…", "sender": "artflow", …}
+  auction 1: bid 204 …; settle by bob 403, settle by alice 204
+  settlement sagas completed: 5 … erase by alice: {…"alreadyErased":false,"streams":1}; export afterwards: email None
+  ```
+
+  and with `ARTFLOW_STAY_UP=1 ARTFLOW_TOKEN_LIFETIME=30s`: `access token lifetime: 30 s`, the `up:` lines, a fresh token 200,
+  the hub closed by the server after 35 s, the expired token 401 `invalid_token`.
+* **Tests**: `ZitadelClaimsTests.The_clock_skew_and_the_hub_path_are_options` (the default skew, 0, the checks of both options).
+* **Public API** (generated): `+ ZitadelOptions.ClockSkew`.
+* **Suppressions**: none. The sample's AppHost has Aspire's `ASPIRE010` warning from the Aspire SDK's own targets (as before).

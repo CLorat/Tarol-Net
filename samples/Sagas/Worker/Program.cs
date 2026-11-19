@@ -38,7 +38,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
     .UseNpgsqlSearch()
     .AddReactionWorker()                                           // reactions and publications; the store's key purge is used
     .AddMessaging("artflow", m => m
-        .Publish(GeneratedPublications.Set)                        // artflow.auction-settled
+        .Publish(GeneratedPublications.Set)                        // artflow.auction-settled, artflow.bid-placed
         .Consume(GeneratedConsumers.Set)                           // billing.invoice-paid → RecordPayment
         .Trust("billing", t => t.AnyTenant())                      // the company's own billing serves every tenant
         .UseBroker(builder.Configuration)

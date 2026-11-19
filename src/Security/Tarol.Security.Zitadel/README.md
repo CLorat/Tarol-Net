@@ -28,7 +28,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
 * `ZitadelOptions`: `Authority`, `ProjectId`, `RequireHttpsMetadata` (default true; false for a local container),
   `ServiceRole` (default `service`), `HubPath` (default `/tarol/messages`: under it the token may come from the query string
   `access_token`, because a browser cannot set headers on a WebSocket; everywhere else a query token is ignored; `null` turns
-  it off).
+  it off), `ClockSkew` (default `null`: JwtBearer's 5 minutes, during which an expired token is still accepted).
 * `AddZitadel` comes after `AddEndpoints` (it sets the actor rule unless the app set one).
 * Discovery and the signing keys (RS256) come from the issuer; Native-AOT ready (0 IL warnings).
 * Not a dependency of any other Tarol package; Aspire and tests run Zitadel as a container (see `samples/Sagas`).

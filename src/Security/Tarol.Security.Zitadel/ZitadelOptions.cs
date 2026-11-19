@@ -24,8 +24,17 @@ public sealed class ZitadelOptions
     /// </summary>
     public string? HubPath { get; set; } = "/tarol/messages";
 
+    /// <summary>
+    /// The tolerance for the token's lifetime (<c>TokenValidationParameters.ClockSkew</c>); <see langword="null"/> keeps JwtBearer's
+    /// default of 5 minutes. An expired token is accepted that long; a test of expiry, or a deployment with synchronised clocks,
+    /// sets it lower.
+    /// </summary>
+    public TimeSpan? ClockSkew { get; set; }
+
     internal void Validate()
     {
+        if (ClockSkew < TimeSpan.Zero)
+            throw new InvalidOperationException("ZitadelOptions.ClockSkew is not negative.");
         if (HubPath is not null && !HubPath.StartsWith('/'))
             throw new InvalidOperationException("ZitadelOptions.HubPath starts with '/' (or is null: no token from the query string).");
         if (!Uri.TryCreate(Authority, UriKind.Absolute, out _))
