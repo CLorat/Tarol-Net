@@ -747,3 +747,43 @@ first assumed an order between two title matches; BM25 puts the shorter title fi
 | authenticate | the `HttpClient`'s handler or header from configuration | credentials in code or committed settings |
 | read your own write | `WaitForRefresh = true` | expecting it within milliseconds by default |
 
+## 20. Implementation: PR 18F (2026-11-18)
+
+`search.typesense: the Typesense adapter` (new package `Tarol.Search.Typesense`, GS-3).
+
+### 20.1 Public API
+
+`TypesenseIndex : ISearchIndex` (`CollectionOf(version)`, `Problem`), `TypesenseOptions` (`CollectionPrefix` = `tarol_search`),
+`UseTypesense(http, options)` (also a `ReadinessCheck` "search-typesense"), `TypesenseTarolBuilderExtensions.Client(server, apiKey)`.
+
+### 20.2 Deliberate differences from §11
+
+* **One `multi_search` per query.** Typesense has no `OR`, cannot OR a text match with a filter (the exact token), and tokenizes
+  a query by the **first** field's locale: with a `de` field first, "gemalde" no longer matched the folded base field (probed by
+  hand, §20.3). So every combination of `OR` alternatives (at most 8) × every locale group (base, German) and the exact-token
+  lookup run as one `multi_search`, merged by score; counts over several searches come from the merged hits (fetched up to the
+  count bound; `CountsCapped` when a search found more).
+* **German documents are written to the folded base fields too**: the `de` locale keeps umlauts.
+* **An empty audience is a boolean field** (`open`): Typesense cannot filter on an empty array.
+* The fingerprint is a document of `<prefix>_versions` (collection metadata is not used).
+* The API key comes from the caller's configuration; the tests and the smoke app generate or pass a throwaway key for a local
+  container. CI needs no secret for the tests (the container takes any key); a production key is the owner's to configure.
+
+### 20.3 Tests **[verified]**
+
+`Tarol.Search.Typesense.IntegrationTests` (20, Testcontainers Typesense 28.0 with a per-run key, PostgreSQL 17 for the
+checkpoints): the **contract suite** (17), German/English stemming and folding, a new version building while version 1 answers,
+an unreachable server as a readiness problem. By hand against the image: `query_by=b_de,b` found 0 for "gemalde", `b,b_de` found 1.
+
+### 20.4 AOT **[verified]**
+
+`Tarol.Search.Typesense.AotSmoke`: 0 IL warnings; with `TAROL_TYPESENSE`/`TAROL_TYPESENSE_KEY` (a local container, a throwaway
+key) 9 checks pass natively.
+
+### 20.5 Skill evaluation checklist (`tarol-search-typesense`)
+
+| Task | Expected API | Mistake to avoid |
+|---|---|---|
+| run search on Typesense | `UseNpgsqlSearchCheckpoints()`, `UseTypesense(_ => Client(server, key))` | the API key in code or committed settings |
+| search German documents | `[SearchLanguage]` "de", `SearchQuery.Language = "de"` | expecting the `de` locale to fold umlauts |
+

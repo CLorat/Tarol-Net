@@ -8,6 +8,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol.Search.Typesense` (step 18F): the Typesense adapter (HttpClient, no SDK): a collection per version, English and German
+  stemming with folding, Tarol's query syntax through one `multi_search` (OR alternatives, locales, the exact token), the shared
+  typo rule, counts, highlights, synchronous writes, a readiness problem while the server does not answer.
 * `Tarol.Search.OpenSearch` (step 18E): the OpenSearch adapter (HttpClient, no SDK): an index per version, folding and
   English/German analysers, Tarol's query syntax, a fuzzy typo fallback by the shared rule, exact counts, highlights, a readiness
   problem while the cluster does not answer. `ISearchCheckpoints` in `Tarol.Search`, `NpgsqlSearchCheckpoints` and

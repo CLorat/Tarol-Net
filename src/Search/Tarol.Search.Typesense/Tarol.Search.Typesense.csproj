@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The Typesense adapter of Tarol.Search: a collection per version with tenant, type, exact tokens and audience as filters, the text per weight stemmed in English and German, Tarol's query syntax (OR and exact tokens through one multi_search), the typo fallback decided by the shared rule, counts, highlights; synchronous writes. HttpClient with hand-written JSON, no SDK; the API key from configuration; checkpoints through ISearchCheckpoints. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;search;full-text;typesense;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Tarol.Search/Tarol.Search.csproj" />
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

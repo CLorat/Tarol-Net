@@ -56,6 +56,7 @@
     <Project Path="src/Search/Tarol.Search/Tarol.Search.csproj" />
     <Project Path="src/Search/Tarol.Search.Npgsql/Tarol.Search.Npgsql.csproj" />
     <Project Path="src/Search/Tarol.Search.OpenSearch/Tarol.Search.OpenSearch.csproj" />
+    <Project Path="src/Search/Tarol.Search.Typesense/Tarol.Search.Typesense.csproj" />
   </Folder>
   <Folder Name="/src/Security/">
     <Project Path="src/Security/Tarol.Security/Tarol.Security.csproj" />
@@ -151,6 +152,8 @@
     <Project Path="tests/Search/Tarol.Search.Npgsql.IntegrationTests/Tarol.Search.Npgsql.IntegrationTests.csproj" />
     <Project Path="tests/Search/Tarol.Search.OpenSearch.AotSmoke/Tarol.Search.OpenSearch.AotSmoke.csproj" />
     <Project Path="tests/Search/Tarol.Search.OpenSearch.IntegrationTests/Tarol.Search.OpenSearch.IntegrationTests.csproj" />
+    <Project Path="tests/Search/Tarol.Search.Typesense.AotSmoke/Tarol.Search.Typesense.AotSmoke.csproj" />
+    <Project Path="tests/Search/Tarol.Search.Typesense.IntegrationTests/Tarol.Search.Typesense.IntegrationTests.csproj" />
     <Project Path="tests/Search/Tarol.Search.Tests/Tarol.Search.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Security/">
