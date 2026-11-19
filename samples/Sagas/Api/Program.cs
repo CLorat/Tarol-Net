@@ -13,6 +13,8 @@ using Tarol.Persistence.Npgsql;
 using Tarol.Queries.Npgsql;
 using Tarol.Security;
 using Tarol.Security.Zitadel;
+using Tarol.Search;
+using Tarol.Search.Npgsql;
 
 // ArtFlow's API. Under the AppHost: the connection string "tarol", Zitadel's issuer and project, the OTLP endpoint.
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -28,10 +30,13 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Pay
     .UseNpgsqlStore(connectionString)
     .UseNpgsqlReadModels(new NpgsqlReadModelOptions { PushCheckpoints = true })   // the worker's auction list; its checkpoint pushed (LISTEN)
     .AddCaching()                                              // list pages from memory while the checkpoint stands
+    .AddSearch(s => s.Add<Auction>().Add<BidderProfile>())     // step 18: GET /search (the worker feeds the index; this host stays gated)
+    .UseNpgsqlSearch()
     .AddSecurity(roles =>
     {
         roles.Role("seller").May<CreateAuction>().May<SettleAuction>().May<Read<Auction>>();
         roles.Role("bidder").May<PlaceBid>().May<Read<Auction>>();
+        roles.Role("tarol-admin").May<Read<BidderProfile>>();     // only operators find bidder profiles
     })
     .AddEndpoints()
     .AddOperations()                                           // step 15: the snapshot, its gauges, the health groups, the admin entry
@@ -60,4 +65,5 @@ app.MapOpenApi();
 app.MapTarolHealth();                                          // /health/live, /health/ready (the AppHost waits on it), /health/tarol
 app.MapTarolAdmin("/tarol/admin", policy: "tarol-admin");
 app.MapChanges();
+app.MapTarolSearch("/search");                                 // step 18: one search box over auctions, bids and (for operators) bidders
 app.Run();

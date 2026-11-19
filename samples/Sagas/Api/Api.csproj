@@ -13,6 +13,8 @@
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <ProjectReference Include="$(TarolRoot)src/Security/Tarol.Security.Zitadel/Tarol.Security.Zitadel.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Persistence/Tarol.Persistence.Npgsql/Tarol.Persistence.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Search/Tarol.Search.Npgsql/Tarol.Search.Npgsql.csproj" />
+    <ProjectReference Include="$(TarolRoot)src/Search/Tarol.Search.Generators/Tarol.Search.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(TarolRoot)src/DataProtection/Tarol.DataProtection/Tarol.DataProtection.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Queries/Tarol.Queries.Npgsql/Tarol.Queries.Npgsql.csproj" />
     <ProjectReference Include="$(TarolRoot)src/Caching/Tarol.Caching/Tarol.Caching.csproj" />

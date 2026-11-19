@@ -1,16 +1,18 @@
 using System.Text.Json.Serialization;
 using Tarol.Primitives;
 using Tarol.Results;
+using Tarol.Search;
 using Tarol.StronglyTypedId;
 
 namespace ArtFlow;
 
 // ArtFlow, reduced to what reactions and the settlement saga need.
 
+[Searchable("Auction")]                                    // step 18: found by its seller; its bids by their bidder
 public partial class Auction : AggregateRoot<Auction>
 {
     public EntitySet<Bid> Bids { get; } = [];
-    public string Seller { get; private set; } = "";
+    [SearchTitle, Searchable(SearchWeight.A)] public string Seller { get; private set; } = "";
     public decimal Reserve { get; private set; }
     public bool IsSettled { get; private set; }
     public decimal Paid { get; private set; }
@@ -66,7 +68,7 @@ public partial class Auction : AggregateRoot<Auction>
 
 public partial class Bid : Entity<Auction, Bid>
 {
-    public string Bidder { get; private set; } = "";
+    [Searchable(SearchWeight.A)] public string Bidder { get; private set; } = "";
     public decimal Amount { get; private set; }
     public bool IsWinner { get; private set; }
 
@@ -83,11 +85,12 @@ public partial class Bid : Entity<Auction, Bid>
 /// A bidder's profile (step 16): name and email are personal data, sealed with the bidder's key. The bidder is its own
 /// subject. Erasure (POST /tarol/admin/subjects/{id}/erase) makes them read as null everywhere; export returns them.
 /// </summary>
+[Searchable("Bidder")]                                     // step 18: by login; the email only as an exact (blind) token
 public partial class BidderProfile : AggregateRoot<BidderProfile>
 {
     [PersonalData] public string? Name { get; private set; }
-    [PersonalData] public string? Email { get; private set; }
-    public string Login { get; private set; } = "";
+    [PersonalData, Searchable(Exact = true)] public string? Email { get; private set; }
+    [SearchTitle, Searchable(SearchWeight.A)] public string Login { get; private set; } = "";
 
     public static BidderProfile Register(string login, string name, string email, DateTimeOffset now)
     {

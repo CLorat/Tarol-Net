@@ -8,6 +8,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* The search guide `docs/search/README.md`; ArtFlow (`samples/Sagas`) searches auctions, bids and bidder profiles (step 18G).
 * `Tarol.Search.Typesense` (step 18F): the Typesense adapter (HttpClient, no SDK): a collection per version, English and German
   stemming with folding, Tarol's query syntax through one `multi_search` (OR alternatives, locales, the exact token), the shared
   typo rule, counts, highlights, synchronous writes, a readiness problem while the server does not answer.
