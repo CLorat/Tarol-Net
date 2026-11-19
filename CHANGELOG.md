@@ -46,6 +46,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Fixed
 
+* The list page's ETag covers `next` and `total` (BC-6): a row appended behind a full last page answered 304 and hid the new
+  page. `Cursor.ETag(rows, next, total)` is new; `Cursor.ETag(rows)` is unchanged (docs/migration/client-contract.md §5).
+
 * Messaging: one failed subscription restarts all of them instead of staying dead; a re-drive never loses its dead letter, and a
   `SourceMismatch` letter stays dead; the Npgsql bus hands a batch's tail back once half its lease has passed; RabbitMQ nacks a
   delivery whose retry copy the broker refused, and its retries go to six fixed delay queues (`.retry.1s` … `.retry.1h`) so a

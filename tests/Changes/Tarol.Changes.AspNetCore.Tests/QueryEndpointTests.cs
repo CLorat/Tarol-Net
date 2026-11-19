@@ -144,6 +144,23 @@ public sealed class QueryEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_row_appended_behind_a_full_last_page_answers_200_with_a_next_cursor()   // BC-6
+    {
+        var (_, position) = await Create(Alice, "First");
+        var full = await List("/auctions?sort=id&limit=1", Alice, readAfter: position);
+        full.Status.ShouldBe(HttpStatusCode.OK, full.Body);
+        Next(full).ShouldBeNull();
+
+        var (_, later) = await Create(Alice, "Second");                    // a version 7 id: sorts behind the page
+        var grown = await List("/auctions?sort=id&limit=1", Alice, readAfter: later, ifNoneMatch: full.Response.Headers.ETag!.ToString());
+
+        grown.Status.ShouldBe(HttpStatusCode.OK);
+        Titles(grown).ShouldBe(["First"]);
+        Next(grown).ShouldNotBeNull();
+        grown.ETag.ShouldNotBe(full.ETag);
+    }
+
+    [Fact]
     public async Task A_list_needs_the_Read_grant_is_tenant_scoped_and_runs_no_row_rules()
     {
         var (_, position) = await Create(Alice, "Visible");

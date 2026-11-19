@@ -4,3 +4,4 @@ abstract Tarol.Queries.ProjectionHost.LoadCheckpoint(System.Threading.Cancellati
 abstract Tarol.Queries.ProjectionHost.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 abstract Tarol.Queries.ProjectionHost.Write(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>! events, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(bool Written, int Rows)>
 override Tarol.Queries.ProjectionHost.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
+static Tarol.Queries.Cursor.ETag(System.Collections.Generic.IEnumerable<(System.Guid Id, long Version)>! rows, string? next, long? total) -> string!

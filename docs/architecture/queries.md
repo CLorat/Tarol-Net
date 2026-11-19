@@ -38,7 +38,7 @@ worker     ProjectionHost "auction-list" v1: ReadAll(after checkpoint, 2000) →
 api        GET /auctions?status=Open&sort=endsAt  Tarol-Read-After: 7341.1000412
            → waits until checkpoint ≥ 7341.1000412 (≤ 2 s) → SELECT … WHERE tenant = $1 AND status = $2
              AND (ends_at, id) > ($3, $4) ORDER BY ends_at, id LIMIT 51
-           → 200 {items, next}, ETag W/"<hash of (id, version)>", Tarol-Position: <checkpoint>
+           → 200 {items, next}, ETag W/"<hash of (id, version), next, total>", Tarol-Position: <checkpoint>
 ```
 
 ## 3. Projections (QR-1, QR-2)
@@ -138,8 +138,10 @@ public enum AuctionSort { EndsAt, [Descending] HighestBid }
   opt-in like S-10; the probe's trigger costs nothing measurable per commit); the host polls as the fallback, because
   `pg_snapshot_xmin` holds a commit back while any older transaction in the cluster runs (persistence.md §9) — an open
   transaction elsewhere held the projection back until it ended **[verified]**.
-* **ETag of a list**: a weak hash of the page's (id, version) pairs: equal while the page's rows are unchanged,
-  different after a bid on one of them **[verified]**; it costs nothing beyond the page. Step 13 caches with it.
+* **ETag of a list**: a weak hash of the page's (id, version) pairs, its `next` cursor and its total: equal while the page's
+  rows, `next` and the count are unchanged, different after a bid on one of them **[verified]** and after a row appended behind
+  a full last page (BC-6, [client-contract.md](../migration/client-contract.md) §5) **[verified]**; it costs nothing beyond the
+  page. Step 13 caches with it.
 
 ## 7. Measurements **[verified]** (4 cores, PostgreSQL 17 in Docker, default settings; [`output.txt`](../migration/probes/queries/output.txt))
 

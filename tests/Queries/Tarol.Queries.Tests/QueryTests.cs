@@ -134,6 +134,40 @@ public sealed class QueryTests
     }
 
     [Fact]
+    public async Task A_row_behind_a_full_last_page_changes_the_page_ETag()   // BC-6: next goes from null to a cursor
+    {
+        var (test, _) = await Seeded(3);
+        var query = Query(A) with { Sort = "ends_at", Limit = 3 };
+        var full = await test.Page(query);
+        full.Next.ShouldBeNull();
+
+        Commit(test, Auction.Open("ada", "Late lot", Now.AddDays(30), Now), A);   // ends last: behind the page
+        await test.CatchUp();
+        var grown = await test.Page(query);
+
+        grown.Items.ShouldBe(full.Items);
+        grown.Next.ShouldNotBeNull();
+        grown.ETag.ShouldNotBe(full.ETag);
+    }
+
+    [Fact]
+    public async Task A_changed_total_changes_the_page_ETag()
+    {
+        var (test, _) = await Seeded(5);
+        var query = Query(A) with { Sort = "ends_at", Limit = 2, Count = true };
+        var first = await test.Page(query);
+
+        Commit(test, Auction.Open("ada", "Late lot", Now.AddDays(30), Now), A);
+        await test.CatchUp();
+        var counted = await test.Page(query);
+
+        counted.Items.ShouldBe(first.Items);
+        (counted.Total, counted.Next is null).ShouldBe((first.Total + 1, first.Next is null));
+        counted.ETag.ShouldNotBe(first.ETag);
+        (await test.Page(query with { Count = false })).ETag.ShouldNotBe(counted.ETag);   // with and without the count differ
+    }
+
+    [Fact]
     public async Task The_total_is_counted_only_when_asked()
     {
         var (test, _) = await Seeded(9);
