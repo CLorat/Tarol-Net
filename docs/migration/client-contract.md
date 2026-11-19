@@ -200,3 +200,22 @@ Every PR lists its own; together, for a client written against `73b35ff`:
 * **AppHost run** (`apphost.sh … 5`, JIT, NATS, 2026-11-19) **[verified]**: `erase by alice: {"tenant":"00000000-…","subject":"…",
   "alreadyErased":false,"streams":1}; export afterwards: email None`; audit `export subject, erase subject, export subject`;
   tombstone true; the rest as in §9.
+
+## 11. PR B1: CORS with Tarol's headers (BC-1)
+
+* **Change**: `TarolHeaders` (`Tarol.Changes.AspNetCore`): `Exposed` (`ETag`, `Location`, `Tarol-Position`, `Tarol-Stale`,
+  `Idempotent-Replayed`, `Retry-After`, `WWW-Authenticate`), `Allowed` (`Authorization`, `Content-Type`, `Idempotency-Key`,
+  `If-Match`, `If-None-Match`, `Tarol-Read-After`, `traceparent`), the constants `IdempotentReplayed` and `IdempotencyKey`
+  (the endpoints use them), and `WithTarolHeaders(this CorsPolicyBuilder)`. CORS stays the application's: Tarol does not add a
+  policy or choose origins. The README has the recipe; `UseCors` goes before `UseAuthentication` (a preflight has no token).
+* **Sample**: the API allows `ArtFlow:BrowserOrigins` (default `http://localhost:5173`, the Vite dev server) with the recipe.
+* **Tests**: `CorsTests` against the real entries: a preflight for `POST /auctions` with all seven request headers answers
+  204 with them allowed; a creation from the origin exposes exactly `TarolHeaders.Exposed`; another origin gets no CORS
+  headers. Red before **[verified]** by the client session (`curl -H 'Origin: http://localhost:5173' :5080/auctions`: no
+  `Access-Control-*`); the sample after the change: §11 run below.
+* **Public API** (generated): `TarolHeaders` (`Exposed`, `Allowed`, `IdempotentReplayed`, `IdempotencyKey`, `WithTarolHeaders`).
+* **Behaviour**: none without a policy. **Suppressions**: none.
+* **Sample run** (`apphost.sh … 1`, 2026-11-19) **[verified]**: the preflight `OPTIONS /auctions` from `http://localhost:5173`
+  answers 204 with `Access-Control-Allow-Headers: Authorization,Content-Type,Idempotency-Key,If-Match,If-None-Match,Tarol-Read-After,traceparent`;
+  `GET /auctions` from that origin (401 without a token) carries `Access-Control-Expose-Headers: ETag,Location,Tarol-Position,Tarol-Stale,Idempotent-Replayed,Retry-After,WWW-Authenticate`.
+  The script's run is unchanged.

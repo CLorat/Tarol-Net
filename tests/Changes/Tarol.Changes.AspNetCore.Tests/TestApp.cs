@@ -29,7 +29,8 @@ internal sealed class TestApp : IAsyncDisposable
     public InMemoryAggregateStore Store => App.Services.GetRequiredService<InMemoryAggregateStore>();
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
-        Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null)
+        Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null,
+        string? corsOrigin = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
@@ -71,7 +72,11 @@ internal sealed class TestApp : IAsyncDisposable
             .AddPolicy("auctions:bid", p => p.RequireAuthenticatedUser().RequireClaim("scope", "auctions:bid"));
         builder.Services.AddOpenApi(o => o.AddTarolEndpoints());
 
+        if (corsOrigin is not null)                                            // the README's recipe (BC-1)
+            builder.Services.AddCors(o => o.AddPolicy("browser", p => p.WithOrigins(corsOrigin).AllowAnyMethod().WithTarolHeaders()));
         var app = builder.Build();
+        if (corsOrigin is not null)
+            app.UseCors("browser");
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapOpenApi();

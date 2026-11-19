@@ -8,6 +8,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `TarolHeaders` in `Tarol.Changes.AspNetCore` (BC-1): the request headers a browser client sends (`Allowed`), the response
+  headers it must read (`Exposed`), and `CorsPolicyBuilder.WithTarolHeaders()`; a CORS recipe in the README; the sample's API
+  allows `http://localhost:5173`.
+
 * The search guide `docs/search/README.md`; ArtFlow (`samples/Sagas`) searches auctions, bids and bidder profiles (step 18G).
 * `Tarol.Search.Typesense` (step 18F): the Typesense adapter (HttpClient, no SDK): a collection per version, English and German
   stemming with folding, Tarol's query syntax through one `multi_search` (OR alternatives, locales, the exact token), the shared

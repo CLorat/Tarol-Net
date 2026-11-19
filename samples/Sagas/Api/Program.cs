@@ -52,6 +52,10 @@ builder.Services.AddSingleton<IAuthorizationHandler, SettleOwnAuction>();
 builder.Services.Configure<WebhookOptions>(o => o.Senders["payments"] = new WebhookSender { Secrets = { builder.Configuration["Webhooks:Payments"] ?? "whsec_sample" } });
 builder.Services.AddAuthorizationBuilder().AddPolicy("tarol-admin", p => p.RequireRole("tarol-admin"));   // operators (a Zitadel project role)
 builder.Services.AddOpenApi(o => o.AddTarolEndpoints());
+// BC-1: the browser client's dev server (Vite) on another origin may send Tarol's request headers and read ETag, Location,
+// Tarol-Position, …; ArtFlow:BrowserOrigins (comma-separated) overrides the default
+var origins = (builder.Configuration["ArtFlow:BrowserOrigins"] ?? "http://localhost:5173").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(cors => cors.AddPolicy("browser", policy => policy.WithOrigins(origins).AllowAnyMethod().WithTarolHeaders()));
 if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
     builder.Services.AddOpenTelemetry().ConfigureResource(r => r.AddService("api"))
         // step 15: Tarol's sources and meters by wildcard; Npgsql traces only inside a request (the store's data source filters roots)
@@ -59,6 +63,7 @@ if (builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] is not null)
         .WithMetrics(m => m.AddMeter("Tarol.*", "Npgsql", "Microsoft.AspNetCore.Hosting").AddOtlpExporter());
 
 var app = builder.Build();
+app.UseCors("browser");                                        // before authentication: a preflight carries no token
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();

@@ -100,7 +100,7 @@ public sealed partial class ChangeEndpoints
         var context = OperationContext.Start(actor, tenant, _time);
 
         Option<IdempotencyKey> key = Option.None;
-        if (http.Request.Headers["Idempotency-Key"].ToString() is { Length: > 0 } k)
+        if (http.Request.Headers[TarolHeaders.IdempotencyKey].ToString() is { Length: > 0 } k)
         {
             if (k.Length > 255)
                 return (context, default, Invalid.Field("Idempotency-Key", "Length"));
@@ -287,7 +287,7 @@ public sealed partial class ChangeEndpoints
         if (outcome.Position != GlobalPosition.Start)
             http.Response.Headers[Positions.PositionHeader] = Positions.Format(outcome.Position);
         if (outcome.Replayed)
-            http.Response.Headers["Idempotent-Replayed"] = "true";
+            http.Response.Headers[TarolHeaders.IdempotentReplayed] = "true";
         if (!created)
         {
             http.Response.StatusCode = StatusCodes.Status204NoContent;

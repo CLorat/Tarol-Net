@@ -57,6 +57,19 @@ app.MapChanges();
 * **OpenAPI**: with `Microsoft.AspNetCore.OpenApi`, `AddOpenApi(o => o.AddTarolEndpoints())` describes every entry
   (path and header parameters, 2xx with `ETag`, problem responses, value-object rules).
 * **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
+* **Browsers on another origin** (CORS): `TarolHeaders.Allowed` are the request headers a browser client sends,
+  `TarolHeaders.Exposed` the response headers it must read (`ETag`, `Location`, `Tarol-Position`, `Tarol-Stale`,
+  `Idempotent-Replayed`, `Retry-After`, `WWW-Authenticate`); without them a script cannot revalidate or read its own writes.
+  The recipe (origins and credentials stay yours; `UseCors` before `UseAuthentication`, a preflight carries no token):
+
+  ```csharp
+  builder.Services.AddCors(cors => cors.AddPolicy("browser", policy => policy
+      .WithOrigins("https://app.example.com").AllowAnyMethod().WithTarolHeaders()));
+  var app = builder.Build();
+  app.UseCors("browser");
+  app.UseAuthentication();
+  app.UseAuthorization();
+  ```
 * Fails closed: an entry without `Policy` needs an authenticated caller, the change is always authorized, `MapChanges`
   refuses to start without `AddSecurity`. Diagnostics TWEB001–TWEB006.
 
