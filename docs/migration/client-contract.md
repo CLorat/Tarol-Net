@@ -366,3 +366,14 @@ packages):
   problems' `traceId` equals the header, the document test lists the header and the member.
 * **Public API** (generated): `+ TarolHeaders.RequestId`, `+ ChangeEndpoints.RequestId`, `+ ChangeEndpoints.StampRequestId`
   (`EditorBrowsable(Never)`). **Suppressions**: none.
+
+## 18. PR C4: structured hub errors (BC-12, CC-7)
+
+* **Change**: `HubErrors` (`Tarol.Messaging.SignalR`): `Forbidden = "Hub.Forbidden"`, `Topic = "Hub.Topic"`,
+  `Tenant = "Auth.Tenant"` (the HTTP entries' code for the same refusal), `Exception(code, detail)` and `CodeOf(message)`, which
+  also finds the code inside the text SignalR clients wrap around a server error. `MessageHub` throws through it.
+* **Behaviour change (breaking)**: `Forbidden: Subscribe billing.secret` → `Hub.Forbidden: Subscribe billing.secret`, `Topic: …` →
+  `Hub.Topic: …`; `Auth.Tenant: …` unchanged.
+* **Tests**: the push tests check each code with its `": "`; `HubMappingTests.The_code_of_a_hub_error` (5 cases, a client-wrapped
+  message included); the Zitadel WebSocket test reads `Hub.Forbidden`.
+* **Public API** (generated): `+ HubErrors`. **Suppressions**: none.

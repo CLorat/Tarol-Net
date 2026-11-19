@@ -18,7 +18,7 @@ description: >-
 3. **Nothing is allowed by default**: `o.Rules.Subscribe(topicOrPrefix*, role?)`, `o.Rules.Publish(…)`, or register an
    `ITopicAuthorizer` in DI before `PushToUi`.
 4. **Tenants come from the principal** (`tenant` claim, or `o.Tenant = value => …` to map an organisation id): a client
-   reaches only `<its tenant>/<topic>`. A claim that does not map is `HubException("Auth.Tenant…")`.
+   reaches only `<its tenant>/<topic>`. A claim that does not map is `HubException("Auth.Tenant: …")`.
 5. **The server stamps the sender**: `PushedMessage.Sender` is the caller's `sub` for a client publish, the source system
    for a forwarded message.
 6. **The .NET client**: `MessagePushClient.Connect(hubUri, accessToken)`, `Subscribe` (any time, before or after `Start`),
@@ -61,8 +61,9 @@ await push.Start(cancellationToken);
 
 | Mistake | What you get |
 |---|---|
-| no rule for a topic | `HubException("Forbidden: Subscribe …")`; the client keeps no handler |
-| a topic without a system prefix | `HubException("Topic: …")` |
+| no rule for a topic | `HubException("Hub.Forbidden: Subscribe …")`; the client keeps no handler |
+| a topic without a system prefix | `HubException("Hub.Topic: …")` |
+| matching the free text of a refusal | read the code: `HubErrors.CodeOf(e.Message)` is `HubErrors.Forbidden`, `Topic` or `Tenant` |
 | `MapMessageHub()` without `PushToUi` | `InvalidOperationException` at startup |
 | an unauthenticated connection | 401 at `Start` |
 | a typed hub or `Hub<T>` of your own under AOT | Reflection.Emit: not AOT-compatible |

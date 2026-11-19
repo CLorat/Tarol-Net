@@ -95,7 +95,7 @@ public sealed class ZitadelHubTests(Zitadel zitadel) : IAsyncLifetime
 
         await Handshake(socket);
         (await Invoke(socket, "1", "Subscribe", "artflow.bids")).ShouldBeNull();     // authenticated, tenant from the organisation
-        (await Invoke(socket, "2", "Subscribe", "billing.secret")).ShouldNotBeNull().ShouldContain("Forbidden");
+        (await Invoke(socket, "2", "Subscribe", "billing.secret")).ShouldNotBeNull().ShouldContain(Tarol.Messaging.SignalR.HubErrors.Forbidden + ": ");
     }
 
     [Fact]

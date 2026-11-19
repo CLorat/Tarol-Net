@@ -61,6 +61,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* The message hub's refusals are `<code>: <detail>` with documented codes (BC-12, CC-7): `Hub.Forbidden` (was `Forbidden:`),
+  `Hub.Topic` (was `Topic:`), `Auth.Tenant`; constants and `CodeOf` in the new `HubErrors`. **Breaking** for clients that
+  matched `Forbidden:` or `Topic:`.
+
 * A list answers 400 (`errors.<key>: ["Unknown"]`) for a query key that is not one of its filters, `sort`, `after`, `limit`,
   `offset` or `count` (BC-14); it ignored them, so a typo listed unfiltered rows and `?seller=` on a claim-bound list was
   silently dropped. Keys compare without case. New: `ChangeEndpoints.UnknownKeyCode`.

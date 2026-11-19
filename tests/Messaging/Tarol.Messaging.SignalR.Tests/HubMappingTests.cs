@@ -32,4 +32,12 @@ public sealed class HubMappingTests
     [Fact]
     public void An_application_may_keep_connections_past_the_tokens_expiry()
         => Mapped(o => o.CloseOnAuthenticationExpiration = false).CloseOnAuthenticationExpiration.ShouldBeFalse();
+
+    [Theory]                                                                    // BC-12: the code of a client's error message
+    [InlineData("An unexpected error occurred invoking 'Subscribe' on the server. HubException: Hub.Forbidden: Subscribe billing.secret", HubErrors.Forbidden)]
+    [InlineData("Hub.Topic: a topic is <system>.<name>, at most 200 characters", HubErrors.Topic)]
+    [InlineData("Auth.Tenant: the tenant claim is not known", HubErrors.Tenant)]
+    [InlineData("something else", null)]
+    [InlineData(null, null)]
+    public void The_code_of_a_hub_error(string? message, string? code) => HubErrors.CodeOf(message).ShouldBe(code);
 }
