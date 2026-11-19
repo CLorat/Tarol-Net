@@ -54,8 +54,8 @@ public sealed class InMemoryDataProtectionTests
         _store.StateLoads.ShouldBe(1);
         _store.History(customer.Id, _alice.Tenant).Select(e => e.Event).OfType<Customer.Registered>().Single().Email.ShouldBe("ada@example.com");
         var stored = Encoding.UTF8.GetString(_store.StoredStateForTests(customer.Id, _alice.Tenant)!);
-        stored.ShouldNotContain("Ada");
-        stored.ShouldNotContain("7946");
+        stored.ShouldNotContain("\"Ada\"", Case.Sensitive);                         // quoted: a hex id may hold "ada" (case-insensitive)
+        stored.ShouldNotContain("+44 20 7946 0000");                                  // the whole number: a random id or nonce may hold "7946"
         stored.ShouldContain("\"country\":\"GB\"");
     }
 
@@ -160,7 +160,7 @@ public sealed class InMemoryDataProtectionTests
 
         var index = await _keys.BlindIndex(Tenant, "email", "ada@example.com", create: false, _ct);
         index.ShouldNotBeNull().Length.ShouldBe(43);
-        index.ShouldNotContain("ada");
+        index.ShouldNotContain("ada@", Case.Sensitive);                                 // '@' is not base64url: random bytes never match
         (await _keys.BlindIndex(Tenant, "email", "ada@example.com", create: false, _ct)).ShouldBe(index);
         (await _keys.BlindIndex(Guid.CreateVersion7(), "email", "ada@example.com", create: true, _ct)).ShouldNotBe(index);
         (await _keys.BlindIndex(Tenant, "phone", "ada@example.com", create: false, _ct)).ShouldNotBe(index);

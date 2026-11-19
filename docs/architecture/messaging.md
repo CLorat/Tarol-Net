@@ -145,7 +145,7 @@ public interface IMessageTransport : IAsyncDisposable
 | package | `Tarol.Messaging` | `Tarol.Messaging.Npgsql` | `Tarol.Messaging.Nats` | `Tarol.Messaging.RabbitMq` |
 | topology | channel per subscription | `bus.messages` + one `deliveries` row per subscription, `SKIP LOCKED` | stream per source (`artflow.>`), durable pull consumer per subscription | topic exchange per source, quorum queue per subscription |
 | durable publish | — | the insert's commit | stream ack | publisher confirm |
-| retry after a delay | timer | `due_at` | `Nak(delay)` | ack + copy into `<queue>.retry` with a TTL that dead-letters back |
+| retry after a delay | timer | `due_at` | `Nak(delay)` | ack + copy into the nearest of six delay queues `<queue>.retry.<1s…1h>` (queue TTL) that dead-letter back |
 | broker dedup | — | `(id, type, version)` | `Nats-Msg-Id` window | none (consumer key) |
 | who may publish under a prefix | — | role + row-level security; `session_user` stamped | subject permissions per user | exchange write permission; `user_id` validated |
 | forbidden publish | — | `42501` at once | **a timeout** (no ack) | `ACCESS_REFUSED` at once |
