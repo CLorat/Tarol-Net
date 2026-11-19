@@ -58,7 +58,9 @@ else
         Check("an entity hit is shown through its aggregate", (await Find(new SearchQuery("museum"))).Items is [{ } e] && e.Id == edition.Id.Value && e.Aggregate == art.Id.Value);
         Check("prefix", (await Find(new SearchQuery("glac") { Prefix = true })).Items.Count == 1);
         Check("typo fallback", (await Find(new SearchQuery("harbuor"))).Items.Count == 2);
-        Check("snippet", (await Find(new SearchQuery("glaciers") { Snippets = true })).Items[0].Snippet?.Contains("<b>", StringComparison.Ordinal) == true);
+        var hit = (await Find(new SearchQuery("glaciers") { Snippets = true })).Items[0];               // BC-8: text and offsets
+        Check("snippet", hit.Snippet is { } text && hit.Highlights.Count > 0 && !text.Contains("<b>", StringComparison.Ordinal)
+            && hit.Highlights.All(h => text.Substring(h.Start, h.Length).Contains("glacier", StringComparison.OrdinalIgnoreCase)));
         Check("exact token", (await Find(new SearchQuery("ada lovelace"))).Items.Count == 1 && (await Find(new SearchQuery("lovelace"))).Items.Count == 0);
         await keys.EraseSubject(tenant.Value, art.Id.Value, default);
         await host.Reindex(await store.StreamsOf(tenant.Value, art.Id.Value, default), default);
