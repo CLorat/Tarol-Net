@@ -69,7 +69,36 @@ public sealed partial class ChangeEndpoints
     public static ChangeEndpoints Of(HttpContext http)
     {
         ArgumentNullException.ThrowIfNull(http);
+        StampRequestId(http);
         return http.RequestServices.GetRequiredService<ChangeEndpoints>();
+    }
+
+    /// <summary>
+    /// The id a user can quote for this request (BC-11): the W3C trace id of the request's activity (what the traces are
+    /// found by), else ASP.NET's <see cref="HttpContext.TraceIdentifier"/>. Every Tarol answer carries it as
+    /// <see cref="TarolHeaders.RequestId"/> and every problem as <c>traceId</c>.
+    /// </summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The id.</returns>
+    public static string RequestId(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        return System.Diagnostics.Activity.Current is { } activity && activity.TraceId != default
+            ? activity.TraceId.ToHexString()
+            : http.TraceIdentifier;
+    }
+
+    /// <summary>Sets <see cref="TarolHeaders.RequestId"/> on the answer (once).</summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The id.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static string StampRequestId(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var id = RequestId(http);
+        if (!http.Response.HasStarted)
+            http.Response.Headers[TarolHeaders.RequestId] = id;
+        return id;
     }
 
     // ── context ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -319,6 +348,7 @@ public sealed partial class ChangeEndpoints
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(violation);
         var status = violation.ToHttpStatusCode();
+        var requestId = StampRequestId(http);
         http.Response.StatusCode = status;
         if (status == StatusCodes.Status401Unauthorized)
             return;
@@ -329,6 +359,7 @@ public sealed partial class ChangeEndpoints
                 ? new HttpValidationProblemDetails(Errors(invalid, naming)) { Title = "One or more fields are invalid.", Extensions = { ["errorDetails"] = Details(invalid, naming) } }
                 : new ProblemDetails { Title = ((Error)violation).Code, Detail = ((Error)violation).Detail };
             problem.Status = status;
+            problem.Extensions["traceId"] = requestId;                         // the header's id, not ASP.NET's W3C traceparent
             if (violation is Error error)
                 problem.Extensions["code"] = error.Code;
             if (await service.TryWriteAsync(new ProblemDetailsContext { HttpContext = http, ProblemDetails = problem }).ConfigureAwait(false))
@@ -363,6 +394,7 @@ public sealed partial class ChangeEndpoints
                 if (error.Detail is { } detail)
                     writer.WriteString("detail", detail);
             }
+            writer.WriteString("traceId", requestId);
             writer.WriteEndObject();
         }
     }

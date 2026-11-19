@@ -46,18 +46,18 @@ public static class TarolAdminEndpoints
         group.WithTags(OpenApiTag);
         // BC-3: each endpoint carries its handler's MethodInfo (OpenAPI describes endpoints that carry one), its answers and an
         // operation id; the generated transformers of Tarol.Changes.AspNetCore add the parameters and codes by that id
-        Describe(group.MapGet("/dead", Kinds), "TarolAdminKinds", Kinds, typeof(IReadOnlyList<string>));
-        Describe(group.MapGet("/dead/{kind}", List), "TarolAdminDeadLetters", List, typeof(DeadLetterPageView));
-        Describe(group.MapPost("/dead/{kind}/{id:long}/redrive", RedriveOne), "TarolAdminRedrive", RedriveOne, null);
-        Describe(group.MapPost("/dead/{kind}/redrive", RedriveMany), "TarolAdminRedriveMany", RedriveMany, typeof(RedriveView));
-        Describe(group.MapDelete("/dead/{kind}/{id:long}", Discard), "TarolAdminDiscard", Discard, null);
-        Describe(group.MapGet("/projections", Projections), "TarolAdminProjections", Projections, typeof(IReadOnlyList<ProjectionVersion>));
-        Describe(group.MapDelete("/projections/{name}/{version:int}", Drop), "TarolAdminDropProjection", Drop, null);
+        Describe(group.MapGet("/dead", Stamped(Kinds)), "TarolAdminKinds", Kinds, typeof(IReadOnlyList<string>));
+        Describe(group.MapGet("/dead/{kind}", Stamped(List)), "TarolAdminDeadLetters", List, typeof(DeadLetterPageView));
+        Describe(group.MapPost("/dead/{kind}/{id:long}/redrive", Stamped(RedriveOne)), "TarolAdminRedrive", RedriveOne, null);
+        Describe(group.MapPost("/dead/{kind}/redrive", Stamped(RedriveMany)), "TarolAdminRedriveMany", RedriveMany, typeof(RedriveView));
+        Describe(group.MapDelete("/dead/{kind}/{id:long}", Stamped(Discard)), "TarolAdminDiscard", Discard, null);
+        Describe(group.MapGet("/projections", Stamped(Projections)), "TarolAdminProjections", Projections, typeof(IReadOnlyList<ProjectionVersion>));
+        Describe(group.MapDelete("/projections/{name}/{version:int}", Stamped(Drop)), "TarolAdminDropProjection", Drop, null);
         // step 16C (DP-6): a data subject's export and erasure, when data protection is registered
         if (endpoints.ServiceProvider.GetService<IDataSubjects>() is not null)
         {
-            Describe(group.MapGet("/subjects/{id:guid}/export", ExportSubject), "TarolAdminExportSubject", ExportSubject, null);
-            Describe(group.MapPost("/subjects/{id:guid}/erase", EraseSubject), "TarolAdminEraseSubject", EraseSubject, typeof(ErasureView));
+            Describe(group.MapGet("/subjects/{id:guid}/export", Stamped(ExportSubject)), "TarolAdminExportSubject", ExportSubject, null);
+            Describe(group.MapPost("/subjects/{id:guid}/erase", Stamped(EraseSubject)), "TarolAdminEraseSubject", EraseSubject, typeof(ErasureView));
         }
         return group;
     }
@@ -65,6 +65,17 @@ public static class TarolAdminEndpoints
     /// <summary>The OpenAPI tag of the admin endpoints; the generated OpenAPI transformers of <c>Tarol.Changes.AspNetCore</c>
     /// give its operations <c>x-tarol-kind: admin</c>, the <c>TarolProblem</c> schema and their codes (BC-3).</summary>
     public const string OpenApiTag = "Tarol.Admin";
+
+    /// <summary>The id a user can quote (BC-11, as the change endpoints): the trace id of the request's activity, else
+    /// <see cref="HttpContext.TraceIdentifier"/>; on every answer as <c>Tarol-Request-Id</c>, in every problem as <c>traceId</c>.</summary>
+    internal static string RequestId(HttpContext context)
+        => System.Diagnostics.Activity.Current is { } activity && activity.TraceId != default ? activity.TraceId.ToHexString() : context.TraceIdentifier;
+
+    private static RequestDelegate Stamped(RequestDelegate handler) => context =>
+    {
+        context.Response.Headers["Tarol-Request-Id"] = RequestId(context);
+        return handler(context);
+    };
 
     private static void Describe(IEndpointConventionBuilder endpoint, string name, RequestDelegate handler, Type? answer)
     {
@@ -104,6 +115,7 @@ public static class TarolAdminEndpoints
             if (detail is not null)
                 writer.WriteString("detail", detail);
             extra?.Invoke(writer);
+            writer.WriteString("traceId", RequestId(context));
             writer.WriteEndObject();
         }
     }

@@ -12,13 +12,16 @@ public static class TarolHeaders
     /// <summary><c>Idempotent-Replayed: true</c> on an answer replayed for a repeated <c>Idempotency-Key</c>.</summary>
     public const string IdempotentReplayed = "Idempotent-Replayed";
 
+    /// <summary>The id of the request on every answer (BC-11): quote it when reporting an error; problems carry it as <c>traceId</c>.</summary>
+    public const string RequestId = "Tarol-Request-Id";
+
     /// <summary>The request's idempotency key (R-9).</summary>
     public const string IdempotencyKey = "Idempotency-Key";
 
     /// <summary>The response headers a browser must read: <c>ETag</c>, <c>Location</c>, <c>Tarol-Position</c>,
-    /// <c>Tarol-Stale</c>, <c>Idempotent-Replayed</c>, <c>Retry-After</c>, <c>WWW-Authenticate</c>.</summary>
+    /// <c>Tarol-Stale</c>, <c>Idempotent-Replayed</c>, <c>Tarol-Request-Id</c>, <c>Retry-After</c>, <c>WWW-Authenticate</c>.</summary>
     public static IReadOnlyList<string> Exposed { get; } =
-        ["ETag", "Location", Positions.PositionHeader, Positions.StaleHeader, IdempotentReplayed, "Retry-After", "WWW-Authenticate"];
+        ["ETag", "Location", Positions.PositionHeader, Positions.StaleHeader, IdempotentReplayed, RequestId, "Retry-After", "WWW-Authenticate"];
 
     /// <summary>The request headers a browser sends: <c>Authorization</c>, <c>Content-Type</c>, <c>Idempotency-Key</c>,
     /// <c>If-Match</c>, <c>If-None-Match</c>, <c>Tarol-Read-After</c>, <c>traceparent</c>.</summary>

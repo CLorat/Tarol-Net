@@ -20,8 +20,9 @@ public sealed class EdgeTests
         var refused = await app.Post($"/auctions/{id}/close", null, Bob);
 
         invalid.Response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
-        invalid.Body.ShouldBe("""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","status":400,"title":"One or more fields are invalid.","errors":{"title":["Length"],"reserve":["Range"]},"errorDetails":{"title":[{"code":"Length","detail":"3..60"}],"reserve":[{"code":"Range","detail":"1..1000000"}]}}""");
-        refused.Body.ShouldBe("""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","status":403,"title":"Auction.NotSeller","code":"Auction.NotSeller"}""");
+        var trace = invalid.Response.Headers.GetValues(TarolHeaders.RequestId).Single();                    // BC-11
+        invalid.Body.ShouldBe($$"""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","status":400,"title":"One or more fields are invalid.","errors":{"title":["Length"],"reserve":["Range"]},"errorDetails":{"title":[{"code":"Length","detail":"3..60"}],"reserve":[{"code":"Range","detail":"1..1000000"}]},"traceId":"{{trace}}"}""");
+        refused.Body.ShouldBe($$"""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","status":403,"title":"Auction.NotSeller","code":"Auction.NotSeller","traceId":"{{refused.Response.Headers.GetValues(TarolHeaders.RequestId).Single()}}"}""");
     }
 
     [Fact]
@@ -101,7 +102,7 @@ public sealed class EdgeTests
         // (a) every problem response names the TarolProblem schema
         var problem = schemas.GetProperty("TarolProblem");
         problem.GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["type", "status", "title"], ignoreOrder: true);
-        problem.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["type", "status", "title", "code", "detail", "errors", "errorDetails"], ignoreOrder: true);
+        problem.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["type", "status", "title", "code", "detail", "traceId", "errors", "errorDetails"], ignoreOrder: true);
         foreach (var operation in new[] { bids, create, view, list, search })
             foreach (var response in operation.GetProperty("responses").EnumerateObject().Where(r => r.Name[0] is '4' or '5' && r.Name != "401"))
                 response.Value.GetProperty("content").GetProperty("application/problem+json").GetProperty("schema").GetProperty("$ref").GetString()
@@ -116,10 +117,11 @@ public sealed class EdgeTests
         // (d) the aggregate of an id path parameter and of an Id<T> schema
         bids.GetProperty("parameters")[0].GetProperty("x-tarol-id").GetString().ShouldBe("Auction");
         // (e) the headers a client reads
-        Headers(bids, "204").ShouldBe(["ETag", "Idempotent-Replayed", "Tarol-Position"], ignoreOrder: true);
-        Headers(create, "201").ShouldBe(["ETag", "Idempotent-Replayed", "Location", "Tarol-Position"], ignoreOrder: true);
-        Headers(list, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale"], ignoreOrder: true);
-        Headers(search, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale"], ignoreOrder: true);
+        Headers(bids, "204").ShouldBe(["ETag", "Idempotent-Replayed", "Tarol-Position", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(create, "201").ShouldBe(["ETag", "Idempotent-Replayed", "Location", "Tarol-Position", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(list, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(search, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(bids, "409").ShouldContain("Tarol-Request-Id");
         // (f) search with its parameters and its page; (g) numbers are numbers; (h) Option<T> is T or null
         search.GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString())
             .ShouldBe(["q", "types", "prefix", "counts", "snippets", "limit", "after", "lang", "Tarol-Read-After"]);
@@ -139,6 +141,23 @@ public sealed class EdgeTests
 
     private static string[] Headers(JsonElement operation, string status)
         => [.. operation.GetProperty("responses").GetProperty(status).GetProperty("headers").EnumerateObject().Select(h => h.Name)];
+
+    [Fact]
+    public async Task Every_answer_has_a_request_id_and_a_problem_names_it()          // BC-11
+    {
+        await using var app = await Start();
+        var id = await app.Created(Alice);
+
+        var view = await app.Get($"/auctions/{id}", Rita);
+        var problem = await app.Get($"/auctions/{Guid.CreateVersion7()}", Rita);
+        var list = await app.Get("/auctions", Alice);
+        var tooLarge = await app.Post("/auctions", $$"""{"title":"{{new string('x', 70_000)}}"}""", Alice);
+
+        foreach (var answer in new[] { view, problem, list, tooLarge })
+            answer.Response.Headers.GetValues(TarolHeaders.RequestId).Single().ShouldNotBeNullOrWhiteSpace();
+        JsonElement.Parse(problem.Body).GetProperty("traceId").GetString().ShouldBe(problem.Response.Headers.GetValues(TarolHeaders.RequestId).Single());
+        view.Response.Headers.GetValues(TarolHeaders.RequestId).Single().ShouldNotBe(problem.Response.Headers.GetValues(TarolHeaders.RequestId).Single());
+    }
 
     private static string[] Statuses(JsonElement operation)
         => [.. operation.GetProperty("responses").EnumerateObject().Select(r => r.Name).Order(StringComparer.Ordinal)];

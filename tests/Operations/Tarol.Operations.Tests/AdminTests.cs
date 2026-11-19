@@ -162,6 +162,7 @@ public sealed class AdminTests
         body.GetProperty("code").GetString().ShouldBe(code);
         body.GetProperty("title").GetString().ShouldBe(code);
         body.GetProperty("type").GetString().ShouldStartWith("https://tools.ietf.org/html/rfc9110#section-15.");
+        body.GetProperty("traceId").GetString().ShouldBe(response.Headers.GetValues("Tarol-Request-Id").Single());   // BC-11
         return body;
     }
 

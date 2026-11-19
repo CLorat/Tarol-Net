@@ -349,3 +349,20 @@ packages):
 * **Tests**: `An_unknown_query_key_is_400_instead_of_an_unfiltered_list` (`?selller=` 400 on `selller`; `?Seller=…&SORT=…` 200),
   the claim-bound test. Red before: the typo answered 200 **[verified by reading]** (the generated binder reads named keys only).
 * **Public API** (generated): `+ ChangeEndpoints.UnknownKeyCode`. **Suppressions**: none.
+
+## 17. PR C3: a request id in every answer (BC-11, CC-6)
+
+* **Change**: `ChangeEndpoints.RequestId(http)` is the W3C trace id of `Activity.Current` (the id the traces of the request are
+  found by), else `HttpContext.TraceIdentifier`. `ChangeEndpoints.Of` (the first call of every generated entry: changes, views,
+  lists, webhooks), `MapTarolSearch` and `Problem` set `Tarol-Request-Id`; so do the admin endpoints (`Tarol.Operations` repeats
+  the two lines, it does not reference `Tarol.Changes.AspNetCore`). Every problem has `traceId` with the same value: directly
+  written, and with an `IProblemDetailsService` as the `traceId` extension set before ASP.NET would add its own (the
+  `traceparent`-shaped `00-…-…-01`, which differed from the header).
+* **CORS and OpenAPI**: `TarolHeaders.Exposed` lists `Tarol-Request-Id`; every documented response has the header, the
+  `TarolProblem` schema `traceId`.
+* **Behaviour**: one more header and one more problem member.
+* **Tests**: `EdgeTests.Every_answer_has_a_request_id_and_a_problem_names_it` (a view, a 404 problem, a list, a 413 that the
+  generated code answers with a status only), the exact direct-write bodies now end in `"traceId":"<the header>"`, the admin
+  problems' `traceId` equals the header, the document test lists the header and the member.
+* **Public API** (generated): `+ TarolHeaders.RequestId`, `+ ChangeEndpoints.RequestId`, `+ ChangeEndpoints.StampRequestId`
+  (`EditorBrowsable(Never)`). **Suppressions**: none.

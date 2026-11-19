@@ -65,6 +65,7 @@ public static class GeneratedOpenApi
             ["title"] = Text("The code, or \"One or more fields are invalid.\""),
             ["code"] = Text("The error's code (e.g. Auction.NotOpen); absent for invalid input"),
             ["detail"] = Text(),
+            ["traceId"] = Text("The request's id, also its Tarol-Request-Id header: quote it when reporting the problem"),
             ["errors"] = new global::Microsoft.OpenApi.OpenApiSchema
             {
                 Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
@@ -212,6 +213,7 @@ public static class GeneratedOpenApi
         };
         foreach (var status in known.Problems)
             operation.Responses[status] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "A problem with a code (x-tarol-errors)", Content = ProblemContent() };
+        RequestIds(operation);
     }
 
     private static void Complete(global::Microsoft.OpenApi.OpenApiOperation operation, global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)
@@ -347,6 +349,23 @@ public static class GeneratedOpenApi
         }
         if (metadata.Policy is not null)
             operation.Description = (operation.Description is { Length: > 0 } d ? d + "\n\n" : "") + "Policy: " + metadata.Policy;
+        RequestIds(operation);
+    }
+
+    /// <summary>Every answer carries Tarol-Request-Id (BC-11).</summary>
+    private static void RequestIds(global::Microsoft.OpenApi.OpenApiOperation operation)
+    {
+        if (operation.Responses is null)
+            return;
+        foreach (var (_, response) in operation.Responses)
+            if (response is global::Microsoft.OpenApi.OpenApiResponse r)
+            {
+                var headers = r.Headers is null
+                    ? new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>()
+                    : new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>(r.Headers);
+                headers["Tarol-Request-Id"] = Header("The request's id (the problem's traceId): quote it when reporting an error");
+                r.Headers = headers;
+            }
     }
 
     private static global::Microsoft.OpenApi.OpenApiSchema PageSchema(global::Microsoft.OpenApi.IOpenApiSchema? row) => new()

@@ -10,7 +10,10 @@ const Tarol.Changes.AspNetCore.ChangeEndpoints.UnknownKeyCode = "Unknown" -> str
 const Tarol.Changes.AspNetCore.SearchEndpoints.BuildingCode = "Search.Building" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.IdempotencyKey = "Idempotency-Key" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.IdempotentReplayed = "Idempotent-Replayed" -> string!
+const Tarol.Changes.AspNetCore.TarolHeaders.RequestId = "Tarol-Request-Id" -> string!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.IsJson(string? contentType) -> bool
+static Tarol.Changes.AspNetCore.ChangeEndpoints.RequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
+static Tarol.Changes.AspNetCore.ChangeEndpoints.StampRequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
 static Tarol.Changes.AspNetCore.SearchEndpoints.MapTarolSearch(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern = "/search", string? policy = null) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Tarol.Changes.AspNetCore.TarolHeaders.Allowed.get -> System.Collections.Generic.IReadOnlyList<string!>!
 static Tarol.Changes.AspNetCore.TarolHeaders.Exposed.get -> System.Collections.Generic.IReadOnlyList<string!>!

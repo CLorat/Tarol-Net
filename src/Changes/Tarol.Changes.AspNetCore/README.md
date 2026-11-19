@@ -64,6 +64,9 @@ app.MapChanges();
   `Tarol-Stale` on reads; numbers typed `number`/`integer` (not the web defaults' `["number","string"]` with a pattern);
   `Option<T>` as `T` or `null`; `MapTarolSearch` and `MapTarolAdmin` (Tarol.Operations) with their parameters and answers.
 * **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
+* **Request id**: every answer of an entry, a list, search and the admin entry carries `Tarol-Request-Id` (the trace id of the
+  request's activity, else `HttpContext.TraceIdentifier`), and every problem `traceId` with the same value: what a user quotes
+  when reporting an error, and what the traces are found by.
 * **Browsers on another origin** (CORS): `TarolHeaders.Allowed` are the request headers a browser client sends,
   `TarolHeaders.Exposed` the response headers it must read (`ETag`, `Location`, `Tarol-Position`, `Tarol-Stale`,
   `Idempotent-Replayed`, `Retry-After`, `WWW-Authenticate`); without them a script cannot revalidate or read its own writes.

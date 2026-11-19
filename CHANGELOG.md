@@ -8,6 +8,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `Tarol-Request-Id` on every Tarol answer and `traceId` in every problem (BC-11, CC-6): the request activity's trace id, else
+  `TraceIdentifier`; exposed by `TarolHeaders.Exposed`, in the OpenAPI document. New: `TarolHeaders.RequestId`,
+  `ChangeEndpoints.RequestId`.
+
 * `errorDetails` next to `errors` on every 400 (BC-5): per JSON path `[{code, detail?}]`, the rule's detail such as the bounds
   (`"3..60"`); written directly and through `IProblemDetailsService`; in the `TarolProblem` schema.
 

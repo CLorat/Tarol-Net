@@ -69,7 +69,7 @@ public static class SearchEndpoints
 
     private static async Task Search(HttpContext http)
     {
-        var entries = http.RequestServices.GetRequiredService<ChangeEndpoints>();
+        var entries = ChangeEndpoints.Of(http);
         CacheHeaders.Apply(http);
         var (context, _, refused) = entries.Edge(http);
         if (refused is not null)
