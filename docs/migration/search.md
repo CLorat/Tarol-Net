@@ -486,7 +486,19 @@ For each skill, an agent given only the skill and the package must do these task
 
 ## 13. Verification of this PR
 
-⟨verification⟩
+Design only: this PR adds the two notes, the plan row, a CHANGELOG line and the probes; no package code changes. Checked on
+this branch over `main` = `15c5706` (after #73) **[verified]**, SDK 11.0.100, 4 cores, Docker 29.10:
+
+| Check | Result |
+|---|---|
+| `dotnet build Tarol.slnx` | 0 warnings, 0 errors |
+| `dotnet format Tarol.slnx --verify-no-changes` | no changes |
+| `dotnet test --solution Tarol.slnx` (Docker) | **1,896 passed**, 0 failed, 0 skipped (the session prompt expected 1,864: #73 added 32 tests). The first run failed 56 integration tests in two assemblies at fixture start: Docker Hub answered 429 for `postgres:17`; the images were pulled from `mirror.gcr.io` and tagged, the rerun passed |
+| `eng/aot-smoke.sh` (`TAROL_PG`, `TAROL_NATS`, `TAROL_RABBITMQ`) | **24 apps**, 0 IL warnings, all checks pass |
+| `dotnet pack -c Release` | **25 packages** |
+| `eng/verify-packages.sh` | OK |
+| the probe (`probes/search/all.sh`) | sections 1–11, JIT and Native AOT (0 IL warnings), [`output.txt`](probes/search/output.txt) |
+| `main`'s CI on `15c5706` | `build`, `integration`, `aot-smoke`, CodeQL green; `v0.1.0-preview.1` released (2026-11-18) |
 
 ## 14. Open items
 
