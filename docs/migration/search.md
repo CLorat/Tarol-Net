@@ -803,3 +803,9 @@ first assumed an order between two title matches; BM25 puts the shorter title fi
 | authenticate | the `HttpClient`'s handler or header from configuration | credentials in code or committed settings |
 | read your own write | `WaitForRefresh = true` | expecting it within milliseconds by default |
 
+### 19.6 Verification (SDK 11.0.100, 2026-11-19) **[verified]**
+
+Build 0 warnings; `dotnet test --solution Tarol.slnx` with Docker **2,024 passed** (OpenSearch in Testcontainers);
+`eng/aot-smoke.sh` **27 apps**, 0 IL warnings; pack 28 packages; `eng/verify-packages.sh` OK. The first run's format check
+rejected the compact JSON writer lines in `OpenSearchIndex` (`WHITESPACE`); one statement per line since, and
+`dotnet format Tarol.slnx --verify-no-changes` reports no changes.
