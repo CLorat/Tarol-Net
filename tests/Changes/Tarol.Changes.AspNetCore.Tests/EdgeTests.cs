@@ -20,8 +20,9 @@ public sealed class EdgeTests
         var refused = await app.Post($"/auctions/{id}/close", null, Bob);
 
         invalid.Response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
-        invalid.Body.ShouldBe("""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","status":400,"title":"One or more fields are invalid.","errors":{"title":["Length"],"reserve":["Range"]}}""");
-        refused.Body.ShouldBe("""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","status":403,"title":"Auction.NotSeller","code":"Auction.NotSeller"}""");
+        var trace = invalid.Response.Headers.GetValues(TarolHeaders.RequestId).Single();                    // BC-11
+        invalid.Body.ShouldBe($$"""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","status":400,"title":"One or more fields are invalid.","errors":{"title":["Length"],"reserve":["Range"]},"errorDetails":{"title":[{"code":"Length","detail":"3..60"}],"reserve":[{"code":"Range","detail":"1..1000000"}]},"traceId":"{{trace}}"}""");
+        refused.Body.ShouldBe($$"""{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","status":403,"title":"Auction.NotSeller","code":"Auction.NotSeller","traceId":"{{refused.Response.Headers.GetValues(TarolHeaders.RequestId).Single()}}"}""");
     }
 
     [Fact]
@@ -82,6 +83,123 @@ public sealed class EdgeTests
         schemas.GetProperty("Title").GetProperty("minLength").GetInt32().ShouldBe(3);
         schemas.GetProperty("Title").GetProperty("maxLength").GetInt32().ShouldBe(60);
         paths.EnumerateObject().Select(p => p.Name).ShouldNotContain("/webhooks/payments");     // webhooks are not the API
+    }
+
+    [Fact]
+    public async Task The_openapi_document_is_complete_enough_for_a_typed_client()      // BC-3
+    {
+        await using var app = await Start(search: true);
+
+        var root = JsonElement.Parse((await app.Get("/openapi/v1.json", Nobody)).Body);
+        var paths = root.GetProperty("paths");
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        var bids = paths.GetProperty("/auctions/{auction}/bids").GetProperty("post");
+        var create = paths.GetProperty("/auctions").GetProperty("post");
+        var view = paths.GetProperty("/auctions/{auction}").GetProperty("get");
+        var list = paths.GetProperty("/auctions").GetProperty("get");
+        var search = paths.GetProperty("/search").GetProperty("get");
+
+        // (a) every problem response names the TarolProblem schema
+        var problem = schemas.GetProperty("TarolProblem");
+        problem.GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["type", "status", "title"], ignoreOrder: true);
+        problem.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["type", "status", "title", "code", "detail", "traceId", "errors", "errorDetails"], ignoreOrder: true);
+        foreach (var operation in new[] { bids, create, view, list, search })
+            foreach (var response in operation.GetProperty("responses").EnumerateObject().Where(r => r.Name[0] is '4' or '5' && r.Name != "401"))
+                response.Value.GetProperty("content").GetProperty("application/problem+json").GetProperty("schema").GetProperty("$ref").GetString()
+                    .ShouldBe("#/components/schemas/TarolProblem", $"{operation.GetProperty("operationId")} {response.Name}");
+        // (b) the kind of every operation
+        new[] { bids, create, view, list, search }.Select(o => o.GetProperty("x-tarol-kind").GetString()).ShouldBe(["change", "creation", "view", "list", "search"]);
+        // (c) the static codes: Tarol's own and the domain's literal Error codes
+        Codes(bids).ShouldBe(["Auction.NotFound", "Auction.NotOpen", "Auth.Forbidden", "Bid.OwnAuction", "Bid.TooLow", "Idempotency.DuplicateKey",
+            "Idempotency.KeyReused", "Stream.VersionConflict"]);
+        Codes(view).ShouldBe(["Auction.NotFound", "Auth.Forbidden"]);
+        Codes(search).ShouldContain(SearchEndpoints.BuildingCode);
+        // (d) the aggregate of an id path parameter and of an Id<T> schema
+        bids.GetProperty("parameters")[0].GetProperty("x-tarol-id").GetString().ShouldBe("Auction");
+        // (e) the headers a client reads
+        Headers(bids, "204").ShouldBe(["ETag", "Idempotent-Replayed", "Tarol-Position", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(create, "201").ShouldBe(["ETag", "Idempotent-Replayed", "Location", "Tarol-Position", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(list, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(search, "200").ShouldBe(["ETag", "Tarol-Position", "Tarol-Stale", "Tarol-Request-Id"], ignoreOrder: true);
+        Headers(bids, "409").ShouldContain("Tarol-Request-Id");
+        // (f) search with its parameters and its page; (g) numbers are numbers; (h) Option<T> is T or null
+        search.GetProperty("parameters").EnumerateArray().Select(p => p.GetProperty("name").GetString())
+            .ShouldBe(["q", "types", "prefix", "counts", "snippets", "limit", "after", "lang", "Tarol-Read-After"]);
+        var hit = search.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema")
+            .GetProperty("properties").GetProperty("items").GetProperty("items").GetProperty("properties");
+        hit.GetProperty("highlights").GetProperty("items").GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["start", "length"], ignoreOrder: true);
+        var summary = schemas.GetProperty("AuctionSummary").GetProperty("properties");
+        summary.GetProperty("highestBid").GetProperty("type").GetString().ShouldBe("number");
+        summary.GetProperty("highestBid").TryGetProperty("pattern", out _).ShouldBeFalse();
+        summary.GetProperty("bids").GetProperty("type").GetString().ShouldBe("integer");
+        var payment = summary.GetProperty("payment");
+        var option = payment.TryGetProperty("$ref", out var reference) ? schemas.GetProperty(reference.GetString()!["#/components/schemas/".Length..]) : payment;
+        option.GetProperty("type").EnumerateArray().Select(t => t.GetString()).ShouldBe(["null", "string"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public async Task Every_rule_carrying_schema_has_its_rules_for_the_client()            // BC-4
+    {
+        await using var app = await Start();
+
+        var schemas = JsonElement.Parse((await app.Get("/openapi/v1.json", Nobody)).Body).GetProperty("components").GetProperty("schemas");
+        static string Rules(JsonElement schema) => JsonSerializer.Serialize(schema.GetProperty("x-tarol-rules"));
+
+        Rules(schemas.GetProperty("Title")).ShouldBe("""[{"rule":"Length","code":"Length","min":3,"max":60}]""");             // a single-field value object
+        Rules(schemas.GetProperty("Contact")).ShouldBe("""[{"rule":"Email","code":"Email"}]""");
+        schemas.GetProperty("Contact").GetProperty("format").GetString().ShouldBe("email");
+        schemas.GetProperty("Contact").GetProperty("x-tarol-email").GetString()!.ShouldContain("at most 254 characters");
+        var offer = schemas.GetProperty("MakeOffer").GetProperty("properties");
+        Rules(offer.GetProperty("note")).ShouldBe("""[{"rule":"Length","code":"Length","min":2,"max":40}]""");                    // an input's own member
+        (offer.GetProperty("note").GetProperty("minLength").GetInt32(), offer.GetProperty("note").GetProperty("maxLength").GetInt32()).ShouldBe((2, 40));
+        Rules(offer.GetProperty("contacts")).ShouldBe("""[{"rule":"Count","code":"Count","min":1,"max":3}]""");                    // Count
+        (offer.GetProperty("contacts").GetProperty("minItems").GetInt32(), offer.GetProperty("contacts").GetProperty("maxItems").GetInt32()).ShouldBe((1, 3));
+        var price = schemas.GetProperty("Price").GetProperty("properties");                                                          // a multi-field value object
+        Rules(price.GetProperty("value")).ShouldBe("""[{"rule":"Range","code":"Range","min":0}]""");
+        Rules(price.GetProperty("currency")).ShouldBe("""[{"rule":"Pattern","code":"Pattern","pattern":"^[A-Z]{3}$","flags":"i"}]""");   // IgnoreCase
+    }
+
+    private static string[] Codes(JsonElement operation) => [.. operation.GetProperty("x-tarol-errors").EnumerateArray().Select(c => c.GetString()!)];
+
+    private static string[] Headers(JsonElement operation, string status)
+        => [.. operation.GetProperty("responses").GetProperty(status).GetProperty("headers").EnumerateObject().Select(h => h.Name)];
+
+    [Fact]
+    public async Task Every_answer_has_a_request_id_and_a_problem_names_it()          // BC-11
+    {
+        await using var app = await Start();
+        var id = await app.Created(Alice);
+
+        var view = await app.Get($"/auctions/{id}", Rita);
+        var problem = await app.Get($"/auctions/{Guid.CreateVersion7()}", Rita);
+        var list = await app.Get("/auctions", Alice);
+        var tooLarge = await app.Post("/auctions", $$"""{"title":"{{new string('x', 70_000)}}"}""", Alice);
+
+        foreach (var answer in new[] { view, problem, list, tooLarge })
+            answer.Response.Headers.GetValues(TarolHeaders.RequestId).Single().ShouldNotBeNullOrWhiteSpace();
+        JsonElement.Parse(problem.Body).GetProperty("traceId").GetString().ShouldBe(problem.Response.Headers.GetValues(TarolHeaders.RequestId).Single());
+        view.Response.Headers.GetValues(TarolHeaders.RequestId).Single().ShouldNotBe(problem.Response.Headers.GetValues(TarolHeaders.RequestId).Single());
+    }
+
+    [Fact]
+    public async Task Me_answers_who_the_caller_is_by_the_entries_rules()               // BC-13
+    {
+        await using var app = await Start();
+
+        var alice = JsonElement.Parse((await app.Get("/me", Alice)).Body);
+        var service = JsonElement.Parse((await app.Get("/me", new Caller("billing-sa", TenantA, Client: "billing-sa"))).Body);
+        var anonymous = await app.Get("/me", Nobody);
+        var document = JsonElement.Parse((await app.Get("/openapi/v1.json", Nobody)).Body).GetProperty("paths").GetProperty("/me").GetProperty("get");
+
+        alice.GetProperty("subject").GetString().ShouldBe("alice");
+        (alice.GetProperty("actor").GetProperty("kind").GetString(), alice.GetProperty("actor").GetProperty("id").GetString()).ShouldBe(("User", "alice"));
+        alice.GetProperty("tenant").GetGuid().ShouldBe(TenantA);
+        alice.GetProperty("roles").EnumerateArray().Select(r => r.GetString()).ShouldBe(Alice.Roles.Split(' ').Order(StringComparer.Ordinal));
+        service.GetProperty("actor").GetProperty("kind").GetString().ShouldBe("Service");
+        anonymous.Status.ShouldBe(System.Net.HttpStatusCode.Unauthorized);
+        document.GetProperty("x-tarol-kind").GetString().ShouldBe("me");
+        document.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema")
+            .GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["subject", "actor", "tenant", "roles"], ignoreOrder: true);
     }
 
     private static string[] Statuses(JsonElement operation)

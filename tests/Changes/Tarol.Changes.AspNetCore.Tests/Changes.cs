@@ -36,6 +36,13 @@ public sealed partial record WatchAuction(Id<Auction> Auction, string Note) : IC
     public Result Execute(Auction auction, ChangeContext context) => auction.Watch(Note);
 }
 
+/// <summary>BC-4: rules on an IValidatable input's own members, a multi-field value object, a list with Count, an e-mail value object.</summary>
+[Endpoint("POST /auctions/{auction}/offers")]
+public sealed partial record MakeOffer(Id<Auction> Auction, [Length(2, 40)] string Note, Price Price, [Count(1, 3)] IReadOnlyList<Contact> Contacts) : IChange<Auction>, IValidatable
+{
+    public Result Execute(Auction auction, ChangeContext context) => auction.Watch(Note);
+}
+
 /// <summary>A JSON name of its own, an optional member with a default, a PUT.</summary>
 [Endpoint("PUT /auctions/{auction}/title")]
 public sealed partial record RenameAuction(Id<Auction> Auction, [property: JsonPropertyName("new_title")] Title Title, string Reason = "none") : IChange<Auction>, IValidatable

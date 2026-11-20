@@ -50,6 +50,10 @@ public sealed class EndpointTests : IAsyncLifetime
         invalid.Response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
         invalid.Body.ShouldContain("\"title\":[\"Length\"]");
         invalid.Body.ShouldContain("\"reserve\":[\"Range\"]");
+        var details = System.Text.Json.JsonElement.Parse(invalid.Body).GetProperty("errorDetails");     // BC-5: through IProblemDetailsService too
+        details.GetProperty("title")[0].GetProperty("code").GetString().ShouldBe("Length");
+        details.GetProperty("title")[0].GetProperty("detail").GetString().ShouldBe("3..60");
+        details.GetProperty("reserve")[0].GetProperty("detail").GetString().ShouldBe("1..1000000");
     }
 
     [Fact]
@@ -95,6 +99,30 @@ public sealed class EndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_json_body_without_a_content_type_is_415_and_a_change_without_a_body_needs_none()   // BC-16
+    {
+        var untyped = await _app.Post("/auctions", Auction(), Alice, contentType: "");
+        var id = await _app.Created(Alice);
+        var close = await _app.Send(HttpMethod.Post, $"/auctions/{id}/close", null, Alice);
+
+        untyped.Status.ShouldBe(HttpStatusCode.UnsupportedMediaType, untyped.Body);
+        close.Status.ShouldBe(HttpStatusCode.NoContent, close.Body);
+    }
+
+    [Theory]
+    [InlineData("application/json", true)]
+    [InlineData("application/json; charset=utf-8", true)]
+    [InlineData("Application/JSON; charset=UTF-8", true)]
+    [InlineData("application/problem+json", true)]
+    [InlineData("application/json; charset=iso-8859-1", false)]
+    [InlineData("text/json", false)]
+    [InlineData("text/plain", false)]
+    [InlineData("application/x-www-form-urlencoded", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void Json_content_types(string? contentType, bool json) => ChangeEndpoints.IsJson(contentType).ShouldBe(json);
+
+    [Fact]
     public async Task A_json_property_name_and_an_optional_member_with_a_default_bind()
     {
         var id = await _app.Created(Alice);
@@ -124,6 +152,9 @@ public sealed class EndpointTests : IAsyncLifetime
         again.Response.Headers.GetValues("Idempotent-Replayed").ShouldBe(["true"]);
         other.Status.ShouldBe(HttpStatusCode.UnprocessableEntity);
         other.Body.ShouldContain(StoreErrors.KeyReusedCode);
+        System.Text.Json.JsonElement.Parse(other.Body).GetProperty("detail").GetString().ShouldBe("k-1");   // BC-17: no actor, no scope
+        other.Body.ShouldNotContain("http:");
+        other.Body.ShouldNotContain("alice");
         otherCaller.Status.ShouldBe(HttpStatusCode.Created);
         otherCaller.Body.ShouldNotBe(first.Body);
     }
@@ -289,6 +320,24 @@ public sealed class EndpointTests : IAsyncLifetime
         view.Body.ShouldContain("\"highestBid\":150");
         view.Body.ShouldNotContain("reserve");
         same.Status.ShouldBe(HttpStatusCode.NotModified);
+    }
+
+    [Theory]                                                               // BC-7: RFC 9110 §13.1.2, the weak comparison
+    [InlineData("W/\"2\"", HttpStatusCode.NotModified)]
+    [InlineData("\"1\", \"2\"", HttpStatusCode.NotModified)]
+    [InlineData("\"1\",W/\"2\"", HttpStatusCode.NotModified)]
+    [InlineData("*", HttpStatusCode.NotModified)]
+    [InlineData("\"1\", W/\"3\"", HttpStatusCode.OK)]
+    [InlineData("\"20\"", HttpStatusCode.OK)]
+    public async Task A_view_matches_if_none_match_weakly_and_in_lists(string ifNoneMatch, HttpStatusCode expected)
+    {
+        var id = await _app.Created(Alice);
+        _ = await _app.Post($"/auctions/{id}/bids", """{"amount":150}""", Bob);
+
+        var view = await _app.Get($"/auctions/{id}", Rita, h => h.TryAddWithoutValidation("If-None-Match", ifNoneMatch));
+
+        view.Status.ShouldBe(expected);
+        view.ETag.ShouldBe("\"2\"");
     }
 
     [Fact]

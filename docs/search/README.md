@@ -60,7 +60,9 @@ Tarol-Read-After: 7341.1000412
 * `types`: the document types to search (default: every type the caller may read: `Read<T>` per aggregate; a requested type
   without it is 403). An entity type (`auction.bid`) follows its aggregate.
 * `prefix=true`: the last word is a prefix. A typo fallback (one edit) runs when nothing else matches.
-* `counts=true`: matches per type (PostgreSQL counts up to 1,000; `countsCapped` beyond). `snippets=true`: marked snippets.
+* `counts=true`: matches per type (PostgreSQL counts up to 1,000; `countsCapped` beyond). `snippets=true`: a plain-text
+  `snippet` and `highlights: [{start, length}]` (UTF-16 offsets, a JavaScript string's indexes) for the matched words. The
+  snippet is never markup: show it as text and wrap the ranges yourself (no `{@html}`, no `innerHTML`).
 * Pages of at most 50; `next` is the cursor, down to 1,000 hits. A weak `ETag` answers 304.
 * `Tarol-Read-After` waits for the index to pass the caller's commit (PostgreSQL and Typesense: milliseconds; OpenSearch: its
   refresh, about a second, unless `WaitForRefresh`).

@@ -43,12 +43,17 @@ versions and drops superseded ones. Every act names its actor (the principal's n
 
 | Method | Path | Answer |
 |---|---|---|
+| GET | `{prefix}/dead` | the dead-letter kinds |
 | GET | `{prefix}/dead/{kind}?after=&limit=&tenant=&name=` | one page and `next` |
 | POST | `{prefix}/dead/{kind}/{id}/redrive` | 204, 404 |
 | POST | `{prefix}/dead/{kind}/redrive?tenant=&name=&max=` | `{ "redriven": n }` |
 | DELETE | `{prefix}/dead/{kind}/{id}` | 204, 404 |
 | GET | `{prefix}/projections` | the versions (state, rows, bytes, superseded) |
 | DELETE | `{prefix}/projections/{name}/{version}` | 204; 409 for the newest, one in use, or one still read |
+
+Every error is `application/problem+json` with a `code` (`AdminProblems`): `Admin.Query` (400), `Admin.Tenant` (400),
+`Admin.Kind` (404), `Admin.NotFound` (404), `Projection.Drop` (409), `DataProtection.ErasureIncomplete` (409, with `failed`:
+the participants to re-run; the key is erased, run the erasure again).
 
 ## Retention
 

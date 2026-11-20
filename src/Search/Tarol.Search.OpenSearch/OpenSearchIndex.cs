@@ -333,7 +333,7 @@ public sealed class OpenSearchIndex : ISearchIndex
                     snippet = field.Value[0].GetString();
                     break;
                 }
-            hits.Add(new SearchHit(source.GetProperty("type").GetString()!, Guid.ParseExact(source.GetProperty("id").GetString()!, "N"),
+            hits.Add(SearchSnippets.Hit(source.GetProperty("type").GetString()!, Guid.ParseExact(source.GetProperty("id").GetString()!, "N"),
                 Guid.ParseExact(source.GetProperty("aggregate").GetString()!, "N"), source.GetProperty("title").GetString()!,
                 h.GetProperty("_score").ValueKind == JsonValueKind.Number ? h.GetProperty("_score").GetDouble() : 0, snippet));
             if (typo is not null && counts is not null)
@@ -464,10 +464,10 @@ public sealed class OpenSearchIndex : ISearchIndex
         {
             w.WriteStartObject("highlight");
             w.WriteStartArray("pre_tags");
-            w.WriteStringValue("<b>");
+            w.WriteStringValue(SearchSnippets.Open);
             w.WriteEndArray();
             w.WriteStartArray("post_tags");
-            w.WriteStringValue("</b>");
+            w.WriteStringValue(SearchSnippets.Close);
             w.WriteEndArray();
             w.WriteBoolean("require_field_match", false);
             w.WriteStartObject("fields");

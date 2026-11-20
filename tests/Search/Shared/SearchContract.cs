@@ -169,7 +169,30 @@ public abstract class SearchContract
         var hit = (await Ok(test, new SearchQuery("glaciers") { Snippets = true }, A)).Items.ShouldHaveSingleItem();
         hit.Snippet.ShouldNotBeNull();
         hit.Snippet!.ShouldContain("glacier", Case.Insensitive);
-        hit.Snippet.ShouldContain("<b>");
+        hit.Highlights.ShouldNotBeEmpty();
+        hit.Highlights.ShouldAllBe(h => hit.Snippet.Substring(h.Start, h.Length).Contains("glacier", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task A_snippet_is_plain_text_and_markup_in_the_document_stays_text()        // BC-8: no HTML from the server
+    {
+        var test = await Test();
+        test.Given(Artwork.Create("<script>alert(1)</script> Glacier", "a lake <b>below</b> <script>alert(2)</script> glaciers and <img src=x onerror=alert(3)>"), A);
+        await Index(test);
+
+        var hit = (await Ok(test, new SearchQuery("glaciers") { Snippets = true }, A)).Items.ShouldHaveSingleItem();
+        hit.Title.ShouldBe("<script>alert(1)</script> Glacier");
+        var snippet = hit.Snippet.ShouldNotBeNull();
+        snippet.ShouldNotContain(SearchSnippets.Open);
+        snippet.ShouldNotContain(SearchSnippets.Close);
+        hit.Highlights.ShouldNotBeEmpty();
+        foreach (var h in hit.Highlights)
+        {
+            (h.Start >= 0 && h.Length > 0 && h.Start + h.Length <= snippet.Length).ShouldBeTrue($"{h} in '{snippet}'");
+            snippet.Substring(h.Start, h.Length).ShouldContain("glacier", Case.Insensitive);
+        }
+        // whatever markup the engine kept is the document's own text: nothing was added around the matches
+        snippet.ShouldNotContain("<b>glacier", Case.Insensitive);
     }
 
     [Fact]

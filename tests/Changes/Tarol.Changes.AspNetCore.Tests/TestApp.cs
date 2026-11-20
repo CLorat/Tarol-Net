@@ -29,7 +29,8 @@ internal sealed class TestApp : IAsyncDisposable
     public InMemoryAggregateStore Store => App.Services.GetRequiredService<InMemoryAggregateStore>();
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
-        Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null)
+        Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null,
+        string? corsOrigin = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
@@ -71,7 +72,11 @@ internal sealed class TestApp : IAsyncDisposable
             .AddPolicy("auctions:bid", p => p.RequireAuthenticatedUser().RequireClaim("scope", "auctions:bid"));
         builder.Services.AddOpenApi(o => o.AddTarolEndpoints());
 
+        if (corsOrigin is not null)                                            // the README's recipe (BC-1)
+            builder.Services.AddCors(o => o.AddPolicy("browser", p => p.WithOrigins(corsOrigin).AllowAnyMethod().WithTarolHeaders()));
         var app = builder.Build();
+        if (corsOrigin is not null)
+            app.UseCors("browser");
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapOpenApi();
@@ -79,6 +84,7 @@ internal sealed class TestApp : IAsyncDisposable
         app.MapGroup("/v1").MapChanges(names: "V1");
         if (search)
             app.MapTarolSearch("/search", "auctions:read");
+        app.MapTarolMe();
         await app.StartAsync(TestContext.Current.CancellationToken);
         return new TestApp(app, app.GetTestClient());
     }
@@ -103,7 +109,9 @@ internal sealed class TestApp : IAsyncDisposable
     {
         using var request = new HttpRequestMessage(method, path);
         if (body is not null)
-            request.Content = new StringContent(body, Encoding.UTF8, contentType);
+            request.Content = contentType.Length == 0
+                ? new ByteArrayContent(Encoding.UTF8.GetBytes(body))                  // no Content-Type at all
+                : new StringContent(body, Encoding.UTF8, contentType);
         if (caller.User is not null)
         {
             request.Headers.Add("X-User", caller.User);
@@ -142,7 +150,7 @@ internal sealed class TestApp : IAsyncDisposable
         h.Add("Webhook-Signature", "sha256=" + Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(ts + "." + body))));
     };
 
-    private sealed class HeaderScheme(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+    internal sealed class HeaderScheme(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()

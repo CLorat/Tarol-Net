@@ -38,7 +38,7 @@ public sealed class AdminTests
         return request;
     }
 
-    private static async Task<App> Start(int deadReactions = 5)
+    private static async Task<App> Start(int deadReactions = 5, IDataSubjects? subjects = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -48,6 +48,8 @@ public sealed class AdminTests
             if (service.ServiceType != typeof(IHostedService))                                        // no poll: the tests call PollOnce
                 builder.Services.Add(service);
         builder.Services.AddSingleton<IReadModelAdmin>(readModels);
+        if (subjects is not null)
+            builder.Services.AddSingleton(subjects);
         builder.Services.AddAuthentication(HeaderAuthentication.Name).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, HeaderAuthentication>(HeaderAuthentication.Name, null);
         builder.Services.AddAuthorizationBuilder().AddPolicy("tarol-admin", p => p.RequireRole("tarol-admin"));
         var web = builder.Build();
@@ -144,10 +146,93 @@ public sealed class AdminTests
         (await app.Client.SendAsync(As(HttpMethod.Delete, "/tarol/admin/projections/auction-list/1"), Ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var newest = await app.Client.SendAsync(As(HttpMethod.Delete, "/tarol/admin/projections/auction-list/2"), Ct);
         newest.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await newest.Content.ReadFromJsonAsync(OperationsJson.Default.AdminError, Ct))!.Error.ShouldBe("the newest version");
+        (await Problem(newest, HttpStatusCode.Conflict, AdminProblems.ProjectionDrop)).GetProperty("detail").GetString().ShouldBe("the newest version");
         (await app.Client.SendAsync(As(HttpMethod.Delete, "/tarol/admin/projections/auction-list/3"), Ct)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
         app.ReadModels.Dropped.ShouldBe([("auction-list", 1, "ops-alice")]);
+    }
+
+    /// <summary>Asserts an RFC 9457 problem with the code (BC-10) and returns its body.</summary>
+    private static async Task<JsonElement> Problem(HttpResponseMessage response, HttpStatusCode status, string code)
+    {
+        response.StatusCode.ShouldBe(status);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        body.GetProperty("status").GetInt32().ShouldBe((int)status);
+        body.GetProperty("code").GetString().ShouldBe(code);
+        body.GetProperty("title").GetString().ShouldBe(code);
+        body.GetProperty("type").GetString().ShouldStartWith("https://tools.ietf.org/html/rfc9110#section-15.");
+        body.GetProperty("traceId").GetString().ShouldBe(response.Headers.GetValues("Tarol-Request-Id").Single());   // BC-11
+        return body;
+    }
+
+    [Fact]
+    public async Task Every_admin_error_is_a_problem_with_a_code()                // BC-10
+    {
+        await using var app = await Start(subjects: new FailingSubjects(failures: 0));
+
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Get, "/tarol/admin/dead/reactions?limit=201"), Ct), HttpStatusCode.BadRequest, AdminProblems.Query);
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Get, "/tarol/admin/dead/reactions?after=x"), Ct), HttpStatusCode.BadRequest, AdminProblems.Query);
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Post, "/tarol/admin/dead/reactions/redrive?max=0"), Ct), HttpStatusCode.BadRequest, AdminProblems.Query);
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Get, "/tarol/admin/dead/sagas"), Ct), HttpStatusCode.NotFound, AdminProblems.Kind);
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Post, "/tarol/admin/dead/reactions/99/redrive"), Ct), HttpStatusCode.NotFound, AdminProblems.NotFound);
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Delete, "/tarol/admin/dead/reactions/99"), Ct), HttpStatusCode.NotFound, AdminProblems.NotFound);
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Post, $"/tarol/admin/subjects/{Guid.NewGuid()}/erase"), Ct), HttpStatusCode.BadRequest, AdminProblems.Tenant);
+        await Problem(await app.Client.SendAsync(As(HttpMethod.Get, $"/tarol/admin/subjects/{Guid.NewGuid()}/export?tenant=nope"), Ct), HttpStatusCode.BadRequest, AdminProblems.Tenant);
+    }
+
+    [Fact]
+    public async Task The_dead_letter_kinds_are_listed()
+    {
+        await using var app = await Start();
+
+        var kinds = await (await app.Client.SendAsync(As(HttpMethod.Get, "/tarol/admin/dead"), Ct)).Content.ReadFromJsonAsync<string[]>(Ct);
+
+        kinds.ShouldBe([DeadLetterKinds.Jobs, DeadLetterKinds.Reactions]);
+    }
+
+    [Fact]
+    public async Task An_incomplete_erasure_is_409_with_the_failed_participants_and_a_rerun_completes_it()   // BC-10: was a 500
+    {
+        var subjects = new FailingSubjects(failures: 1);
+        await using var app = await Start(subjects: subjects);
+        var subject = Guid.NewGuid();
+
+        var first = await app.Client.SendAsync(As(HttpMethod.Post, $"/tarol/admin/subjects/{subject}/erase?tenant={Tenant.Value}"), Ct);
+        var body = await Problem(first, HttpStatusCode.Conflict, AdminProblems.ErasureIncomplete);
+        body.GetProperty("failed").EnumerateArray().Select(f => f.GetString()).ShouldBe(["search", "page-cache"]);
+        body.GetProperty("subject").GetGuid().ShouldBe(subject);
+        body.GetProperty("tenant").GetGuid().ShouldBe(Tenant.Value);
+
+        var again = await app.Client.SendAsync(As(HttpMethod.Post, $"/tarol/admin/subjects/{subject}/erase?tenant={Tenant.Value}"), Ct);
+        again.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await again.Content.ReadFromJsonAsync(OperationsJson.Default.ErasureView, Ct))!.AlreadyErased.ShouldBeTrue();
+        subjects.Calls.ShouldBe(2);
+    }
+
+    /// <summary>An <see cref="IDataSubjects"/> whose first <paramref name="failures"/> erasures are incomplete.</summary>
+    private sealed class FailingSubjects(int failures) : IDataSubjects
+    {
+        public int Calls { get; private set; }
+
+        public ValueTask<SubjectErasure> EraseSubject(Guid tenant, Guid subject, string actor, CancellationToken cancellationToken)
+            => ++Calls <= failures
+                ? throw new Incomplete(tenant, subject, ["search", "page-cache"])
+                : ValueTask.FromResult(new SubjectErasure(tenant, subject, AlreadyErased: Calls > 1, []));
+
+        public ValueTask<SubjectErasure> EraseTenant(Guid tenant, string actor, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<SubjectExport> Export(Guid tenant, Guid subject, string actor, CancellationToken cancellationToken)
+            => ValueTask.FromResult(new SubjectExport(tenant, subject, "{}"u8.ToArray()));
+    }
+
+    private sealed class Incomplete(Guid tenant, Guid? subject, IReadOnlyList<string> failed) : Exception("incomplete"), IIncompleteErasure
+    {
+        public Guid Tenant { get; } = tenant;
+
+        public Guid? Subject { get; } = subject;
+
+        public IReadOnlyList<string> Failed { get; } = failed;
     }
 
     [Fact]

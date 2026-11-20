@@ -80,7 +80,8 @@ internal static class Emitter
         sb.Append("                ((").Append(Http).Append(".RequestDelegate)").Append(method).Append(").Method,                // OpenAPI describes endpoints that carry a MethodInfo\n");
         sb.Append("                new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata(\"").Append(kind).Append("\", typeof(").Append(e.FullName).Append("),\n");
         sb.Append("                    new global::Tarol.Changes.AspNetCore.RouteValue[] { ")
-          .Append(string.Join(", ", route.Select(m => $"new(\"{m.RouteName}\", \"{m.RouteKind}\", {NameOf(m)})"))).Append(" },\n");
+          .Append(string.Join(", ", route.Select(m => $"new(\"{m.RouteName}\", \"{m.RouteKind}\", {NameOf(m)})"
+                                                      + (m.RouteKind == "id" ? $" {{ Aggregate = {Literal(IdAggregate(m.Type))} }}" : "")))).Append(" },\n");
         sb.Append("                    new string[] { ").Append(string.Join(", ", body.Select(NameOf))).Append(" },\n");
         sb.Append("                    ").Append(e.Policy is null ? "null" : Literal(e.Policy));
         if (e.Query is { } q)
@@ -98,11 +99,19 @@ internal static class Emitter
             sb.Append("                        new(\"count\", \"boolean\", global::System.Array.Empty<string>(), \"Also count every row of the filters (total)\"),\n");
             sb.Append("                    }");
         }
-        sb.Append("));\n");
+        sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n                });\n");
         sb.Append("            ").Append(Builder).Append(".AuthorizationEndpointConventionBuilderExtensions.")
           .Append(e.Anonymous ? "AllowAnonymous(endpoint)" : e.Policy is null ? "RequireAuthorization(endpoint)" : $"RequireAuthorization(endpoint, {Literal(e.Policy)})")
           .Append(';').Append(e.Anonymous || e.Policy is not null ? "" : "                   // no Policy: the default policy (fail closed, C-11)").Append('\n');
         sb.Append("        }\n");
+    }
+
+    /// <summary>The aggregate's short name of an <c>Id&lt;T&gt;</c> member type (<c>global::Tarol.StronglyTypedId.Id&lt;global::A.Auction&gt;</c>: <c>Auction</c>).</summary>
+    private static string IdAggregate(string type)
+    {
+        var open = type.IndexOf('<');
+        var inner = open < 0 ? type : type.Substring(open + 1, type.Length - open - 2);
+        return inner.Substring(inner.LastIndexOf('.') + 1);
     }
 
     private static string NameOf(Member m) => $"web.Names((\"{m.Name}\", {(m.JsonName is null ? "null" : Literal(m.JsonName))}))[0]";
@@ -214,8 +223,8 @@ internal static class Emitter
             Route(sb, m);
         if (e.HasBody)
         {
-            sb.Append("        var (bytes, status) = await web.ReadBytes(http);\n");
-            sb.Append("        if (bytes is null)\n        {\n            http.Response.StatusCode = status;                          // 413\n            return;\n        }\n");
+            sb.Append("        var (bytes, status) = await web.ReadJson(http);\n");
+            sb.Append("        if (bytes is null)\n        {\n            http.Response.StatusCode = status;                          // 413, 415\n            return;\n        }\n");
             sb.Append("        var invalid = Bind_").Append(Key(e)).Append("(web, bytes").Append(string.Concat(route.Select(m => ", route_" + m.Name))).Append(", out var input);\n");
             sb.Append("        if (invalid is not null)\n        {\n            await web.Problem(http, invalid);\n            return;\n        }\n");
             sb.Append("        var (context, options, refused) = web.Edge(http, bytes);\n");

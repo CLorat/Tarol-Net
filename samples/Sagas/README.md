@@ -25,8 +25,24 @@ The runnable sample of steps 9 to 14 (D-15, M-15, QR-7, J-1). It runs on the rea
   - the API (after the setup completed), the worker and billing;
   - the Aspire dashboard.
 
-Not part of `Tarol.slnx` and not built by CI: the AppHost needs Docker and Aspire's orchestrator, and Zitadel's image comes from ghcr.io.
-The sample has its own `Directory.Build.props` and package versions. The full Aspire ArtFlow sample is step 18.
+Not part of `Tarol.slnx`; CI builds it (`dotnet build samples/Sagas/AppHost`, the `build` job) but does not run it: the AppHost
+needs Docker and Aspire's orchestrator, and Zitadel's image comes from ghcr.io. The sample has its own `Directory.Build.props`
+and package versions. The full Aspire ArtFlow sample is step 19.
+
+**For a browser client** (Tarol-Svelte's e2e, BC-9): `ARTFLOW_STAY_UP=1 samples/Sagas/apphost.sh <AppHost dir>` starts everything,
+waits until it is ready, prints what a browser needs and stays up until Ctrl-C:
+* the API on `http://localhost:5080` allows the origin `http://localhost:5173` (CORS with `WithTarolHeaders()`,
+  `ArtFlow:BrowserOrigins` overrides it);
+* Zitadel on `http://localhost:8080` with the user-agent app `artflow-web` (PKCE, no secret, JWT access tokens with the roles,
+  redirect `http://localhost:5173/*` in dev mode); its client id is in `$TMPDIR/artflow-zitadel/web.txt`, the project in
+  `project.txt`;
+* human users with grants, their passwords generated per run in `users.txt` (`user <login> <password> <user id> <roles>`):
+  ada (seller, tarol-admin), ben and cleo (bidder); the machine users alice and bob stay in `clients.txt`;
+* the message hub `/tarol/messages` (the token in `?access_token=`), topic `artflow.bid-placed` (every bid; the worker publishes,
+  the API forwards it to the tenant's group);
+* a deterministic 400: `POST /auctions` with `{"reserve":0}` answers `errors.reserve: ["Range"]`;
+* `ARTFLOW_TOKEN_LIFETIME=30s` makes access tokens short-lived (and the API's clock skew 0), for an "expired token" test: the API
+  answers 401 `invalid_token` after expiry and the hub closes the connection.
 
 ```bash
 dockerd > /tmp/dockerd.log 2>&1 &                        # if Docker is not running

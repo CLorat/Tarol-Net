@@ -62,6 +62,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
 app.MapChanges();
+app.MapTarolMe();
 app.MapTarolSearch("/search", "auctions:read");
 await app.StartAsync();
 using var http = new HttpClient { BaseAddress = new Uri(app.Urls.First()) };
@@ -82,7 +83,9 @@ async Task<(HttpStatusCode Status, string Body, HttpResponseMessage R)> Send(Htt
 }
 
 var ends = TimeProvider.System.GetUtcNow().AddDays(7).ToString("O");
-var auction = $$"""{"title":"Sunflowers","reserve":100,"endsAt":"{{ends}}"}""";
+// a word of its own per run: TAROL_PG may be a database earlier runs wrote to, whose auctions would push this one off the page
+var word = string.Concat(System.Security.Cryptography.RandomNumberGenerator.GetItems<char>("abcdefghijklmnopqrstuvwxyz", 10));
+var auction = $$"""{"title":"Sunflowers {{word}}","reserve":100,"endsAt":"{{ends}}"}""";
 var key = "k-" + Guid.CreateVersion7().ToString("N");                               // per run: the database may be reused
 var created = await Send(HttpMethod.Post, "/auctions", auction, "alice", h => h.Add("Idempotency-Key", key));
 Check("creation: 201 with Location and ETag", created.Status == HttpStatusCode.Created && created.R.Headers.ETag?.Tag == "\"1\"" && created.R.Headers.Location is not null, created.Body);
@@ -92,6 +95,8 @@ var reused = await Send(HttpMethod.Post, "/auctions", auction.Replace("Sunflower
 Check("key replay 200, reuse with another body 422", replay.Status == HttpStatusCode.OK && replay.Body == created.Body && reused.Status == HttpStatusCode.UnprocessableEntity, $"{replay.Status}/{reused.Status}");
 var missing = await Send(HttpMethod.Post, "/auctions", """{"title":"x"}""", "alice");
 Check("binder: every field, JSON-cased (Length, Required)", missing.Status == HttpStatusCode.BadRequest && missing.Body.Contains("\"reserve\":[\"Required\"]") && missing.Body.Contains("\"endsAt\":[\"Required\"]"), missing.Body);
+Check("errorDetails through IProblemDetailsService natively (BC-5)", missing.Body.Contains("\"errorDetails\":{", StringComparison.Ordinal)
+    && missing.Body.Contains("{\"code\":\"Required\"", StringComparison.Ordinal), missing.Body);
 var bid = await Send(HttpMethod.Post, $"/auctions/{id}/bids", """{"amount":150}""", "bob");
 var low = await Send(HttpMethod.Post, $"/auctions/{id}/bids", """{"amount":120}""", "bob");
 Check("change 204 with ETag; guard 409 with its code", bid.Status == HttpStatusCode.NoContent && bid.R.Headers.ETag?.Tag == "\"2\"" && low.Status == HttpStatusCode.Conflict && low.Body.Contains("Bid.TooLow"), low.Body);
@@ -110,11 +115,13 @@ var listed = list.Status == HttpStatusCode.OK ? JsonElement.Parse(list.Body) : d
 Check("list after the bid's Tarol-Position: the row, its ETag and the position", list.Status == HttpStatusCode.OK && position.Length > 0
     && listed.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id && i.GetProperty("bids").GetInt32() == 1)
     && list.R.Headers.ETag is { IsWeak: true } && list.R.Headers.Contains(Positions.PositionHeader) && !list.R.Headers.Contains(Positions.StaleHeader), list.Body);
-var search = await Send(HttpMethod.Get, "/search?q=sunflowers&counts=true&snippets=true", null, "alice", h => h.Add(Positions.ReadAfterHeader, position));
+var search = await Send(HttpMethod.Get, $"/search?q=sunflowers%20{word}&counts=true&snippets=true", null, "alice", h => h.Add(Positions.ReadAfterHeader, position));
 var searched = search.Status == HttpStatusCode.OK ? JsonElement.Parse(search.Body) : default;
 Check("search after the bid's Tarol-Position: the auction, counts, a weak ETag (step 18D)", search.Status == HttpStatusCode.OK
     && searched.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id)
     && searched.GetProperty("counts").EnumerateObject().Any() && search.R.Headers.ETag is { IsWeak: true }, search.Body);
+var me = await Send(HttpMethod.Get, "/me", null, "alice");
+Check("GET /me natively (BC-13)", me.Status == HttpStatusCode.OK && me.Body.Contains("\"subject\":\"alice\"", StringComparison.Ordinal), me.Body);
 var page = await Send(HttpMethod.Get, "/auctions?limit=1&sort=Id", null, "alice");
 var badCursor = await Send(HttpMethod.Get, "/auctions?after=x", null, "alice");
 Check("list: cursor page, bad cursor 400", page.Status == HttpStatusCode.OK && badCursor.Status == HttpStatusCode.BadRequest && badCursor.Body.Contains("\"after\""), badCursor.Body);
@@ -142,6 +149,16 @@ var openapi = await Send(HttpMethod.Get, "/openapi/v1.json", null, null);
 var bids = JsonElement.Parse(openapi.Body).GetProperty("paths").GetProperty("/auctions/{auction}/bids").GetProperty("post");
 Check("OpenAPI natively: the generated entry with its path parameter and 204",
     bids.GetProperty("parameters")[0].GetProperty("name").GetString() == "auction" && bids.GetProperty("responses").TryGetProperty("204", out _), openapi.Body.Length);
+Check("OpenAPI natively: x-tarol-kind, x-tarol-errors, x-tarol-id and the TarolProblem schema (BC-3)",
+    bids.GetProperty("x-tarol-kind").GetString() == "change" && bids.GetProperty("x-tarol-errors").GetArrayLength() > 0
+    && bids.GetProperty("parameters")[0].GetProperty("x-tarol-id").GetString() == "Auction"
+    && JsonElement.Parse(openapi.Body).GetProperty("components").GetProperty("schemas").TryGetProperty("TarolProblem", out _), openapi.Body.Length);
+var ruled = JsonElement.Parse(openapi.Body).GetProperty("components").GetProperty("schemas");
+Check("OpenAPI natively: x-tarol-rules on a value object, an input member and a multi-field value object (BC-4)",
+    ruled.GetProperty("Title").GetProperty("x-tarol-rules")[0].GetProperty("max").GetInt32() == 60
+    && ruled.GetProperty("MakeOffer").GetProperty("properties").GetProperty("contacts").GetProperty("x-tarol-rules")[0].GetProperty("rule").GetString() == "Count"
+    && ruled.GetProperty("Price").GetProperty("properties").GetProperty("currency").GetProperty("x-tarol-rules")[0].GetProperty("flags").GetString() == "i",
+    openapi.Body.Length);
 
 await app.StopAsync();
 Console.WriteLine(failures == 0 ? $"Tarol.Changes.AspNetCore AOT smoke ({(pg is { Length: > 0 } ? "Npgsql" : "in-memory")}): all checks passed" : $"{failures} failed");

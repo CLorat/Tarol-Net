@@ -57,6 +57,8 @@ app.MapChanges();
 | a machine user without the `service` role | recorded as `Actor.User(<user id>)` |
 | `RequireHttpsMetadata` left on for `http://localhost` | the metadata is not fetched: every request 401 |
 | the container's issuer port differs from the URL clients use | issuer mismatch: 401 |
+| a browser's hub connection with the token in a header | browsers cannot: it goes in `?access_token=`, read only under `ZitadelOptions.HubPath` (keep it equal to `UiPushOptions.HubPath`) |
+| a token in `?access_token=` on an ordinary endpoint | ignored (anonymous): send `Authorization: Bearer` |
 
 ## AOT
 

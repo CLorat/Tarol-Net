@@ -340,10 +340,10 @@ public sealed class PushTests
         await using var client = host.Client("alice", PushHost.TenantA, roles: null);
         await client.Start(Ct);
 
-        (await Should.ThrowAsync<HubException>(() => client.Subscribe("billing.secret", static (_, _) => ValueTask.CompletedTask, Ct))).Message.ShouldContain("Forbidden");
+        (await Should.ThrowAsync<HubException>(() => client.Subscribe("billing.secret", static (_, _) => ValueTask.CompletedTask, Ct))).Message.ShouldContain(HubErrors.Forbidden + ": ");
         client.Topics.ShouldBeEmpty();                                                              // F9
-        (await Should.ThrowAsync<HubException>(() => client.Publish("artflow.chat", Json.Of("{}"), Ct))).Message.ShouldContain("Forbidden");   // no member role
-        (await Should.ThrowAsync<HubException>(() => client.Subscribe("no-system", static (_, _) => ValueTask.CompletedTask, Ct))).Message.ShouldContain("Topic");
+        (await Should.ThrowAsync<HubException>(() => client.Publish("artflow.chat", Json.Of("{}"), Ct))).Message.ShouldContain(HubErrors.Forbidden + ": ");   // no member role
+        (await Should.ThrowAsync<HubException>(() => client.Subscribe("no-system", static (_, _) => ValueTask.CompletedTask, Ct))).Message.ShouldContain(HubErrors.Topic + ": ");
     }
 
     [Fact]
@@ -367,7 +367,7 @@ public sealed class PushTests
         });
         await client.Start(Ct);
 
-        (await Should.ThrowAsync<HubException>(() => client.Subscribe("artflow.chat", static (_, _) => ValueTask.CompletedTask, Ct))).Message.ShouldContain("Auth.Tenant");
+        (await Should.ThrowAsync<HubException>(() => client.Subscribe("artflow.chat", static (_, _) => ValueTask.CompletedTask, Ct))).Message.ShouldContain(HubErrors.Tenant + ": ");
     }
 
     [Fact]

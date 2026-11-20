@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Tarol.Changes.AspNetCore.Generators;
 
@@ -61,11 +62,18 @@ internal static class Discovery
         var members = new List<Member>();
         var valueObjects = new List<ValueObjectModel>();
         var diagnostics = new List<DiagnosticInfo>();
+        var warnings = new List<DiagnosticInfo>();
+        var memberRules = new List<MemberRulesModel>();
+        var reached = new HashSet<string>(StringComparer.Ordinal);
         if (kind == EntryKind.View)
         {
             if (placeholders.Count != 1)
                 return Fail(Diagnostics.RouteValue, type.Name, "a view's route has exactly one value, the aggregate's id");
             members.Add(new Member("Id", $"global::Tarol.StronglyTypedId.Id<{aggregate}>", null, placeholders[0], "id", false, null));
+            if (type.InstanceConstructors.Where(c => c.DeclaredAccessibility == Accessibility.Public).OrderByDescending(c => c.Parameters.Length).FirstOrDefault() is { } shape)
+                foreach (var p in shape.Parameters)
+                    if (IsOptionWithDefault(p))
+                        diagnostics.Add(DiagnosticInfo.Create(Diagnostics.OptionDefault, location, type.Name, p.Name));
         }
         else
         {
@@ -96,8 +104,10 @@ internal static class Discovery
                 var optional = p.HasExplicitDefaultValue || p.NullableAnnotation == NullableAnnotation.Annotated
                                || p.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
                 members.Add(new Member(name, memberType, jsonName, placeholder, routeKind, optional, Default(p)));
-                if (ValueObject(p.Type) is { } vo)
-                    valueObjects.Add(vo);
+                if (placeholder is null)
+                    Reach(type, p, name, jsonName, valueObjects, memberRules, reached, 0);
+                if (IsOptionWithDefault(p))
+                    warnings.Add(DiagnosticInfo.Create(Diagnostics.OptionDefault, location, type.Name, name));
             }
             foreach (var h in placeholders.Where(h => !ctor.Parameters.Any(p => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase))))
                 diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name, $"the route value '{{{h}}}' is not a member of the input"));
@@ -107,9 +117,117 @@ internal static class Discovery
         var policy = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Policy").Value.Value as string;
         var anonymous = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Anonymous").Value.Value is true;
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), kind, aggregate, verb, pattern, policy, anonymous,
-            new EquatableArray<Member>(members.ToImmutableArray()), location);
-        return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), default);
+            new EquatableArray<Member>(members.ToImmutableArray()), location)
+        {
+            Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct),
+        };
+        warnings.AddRange(diagnostics);                                         // a view's warnings (an entry with errors returned earlier)
+        return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), new EquatableArray<DiagnosticInfo>(warnings.ToImmutableArray()))
+        {
+            MemberRules = new EquatableArray<MemberRulesModel>(memberRules.ToImmutableArray()),
+        };
     }
+
+    /// <summary>
+    /// BC-4: the rules a member carries (its own attributes, as the validation generator reads them) and the types it reaches:
+    /// a single-field value object becomes a <see cref="ValueObjectModel"/> (rules on its schema), a multi-field or class value
+    /// object and an <c>IValidatable</c> record give the rules of their own members (rules on their property schemas), to a
+    /// depth of four. <c>Option&lt;T&gt;</c>, <c>T?</c> and the element of a list or array are looked through.
+    /// </summary>
+    private static void Reach(INamedTypeSymbol owner, IParameterSymbol p, string member, string? jsonName, List<ValueObjectModel> valueObjects,
+        List<MemberRulesModel> memberRules, HashSet<string> reached, int depth)
+    {
+        var type = Unwrap(p.Type);
+        var rules = RulesOf(p.GetAttributes());
+        if (rules.Count > 0)
+            memberRules.Add(new MemberRulesModel(owner.ToDisplayString(Fq), member, jsonName, new EquatableArray<RuleModel>(rules.ToImmutableArray())));
+        if (depth >= 4 || !reached.Add(type.ToDisplayString(Fq)))
+            return;
+        if (ValueObject(type) is { } vo)
+        {
+            valueObjects.Add(vo);
+            return;
+        }
+        if (type is not INamedTypeSymbol { IsRecord: true } record || record.ContainingNamespace?.ToDisplayString().StartsWith("System", StringComparison.Ordinal) == true)
+            return;
+        var ctor = record.InstanceConstructors.Where(c => c.DeclaredAccessibility == Accessibility.Public
+                && !(c.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, record)))
+            .OrderByDescending(c => c.Parameters.Length).FirstOrDefault();
+        if (ctor is null)
+            return;
+        foreach (var inner in ctor.Parameters)
+        {
+            var name = char.ToUpperInvariant(inner.Name[0]) + inner.Name.Substring(1);
+            var property = record.GetMembers(name).OfType<IPropertySymbol>().FirstOrDefault();
+            Reach(record, inner, name, JsonName(inner.GetAttributes()) ?? (property is null ? null : JsonName(property.GetAttributes())), valueObjects, memberRules,
+                reached, depth + 1);
+        }
+    }
+
+    /// <summary>The value type behind <c>Option&lt;T&gt;</c>, <c>T?</c>, <c>IReadOnlyList&lt;T&gt;</c> and <c>T[]</c>.</summary>
+    private static ITypeSymbol Unwrap(ITypeSymbol type)
+    {
+        for (var i = 0; i < 3; i++)
+        {
+            if (type is IArrayTypeSymbol array)
+                type = array.ElementType;
+            else if (type is INamedTypeSymbol { TypeArguments.Length: 1 } generic
+                     && (generic.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
+                         || generic.OriginalDefinition.ToDisplayString() == "Tarol.Options.Option<T>"))
+                type = generic.TypeArguments[0];
+            else if (type is INamedTypeSymbol { TypeArguments.Length: 1 } list && list.OriginalDefinition.ToDisplayString() is
+                     "System.Collections.Generic.IReadOnlyList<T>" or "System.Collections.Generic.List<T>" or "System.Collections.Generic.IList<T>"
+                     or "System.Collections.Generic.IReadOnlyCollection<T>" or "System.Collections.Generic.IEnumerable<T>")
+                type = list.TypeArguments[0];
+            else
+                break;
+        }
+        return type;
+    }
+
+    /// <summary>The <c>Tarol.Validations</c> rules of one parameter, as the client checks them (BC-4): rule, code, bounds, pattern.</summary>
+    internal static List<RuleModel> RulesOf(ImmutableArray<AttributeData> attributes)
+    {
+        var rules = new List<RuleModel>();
+        foreach (var a in attributes)
+        {
+            if (a.AttributeClass?.ContainingNamespace?.ToDisplayString() != "Tarol.Validations")
+                continue;
+            var named = a.NamedArguments.ToDictionary(n => n.Key, n => n.Value.Value);
+            object? Arg(int index, string name) => a.ConstructorArguments.Length == 2 ? a.ConstructorArguments[index].Value : named.TryGetValue(name, out var v) ? v : null;
+            string? Bound(object? value) => value is int.MaxValue ? null : Number(value);
+            switch (a.AttributeClass.Name)
+            {
+                case "LengthAttribute":
+                    rules.Add(new RuleModel("Length", "Length", Bound(Arg(0, "Min")) ?? "0", Bound(Arg(1, "Max")), null, null));
+                    break;
+                case "CountAttribute":
+                    rules.Add(new RuleModel("Count", "Count", Bound(Arg(0, "Min")) ?? "0", Bound(Arg(1, "Max")), null, null));
+                    break;
+                case "RangeAttribute":
+                    rules.Add(new RuleModel("Range", "Range", Number(Arg(0, "Min")), Number(Arg(1, "Max")), null, null));
+                    break;
+                case "NotEmptyAttribute":
+                    rules.Add(new RuleModel("NotEmpty", "Required", null, null, null, null));
+                    break;
+                case "EmailAttribute":
+                    rules.Add(new RuleModel("Email", "Email", null, null, null, null));
+                    break;
+                case "PatternAttribute":
+                    var pattern = a.ConstructorArguments.Length == 1 ? a.ConstructorArguments[0].Value as string : null;
+                    // JavaScript flags: i for IgnoreCase, u for Unicode categories (\p{…}, which RegExp reads only with u)
+                    var flags = (named.TryGetValue("IgnoreCase", out var ignore) && ignore is true ? "i" : "")
+                                + (pattern is not null && (pattern.Contains("\\p{") || pattern.Contains("\\P{")) ? "u" : "");
+                    rules.Add(new RuleModel("Pattern", "Pattern", null, null, pattern, flags.Length == 0 ? null : flags));
+                    break;
+            }
+        }
+        return rules;
+    }
+
+    private static bool IsOptionWithDefault(IParameterSymbol p)
+        => p.HasExplicitDefaultValue && p.Type is INamedTypeSymbol { Name: "Option", TypeArguments.Length: 1 } option
+           && option.ContainingNamespace.ToDisplayString() == "Tarol.Options";
 
     private static readonly HashSet<string> Reserved = new(StringComparer.Ordinal) { "tenant", "id", "version", "doc" };
 
@@ -243,7 +361,10 @@ internal static class Discovery
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), EntryKind.List, aggregate, verb, pattern, policy, anonymous,
             new EquatableArray<Member>(members.ToImmutableArray()), location,
             new QueryModel(row.ToDisplayString(Fq), new EquatableArray<FilterModel>(filters.ToImmutableArray()), sortMember,
-                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort));
+                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort))
+        {
+            Errors = Codes(EntryKind.List, aggregate, placeholders.Contains("tenant"), type, null, ct),
+        };
         return new(model, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }
 
@@ -403,6 +524,93 @@ internal static class Discovery
         return list;
     }
 
+    /// <summary>
+    /// The problem codes an entry can answer that are known at compile time (BC-3): Tarol's own for the kind, and the constant
+    /// first argument of every <c>Tarol.Results.Error</c> factory called in the input's methods and in the methods of the input
+    /// or the aggregate that those call (two levels; source only). A code built at run time is not found.
+    /// </summary>
+    internal static EquatableArray<string> Codes(EntryKind kind, string aggregate, bool tenantRoute, INamedTypeSymbol input, Compilation? compilation,
+        CancellationToken ct)
+    {
+        var name = Short(aggregate);
+        var codes = new SortedSet<string>(StringComparer.Ordinal) { "Auth.Forbidden" };
+        if (tenantRoute)
+            codes.Add("Tenant.NotFound");
+        switch (kind)
+        {
+            case EntryKind.Change:
+                codes.UnionWith([name + ".NotFound", "Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
+                break;
+            case EntryKind.Creation:
+                codes.UnionWith([name + ".AlreadyExists", "Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
+                break;
+            case EntryKind.View:
+                codes.Add(name + ".NotFound");
+                break;
+            case EntryKind.List:
+                codes.Add("Projection.Building");
+                break;
+        }
+        if (kind is EntryKind.Change or EntryKind.Creation && compilation is not null)
+        {
+            var visited = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
+            foreach (var method in input.GetMembers().OfType<IMethodSymbol>())
+                if (!method.IsImplicitlyDeclared)
+                    Scan(method, 0);
+
+            void Scan(IMethodSymbol method, int depth)
+            {
+                if (!visited.Add(method.OriginalDefinition))
+                    return;
+                foreach (var reference in method.OriginalDefinition.DeclaringSyntaxReferences)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var node = reference.GetSyntax(ct);
+                    if (!compilation!.ContainsSyntaxTree(node.SyntaxTree))
+                        continue;
+                    var model = compilation.GetSemanticModel(node.SyntaxTree);
+                    foreach (var invocation in node.DescendantNodes().OfType<InvocationExpressionSyntax>())
+                    {
+                        if (model.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol called)
+                            continue;
+                        if (called.IsStatic && called.ContainingType?.ToDisplayString() == "Tarol.Results.Error")
+                        {
+                            if (Code(invocation, called, model, ct) is { } code)
+                                codes.Add(code);
+                        }
+                        else if (depth < 2 && called.DeclaringSyntaxReferences.Length > 0
+                                 && (SymbolEqualityComparer.Default.Equals(called.ContainingType, input)
+                                     || called.ContainingType?.ToDisplayString(Fq) == aggregate))
+                            Scan(called, depth + 1);
+                    }
+                }
+            }
+        }
+        return new EquatableArray<string>(codes.ToImmutableArray());
+    }
+
+    /// <summary>The code of an <c>Error</c> factory call: a constant <c>code</c> argument, or the parameter's default.</summary>
+    private static string? Code(InvocationExpressionSyntax invocation, IMethodSymbol called, SemanticModel model, CancellationToken ct)
+    {
+        var parameter = called.Parameters.FirstOrDefault(p => p.Name == "code");
+        if (parameter is null || parameter.Type.SpecialType != SpecialType.System_String)
+            return null;
+        var index = called.Parameters.IndexOf(parameter);
+        foreach (var (argument, i) in invocation.ArgumentList.Arguments.Select((a, i) => (a, i)))
+            if (argument.NameColon?.Name.Identifier.Text == "code" || (argument.NameColon is null && i == index))
+                return model.GetConstantValue(argument.Expression, ct).Value as string;
+        return parameter.HasExplicitDefaultValue ? parameter.ExplicitDefaultValue as string : null;
+    }
+
+    private static string Short(string fullName)
+    {
+        var name = fullName.StartsWith("global::", StringComparison.Ordinal) ? fullName.Substring(8) : fullName;
+        var generic = name.IndexOf('<');
+        if (generic >= 0)
+            name = name.Substring(0, generic);
+        return name.Substring(name.LastIndexOf('.') + 1);
+    }
+
     private static string? RouteKind(ITypeSymbol type)
         => type is INamedTypeSymbol { Name: "Id", TypeArguments.Length: 1 } id && id.ContainingNamespace.ToDisplayString() == "Tarol.StronglyTypedId" ? "id"
          : type.SpecialType switch
@@ -489,7 +697,10 @@ internal static class Discovery
                     break;
             }
         }
-        return new ValueObjectModel(record.ToDisplayString(Fq), jsonType, format, minLength, maxLength, minimum, maximum, pattern);
+        return new ValueObjectModel(record.ToDisplayString(Fq), jsonType, format, minLength, maxLength, minimum, maximum, pattern)
+        {
+            Rules = new EquatableArray<RuleModel>(RulesOf(p.GetAttributes()).ToImmutableArray()),
+        };
     }
 
     private static string? Number(object? value) => value switch

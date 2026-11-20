@@ -30,6 +30,33 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void The_static_problem_codes_of_a_change_are_its_metadata()            // BC-3: x-tarol-errors
+    {
+        const string source = GeneratorTestHost.Usings + """
+            namespace Shop;
+
+            [Endpoint("POST /orders/{order}/ship")]
+            public sealed record ShipOrder(Id<Order> Order, int Items) : IChange<Order>
+            {
+                private const string Late = "Order.Late";
+
+                public Result Execute(Order order, ChangeContext context) => context.Now.Hour > 20 ? Error.Conflict(Late) : Check(order, Items);
+
+                private static Result Check(Order order, int items)
+                    => items > 9 ? Error.Conflict(detail: "too many", code: "Order.TooMany")
+                     : items < 0 ? Error.Forbidden()
+                     : items == 0 ? Error.Conflict("Order." + order.Id)
+                     : order.Add(items);
+            }
+            """;
+        var generated = string.Join("\n", GeneratorTestHost.Run(GeneratorTestHost.Compile(false, GeneratorTestHost.Domain, source)).GetRunResult()
+            .GeneratedTrees.Select(t => t.GetText(TestContext.Current.CancellationToken).ToString()));
+
+        generated.ShouldContain("""Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.Late", "Order.NotFound", "Order.TooMany", "Stream.VersionConflict" },""");
+        generated.ShouldContain("""new("order", "id", web.Names(("Order", null))[0]) { Aggregate = "Order" }""");
+    }
+
+    [Fact]
     public void An_assembly_without_entries_gets_nothing()
         => GeneratorTestHost.Run(GeneratorTestHost.Compile(true, GeneratorTestHost.Domain)).GetRunResult().GeneratedTrees.ShouldBeEmpty();
 
@@ -156,6 +183,17 @@ public sealed class DiagnosticTests
     [InlineData("public sealed record Q([FromClaim(\"sub\")] OrderState State) : IQuery<OrderRow>;", "a string or a Guid")]
     public void TQRY005_query_members_name_columns(string record, string message)
         => Message("[Endpoint(\"GET /q\")] " + record, "TQRY005").ShouldContain(message);
+
+    [Fact]
+    public void TWEB007_an_option_member_with_a_default_warns()                 // CC-5
+    {
+        Message("""[Endpoint("POST /orders/{order}/note")] public sealed record Note(Id<Order> Order, Tarol.Options.Option<string> Text = default) : IChange<Order> { public Result Execute(Order o, ChangeContext c) => o.Add(1); }""", "TWEB007")
+            .ShouldContain("'Note.Text' is an Option<T> with a default value");
+        Message("""[Endpoint("GET /orders/{order}")] public sealed record OrderView(Guid Id, Tarol.Options.Option<int> Items = default) : IView<Order, OrderView> { public static OrderView From(Order o) => new(o.Id.Value); }""", "TWEB007")
+            .ShouldContain("'OrderView.Items'");
+        Diagnose("""[Endpoint("POST /orders/{order}/note")] public sealed record Note(Id<Order> Order, Tarol.Options.Option<string> Text) : IChange<Order> { public Result Execute(Order o, ChangeContext c) => o.Add(1); }""")
+            .ShouldNotContain("TWEB007");
+    }
 
     [Fact]
     public void TQRY006_a_claim_member_named_by_the_route_warns()

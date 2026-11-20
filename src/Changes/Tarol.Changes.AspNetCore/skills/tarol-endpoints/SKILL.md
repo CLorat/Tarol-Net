@@ -69,7 +69,8 @@ POST /auctions/0193…/bids  {}               → 400  {"errors":{"amount":["Req
 `app.MapTarolSearch("/search", policy)` (after `AddSearch` from Tarol.Search) answers `GET /search?q=…&types=…&prefix=true&counts=true&snippets=true&limit=20&after=…&lang=de`
 in the caller's tenant: the types default to every searchable type whose `Read<T>` the caller holds (a requested type without
 it is 403), the caller's `sub` and roles are its audience, `Tarol-Read-After` waits for the search host, 503 while no index
-version is current, a weak `ETag` answers 304. Row rules do not filter hits: mark an `[SearchAudience]` member instead.
+version is current, a weak `ETag` answers 304. A hit's `snippet` is plain text; its matched words are
+`highlights: [{start, length}]` (UTF-16 offsets): render the text escaped and mark the ranges, never as HTML. Row rules do not filter hits: mark an `[SearchAudience]` member instead.
 
 ## Common mistakes
 
@@ -81,7 +82,10 @@ version is current, a weak `ETag` answers 304. Row rules do not filter hits: mar
 | a second `MapChanges()` without `names:` | "Duplicate endpoint name" at the first request |
 | the input not in the JSON context | `NotSupportedException` for its member types at the first request |
 | a role claim the identity does not use (`IsInRole` false) | 403 `Auth.Forbidden`: set `RoleClaimType` or map claims |
+| `Option<T> X = default` on an input or view member | TWEB007 (the OpenAPI document would throw): drop the default |
 | `If-Match: W/"2"` | 400 `If-Match: Format` (strong ETags only) |
+| decoding the IdP's JWT in the UI to find the roles or the tenant | `app.MapTarolMe()` answers `GET /me` with `subject`, `actor`, `tenant`, `roles` as Tarol sees them |
+| a browser client on another origin without a CORS policy, or one without `.WithTarolHeaders()` | the browser blocks the call, or the script reads `null` for `ETag`/`Tarol-Position`; `UseCors` goes before `UseAuthentication` |
 | a webhook factory that throws for a duplicate payment | 503 until the sender gives up; return success in the domain |
 | expecting a renamed member's value-rule errors under its JSON name | value rules report C# paths (converted by the naming policy); the binder reports `[JsonPropertyName]` names |
 

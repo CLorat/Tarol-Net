@@ -179,6 +179,7 @@ public partial class Settlement : AggregateRoot<Settlement>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(AuctionSettledV1))]
+[JsonSerializable(typeof(BidPlacedV1))]
 [JsonSerializable(typeof(InvoicePaidV1))]
 [JsonSerializable(typeof(Auction.Opened))]
 [JsonSerializable(typeof(Auction.Settled))]

@@ -64,6 +64,11 @@ jobs:
           --results-directory artifacts/test-results
           -- --filter-not-trait "Category=Integration" --ignore-exit-code 8
 
+      # The sample (conventions §4.7) is built, not run: running it needs Docker, Zitadel and Aspire's orchestrator
+      # (samples/Sagas/apphost.sh). Its own props pin the Aspire packages.
+      - name: Build the sample
+        run: dotnet build samples/Sagas/AppHost -c Release
+
       - name: Tests of the release scripts
         run: python3 -m unittest discover -s eng/tests -v
 

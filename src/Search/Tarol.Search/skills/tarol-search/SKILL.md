@@ -58,7 +58,7 @@ art.AddEdition("museum edition");
 test.Given(art, tenant);
 await test.CatchUp();
 var page = (await test.Find(new SearchQuery("harb") { Prefix = true, Counts = true }, tenant)).GetValueOrThrow();
-// page.Items: hits (Type, Id, Aggregate, Title, Score, Snippet); page.Next: the cursor; page.Counts: per type
+// page.Items: hits (Type, Id, Aggregate, Title, Score, Snippet as plain text, Highlights as offsets); page.Next: the cursor; page.Counts: per type
 ```
 
 Query text: words (all must match), `"a phrase"`, `-word`, `a OR b`. `Prefix`, `Counts`, `Snippets`, `Types`, `Audience`,
@@ -71,6 +71,8 @@ Query text: words (all must match), `"a phrase"`, `-word`, `a OR b`. `Prefix`, `
 * Weights changed without raising the version → `InvalidOperationException` "raise the version" when the host starts.
 * No index registered → `InvalidOperationException` naming `UseInMemorySearch()`/`UseNpgsqlSearch()`.
 * Expecting row rules (`ChangeHandler<,>`) to filter hits: they do not run on search; use `[SearchAudience]`.
+* Rendering `Snippet` as HTML: it is plain text (markup in a document stays text); the matches are `Highlights`. An own
+  `ISearchIndex` marks matches with `SearchSnippets.Open`/`Close` and returns `SearchSnippets.Hit(…)`.
 * A key's tombstone alone leaves the blind token findable: register `AddDataProtection` so `SearchEraser` re-indexes erased subjects.
 
 ## AOT

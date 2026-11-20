@@ -28,6 +28,13 @@ public sealed class UiPushOptions
     /// <summary>The hub's path (default <c>/tarol/messages</c>).</summary>
     public string HubPath { get; set; } = "/tarol/messages";
 
+    /// <summary>
+    /// Closes a hub connection when its authentication expires (default <see langword="true"/>; BC-15): a client whose token
+    /// ran out, or a user who was revoked, stops receiving pushes at the token's expiry instead of at its next reconnect. The
+    /// client reconnects with a fresh token. Applies to bearer schemes, whose ticket carries the token's expiry.
+    /// </summary>
+    public bool CloseOnAuthenticationExpiration { get; set; } = true;
+
     /// <summary>The claim of the caller's tenant (default <c>tenant</c>, as the HTTP entries).</summary>
     public string TenantClaim { get; set; } = "tenant";
 
@@ -237,6 +244,6 @@ public static class UiPushExtensions
         ArgumentNullException.ThrowIfNull(endpoints);
         var options = endpoints.ServiceProvider.GetService<UiPushOptions>()
             ?? throw new InvalidOperationException("Call AddMessaging(…, m => m.PushToUi(…)) before MapMessageHub().");
-        return endpoints.MapHub<MessageHub>(options.HubPath);
+        return endpoints.MapHub<MessageHub>(options.HubPath, dispatcher => dispatcher.CloseOnAuthenticationExpiration = options.CloseOnAuthenticationExpiration);
     }
 }

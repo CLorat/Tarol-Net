@@ -166,6 +166,7 @@ public sealed class DataSubjectsTests
         var incomplete = await Should.ThrowAsync<ErasureIncompleteException>(async () => await subjects.EraseSubject(app.Tenant, ada.Id.Value, "operator", Ct));
 
         incomplete.Failed.ShouldBe(["failing"]);
+        incomplete.ShouldBeAssignableTo<IIncompleteErasure>().Subject.ShouldBe(ada.Id.Value);   // what the admin entry answers 409 for
         (await app.Row<CustomerRow>(ada.Id.Value))!.Name.ShouldBeNull();       // the others ran
         app.Memory.AuditRows.Single().Detail!.ShouldContain("\"failed\":[\"failing\"]");
     }

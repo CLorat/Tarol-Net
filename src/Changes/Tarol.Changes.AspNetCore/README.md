@@ -23,13 +23,13 @@ app.MapChanges();
 | a change committed | 204, `ETag: "<version>"`, `Tarol-Position: <tx>.<pos>` (the commit's place in the feed) |
 | a creation committed | 201, `Location`, `{"id":…,"version":…}`, `ETag` |
 | the same `Idempotency-Key` again | the first outcome (200 for a creation), `Idempotent-Replayed: true`; another body → 422 |
-| invalid input (binder or value rules) | 400 problem details, `errors` keyed by JSON paths, every field at once |
+| invalid input (binder or value rules) | 400 problem details, `errors` keyed by JSON paths (codes), every field at once; `errorDetails` the same paths with `{code, detail}` (the rule's detail, e.g. `3..60`) |
 | `If-Match` stale | 409 `Stream.VersionConflict` |
 | not authenticated / endpoint policy | 401 / 403 |
 | refused by the change's authorization (Tarol.Security) | 403 with the rule's `code` |
 | missing, or another tenant's | 404 |
 | a guard or lifecycle step | 409 with the guard's `code` |
-| not JSON / too large | 415 / 413 |
+| not JSON (also a body without `Content-Type`) / too large | 415 / 413 |
 
 * **Binding**: route values bind the members of the same name (`Id<T>`, `Guid`, `string`, `int`, `long`); body members are
   read one by one through the app's JSON context (value objects included), `[JsonPropertyName]` and defaults honoured.
@@ -37,12 +37,14 @@ app.MapChanges();
   (or `ChangeEndpointOptions.Tenant`; a `{tenant}` route value must equal it), a new correlation, the principal for the
   authorization. Authentication itself is the app's.
 * **Views**: `[Endpoint("GET /auctions/{auction}")]` on a record implementing `IView<Auction, TSelf>` (`static TSelf
-  From(Auction)`): load, `Read<Auction>` authorization, `ETag`, 304 on `If-None-Match`.
+  From(Auction)`): load, `Read<Auction>` authorization, `ETag`, 304 on `If-None-Match`
+  (RFC 9110 weak comparison, a list of tags or `*`: the same matcher for views, lists and search).
 * **Lists** (step 12): `[Endpoint("GET /auctions", Policy = "auctions:read")]` on a record implementing `IQuery<TRow>`
   over a `[Projection]` row (`Tarol.Queries`): nullable members named like a row column are equality filters from the query
   string (`?status=Open`), a `Sort` enum member names `[Sort]` columns (`[Descending]`; the id breaks ties), route members
   filter too, `[FromClaim("sub")]` members come from the caller only. Paging: `limit` (≤ 200), `after` (the opaque cursor of
-  the previous page's `next`), `offset` (≤ 1,000), `count=true`. The answer is `{"items":[…],"next":…,"total":…}` with a weak
+  the previous page's `next`), `offset` (≤ 1,000), `count=true`. Any other key is 400 with the field code `Unknown` (a typo
+  would list unfiltered rows; a claim-bound member such as `?seller=` is refused, not ignored). The answer is `{"items":[…],"next":…,"total":…}` with a weak
   `ETag` (304 on `If-None-Match`) and `Tarol-Position`; `Tarol-Read-After: <position>` waits up to 2 s for the projection,
   then answers with `Tarol-Stale: true`; 503 + `Retry-After` while a projection version builds. A list needs the role map's
   `Read<TAggregate>`, is always tenant-scoped, and runs no row rules. Limits in `ChangeEndpointOptions.Queries`.
@@ -54,9 +56,38 @@ app.MapChanges();
   `POST /webhooks/payments` (and `/webhooks/payments/{tenant}`); HMAC-SHA256 over `timestamp.body`, ±5 minutes, secrets from
   `WebhookOptions` (rotation), delivery-id key; 200 / 202 (unknown type) / 401 / 422 / 503 (retry).
 * **OpenAPI**: with `Microsoft.AspNetCore.OpenApi`, `AddOpenApi(o => o.AddTarolEndpoints())` describes every entry
-  (path and header parameters, 2xx with `ETag`, problem responses, value-object rules).
+  (path and header parameters, 2xx with `ETag`, problem responses, value-object rules), complete enough for a typed client:
+  every problem response is the `TarolProblem` component (`type`, `status`, `title`, `code`, `detail`, `errors`);
+  `x-tarol-kind` (`creation`, `change`, `view`, `list`, `search`, `admin`) on every operation; `x-tarol-errors`, the codes
+  known at compile time (Tarol's own and the literal `Error.*("…")` codes of the change and the aggregate methods it calls);
+  `x-tarol-id: "<Aggregate>"` on `Id<T>` schemas and path parameters; `Tarol-Position` and `Idempotent-Replayed` on writes,
+  `Tarol-Stale` on reads; numbers typed `number`/`integer` (not the web defaults' `["number","string"]` with a pattern);
+  `Option<T>` as `T` or `null`; `MapTarolSearch` and `MapTarolAdmin` (Tarol.Operations) with their parameters and answers.
+  Every rule-carrying schema has `x-tarol-rules: [{rule, code, min?, max?, pattern?, flags?}]` with the codes a 400 reports:
+  value objects, the members of multi-field and class value objects and of `IValidatable` inputs (with `minLength`,
+  `minimum`, `minItems`, … as JSON Schema keywords too), `Count`, `IgnoreCase` (`flags: "i"`), Unicode categories
+  (`flags: "u"`), and `x-tarol-email` with `[Email]`'s exact check. Patterns a JavaScript `RegExp` reads differently warn TVAL010.
 * **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
+* **`GET /me`** (opt-in, `app.MapTarolMe()`): `{subject, actor: {kind, id}, tenant, roles}` of an authenticated caller by the
+  entries' own rules (actor rule, tenant claim and mapping, role claims), so a UI shows role-dependent actions without
+  decoding the identity provider's token.
+* **Request id**: every answer of an entry, a list, search and the admin entry carries `Tarol-Request-Id` (the trace id of the
+  request's activity, else `HttpContext.TraceIdentifier`), and every problem `traceId` with the same value: what a user quotes
+  when reporting an error, and what the traces are found by.
+* **Browsers on another origin** (CORS): `TarolHeaders.Allowed` are the request headers a browser client sends,
+  `TarolHeaders.Exposed` the response headers it must read (`ETag`, `Location`, `Tarol-Position`, `Tarol-Stale`,
+  `Idempotent-Replayed`, `Retry-After`, `WWW-Authenticate`); without them a script cannot revalidate or read its own writes.
+  The recipe (origins and credentials stay yours; `UseCors` before `UseAuthentication`, a preflight carries no token):
+
+  ```csharp
+  builder.Services.AddCors(cors => cors.AddPolicy("browser", policy => policy
+      .WithOrigins("https://app.example.com").AllowAnyMethod().WithTarolHeaders()));
+  var app = builder.Build();
+  app.UseCors("browser");
+  app.UseAuthentication();
+  app.UseAuthorization();
+  ```
 * Fails closed: an entry without `Policy` needs an authenticated caller, the change is always authorized, `MapChanges`
-  refuses to start without `AddSecurity`. Diagnostics TWEB001–TWEB006.
+  refuses to start without `AddSecurity`. Diagnostics TWEB001–TWEB007.
 
 Guide: [docs/changes/README.md](../../../docs/changes/README.md) (HTTP entries). Design: `docs/architecture/rest.md`.

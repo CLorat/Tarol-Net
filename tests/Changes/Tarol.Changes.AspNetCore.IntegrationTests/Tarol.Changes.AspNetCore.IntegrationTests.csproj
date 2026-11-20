@@ -15,6 +15,8 @@
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../../src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../../src/Search/Tarol.Search.Generators/Tarol.Search.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../../src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"

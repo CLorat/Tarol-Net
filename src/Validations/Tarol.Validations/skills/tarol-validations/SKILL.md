@@ -4,7 +4,7 @@ description: >-
   Use when writing input validation or value objects with Tarol.Validations: declaring a rule once on a
   readonly partial record struct ([Range], [Length], [Pattern], [Email], [NotEmpty], [Count], a custom static Validate),
   validating commands/queries with IValidatable and Validated(), reading Invalid/FieldError paths, Option/Id/collection
-  members, JSON of value objects (ValueObjectJson), and fixing TVAL001-TVAL009. Do not hand-write validators per DTO,
+  members, JSON of value objects (ValueObjectJson), and fixing TVAL001-TVAL010. Do not hand-write validators per DTO,
   use DataAnnotations or FluentValidation on Tarol inputs, validate in constructors, or decompile/web-search: the old
   [GenerateValidation], ValidateValues(), [Invariant] bool rules and IPrerequisite no longer exist.
 ---
@@ -76,6 +76,7 @@ Quantity.Create(0).ShouldBe(Invalid.Field("", ValidationCodes.Range, "1..100"));
 | `[MaxLength(5)]` / `[Required]` (DataAnnotations) on a value object or input | TVAL007: no effect; use `Length`, or the member type |
 | `Dictionary<,>`, a plain class or nested lists as input members | TVAL008: only `null` is checked |
 | `JsonSerializer.Serialize(e, ShopJson.Default.OrderPlaced)` with a same-assembly value object | TVAL009: it writes `{"value":40}` |
+| `[Pattern(@"\Aabc\z")]` or `[Pattern("(?i)abc")]` | TVAL010: use `^…$` and `IgnoreCase = true`, so a browser checks the same rule |
 | validating in a constructor, an `On(event)` handler or a JSON converter | old events stop loading; validate in `Create` / `Validated()` only |
 | a rule that needs "now" or a read (end time in the future, artwork verified) | not a value rule: a guard in the behaviour (`now` parameter) or the handler |
 

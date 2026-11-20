@@ -68,14 +68,20 @@ public interface IView<TAggregate, TSelf>
 }
 
 /// <summary>What the generator knows about an entry, as endpoint metadata (read by the generated OpenAPI transformers).</summary>
-/// <param name="Kind">"change", "creation", "view", "list" or "webhook".</param>
+/// <param name="Kind">"change", "creation", "view", "list", "search" or "webhook" (the OpenAPI document's <c>x-tarol-kind</c>).</param>
 /// <param name="Input">The input (change or view) type.</param>
 /// <param name="RouteValues">The route values the input binds.</param>
 /// <param name="BodyMembers">The JSON names of the members read from the body (empty: no body).</param>
 /// <param name="Policy">The endpoint policy, if any.</param>
 /// <param name="Query">The query-string parameters of a list (filters, <c>sort</c>, <c>after</c>, <c>limit</c>, <c>offset</c>, <c>count</c>).</param>
 public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyList<RouteValue> RouteValues, IReadOnlyList<string> BodyMembers, string? Policy,
-    IReadOnlyList<QueryParameter>? Query = null);
+    IReadOnlyList<QueryParameter>? Query = null)
+{
+    /// <summary>The problem codes the entry can answer that are known at compile time (the OpenAPI document's
+    /// <c>x-tarol-errors</c>): Tarol's own for the kind, and the literal codes of <c>Error.*("…")</c> calls in the input and the
+    /// aggregate methods it calls. Codes built at run time are not listed.</summary>
+    public IReadOnlyList<string> Errors { get; init; } = [];
+}
 
 /// <summary>A query-string parameter of a list entry.</summary>
 /// <param name="Name">Its key (<c>status</c>, <c>sort</c>).</param>
@@ -88,4 +94,9 @@ public sealed record QueryParameter(string Name, string Kind, IReadOnlyList<stri
 /// <param name="Name">Its name in the pattern (<c>auction</c>).</param>
 /// <param name="Kind"><c>"id"</c> (an <c>Id&lt;T&gt;</c>, a UUID), <c>"guid"</c>, <c>"string"</c>, <c>"int"</c> or <c>"long"</c>.</param>
 /// <param name="Property">The JSON name of the input member it binds (not read from the body).</param>
-public sealed record RouteValue(string Name, string Kind, string Property);
+public sealed record RouteValue(string Name, string Kind, string Property)
+{
+    /// <summary>The aggregate of an <c>"id"</c> route value (<c>Id&lt;Auction&gt;</c>: <c>Auction</c>; the OpenAPI document's
+    /// <c>x-tarol-id</c>), else <see langword="null"/>.</summary>
+    public string? Aggregate { get; init; }
+}

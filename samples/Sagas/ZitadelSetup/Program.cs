@@ -3,9 +3,11 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
-// usage: ArtFlow.ZitadelSetup <issuer> <dir>   (<dir>/admin.pat is written by Zitadel's first instance)
-// writes <dir>/project.txt (the API's audience) and <dir>/clients.txt ("client <name> <client id> <secret> <user id>")
+// usage: ArtFlow.ZitadelSetup <issuer> <dir> [<access token lifetime in seconds, e.g. 60s>]   (<dir>/admin.pat is written by Zitadel's first instance)
+// writes <dir>/project.txt (the API's audience), <dir>/clients.txt ("client <name> <client id> <secret> <user id>"),
+// <dir>/web.txt ("web <client id>": the browser app, PKCE) and <dir>/users.txt ("user <login> <password> <user id> <roles>")
 var (issuer, dir) = (args[0], args[1]);
+var tokenLifetime = args.Length > 2 && args[2].Length > 0 ? args[2] : null;
 var patFile = Path.Combine(dir, "admin.pat");
 for (var i = 0; i < 240 && !(File.Exists(patFile) && new FileInfo(patFile).Length > 0); i++)
     await Task.Delay(500);
@@ -46,5 +48,32 @@ foreach (var (name, roles) in new[] { ("alice", "\"seller\",\"tarol-admin\""), (
     clients.Append(System.Globalization.CultureInfo.InvariantCulture, $"client {name} {secret.GetProperty("clientId").GetString()} {secret.GetProperty("clientSecret").GetString()} {user}\n");
 }
 await File.WriteAllTextAsync(Path.Combine(dir, "clients.txt"), clients.ToString());
+
+// BC-9: the browser client: a user-agent app (no secret, PKCE), JWT access tokens with the roles, any path of the Vite dev
+// server as redirect (dev mode allows http and globs); human users with grants and a password generated per run
+var web = await Call(HttpMethod.Post, $"/management/v1/projects/{project}/apps/oidc", """
+    {"name":"artflow-web","redirectUris":["http://localhost:5173/*"],"postLogoutRedirectUris":["http://localhost:5173/*"],
+     "responseTypes":["OIDC_RESPONSE_TYPE_CODE"],"grantTypes":["OIDC_GRANT_TYPE_AUTHORIZATION_CODE","OIDC_GRANT_TYPE_REFRESH_TOKEN"],
+     "appType":"OIDC_APP_TYPE_USER_AGENT","authMethodType":"OIDC_AUTH_METHOD_TYPE_NONE","devMode":true,
+     "accessTokenType":"OIDC_TOKEN_TYPE_JWT","accessTokenRoleAssertion":true,"idTokenRoleAssertion":true,"idTokenUserinfoAssertion":true}
+    """);
+await File.WriteAllTextAsync(Path.Combine(dir, "web.txt"), $"web {web.GetProperty("clientId").GetString()}\n");
+var users = new StringBuilder();
+foreach (var (login, first, roles) in new[] { ("ada", "Ada", "\"seller\",\"tarol-admin\""), ("ben", "Ben", "\"bidder\""), ("cleo", "Cleo", "\"bidder\"") })
+{
+    var password = "Tarol-" + Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)) + "-A1!";
+    var user = (await Call(HttpMethod.Post, "/management/v1/users/human/_import", $$"""
+        {"userName":"{{login}}","profile":{"firstName":"{{first}}","lastName":"ArtFlow"},"email":{"email":"{{login}}@artflow.example","isEmailVerified":true},
+         "password":"{{password}}","passwordChangeRequired":false}
+        """)).GetProperty("userId").GetString()!;
+    _ = await Call(HttpMethod.Post, $"/management/v1/users/{user}/grants", $$"""{"projectId":"{{project}}","roleKeys":[{{roles}}]}""");
+    users.Append(System.Globalization.CultureInfo.InvariantCulture, $"user {login} {password} {user} {roles.Replace("\"", "", StringComparison.Ordinal)}\n");
+}
+await File.WriteAllTextAsync(Path.Combine(dir, "users.txt"), users.ToString());
+if (tokenLifetime is not null)                                                          // BC-9: an "expired token" test
+    _ = await Call(HttpMethod.Put, "/admin/v1/settings/oidc", $$"""
+        {"accessTokenLifetime":"{{tokenLifetime}}","idTokenLifetime":"{{tokenLifetime}}","refreshTokenIdleExpiration":"2592000s","refreshTokenExpiration":"7776000s"}
+        """);
 await File.WriteAllTextAsync(Path.Combine(dir, "project.txt"), project);              // last: the API waits for the setup to complete
-Console.WriteLine($"Zitadel provisioned: project {project}, machine users alice (seller, tarol-admin), bob (bidder)");
+Console.WriteLine($"Zitadel provisioned: project {project}, machine users alice (seller, tarol-admin), bob (bidder), the web app, "
+    + $"human users ada (seller, tarol-admin), ben and cleo (bidder){(tokenLifetime is null ? "" : $", access tokens valid {tokenLifetime}")}");

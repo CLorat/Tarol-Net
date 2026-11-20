@@ -8,6 +8,42 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `x-tarol-rules` in the OpenAPI document (BC-4): every rule-carrying schema (value objects, members of multi-field and class
+  value objects and of `IValidatable` inputs, `Count`) lists `{rule, code, min?, max?, pattern?, flags?}`; `IgnoreCase` is
+  `flags: "i"`, Unicode categories `"u"`; `x-tarol-email` describes `[Email]`; a list of value objects gets its `items`.
+  TVAL010 (warning) in `Tarol.Validations`: a `[Pattern]` that is not ECMAScript-compatible.
+
+* TWEB007 (warning, CC-5): an entry's input or view member `Option<T>` with a parameter default; ASP.NET's OpenAPI document
+  throws on it.
+
+* `MapTarolMe(pattern = "/me")` in `Tarol.Changes.AspNetCore` (BC-13, CC-8): `{subject, actor, tenant, roles}` of the caller by the
+  entries' rules, authenticated only, in the OpenAPI document (`x-tarol-kind: me`).
+
+* `Tarol-Request-Id` on every Tarol answer and `traceId` in every problem (BC-11, CC-6): the request activity's trace id, else
+  `TraceIdentifier`; exposed by `TarolHeaders.Exposed`, in the OpenAPI document. New: `TarolHeaders.RequestId`,
+  `ChangeEndpoints.RequestId`.
+
+* `errorDetails` next to `errors` on every 400 (BC-5): per JSON path `[{code, detail?}]`, the rule's detail such as the bounds
+  (`"3..60"`); written directly and through `IProblemDetailsService`; in the `TarolProblem` schema.
+
+* `samples/Sagas` for a browser e2e (BC-9): a PKCE user-agent app and human users in Zitadel, the message hub with the topic
+  `artflow.bid-placed`, a `[Range]` rule on `CreateAuction.Reserve`, CORS, short-lived tokens (`ARTFLOW_TOKEN_LIFETIME`), a
+  stay-up mode (`ARTFLOW_STAY_UP=1`), and the sample built in CI. `ZitadelOptions.ClockSkew` (default: JwtBearer's 5 minutes).
+
+* OpenAPI for typed clients (BC-3): the generated transformers add the `TarolProblem` component to every problem response,
+  `x-tarol-kind`, `x-tarol-errors` (static codes, also the domain's literal `Error.*` codes), `x-tarol-id`, the
+  `Tarol-Position`/`Idempotent-Replayed`/`Tarol-Stale` headers, `number` instead of `["number","string"]` + pattern,
+  `Option<T>` as `T | null`, and describe `MapTarolSearch` and `MapTarolAdmin`. New: `TarolEndpointMetadata.Errors`,
+  `RouteValue.Aggregate`, `TarolAdminEndpoints.OpenApiTag`; `AddOperations` adds `OperationsJson` to the HTTP JSON options.
+
+* `ZitadelOptions.HubPath` (default `/tarol/messages`, BC-2): under the hub's path `AddZitadel` reads the bearer token from the
+  query string `access_token`, as browsers' WebSockets need; elsewhere a query token is ignored. `UiPushOptions.CloseOnAuthenticationExpiration`
+  (default `true`, BC-15): the hub closes a connection when its token expires.
+
+* `TarolHeaders` in `Tarol.Changes.AspNetCore` (BC-1): the request headers a browser client sends (`Allowed`), the response
+  headers it must read (`Exposed`), and `CorsPolicyBuilder.WithTarolHeaders()`; a CORS recipe in the README; the sample's API
+  allows `http://localhost:5173`.
+
 * The search guide `docs/search/README.md`; ArtFlow (`samples/Sagas`) searches auctions, bids and bidder profiles (step 18G).
 * `Tarol.Search.Typesense` (step 18F): the Typesense adapter (HttpClient, no SDK): a collection per version, English and German
   stemming with folding, Tarol's query syntax through one `multi_search` (OR alternatives, locales, the exact token), the shared
@@ -36,6 +72,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Changed
 
+* The message hub's refusals are `<code>: <detail>` with documented codes (BC-12, CC-7): `Hub.Forbidden` (was `Forbidden:`),
+  `Hub.Topic` (was `Topic:`), `Auth.Tenant`; constants and `CodeOf` in the new `HubErrors`. **Breaking** for clients that
+  matched `Forbidden:` or `Topic:`.
+
+* A list answers 400 (`errors.<key>: ["Unknown"]`) for a query key that is not one of its filters, `sort`, `after`, `limit`,
+  `offset` or `count` (BC-14); it ignored them, so a typo listed unfiltered rows and `?seller=` on a claim-bound list was
+  silently dropped. Keys compare without case. New: `ChangeEndpoints.UnknownKeyCode`.
+
 * `ProjectionHost` can be derived from outside `Tarol.Queries` (step 18A): its constructor and `Prepare`, `LoadCheckpoint` and
   `Write` are `protected` (were `private protected`); `Write`'s last position parameter is named `through`. Behaviour unchanged.
 
@@ -45,6 +89,34 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * Zitadel: roles come only from this project's claim and only when granted in the user's organisation, which also sets the tenant.
 
 ### Fixed
+
+* The search index's erasure participant failed in a process whose `SearchHost` never ran (an API process, where the host stays
+  gated): the Npgsql index had no table yet (`42P01`), so every erasure through the admin entry was incomplete (`failed:
+  ["search"]`). `SearchHost.Reindex` and `Remove` prepare the index once first.
+
+* A change entry answers 415 for a non-empty body without a JSON `Content-Type` (BC-16); routing refused other media types
+  already, but a body with no `Content-Type` was parsed as JSON. New: `ChangeEndpoints.ReadJson`, `ChangeEndpoints.IsJson`;
+  the generated entries call `ReadJson`.
+* `Idempotency.KeyReused` (422) and `Idempotency.DuplicateKey` (409) name the key only in their detail (BC-17); the scope
+  (`http:User:<sub>:POST /auctions`) is logged by the pipeline (events 7004, 7005) instead of answered.
+* `samples/Sagas/apphost.sh` passes `?tenant=` to the data-subject export and erase (400 since the tenant fix).
+
+* The admin entry (`MapTarolAdmin`) answers every error as `application/problem+json` with a `code` (`AdminProblems`), and an
+  incomplete erasure as 409 `DataProtection.ErasureIncomplete` with the failed participants instead of an unhandled 500 (BC-10).
+  **Breaking (wire):** the body was `{"error":"…"}`; `AdminError` is no longer written. Redrive and discard of an unknown id
+  have a problem body now. New: `GET {prefix}/dead` lists the kinds; `IIncompleteErasure` in `Tarol.Persistence`, implemented
+  by `ErasureIncompleteException`.
+
+* Search snippets are plain text with highlight offsets (BC-8, CC-1): every provider (in-memory, Npgsql, OpenSearch,
+  Typesense) returned raw text with `<b>` markers, so markup in a document reached the client unescaped. **Breaking (wire):**
+  `GET /search` hits carry `snippet` as text and `highlights: [{start, length}]`. New in `Tarol.Search`: `SearchHit.Highlights`,
+  `SearchHighlight`, `SearchSnippets` (`Open`, `Close`, `Parse`, `Hit`) for index implementations.
+
+* Views and search answer 304 for a weak tag (`W/"5"`), a list of tags or `*` in `If-None-Match`, like lists (BC-7): one
+  RFC 9110 §13.1.2 matcher for the three; they compared the header verbatim.
+
+* The list page's ETag covers `next` and `total` (BC-6): a row appended behind a full last page answered 304 and hid the new
+  page. `Cursor.ETag(rows, next, total)` is new; `Cursor.ETag(rows)` is unchanged (docs/migration/client-contract.md §5).
 
 * Messaging: one failed subscription restarts all of them instead of staying dead; a re-drive never loses its dead letter, and a
   `SourceMismatch` letter stays dead; the Npgsql bus hands a batch's tail back once half its lease has passed; RabbitMQ nacks a

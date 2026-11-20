@@ -40,7 +40,21 @@ public static class SearchEndpoints
     public static IEndpointConventionBuilder MapTarolSearch(this IEndpointRouteBuilder endpoints, string pattern = "/search", string? policy = null)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        var builder = endpoints.MapGet(pattern, Search).WithName("TarolSearch");
+        var builder = endpoints.MapGet(pattern, Search).WithName("TarolSearch").WithMetadata(
+            ((RequestDelegate)Search).Method,                                   // OpenAPI describes endpoints that carry a MethodInfo (BC-3)
+            new ProducesResponseTypeMetadata(StatusCodes.Status200OK),
+            new TarolEndpointMetadata("search", typeof(SearchHit), [], [], policy,
+            [
+                new("q", "string", [], "The text: words (all must match), \"a phrase\", -word, a OR b; 1 to 256 characters"),
+                new("types", "string", [], "Comma-separated document types; default: every type the caller may read"),
+                new("prefix", "boolean", [], "The last word is a prefix"),
+                new("counts", "boolean", [], "Also count the matches per type"),
+                new("snippets", "boolean", [], "Return a plain-text snippet and its highlights"),
+                new("limit", "int32", [], $"The page size (1 to {SearchLimits.MaxLimit})"),
+                new("after", "string", [], "The cursor of the previous page (its next)"),
+                new("lang", "string", [], "The query's language (ISO 639-1); default: Accept-Language"),
+            ])
+            { Errors = [BuildingCode, "Auth.Forbidden", "Tenant.NotFound"] });
         if (policy is not null)
             builder.RequireAuthorization(policy);
         return builder;
@@ -55,7 +69,7 @@ public static class SearchEndpoints
 
     private static async Task Search(HttpContext http)
     {
-        var entries = http.RequestServices.GetRequiredService<ChangeEndpoints>();
+        var entries = ChangeEndpoints.Of(http);
         CacheHeaders.Apply(http);
         var (context, _, refused) = entries.Edge(http);
         if (refused is not null)
@@ -130,7 +144,7 @@ public static class SearchEndpoints
         http.Response.Headers[Positions.PositionHeader] = Positions.Format(page.Position);
         var etag = ETag(page);
         http.Response.Headers.ETag = etag;
-        if (http.Request.Headers.IfNoneMatch.Any(value => value == etag || value == "*"))
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;
             return;
@@ -245,7 +259,18 @@ public static class SearchEndpoints
             writer.WriteString("title", hit.Title);
             writer.WriteNumber("score", Math.Round(hit.Score, 6));
             if (hit.Snippet is { } snippet)
-                writer.WriteString("snippet", snippet);
+            {
+                writer.WriteString("snippet", snippet);                       // plain text; the matched words are offsets (BC-8)
+                writer.WriteStartArray("highlights");
+                foreach (var highlight in hit.Highlights)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("start", highlight.Start);
+                    writer.WriteNumber("length", highlight.Length);
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            }
             writer.WriteEndObject();
         }
         writer.WriteEndArray();

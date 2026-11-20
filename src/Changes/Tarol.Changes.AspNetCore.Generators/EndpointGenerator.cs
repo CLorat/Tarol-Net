@@ -10,7 +10,7 @@ namespace Tarol.Changes.AspNetCore.Generators;
 ///     <c>[Webhook]</c> factory, a <c>RequestDelegate</c>; per assembly <c>GeneratedEndpoints.MapChanges()</c>, and, when the
 ///     application references <c>Microsoft.AspNetCore.OpenApi</c>, <c>GeneratedOpenApi.AddTarolEndpoints(OpenApiOptions)</c>.
 ///     The Request Delegate Generator does not see generated <c>MapPost</c> calls (C-12), so the delegates bind by
-///     themselves. Diagnostics TWEB001–TWEB006. Models are symbol-free; a body edit or an unrelated file regenerates nothing.
+///     themselves. Diagnostics TWEB001–TWEB007. Models are symbol-free; a body edit or an unrelated file regenerates nothing.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class EndpointGenerator : IIncrementalGenerator
@@ -29,6 +29,7 @@ public sealed class EndpointGenerator : IIncrementalGenerator
         });
         var models = entries.Where(static e => e.Model is not null).Select(static (e, _) => e.Model!).Collect();
         var valueObjects = entries.SelectMany(static (e, _) => e.ValueObjects).Collect();
+        var memberRules = entries.SelectMany(static (e, _) => e.MemberRules).Collect();
 
         var hooks = context.SyntaxProvider
             .ForAttributeWithMetadataName(Discovery.WebhookAttribute, static (node, _) => node is MethodDeclarationSyntax,
@@ -54,12 +55,12 @@ public sealed class EndpointGenerator : IIncrementalGenerator
             spc.AddSource("GeneratedEndpoints.g.cs", Emitter.Endpoints(ordered, hookList, name));
         });
 
-        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(openApi).Combine(assembly), static (spc, all) =>
+        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(assembly), static (spc, all) =>
         {
-            var (((entryModels, objects), available), name) = all;
+            var ((((entryModels, objects), rules), available), name) = all;
             if (!available || entryModels.IsEmpty)
                 return;
-            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, name));
+            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name));
         });
     }
 }

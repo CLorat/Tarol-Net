@@ -75,6 +75,7 @@ write `{"value":40}`: use `ValueObjectJson.Options(MyJson.Default)` (TVAL009 poi
 | TVAL007 | Warning | DataAnnotations attribute on a value object or input: no effect |
 | TVAL008 | Warning | input member type that cannot be validated (only `null` is checked) |
 | TVAL009 | Warning | same-assembly source-generated context used directly: use `ValueObjectJson.Options` |
+| TVAL010 | Warning | a `[Pattern]` a JavaScript `RegExp` reads differently (`\A`, `\z`, `(?>…)`, `(?i)`, …): browser clients check the same rule from OpenAPI's `x-tarol-rules` |
 
 ## Not here
 

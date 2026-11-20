@@ -10,6 +10,8 @@ namespace Tarol.Changes.AspNetCore.Tests;
 // ArtFlow, reduced to what the HTTP entries need (from tests/Changes/Tarol.Changes.Tests/Domain.cs).
 public readonly partial record struct Title([Length(3, 60)] string Value);
 public readonly partial record struct Amount([Range(1, 1_000_000)] decimal Value);
+public readonly partial record struct Contact([Email] string Value);
+public readonly partial record struct Price([Range(Min = 0)] decimal Value, [Pattern("^[A-Z]{3}$", IgnoreCase = true)] string Currency);
 
 [Lifecycle]
 public enum AuctionStatus { [To(Closed)] Open, Closed }
@@ -95,10 +97,12 @@ public partial class Payout : AggregateRoot<Payout>
 
 /// <summary>GET by id (R-8): a view of one aggregate (hides Reserve and the bidders), built from the loaded aggregate.</summary>
 [Endpoint("GET /auctions/{auction}", Policy = "auctions:read")]
-public sealed record AuctionSummary(Guid Id, string Title, string Seller, AuctionStatus Status, decimal HighestBid, int Bids, DateTimeOffset EndsAt)
+public sealed record AuctionSummary(Guid Id, string Title, string Seller, AuctionStatus Status, decimal HighestBid, int Bids, DateTimeOffset EndsAt,
+    Tarol.Options.Option<string> Payment)
     : IView<Auction, AuctionSummary>
 {
-    public static AuctionSummary From(Auction a) => new(a.Id.Value, a.Title, a.Seller, a.Status, a.Bids.Count == 0 ? 0 : a.HighestBid, a.Bids.Count, a.EndsAt);
+    public static AuctionSummary From(Auction a) => new(a.Id.Value, a.Title, a.Seller, a.Status, a.Bids.Count == 0 ? 0 : a.HighestBid, a.Bids.Count, a.EndsAt,
+        a.PaymentId is { } payment ? payment : Tarol.Options.Option.None);
 }
 
 /// <summary>The payment provider's own contract (anti-corruption: its names stay here).</summary>
@@ -108,7 +112,7 @@ public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(CreateAuction)), JsonSerializable(typeof(PlaceBid)), JsonSerializable(typeof(CloseAuction))]
-[JsonSerializable(typeof(WatchAuction)), JsonSerializable(typeof(TouchAuction)), JsonSerializable(typeof(RenameAuction))]
+[JsonSerializable(typeof(WatchAuction)), JsonSerializable(typeof(TouchAuction)), JsonSerializable(typeof(RenameAuction)), JsonSerializable(typeof(MakeOffer))]
 [JsonSerializable(typeof(PaymentSucceededV2)), JsonSerializable(typeof(PaymentSucceededV1)), JsonSerializable(typeof(AuctionSummary))]
 [JsonSerializable(typeof(decimal)), JsonSerializable(typeof(string)), JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]

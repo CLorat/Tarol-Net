@@ -153,6 +153,31 @@ public static class Cursor
         return $"W/\"{h:x16}\"";
     }
 
+    /// <summary>
+    /// The weak ETag of a page: a hash of its (id, version) pairs, in order, its <c>next</c> cursor and its total. A row appended
+    /// behind a full last page leaves the rows alone but turns <c>next</c> from <see langword="null"/> into a cursor, so the tag
+    /// must cover it (BC-6); the total likewise.
+    /// </summary>
+    /// <param name="rows">The page's ids and versions.</param>
+    /// <param name="next">The page's next cursor; <see langword="null"/> on the last page.</param>
+    /// <param name="total">The count, if asked.</param>
+    /// <returns><c>W/"&lt;16 hex digits&gt;"</c>.</returns>
+    public static string ETag(IEnumerable<(Guid Id, long Version)> rows, string? next, long? total)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        var h = Seed;
+        Span<byte> b = stackalloc byte[24];
+        foreach (var (id, version) in rows)
+        {
+            id.TryWriteBytes(b);
+            BitConverter.TryWriteBytes(b[16..], version);
+            h = Fnv(b, h);
+        }
+        h = Fnv(next is null ? "\u0001"u8 : Encoding.UTF8.GetBytes("n" + next), h);
+        h = Fnv(total is { } t ? Encoding.UTF8.GetBytes("t" + t.ToString(System.Globalization.CultureInfo.InvariantCulture)) : "\u0002"u8, h);
+        return $"W/\"{h:x16}\"";
+    }
+
     private static ulong Fnv(ReadOnlySpan<byte> data, ulong h)
     {
         foreach (var b in data)
@@ -283,7 +308,7 @@ public sealed class ListQueryPlan<TRow>
             var last = fetched[count - 1];
             next = Cursor.Encode(SortKey, FilterHash, Sort is null ? "" : ColumnValues.Format(Sort.Type, Sort.Value(last.Row)), last.Key.Id);
         }
-        return new Page<TRow>(items, next, Cursor.ETag(pairs), position, total);
+        return new Page<TRow>(items, next, Cursor.ETag(pairs, next, total), position, total);
     }
 
     private static ProjectionColumn<TRow>? Column(IReadOnlyList<ProjectionColumn<TRow>> columns, string name)

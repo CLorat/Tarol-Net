@@ -114,7 +114,7 @@ public sealed partial class MessageHub : Hub
         if (!await _authorizer.Authorize(user, operation, topic, Context.ConnectionAborted).ConfigureAwait(false))
         {
             Refused(_log, user.FindFirst(_options.SubjectClaim)?.Value ?? "anonymous", operation, topic);
-            throw new HubException($"Forbidden: {operation} {topic}");
+            throw HubErrors.Exception(HubErrors.Forbidden, $"{operation} {topic}");
         }
         return Group(tenant, topic);
     }
@@ -124,14 +124,14 @@ public sealed partial class MessageHub : Hub
         if (Context.User?.FindFirst(_options.TenantClaim)?.Value is not { Length: > 0 } claimed)
             return Option.None;
         if (_options.Tenant is { } map)
-            return map(claimed).TryGetValue(out Id<ITenant> mapped) ? mapped : throw new HubException("Auth.Tenant: the tenant claim is not known");
-        return Guid.TryParse(claimed, out var id) ? (Id<ITenant>)id : throw new HubException("Auth.Tenant: the tenant claim is not a tenant id");
+            return map(claimed).TryGetValue(out Id<ITenant> mapped) ? mapped : throw HubErrors.Exception(HubErrors.Tenant, "the tenant claim is not known");
+        return Guid.TryParse(claimed, out var id) ? (Id<ITenant>)id : throw HubErrors.Exception(HubErrors.Tenant, "the tenant claim is not a tenant id");
     }
 
     private static void Valid(string topic)
     {
         if (topic is not { Length: > 0 and <= 200 } || Message.SystemOf(topic).Length == 0 || topic.Any(static c => char.IsWhiteSpace(c) || c == '/'))
-            throw new HubException("Topic: a topic is <system>.<name>, at most 200 characters");
+            throw HubErrors.Exception(HubErrors.Topic, "a topic is <system>.<name>, at most 200 characters");
     }
 
     [LoggerMessage(EventId = 11401, Level = LogLevel.Warning, Message = "The message hub refused {Subject}: {Operation} {Topic}")]
@@ -183,3 +183,40 @@ public sealed class HubConnections : IDisposable
     }
 }
 
+
+/// <summary>
+/// The message hub's refusals (BC-12): every <see cref="HubException"/> message is <c>&lt;code&gt;: &lt;detail&gt;</c>, the code
+/// one of these constants, the same contract as an HTTP problem's <c>code</c>. A client reads the code with <see cref="CodeOf"/>
+/// (or the text before the first <c>": "</c>).
+/// </summary>
+public static class HubErrors
+{
+    /// <summary>The topic authorizer refused the subscribe or publish.</summary>
+    public const string Forbidden = "Hub.Forbidden";
+
+    /// <summary>The topic is not <c>&lt;system&gt;.&lt;name&gt;</c> of at most 200 characters.</summary>
+    public const string Topic = "Hub.Topic";
+
+    /// <summary>The caller's tenant claim is not a tenant (as the HTTP entries' <c>Auth.Tenant</c>).</summary>
+    public const string Tenant = "Auth.Tenant";
+
+    /// <summary>The exception with the message <c>&lt;code&gt;: &lt;detail&gt;</c>.</summary>
+    /// <param name="code">One of the constants.</param>
+    /// <param name="detail">What was refused.</param>
+    /// <returns>The exception to throw.</returns>
+    public static HubException Exception(string code, string detail) => new($"{code}: {detail}");
+
+    /// <summary>The code of a hub error's message (SignalR clients may prefix it, e.g. "An unexpected error occurred invoking
+    /// 'Subscribe' on the server. HubException: "), or <see langword="null"/> when it carries none.</summary>
+    /// <param name="message">The error message as the client received it.</param>
+    /// <returns>The code.</returns>
+    public static string? CodeOf(string? message)
+    {
+        if (message is null)
+            return null;
+        foreach (var code in (ReadOnlySpan<string>)[Forbidden, Topic, Tenant])
+            if (message.Contains(code + ": ", StringComparison.Ordinal))
+                return code;
+        return null;
+    }
+}

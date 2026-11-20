@@ -16,8 +16,27 @@ public sealed class ZitadelOptions
     /// (Zitadel's machine users have a <c>sub</c> of their own). Default <c>service</c>; <see langword="null"/>: none.</summary>
     public string? ServiceRole { get; set; } = "service";
 
+    /// <summary>
+    /// The path of the message hub (<c>Tarol.Messaging.SignalR</c>'s <c>UiPushOptions.HubPath</c>, default
+    /// <c>/tarol/messages</c>), where the bearer token is also read from the query string <c>access_token</c> (BC-2): a browser
+    /// cannot set headers on a WebSocket or an EventSource. Only requests under this path read it; everywhere else a token in
+    /// the URL is ignored (URLs end up in logs). <see langword="null"/>: never from the query.
+    /// </summary>
+    public string? HubPath { get; set; } = "/tarol/messages";
+
+    /// <summary>
+    /// The tolerance for the token's lifetime (<c>TokenValidationParameters.ClockSkew</c>); <see langword="null"/> keeps JwtBearer's
+    /// default of 5 minutes. An expired token is accepted that long; a test of expiry, or a deployment with synchronised clocks,
+    /// sets it lower.
+    /// </summary>
+    public TimeSpan? ClockSkew { get; set; }
+
     internal void Validate()
     {
+        if (ClockSkew < TimeSpan.Zero)
+            throw new InvalidOperationException("ZitadelOptions.ClockSkew is not negative.");
+        if (HubPath is not null && !HubPath.StartsWith('/'))
+            throw new InvalidOperationException("ZitadelOptions.HubPath starts with '/' (or is null: no token from the query string).");
         if (!Uri.TryCreate(Authority, UriKind.Absolute, out _))
             throw new InvalidOperationException("ZitadelOptions.Authority must be the issuer's absolute URL.");
         ArgumentException.ThrowIfNullOrWhiteSpace(ProjectId);

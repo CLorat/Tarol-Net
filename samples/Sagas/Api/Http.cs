@@ -4,6 +4,7 @@ using Tarol.Changes;
 using Tarol.Changes.AspNetCore;
 using Tarol.Results;
 using Tarol.Security;
+using Tarol.Validations;
 
 namespace ArtFlow;
 
@@ -25,8 +26,9 @@ public sealed partial record RecordPayment
 /// <summary>The provider's own contract.</summary>
 public sealed record PaymentSucceeded(string PaymentId, Guid Reference, decimal Amount);
 
+/// <summary>BC-9: one validation rule on a change, so a browser e2e gets a deterministic 400 on the right field (<c>reserve</c>).</summary>
 [Endpoint("POST /auctions")]
-public sealed partial record CreateAuction(decimal Reserve) : ICreation<Auction>
+public sealed partial record CreateAuction([Range(1, 1_000_000)] decimal Reserve) : ICreation<Auction>, IValidatable
 {
     public Result<Auction> Execute(ChangeContext context) => Auction.Create(context.Operation.Actor.Id, Reserve, context.Now);
 }

@@ -58,6 +58,24 @@ public sealed class SearchHost : ProjectionHost
     /// <inheritdoc />
     protected override ValueTask Prepare(CancellationToken cancellationToken) => _index.Prepare(_collector.Registry.Definition(), cancellationToken);
 
+    private Task? _prepared;
+
+    /// <summary>
+    /// Prepares the index once for writes outside the feed (erasure, retention). A host whose gate never opens (an API process:
+    /// one runner per version, elsewhere) never ran <see cref="Prepare"/>, and an index resolves its version's table there; a
+    /// failed preparation is retried by the next call.
+    /// </summary>
+    private async Task Prepared(CancellationToken cancellationToken)
+    {
+        var prepared = _prepared;
+        if (prepared is null || prepared.IsFaulted || prepared.IsCanceled)
+        {
+            prepared = _index.Prepare(_collector.Registry.Definition(), cancellationToken).AsTask();
+            _prepared = prepared;
+        }
+        await prepared.ConfigureAwait(false);
+    }
+
     /// <inheritdoc />
     protected override ValueTask<ProjectionCheckpoint> LoadCheckpoint(CancellationToken cancellationToken) => _index.Checkpoint(cancellationToken);
 
@@ -95,6 +113,7 @@ public sealed class SearchHost : ProjectionHost
         if (mine.Count == 0)
             return 0;
         var collected = await _collector.Collect(mine, cancellationToken).ConfigureAwait(false);
+        await Prepared(cancellationToken).ConfigureAwait(false);
         await _index.Replace(collected, cancellationToken).ConfigureAwait(false);
         return mine.Count;
     }
@@ -108,6 +127,9 @@ public sealed class SearchHost : ProjectionHost
         ArgumentNullException.ThrowIfNull(streams);
         var gone = streams.Where(s => _collector.Covers(s.StreamType)).Select(static s => new StreamDocuments(s.Tenant, s.Id, 0, [])).ToList();
         if (gone.Count > 0)
+        {
+            await Prepared(cancellationToken).ConfigureAwait(false);
             await _index.Replace(gone, cancellationToken).ConfigureAwait(false);
+        }
     }
 }

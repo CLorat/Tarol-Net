@@ -123,6 +123,20 @@ public sealed class QueryEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_unknown_query_key_is_400_instead_of_an_unfiltered_list()     // BC-14
+    {
+        var (_, position) = await Create(Alice, "Known");
+
+        var typo = await List("/auctions?selller=alice&limit=5", Alice, readAfter: position);
+        var known = await List("/auctions?Seller=alice&SORT=EndsAt&limit=5&count=true", Alice, readAfter: position);
+
+        typo.Status.ShouldBe(HttpStatusCode.BadRequest, typo.Body);
+        Fields(typo).ShouldBe(["selller"]);
+        JsonElement.Parse(typo.Body).GetProperty("errors").GetProperty("selller")[0].GetString().ShouldBe(ChangeEndpoints.UnknownKeyCode);
+        known.Status.ShouldBe(HttpStatusCode.OK, known.Body);                  // keys compare without case, like the query string
+    }
+
+    [Fact]
     public async Task The_page_ETag_answers_304_until_a_row_on_the_page_changes()
     {
         var (id, position) = await Create(Alice, "Tagged");
@@ -144,6 +158,23 @@ public sealed class QueryEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_row_appended_behind_a_full_last_page_answers_200_with_a_next_cursor()   // BC-6
+    {
+        var (_, position) = await Create(Alice, "First");
+        var full = await List("/auctions?sort=id&limit=1", Alice, readAfter: position);
+        full.Status.ShouldBe(HttpStatusCode.OK, full.Body);
+        Next(full).ShouldBeNull();
+
+        var (_, later) = await Create(Alice, "Second");                    // a version 7 id: sorts behind the page
+        var grown = await List("/auctions?sort=id&limit=1", Alice, readAfter: later, ifNoneMatch: full.Response.Headers.ETag!.ToString());
+
+        grown.Status.ShouldBe(HttpStatusCode.OK);
+        Titles(grown).ShouldBe(["First"]);
+        Next(grown).ShouldNotBeNull();
+        grown.ETag.ShouldNotBe(full.ETag);
+    }
+
+    [Fact]
     public async Task A_list_needs_the_Read_grant_is_tenant_scoped_and_runs_no_row_rules()
     {
         var (_, position) = await Create(Alice, "Visible");
@@ -162,7 +193,9 @@ public sealed class QueryEndpointTests : IAsyncLifetime
         var (_, last) = await Create(Bob, "Bobs");
 
         Titles(await List("/my/auctions", Alice, readAfter: last)).ShouldBe(["Mine"]);
-        Titles(await List("/my/auctions?seller=bob", Alice)).ShouldBe(["Mine"]);           // not a query parameter: ignored
+        var overridden = await List("/my/auctions?seller=bob", Alice);                      // not a query parameter: refused (BC-14)
+        overridden.Status.ShouldBe(HttpStatusCode.BadRequest);
+        Fields(overridden).ShouldBe(["seller"]);
         Titles(await List("/my/auctions", Bob)).ShouldBe(["Bobs"]);
     }
 

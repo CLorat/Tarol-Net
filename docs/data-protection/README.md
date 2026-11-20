@@ -83,7 +83,8 @@ master key   IKeyEncryptionKey: Tarol:DataProtection:MasterKey (a KMS such as In
 4. writes an `operations_audit` row (`erase`, `subject:<id>`) and log 16001.
 
 Erasing a whole tenant (offboarding) is `EraseTenant`, a single row. If a participant fails, the erasure throws
-`ErasureIncompleteException`; the key stays erased, so run the erasure again.
+`ErasureIncompleteException` (an `IIncompleteErasure`); the key stays erased, so run the erasure again. The admin entry
+answers it as 409 `DataProtection.ErasureIncomplete` with the failed participants in `failed`.
 
 **Your own tables** (an `ISqlProjection`, a report table, a search index) need your own `ErasureParticipant`, registered as
 a singleton. Its `Forget` gets the tenant, the subject and its streams. `Evict` runs in every process when any process

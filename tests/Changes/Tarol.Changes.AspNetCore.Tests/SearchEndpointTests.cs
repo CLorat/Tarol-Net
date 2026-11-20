@@ -68,6 +68,28 @@ public sealed class SearchEndpointTests : IAsyncLifetime
 
         var again = await Search("q=sunflowers", Alice, ifNoneMatch: etag);
         again.Status.ShouldBe(HttpStatusCode.NotModified);
+        // BC-7: the weak comparison, a list of tags and * (RFC 9110 §13.1.2)
+        (await Search("q=sunflowers", Alice, ifNoneMatch: etag[2..])).Status.ShouldBe(HttpStatusCode.NotModified);
+        (await Search("q=sunflowers", Alice, ifNoneMatch: "W/\"0\", " + etag)).Status.ShouldBe(HttpStatusCode.NotModified);
+        (await Search("q=sunflowers", Alice, ifNoneMatch: "*")).Status.ShouldBe(HttpStatusCode.NotModified);
+        (await Search("q=sunflowers", Alice, ifNoneMatch: "W/\"0\"")).Status.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task A_snippet_is_plain_text_with_highlight_offsets()        // BC-8
+    {
+        var (_, position) = await Create(Alice, "<script>alert(1)</script> Sunflowers");
+
+        var found = await Search("q=sunflowers&snippets=true", Alice, readAfter: position);
+
+        found.Status.ShouldBe(HttpStatusCode.OK, found.Body);
+        var item = JsonElement.Parse(found.Body).GetProperty("items").EnumerateArray().ShouldHaveSingleItem();
+        var snippet = item.GetProperty("snippet").GetString()!;
+        snippet.ShouldContain("<script>alert(1)</script>");                    // text: the client shows it, never renders it
+        var highlight = item.GetProperty("highlights").EnumerateArray().ShouldHaveSingleItem();
+        snippet.Substring(highlight.GetProperty("start").GetInt32(), highlight.GetProperty("length").GetInt32()).ShouldBe("Sunflowers");
+        found.Body.ShouldNotContain("<b>");
+        found.Body.ShouldNotContain("<script>");                                // JSON escapes '<' on the wire
     }
 
     [Fact]

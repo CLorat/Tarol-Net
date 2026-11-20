@@ -69,7 +69,36 @@ public sealed partial class ChangeEndpoints
     public static ChangeEndpoints Of(HttpContext http)
     {
         ArgumentNullException.ThrowIfNull(http);
+        StampRequestId(http);
         return http.RequestServices.GetRequiredService<ChangeEndpoints>();
+    }
+
+    /// <summary>
+    /// The id a user can quote for this request (BC-11): the W3C trace id of the request's activity (what the traces are
+    /// found by), else ASP.NET's <see cref="HttpContext.TraceIdentifier"/>. Every Tarol answer carries it as
+    /// <see cref="TarolHeaders.RequestId"/> and every problem as <c>traceId</c>.
+    /// </summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The id.</returns>
+    public static string RequestId(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        return System.Diagnostics.Activity.Current is { } activity && activity.TraceId != default
+            ? activity.TraceId.ToHexString()
+            : http.TraceIdentifier;
+    }
+
+    /// <summary>Sets <see cref="TarolHeaders.RequestId"/> on the answer (once).</summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The id.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static string StampRequestId(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var id = RequestId(http);
+        if (!http.Response.HasStarted)
+            http.Response.Headers[TarolHeaders.RequestId] = id;
+        return id;
     }
 
     // ── context ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -100,7 +129,7 @@ public sealed partial class ChangeEndpoints
         var context = OperationContext.Start(actor, tenant, _time);
 
         Option<IdempotencyKey> key = Option.None;
-        if (http.Request.Headers["Idempotency-Key"].ToString() is { Length: > 0 } k)
+        if (http.Request.Headers[TarolHeaders.IdempotencyKey].ToString() is { Length: > 0 } k)
         {
             if (k.Length > 255)
                 return (context, default, Invalid.Field("Idempotency-Key", "Length"));
@@ -168,6 +197,35 @@ public sealed partial class ChangeEndpoints
                 return (null, StatusCodes.Status413PayloadTooLarge);
         }
         return (buffer.WrittenSpan.ToArray(), 0);
+    }
+
+    /// <summary>
+    /// The body of a change entry: 415 when a non-empty body is not JSON (<c>Content-Type</c> missing, or not
+    /// <c>application/json</c> / <c>application/*+json</c>, or a charset other than UTF-8; BC-16), else <see cref="ReadBytes"/>.
+    /// An empty body needs no content type (the binder answers what is missing).
+    /// </summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The bytes, or <see langword="null"/> and the status to answer (413, 415).</returns>
+    public async ValueTask<(byte[]? Bytes, int Status)> ReadJson(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var (bytes, status) = await ReadBytes(http).ConfigureAwait(false);
+        if (bytes is null)
+            return (null, status);
+        return bytes.Length == 0 || IsJson(http.Request.ContentType) ? (bytes, 0) : (null, StatusCodes.Status415UnsupportedMediaType);
+    }
+
+    /// <summary>Whether a <c>Content-Type</c> names JSON in UTF-8: <c>application/json</c> or <c>application/*+json</c>.</summary>
+    /// <param name="contentType">The header value.</param>
+    /// <returns>Whether it is JSON.</returns>
+    public static bool IsJson(string? contentType)
+    {
+        if (!Microsoft.Net.Http.Headers.MediaTypeHeaderValue.TryParse(contentType, out var media))
+            return false;
+        if (media.Charset.HasValue && !media.Charset.Equals("utf-8", StringComparison.OrdinalIgnoreCase))
+            return false;
+        return media.Type.Equals("application", StringComparison.OrdinalIgnoreCase)
+            && (media.SubType.Equals("json", StringComparison.OrdinalIgnoreCase) || media.SubType.EndsWith("+json", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>The JSON names of members, from the naming policy unless the member names its own (<c>[JsonPropertyName]</c>).</summary>
@@ -258,7 +316,7 @@ public sealed partial class ChangeEndpoints
         if (outcome.Position != GlobalPosition.Start)
             http.Response.Headers[Positions.PositionHeader] = Positions.Format(outcome.Position);
         if (outcome.Replayed)
-            http.Response.Headers["Idempotent-Replayed"] = "true";
+            http.Response.Headers[TarolHeaders.IdempotentReplayed] = "true";
         if (!created)
         {
             http.Response.StatusCode = StatusCodes.Status204NoContent;
@@ -290,6 +348,7 @@ public sealed partial class ChangeEndpoints
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(violation);
         var status = violation.ToHttpStatusCode();
+        var requestId = StampRequestId(http);
         http.Response.StatusCode = status;
         if (status == StatusCodes.Status401Unauthorized)
             return;
@@ -297,9 +356,10 @@ public sealed partial class ChangeEndpoints
         if (Options.UseProblemDetailsService && http.RequestServices.GetService<IProblemDetailsService>() is { } service)
         {
             ProblemDetails problem = violation is Invalid invalid
-                ? new HttpValidationProblemDetails(Errors(invalid, naming)) { Title = "One or more fields are invalid." }
+                ? new HttpValidationProblemDetails(Errors(invalid, naming)) { Title = "One or more fields are invalid.", Extensions = { ["errorDetails"] = Details(invalid, naming) } }
                 : new ProblemDetails { Title = ((Error)violation).Code, Detail = ((Error)violation).Detail };
             problem.Status = status;
+            problem.Extensions["traceId"] = requestId;                         // the header's id, not ASP.NET's W3C traceparent
             if (violation is Error error)
                 problem.Extensions["code"] = error.Code;
             if (await service.TryWriteAsync(new ProblemDetailsContext { HttpContext = http, ProblemDetails = problem }).ConfigureAwait(false))
@@ -324,6 +384,8 @@ public sealed partial class ChangeEndpoints
                     writer.WriteEndArray();
                 }
                 writer.WriteEndObject();
+                writer.WritePropertyName("errorDetails");
+                WriteDetails(writer, invalid, naming);
             }
             else if (violation is Error error)
             {
@@ -332,8 +394,40 @@ public sealed partial class ChangeEndpoints
                 if (error.Detail is { } detail)
                     writer.WriteString("detail", detail);
             }
+            writer.WriteString("traceId", requestId);
             writer.WriteEndObject();
         }
+    }
+
+    /// <summary><c>errorDetails</c> (BC-5): per JSON path the errors with their code and, when the rule gave one, its detail
+    /// (e.g. the bounds); <c>errors</c> keeps the codes only.</summary>
+    private static void WriteDetails(Utf8JsonWriter writer, Invalid invalid, JsonNamingPolicy naming)
+    {
+        writer.WriteStartObject();
+        foreach (var group in invalid.Errors.GroupBy(f => JsonPath(f.Field, naming), StringComparer.Ordinal))
+        {
+            writer.WriteStartArray(group.Key);
+            foreach (var error in group)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("code", error.Code);
+                if (error.Detail is { } detail)
+                    writer.WriteString("detail", detail);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+        }
+        writer.WriteEndObject();
+    }
+
+    /// <summary><see cref="WriteDetails"/> as a <see cref="JsonElement"/> for an <see cref="IProblemDetailsService"/>
+    /// (its JSON metadata covers <see cref="JsonElement"/> also under Native AOT).</summary>
+    private static JsonElement Details(Invalid invalid, JsonNamingPolicy naming)
+    {
+        var buffer = new ArrayBufferWriter<byte>(256);
+        using (var writer = new Utf8JsonWriter(buffer))
+            WriteDetails(writer, invalid, naming);
+        return JsonElement.Parse(buffer.WrittenSpan);
     }
 
     private static Dictionary<string, string[]> Errors(Invalid invalid, JsonNamingPolicy naming)
@@ -391,7 +485,7 @@ public sealed partial class ChangeEndpoints
         var etag = $"\"{aggregate.Version}\"";
         http.Response.Headers.ETag = etag;
         CacheHeaders.Apply(http);                                        // the view's 200 and 304
-        if (http.Request.Headers.IfNoneMatch.Any(value => value == etag || value == "*"))
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;
             return null;

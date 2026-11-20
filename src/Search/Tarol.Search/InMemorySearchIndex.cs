@@ -121,7 +121,7 @@ public sealed class InMemorySearchIndex : ISearchIndex
         scored.Sort(static (x, y) => y.Score != x.Score ? y.Score.CompareTo(x.Score) : x.Entry.Document.Id.CompareTo(y.Entry.Document.Id));
         var ranked = scored.Take(SearchLimits.MaxDepth).ToList();
         var page = ranked.Skip(offset).Take(request.Limit)
-            .Select(s => new SearchHit(s.Entry.Document.Type, s.Entry.Document.Id, s.Entry.Document.Aggregate, s.Entry.Document.Title, s.Score,
+            .Select(s => SearchSnippets.Hit(s.Entry.Document.Type, s.Entry.Document.Id, s.Entry.Document.Aggregate, s.Entry.Document.Title, s.Score,
                 request.Snippets ? Snippet(s.Entry.Document, clauses) : null))
             .ToList();
         var next = offset + page.Count < ranked.Count ? SearchText.Cursor(request, version, offset + page.Count) : null;
@@ -228,7 +228,7 @@ public sealed class InMemorySearchIndex : ISearchIndex
             if (sb.Length > 0)
                 sb.Append(' ');
             var hit = SearchText.Words(p).Any(w => wanted.Any(q => Same(w, q) || w.StartsWith(q, StringComparison.Ordinal)));
-            sb.Append(hit ? "<b>" + p + "</b>" : p);
+            sb.Append(hit ? SearchSnippets.Open + p + SearchSnippets.Close : p);
         }
         return sb.ToString();
     }

@@ -15,6 +15,23 @@ public readonly record struct StreamRef(Guid Tenant, string StreamType, Guid Id)
 /// <param name="Streams">The streams that held the subject's data.</param>
 public sealed record SubjectErasure(Guid Tenant, Guid? Subject, bool AlreadyErased, IReadOnlyList<StreamRef> Streams);
 
+/// <summary>
+/// An erasure that wrote the tombstone but whose forgetting failed in some participants (implemented by
+/// <c>Tarol.DataProtection</c>'s <c>ErasureIncompleteException</c>). Running the erasure again is safe: the forgetting is
+/// idempotent. The admin entry answers it as 409 <c>DataProtection.ErasureIncomplete</c> (BC-10).
+/// </summary>
+public interface IIncompleteErasure
+{
+    /// <summary>The tenant.</summary>
+    Guid Tenant { get; }
+
+    /// <summary>The subject; <see langword="null"/> for a whole tenant.</summary>
+    Guid? Subject { get; }
+
+    /// <summary>The names of the participants that failed.</summary>
+    IReadOnlyList<string> Failed { get; }
+}
+
 /// <summary>A subject's data: one UTF-8 JSON document (DP-6).</summary>
 /// <param name="Tenant">The tenant.</param>
 /// <param name="Subject">The subject.</param>

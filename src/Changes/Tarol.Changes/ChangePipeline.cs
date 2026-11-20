@@ -132,6 +132,12 @@ public sealed partial class ChangePipeline
     [LoggerMessage(EventId = 7003, Level = LogLevel.Error, Message = "Change {Change} threw")]
     private static partial void Threw(ILogger logger, string change, Exception exception);
 
+    [LoggerMessage(EventId = 7004, Level = LogLevel.Warning, Message = "Idempotency key {Key} of {Scope} was presented again for another request")]
+    private static partial void KeyReused(ILogger logger, string scope, string key);
+
+    [LoggerMessage(EventId = 7005, Level = LogLevel.Warning, Message = "Idempotency key {Key} of {Scope} is held by a concurrent request")]
+    private static partial void DuplicateKey(ILogger logger, string scope, string key);
+
     /// <summary>Runs a change of an existing aggregate.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
     /// <param name="change">The input.</param>
@@ -253,6 +259,8 @@ public sealed partial class ChangePipeline
             if (options.Key.IsSome && conflict is Error { Type: ErrorType.Conflict, Code: StoreErrors.VersionConflictCode or StoreErrors.DuplicateKeyCode }
                 && await Seen(options, cancellationToken) is { } replayed)
                 return replayed;
+            if (conflict is Error { Code: StoreErrors.DuplicateKeyCode } && options.Key.TryGetValue(out IdempotencyKey duplicate))
+                DuplicateKey(_log, duplicate.Scope, duplicate.Key);
             return conflict;
         }
         var position = appended.TryGetValue(out GlobalPosition at) ? at : GlobalPosition.Start;
@@ -282,7 +290,10 @@ public sealed partial class ChangePipeline
         if (!(await _store.Seen(key, cancellationToken)).TryGetValue(out StoredOutcome stored))
             return null;
         if (stored.Fingerprint.TryGetValue(out string? first) && key.Fingerprint.TryGetValue(out string? now) && !string.Equals(first, now, StringComparison.Ordinal))
+        {
+            KeyReused(_log, key.Scope, key.Key);                                                // the scope stays in the log (BC-17)
             return StoreErrors.KeyReused(key);                                                  // R-9: another request under the key
+        }
         return new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true);
     }
 

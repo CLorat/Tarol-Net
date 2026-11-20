@@ -37,17 +37,21 @@ var zitadel = builder.AddContainer("zitadel", "ghcr.io/zitadel/zitadel", "v4.20.
     .WithEnvironment("ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE", "2030-01-01T00:00:00Z")
     .WithEnvironment("ZITADEL_FIRSTINSTANCE_PATPATH", "/out/admin.pat")
     .WaitFor(pg);
-var setup = builder.AddProject<Projects.ZitadelSetup>("zitadel-setup").WithArgs("http://localhost:8080", zitadelDir).WaitFor(zitadel);
+// ARTFLOW_TOKEN_LIFETIME=60s shortens the access tokens' lifetime (BC-9: an "expired token" test); default Zitadel's 12 h
+var setup = builder.AddProject<Projects.ZitadelSetup>("zitadel-setup")
+    .WithArgs("http://localhost:8080", zitadelDir, Environment.GetEnvironmentVariable("ARTFLOW_TOKEN_LIFETIME") ?? "").WaitFor(zitadel);
 
 var apiNative = Environment.GetEnvironmentVariable("ARTFLOW_API_NATIVE");
 var api = apiNative is null
     ? (IResourceBuilder<IResourceWithEnvironment>)builder.AddProject<Projects.Api>("api", launchProfileName: null).WithHttpEndpoint(port: 5080, name: "http", isProxied: false)
     : builder.AddExecutable("api", apiNative, Path.GetDirectoryName(apiNative)!).WithHttpEndpoint(port: 5080, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false).WithOtlpExporter();
 ((IResourceBuilder<IResourceWithEndpoints>)api).WithHttpHealthCheck("/health/ready");      // step 15: ready = snapshot fresh, schema ensured, LISTEN up
-api.WithReference(db)
+api.WithReference(db).WithReference(broker)                                               // BC-9: the hub forwards artflow.bid-placed
    .WithEnvironment("Zitadel__Authority", "http://localhost:8080")
    .WithEnvironment("Zitadel__ProjectFile", Path.Combine(zitadelDir, "project.txt"));
-((IResourceBuilder<IResourceWithWaitSupport>)api).WaitFor(db).WaitForCompletion(setup);
+if (Environment.GetEnvironmentVariable("ARTFLOW_TOKEN_LIFETIME") is { Length: > 0 })
+    api.WithEnvironment("Zitadel__ClockSkew", "00:00:00");                                 // short tokens: no 5-minute grace
+((IResourceBuilder<IResourceWithWaitSupport>)api).WaitFor(db).WaitFor(broker).WaitForCompletion(setup);
 
 var workerNative = Environment.GetEnvironmentVariable("ARTFLOW_WORKER_NATIVE");
 var worker = workerNative is null

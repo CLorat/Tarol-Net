@@ -1034,6 +1034,12 @@ erase by alice: {"tenant":"00000000-…","subject":"01a1ec1f-…","alreadyErased
 data-protection audit: export subject, erase subject, export subject; tombstone: true
 ```
 
+**Correction (2026-11-19, [client-contract.md](client-contract.md) §9):** this run predates the tenant fix `aca4182`
+("operations: require the tenant on the data-subject endpoints"). Since then the export and erase calls without `?tenant=`
+answer 400, and `apphost.sh` printed `email` errors and a 400 body for these lines until it passed
+`?tenant=00000000-0000-0000-0000-000000000000` (the bidder profile is tenant-less). The lines above are what the fixed script
+prints again.
+
 The rest of the run is unchanged:
 * 5 settlement sagas completed, 5 outbox rows left (their deadlines);
 * the auction list is current with 0 stale reads, and billing has 5/5 invoices issued and paid;
