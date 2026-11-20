@@ -73,19 +73,30 @@ Every PR lists its own; together, for a client written against `73b35ff`:
 
 ## 4. Pull requests
 
-| PR | Items |
-|---|---|
-| CC-0 | this note |
-| A1 | BC-6 |
-| A2 | BC-7 |
-| A3 | BC-8 |
-| A4 | BC-10 |
-| A5 | BC-16, BC-17, the AppHost tenant, the release lesson |
-| B1 | BC-1 |
-| B2 | BC-2, BC-15 |
-| B3 | BC-3 |
-| B4 | BC-9 |
-| C… | BC-5, BC-14, BC-11/12/13, BC-4 |
+Stacked: each PR's base is the one before it; retarget each to `main` before its base is merged.
+
+| PR | Items | § |
+|---|---|---|
+| #91 | this note; the Changes integration tests compile again | 1–4 |
+| #92 | BC-6 list ETag | 5 |
+| #93 | BC-7 `If-None-Match` | 6 |
+| #94 | BC-8 search snippets | 7 |
+| #95 | BC-10 admin problems | 8 |
+| #96 | BC-16, BC-17, the AppHost tenant, the release lesson | 9 |
+| #97 | the erasure's search participant in the API process (found) | 10 |
+| #98 | BC-1 CORS | 11 |
+| #99 | BC-2 hub token, BC-15 | 12 |
+| #100 | BC-3 OpenAPI | 13 |
+| #101 | BC-9 sample for a browser e2e, `ZitadelOptions.ClockSkew` | 14 |
+| #102 | BC-5 `errorDetails`; CC-5 … CC-8 recorded | 15 |
+| #103 | BC-14 unknown list keys | 16 |
+| #104 | BC-11 request id | 17 |
+| #105 | BC-12 hub error codes | 18 |
+| #106 | BC-13 `GET /me` | 19 |
+| #107 | TWEB007 (CC-5) | 20 |
+| #108 | BC-4 `x-tarol-rules`, TVAL010 | 21 |
+
+The reply for the client is Tarol-Svelte `docs/backend/tarol-net-reply.md`.
 
 ## 5. PR A1: the list ETag covers `next` and `total` (BC-6)
 
