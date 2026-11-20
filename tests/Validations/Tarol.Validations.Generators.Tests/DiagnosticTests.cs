@@ -88,6 +88,25 @@ public class DiagnosticTests
     }
 
     [Fact]
+    public void TVAL010_A_Pattern_JavaScript_Reads_Otherwise_Warns()                  // BC-4
+    {
+        var found = Of("TVAL010",
+            """public readonly partial record struct A([Pattern(@"\Aabc\z")] string Value);""",
+            """public readonly partial record struct B([Pattern("(?>a+)b")] string Value);""",
+            """public readonly partial record struct C([Pattern("(?i)abc")] string Value);""",
+            """public readonly partial record struct D([Pattern(@"\p{L}+")] string Value);""",
+            """public readonly partial record struct Ok([Pattern(@"^[A-Z]{3}-\d{2}$", IgnoreCase = true)] string Value);""",
+            """public readonly partial record struct Escaped([Pattern(@"^a\\Ab$")] string Value);""");
+
+        found.Select(Message).ShouldBe([
+            "The [Pattern] of 'Value' is not ECMAScript-compatible: \\A is .NET-only (use ^ and $); a browser client cannot check the same rule (x-tarol-rules)",
+            "The [Pattern] of 'Value' is not ECMAScript-compatible: atomic groups (?>…) are .NET-only; a browser client cannot check the same rule (x-tarol-rules)",
+            "The [Pattern] of 'Value' is not ECMAScript-compatible: inline options (?i…) are .NET-only (use IgnoreCase); a browser client cannot check the same rule (x-tarol-rules)",
+        ], ignoreOrder: true, customMessage: string.Join("\n", found.Select(Message)));
+        found.ShouldAllBe(d => d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
     public void TVAL006_Construction_Outside_The_Value_Object()
     {
         var found = Of("TVAL006", """

@@ -137,6 +137,28 @@ public sealed class EdgeTests
         option.GetProperty("type").EnumerateArray().Select(t => t.GetString()).ShouldBe(["null", "string"], ignoreOrder: true);
     }
 
+    [Fact]
+    public async Task Every_rule_carrying_schema_has_its_rules_for_the_client()            // BC-4
+    {
+        await using var app = await Start();
+
+        var schemas = JsonElement.Parse((await app.Get("/openapi/v1.json", Nobody)).Body).GetProperty("components").GetProperty("schemas");
+        static string Rules(JsonElement schema) => JsonSerializer.Serialize(schema.GetProperty("x-tarol-rules"));
+
+        Rules(schemas.GetProperty("Title")).ShouldBe("""[{"rule":"Length","code":"Length","min":3,"max":60}]""");             // a single-field value object
+        Rules(schemas.GetProperty("Contact")).ShouldBe("""[{"rule":"Email","code":"Email"}]""");
+        schemas.GetProperty("Contact").GetProperty("format").GetString().ShouldBe("email");
+        schemas.GetProperty("Contact").GetProperty("x-tarol-email").GetString()!.ShouldContain("at most 254 characters");
+        var offer = schemas.GetProperty("MakeOffer").GetProperty("properties");
+        Rules(offer.GetProperty("note")).ShouldBe("""[{"rule":"Length","code":"Length","min":2,"max":40}]""");                    // an input's own member
+        (offer.GetProperty("note").GetProperty("minLength").GetInt32(), offer.GetProperty("note").GetProperty("maxLength").GetInt32()).ShouldBe((2, 40));
+        Rules(offer.GetProperty("contacts")).ShouldBe("""[{"rule":"Count","code":"Count","min":1,"max":3}]""");                    // Count
+        (offer.GetProperty("contacts").GetProperty("minItems").GetInt32(), offer.GetProperty("contacts").GetProperty("maxItems").GetInt32()).ShouldBe((1, 3));
+        var price = schemas.GetProperty("Price").GetProperty("properties");                                                          // a multi-field value object
+        Rules(price.GetProperty("value")).ShouldBe("""[{"rule":"Range","code":"Range","min":0}]""");
+        Rules(price.GetProperty("currency")).ShouldBe("""[{"rule":"Pattern","code":"Pattern","pattern":"^[A-Z]{3}$","flags":"i"}]""");   // IgnoreCase
+    }
+
     private static string[] Codes(JsonElement operation) => [.. operation.GetProperty("x-tarol-errors").EnumerateArray().Select(c => c.GetString()!)];
 
     private static string[] Headers(JsonElement operation, string status)

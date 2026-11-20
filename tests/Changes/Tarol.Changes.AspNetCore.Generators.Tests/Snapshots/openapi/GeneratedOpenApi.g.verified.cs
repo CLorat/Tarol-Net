@@ -35,6 +35,75 @@ public static class GeneratedOpenApi
 
     private const string ProblemSchemaId = "TarolProblem";
 
+    /// <summary>A validation rule as the client checks it (BC-4): the attribute, the code it reports, its bounds, its pattern and flags.</summary>
+    private readonly record struct Rule(string Name, string Code, string? Min, string? Max, string? Pattern, string? Flags);
+
+    /// <summary>Tarol.Validations' [Email] (Rules.Email), for clients that check it the same way.</summary>
+    private const string EmailRule = "one @ with 1 to 64 characters before it; a domain of at most 253 characters that contains a dot, does not start or end with one and has no empty label; no white space; at most 254 characters";
+
+    private static string JsonName(global::System.Text.Json.Serialization.Metadata.JsonPropertyInfo property, string member, string? explicitName)
+        => explicitName ?? property.Options.PropertyNamingPolicy?.ConvertName(member) ?? member;
+
+    private static global::System.Text.Json.Nodes.JsonNode? Bound(string? value)
+        => value is null ? null
+         : decimal.TryParse(value, global::System.Globalization.NumberStyles.Float, global::System.Globalization.CultureInfo.InvariantCulture, out var number)
+             ? global::System.Text.Json.Nodes.JsonValue.Create(number)
+             : global::System.Text.Json.Nodes.JsonValue.Create(value);
+
+    /// <summary><c>x-tarol-rules</c> (BC-4) and, with <paramref name="keywords"/>, the JSON Schema keywords of a member's rules
+    /// (a value object's schema has its keywords already).</summary>
+    private static void Rules(global::Microsoft.OpenApi.OpenApiSchema schema, Rule[] rules, bool keywords)
+    {
+        var list = new global::System.Text.Json.Nodes.JsonArray();
+        foreach (var rule in rules)
+        {
+            var item = new global::System.Text.Json.Nodes.JsonObject
+            {
+                ["rule"] = rule.Name,
+                ["code"] = rule.Code,
+            };
+            if (rule.Min is not null)
+                item["min"] = Bound(rule.Min);
+            if (rule.Max is not null)
+                item["max"] = Bound(rule.Max);
+            if (rule.Pattern is not null)
+                item["pattern"] = rule.Pattern;
+            if (rule.Flags is not null)
+                item["flags"] = rule.Flags;
+            list.Add((global::System.Text.Json.Nodes.JsonNode)item);
+            if (rule.Name == "Email")
+                Extension(schema.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>(), "x-tarol-email",
+                    global::System.Text.Json.Nodes.JsonValue.Create(EmailRule));
+            if (!keywords)
+                continue;
+            switch (rule.Name)
+            {
+                case "Length":
+                    schema.MinLength = rule.Min is { } min && int.TryParse(min, out var minLength) && minLength > 0 ? minLength : schema.MinLength;
+                    schema.MaxLength = rule.Max is { } max && int.TryParse(max, out var maxLength) ? maxLength : schema.MaxLength;
+                    break;
+                case "NotEmpty":
+                    schema.MinLength ??= 1;
+                    break;
+                case "Count":
+                    schema.MinItems = rule.Min is { } fewest && int.TryParse(fewest, out var minItems) && minItems > 0 ? minItems : schema.MinItems;
+                    schema.MaxItems = rule.Max is { } most && int.TryParse(most, out var maxItems) ? maxItems : schema.MaxItems;
+                    break;
+                case "Range":
+                    schema.Minimum = rule.Min ?? schema.Minimum;
+                    schema.Maximum = rule.Max ?? schema.Maximum;
+                    break;
+                case "Pattern":
+                    schema.Pattern = rule.Pattern;
+                    break;
+                case "Email":
+                    schema.Format = "email";
+                    break;
+            }
+        }
+        Extension(schema.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>(), "x-tarol-rules", list);
+    }
+
     /// <summary>The tag of <c>Tarol.Operations</c>' admin endpoints.</summary>
     private const string AdminTag = "Tarol.Admin";
 
@@ -474,6 +543,10 @@ public static class GeneratedOpenApi
         var type = context.JsonTypeInfo.Type;
         var services = context.ApplicationServices;
         Numbers(schema);
+        if (schema.Type is { } array && (array & global::Microsoft.OpenApi.JsonSchemaType.Array) != 0 && schema.Items is null
+            && (type.IsArray ? type.GetElementType() : type.IsGenericType && type.GetGenericArguments().Length == 1 ? type.GetGenericArguments()[0] : null) is { } element
+            && (element == typeof(global::Shop.Note) || element == typeof(global::Shop.Quantity)))
+            schema.Items = await context.GetOrCreateSchemaAsync(element, null, cancellationToken);
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(global::Tarol.StronglyTypedId.Id<>))
         {
             (schema.Type, schema.Format) = (global::Microsoft.OpenApi.JsonSchemaType.String, "uuid");
@@ -486,12 +559,21 @@ public static class GeneratedOpenApi
             await Optional(schema, context, type.GetGenericArguments()[0], cancellationToken);
             return;
         }
+        if (type == typeof(global::Shop.Note))
+        {
+            schema.Type = global::Microsoft.OpenApi.JsonSchemaType.String;
+            schema.MinLength = 1;
+            schema.MaxLength = 80;
+            Rules(schema, new Rule[] { new("Length", "Length", "1", "80", null, null) }, keywords: false);
+            return;
+        }
         if (type == typeof(global::Shop.Quantity))
         {
             schema.Type = global::Microsoft.OpenApi.JsonSchemaType.Integer;
             schema.Format = "int32";
             schema.Minimum = "1";
             schema.Maximum = "10";
+            Rules(schema, new Rule[] { new("Range", "Range", "1", "10", null, null) }, keywords: false);
             return;
         }
         var web = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Tarol.Changes.AspNetCore.ChangeEndpoints>(services);

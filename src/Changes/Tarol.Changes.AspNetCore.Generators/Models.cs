@@ -40,7 +40,17 @@ internal sealed record HookModel(string Sender, string Type, string? Version, st
 
 /// <summary>A value object's schema for OpenAPI (from its single positional parameter and its rule attributes).</summary>
 internal sealed record ValueObjectModel(string FullName, string JsonType, string? Format, int? MinLength, int? MaxLength, string? Minimum, string? Maximum,
-    string? Pattern);
+    string? Pattern)
+{
+    /// <summary>The rules as <c>x-tarol-rules</c> (BC-4).</summary>
+    public EquatableArray<RuleModel> Rules { get; init; }
+}
+
+/// <summary>One validation rule as the client checks it (BC-4): the attribute, the code it reports, its bounds or pattern.</summary>
+internal sealed record RuleModel(string Rule, string Code, string? Min, string? Max, string? Pattern, string? Flags);
+
+/// <summary>The rules of one member (a constructor parameter) of an input, a multi-field or class value object (BC-4).</summary>
+internal sealed record MemberRulesModel(string Type, string Member, string? JsonName, EquatableArray<RuleModel> Rules);
 
 internal sealed record DiagnosticInfo(string Id, LocationInfo? Location, EquatableArray<string> Arguments)
 {
@@ -57,6 +67,10 @@ internal sealed record DiagnosticInfo(string Id, LocationInfo? Location, Equatab
     }
 }
 
-internal sealed record EntryResult(EntryModel? Model, EquatableArray<ValueObjectModel> ValueObjects, EquatableArray<DiagnosticInfo> Diagnostics);
+internal sealed record EntryResult(EntryModel? Model, EquatableArray<ValueObjectModel> ValueObjects, EquatableArray<DiagnosticInfo> Diagnostics)
+{
+    /// <summary>The member rules of the input and of the types its members reach (BC-4).</summary>
+    public EquatableArray<MemberRulesModel> MemberRules { get; init; }
+}
 
 internal sealed record HookResult(HookModel? Model, DiagnosticInfo? Diagnostic);

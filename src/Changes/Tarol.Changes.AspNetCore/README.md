@@ -63,6 +63,10 @@ app.MapChanges();
   `x-tarol-id: "<Aggregate>"` on `Id<T>` schemas and path parameters; `Tarol-Position` and `Idempotent-Replayed` on writes,
   `Tarol-Stale` on reads; numbers typed `number`/`integer` (not the web defaults' `["number","string"]` with a pattern);
   `Option<T>` as `T` or `null`; `MapTarolSearch` and `MapTarolAdmin` (Tarol.Operations) with their parameters and answers.
+  Every rule-carrying schema has `x-tarol-rules: [{rule, code, min?, max?, pattern?, flags?}]` with the codes a 400 reports:
+  value objects, the members of multi-field and class value objects and of `IValidatable` inputs (with `minLength`,
+  `minimum`, `minItems`, … as JSON Schema keywords too), `Count`, `IgnoreCase` (`flags: "i"`), Unicode categories
+  (`flags: "u"`), and `x-tarol-email` with `[Email]`'s exact check. Patterns a JavaScript `RegExp` reads differently warn TVAL010.
 * **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
 * **`GET /me`** (opt-in, `app.MapTarolMe()`): `{subject, actor: {kind, id}, tenant, roles}` of an authenticated caller by the
   entries' own rules (actor rule, tenant claim and mapping, role claims), so a UI shows role-dependent actions without

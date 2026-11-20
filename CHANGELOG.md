@@ -8,6 +8,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* `x-tarol-rules` in the OpenAPI document (BC-4): every rule-carrying schema (value objects, members of multi-field and class
+  value objects and of `IValidatable` inputs, `Count`) lists `{rule, code, min?, max?, pattern?, flags?}`; `IgnoreCase` is
+  `flags: "i"`, Unicode categories `"u"`; `x-tarol-email` describes `[Email]`; a list of value objects gets its `items`.
+  TVAL010 (warning) in `Tarol.Validations`: a `[Pattern]` that is not ECMAScript-compatible.
+
 * TWEB007 (warning, CC-5): an entry's input or view member `Option<T>` with a parameter default; ASP.NET's OpenAPI document
   throws on it.
 

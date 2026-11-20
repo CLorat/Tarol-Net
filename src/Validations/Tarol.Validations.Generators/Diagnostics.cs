@@ -77,8 +77,17 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
         description: "Source generators do not see each other's output, so a JsonSerializerContext in the assembly that declares a value object ignores its generated [JsonConverter]. ValueObjectJson.Options(context) puts the value-object resolver first. Contexts in another assembly, and options that already contain ValueObjectJson.Resolver, are not affected.");
 
+    /// <summary>TVAL010: a [Pattern] a JavaScript client cannot check the same way (BC-4).</summary>
+    public static readonly DiagnosticDescriptor NotEcmaScript = new(
+        "TVAL010",
+        "Pattern is not ECMAScript-compatible",
+        "The [Pattern] of '{0}' is not ECMAScript-compatible: {1}; a browser client cannot check the same rule (x-tarol-rules)",
+        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "The OpenAPI document gives the pattern to clients (x-tarol-rules), which check it with JavaScript's RegExp. Use the syntax both engines read the same way: no \\A, \\Z, \\z, \\G, atomic groups (?>…), inline options (?i), comments (?#…) or .NET-only constructs; [0-9] rather than \\d where the input may hold non-ASCII digits.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
+        "TVAL010" => NotEcmaScript,
         "TVAL001" => NotPartial,
         "TVAL002" => Unsupported,
         "TVAL004" => NotApplicable,

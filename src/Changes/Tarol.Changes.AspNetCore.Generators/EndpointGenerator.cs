@@ -29,6 +29,7 @@ public sealed class EndpointGenerator : IIncrementalGenerator
         });
         var models = entries.Where(static e => e.Model is not null).Select(static (e, _) => e.Model!).Collect();
         var valueObjects = entries.SelectMany(static (e, _) => e.ValueObjects).Collect();
+        var memberRules = entries.SelectMany(static (e, _) => e.MemberRules).Collect();
 
         var hooks = context.SyntaxProvider
             .ForAttributeWithMetadataName(Discovery.WebhookAttribute, static (node, _) => node is MethodDeclarationSyntax,
@@ -54,12 +55,12 @@ public sealed class EndpointGenerator : IIncrementalGenerator
             spc.AddSource("GeneratedEndpoints.g.cs", Emitter.Endpoints(ordered, hookList, name));
         });
 
-        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(openApi).Combine(assembly), static (spc, all) =>
+        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(assembly), static (spc, all) =>
         {
-            var (((entryModels, objects), available), name) = all;
+            var ((((entryModels, objects), rules), available), name) = all;
             if (!available || entryModels.IsEmpty)
                 return;
-            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, name));
+            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name));
         });
     }
 }

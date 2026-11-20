@@ -32,7 +32,7 @@ internal sealed class Emitter
 
     public EquatableArray<DiagnosticInfo> Diagnostics => new(_diagnostics.ToImmutable());
 
-    public bool HasErrors => _diagnostics.Any(static d => d.Id is not "TVAL008");
+    public bool HasErrors => _diagnostics.Any(static d => d.Id is not ("TVAL008" or "TVAL010"));
 
     private string TypeName => _type.Name;
 
@@ -725,6 +725,9 @@ internal sealed class Emitter
             return null;
         }
 
+        if (EcmaScriptProblem(pattern!) is { } problem)
+            Report("TVAL010", Where(rule), member, problem);
+
         var name = "TarolPattern_" + member + "_" + _fields.Count.ToString(CultureInfo.InvariantCulture);
         var options = "global::System.Text.RegularExpressions.RegexOptions.CultureInvariant" +
                       (ignoreCase ? " | global::System.Text.RegularExpressions.RegexOptions.IgnoreCase" : string.Empty);
@@ -734,6 +737,45 @@ internal sealed class Emitter
                     " = new(" + SyntaxNames.Literal(pattern!) + ", " + options + ", global::System.TimeSpan.FromMilliseconds(" +
                     timeout.ToString(CultureInfo.InvariantCulture) + "));\n");
         return name;
+    }
+
+    /// <summary>Why a pattern does not mean the same in JavaScript's RegExp (BC-4), or <see langword="null"/>: it must parse with
+    /// <see cref="RegexOptions.ECMAScript"/> and use none of the .NET-only constructs that option still accepts.</summary>
+    internal static string? EcmaScriptProblem(string pattern)
+    {
+        try
+        {
+            _ = new Regex(pattern, RegexOptions.ECMAScript);
+        }
+        catch (ArgumentException e)
+        {
+            return "it does not parse as ECMAScript (" + e.Message + ")";
+        }
+
+        for (var i = 0; i < pattern.Length - 1; i++)
+        {
+            if (pattern[i] == '\\')
+            {
+                var next = pattern[i + 1];
+                if (next is 'A' or 'Z' or 'z' or 'G')
+                    return "\\" + next + " is .NET-only (use ^ and $)";
+                i++;                                                            // an escaped character
+                continue;
+            }
+
+            if (pattern[i] == '(' && pattern[i + 1] == '?' && i + 2 < pattern.Length)
+            {
+                var kind = pattern[i + 2];
+                if (kind == '>')
+                    return "atomic groups (?>…) are .NET-only";
+                if (kind == '#')
+                    return "comments (?#…) are .NET-only";
+                if (kind is 'i' or 'm' or 's' or 'n' or 'x' or '-')
+                    return "inline options (?" + kind + "…) are .NET-only (use IgnoreCase)";
+            }
+        }
+
+        return null;
     }
 
     // ---------------------------------------------------------------- helpers

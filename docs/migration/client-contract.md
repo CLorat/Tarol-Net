@@ -398,3 +398,30 @@ packages):
 * **Tests**: `DiagnosticTests.TWEB007_an_option_member_with_a_default_warns` (a change, a view, and no warning without the
   default). `AnalyzerReleases.Unshipped.md` lists TWEB007.
 * **Public API**: none. **Suppressions**: none.
+
+## 21. PR C7: complete validation metadata for clients (BC-4)
+
+* **Where the rules come from**: the endpoint generator reads the same `Tarol.Validations` attributes the validation generator
+  reads (`Length`, `Range`, `Pattern` with `IgnoreCase`, `Email`, `NotEmpty`, `Count`), on every type an input's body members
+  reach (through `Option<T>`, `T?`, lists and arrays, four levels deep):
+  * a single-field value object (`Title([Length(3, 60)] string Value)`): its own schema, as before, plus `x-tarol-rules`;
+  * the members of a multi-field or class value object (`Price([Range(Min = 0)] decimal Value, [Pattern(…, IgnoreCase = true)]
+    string Currency)`) and of an `IValidatable` input (`CreateAuction([Range(1, 1_000_000)] decimal Reserve)`): the property
+    schemas, matched by declaring type and JSON name, with `x-tarol-rules` and the JSON Schema keywords (`minLength`,
+    `maxLength`, `minimum`, `maximum`, `pattern`, `format: email`, `minItems`, `maxItems`).
+* **Shape**: `x-tarol-rules: [{"rule": "Length", "code": "Length", "min": 3, "max": 60}]`; `code` is what a 400 reports
+  (`NotEmpty` reports `Required`); `min`/`max` are numbers; `pattern` and `flags` (`i` for `IgnoreCase`, `u` when the pattern
+  uses `\p{…}`, which `RegExp` reads only with `u`). `[Email]` adds `x-tarol-email` with `Rules.Email`'s exact structural
+  check, so a client can implement the same test instead of a regex.
+* **TVAL010** (warning, `Tarol.Validations`): a `[Pattern]` that does not parse with `RegexOptions.ECMAScript`, or that uses
+  `\A`, `\Z`, `\z`, `\G`, atomic groups, comments or inline options (which that option still accepts). `\d` and `\w` match
+  Unicode digits and letters in .NET but ASCII in JavaScript: the description says so; not reported (they are too common to
+  warn on). No pattern in the repository or the sample is reported.
+* **Found and fixed** **[verified]**: a list of value objects (`IReadOnlyList<Contact>`) had an array schema without `items` (the
+  value-object converter gives an empty schema); the transformer fills `items` from the value object's own schema.
+* **Tests**: `EdgeTests.Every_rule_carrying_schema_has_its_rules_for_the_client` (a value object, an e-mail value object with
+  `x-tarol-email`, an input member with keywords, `Count` with `minItems`/`maxItems`, a multi-field value object with `IgnoreCase`)
+  on a new test entry `MakeOffer`; `DiagnosticTests.TVAL010_A_Pattern_JavaScript_Reads_Otherwise_Warns` (three warnings, a
+  correct pattern and an escaped `\\A` without); the AOT smoke app checks the rules natively (0 IL warnings, passed); the
+  `openapi`/`endpoints` snapshots accepted (the rule tables).
+* **Public API**: none (generated code and a diagnostic). **Behaviour**: the document only. **Suppressions**: none.
