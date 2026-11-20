@@ -10,8 +10,8 @@ using Microsoft.Extensions.Logging;
 using Tarol.Changes;
 using Tarol.Changes.AspNetCore;
 using Tarol.Changes.AspNetCore.Tests;
-using Tarol.Messaging.SignalR;
 using Tarol.Messaging;
+using Tarol.Messaging.SignalR;
 
 namespace Tarol.Security.Zitadel.IntegrationTests;
 
