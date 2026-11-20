@@ -83,7 +83,9 @@ async Task<(HttpStatusCode Status, string Body, HttpResponseMessage R)> Send(Htt
 }
 
 var ends = TimeProvider.System.GetUtcNow().AddDays(7).ToString("O");
-var auction = $$"""{"title":"Sunflowers","reserve":100,"endsAt":"{{ends}}"}""";
+// a word of its own per run: TAROL_PG may be a database earlier runs wrote to, whose auctions would push this one off the page
+var word = string.Concat(System.Security.Cryptography.RandomNumberGenerator.GetItems<char>("abcdefghijklmnopqrstuvwxyz", 10));
+var auction = $$"""{"title":"Sunflowers {{word}}","reserve":100,"endsAt":"{{ends}}"}""";
 var key = "k-" + Guid.CreateVersion7().ToString("N");                               // per run: the database may be reused
 var created = await Send(HttpMethod.Post, "/auctions", auction, "alice", h => h.Add("Idempotency-Key", key));
 Check("creation: 201 with Location and ETag", created.Status == HttpStatusCode.Created && created.R.Headers.ETag?.Tag == "\"1\"" && created.R.Headers.Location is not null, created.Body);
@@ -113,7 +115,7 @@ var listed = list.Status == HttpStatusCode.OK ? JsonElement.Parse(list.Body) : d
 Check("list after the bid's Tarol-Position: the row, its ETag and the position", list.Status == HttpStatusCode.OK && position.Length > 0
     && listed.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id && i.GetProperty("bids").GetInt32() == 1)
     && list.R.Headers.ETag is { IsWeak: true } && list.R.Headers.Contains(Positions.PositionHeader) && !list.R.Headers.Contains(Positions.StaleHeader), list.Body);
-var search = await Send(HttpMethod.Get, "/search?q=sunflowers&counts=true&snippets=true", null, "alice", h => h.Add(Positions.ReadAfterHeader, position));
+var search = await Send(HttpMethod.Get, $"/search?q=sunflowers%20{word}&counts=true&snippets=true", null, "alice", h => h.Add(Positions.ReadAfterHeader, position));
 var searched = search.Status == HttpStatusCode.OK ? JsonElement.Parse(search.Body) : default;
 Check("search after the bid's Tarol-Position: the auction, counts, a weak ETag (step 18D)", search.Status == HttpStatusCode.OK
     && searched.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id)

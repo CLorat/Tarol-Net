@@ -436,3 +436,7 @@ packages):
   correct pattern and an escaped `\\A` without); the AOT smoke app checks the rules natively (0 IL warnings, passed); the
   `openapi`/`endpoints` snapshots accepted (the rule tables).
 * **Public API**: none (generated code and a diagnostic). **Behaviour**: the document only. **Suppressions**: none.
+* **Found in the verification run** **[verified]**: `Tarol.Changes.AspNetCore.AotSmoke` (and `eng/verify-packages.sh`, which runs it)
+  failed its search check after about 20 runs against the same `TAROL_PG` database: the earlier runs' "Sunflowers" auctions
+  pushed the new one off the first page (a weakness of the check from step 18D; CI's database is fresh per run). The auction's
+  title has a random word per run and the search asks for it; two runs against the same database pass.
