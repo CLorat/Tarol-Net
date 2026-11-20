@@ -31,7 +31,8 @@ if [ "${ARTFLOW_STAY_UP:-}" = 1 ]; then
 fi
 # BC-9: what a browser e2e relies on: the PKCE app, a 400 on the right field, the hub's push with the token in the query
 web=$(awk '{print $2}' "$zt/web.txt")
-echo "browser app: authorize with PKCE $(curl -s -o /dev/null -w '%{http_code} -> %{redirect_url}' "http://localhost:8080/oauth/v2/authorize?client_id=$web&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fcallback&response_type=code&scope=openid&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256" | cut -d'?' -f1); human users: $(awk '{printf "%s (%s) ", $2, $5}' "$zt/users.txt")"
+# BC-18: the redirect must end on a login page that answers 200 (a 302 to a login the AppHost does not run was a 404)
+echo "browser app: authorize with PKCE $(curl -s -o /dev/null -L -w '%{http_code} at %{url_effective}' "http://localhost:8080/oauth/v2/authorize?client_id=$web&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fcallback&response_type=code&scope=openid&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256" | cut -d'?' -f1); human users: $(awk '{printf "%s (%s) ", $2, $5}' "$zt/users.txt")"
 echo "validation: reserve 0 answers $(curl -s -w ' %{http_code}' -X POST "$api/auctions" -H "Authorization: Bearer $alice" -H 'Content-Type: application/json' -d '{"reserve":0}' | python3 -c 'import json,sys; t=sys.stdin.read(); b,s=t.rsplit(" ",1); print(s, json.loads(b)["errors"])')"
 pushed=$(curl -s -X POST "$api/auctions" -H "Authorization: Bearer $alice" -H 'Content-Type: application/json' -d '{"reserve":100}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 echo "hub push (WebSocket, ?access_token=): $(python3 "$(dirname "$0")/hubcheck.py" "ws://localhost:5080/tarol/messages" "$bob" artflow.bid-placed 30 -- \

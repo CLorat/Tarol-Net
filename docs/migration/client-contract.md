@@ -95,6 +95,7 @@ Stacked: each PR's base is the one before it; retarget each to `main` before its
 | #106 | BC-13 `GET /me` | 19 |
 | #107 | TWEB007 (CC-5) | 20 |
 | #108 | BC-4 `x-tarol-rules`, TVAL010 | 21 |
+| (this) | BC-18 (Tarol-Svelte) a login page for the sample's browser app | 22 |
 
 The reply for the client is Tarol-Svelte `docs/backend/tarol-net-reply.md`.
 
@@ -440,3 +441,18 @@ packages):
   failed its search check after about 20 runs against the same `TAROL_PG` database: the earlier runs' "Sunflowers" auctions
   pushed the new one off the first page (a weakness of the check from step 18D; CI's database is fresh per run). The auction's
   title has a random word per run and the search asks for it; two runs against the same database pass.
+
+## 22. A login page for the sample's browser app (Tarol-Svelte BC-18)
+
+* **Finding** (Tarol-Svelte, taking up §14 against `fe0a2bd`) **[verified]**: the PKCE authorize request of `artflow-web` ended
+  on `GET /ui/v2/login/login?authRequest=…` → **404**. Zitadel v4.20.3 has the instance feature `loginV2.required: true` by
+  default, and login v2 is a separate application the AppHost does not run. §14's run checked only the 302.
+* **Change** (`ZitadelSetup`): the instance feature `loginV2.required` is turned off (`PUT /v2/features/instance`), so the
+  login built into Zitadel (v1, `/ui/login/login`) serves the app; the default login policy has `mfaInitSkipLifetime: 0s`
+  (no "2-Factor Setup" prompt on a user's first sign-in), no self-registration, no external IdPs, no passwordless.
+  `apphost.sh` follows the authorize redirect and prints the final status and page (was: the 302 and its target).
+* **Behaviour**: the sample only. **Public API**: none. **Suppressions**: none.
+* **AppHost run** (`apphost.sh … 1`, JIT, NATS, 2026-11-20) **[verified]**: `browser app: authorize with PKCE 200 at
+  http://localhost:8080/ui/login/login`; the rest of the run as in §14. With `ARTFLOW_STAY_UP=1`, Chromium (Playwright) signs
+  ada in on the login page (user name, password) and Zitadel redirects to `http://localhost:5173/?code=…` without a prompt;
+  so does cleo's first sign-in.

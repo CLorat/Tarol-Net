@@ -70,6 +70,15 @@ foreach (var (login, first, roles) in new[] { ("ada", "Ada", "\"seller\",\"tarol
     users.Append(System.Globalization.CultureInfo.InvariantCulture, $"user {login} {password} {user} {roles.Replace("\"", "", StringComparison.Ordinal)}\n");
 }
 await File.WriteAllTextAsync(Path.Combine(dir, "users.txt"), users.ToString());
+// BC-18: a login page for the browser app. Zitadel v4 sends every authorize request to login v2 (instance feature
+// loginV2.required), a separate application this AppHost does not run (/ui/v2/login/login answered 404); the login built
+// into Zitadel (v1, /ui/login) serves the PKCE app instead. No "set up 2-factor?" prompt on a user's first sign-in.
+_ = await Call(HttpMethod.Put, "/v2/features/instance", """{"loginV2":{"required":false}}""");
+_ = await Call(HttpMethod.Put, "/admin/v1/policies/login", """
+    {"allowUsernamePassword":true,"allowRegister":false,"allowExternalIdp":false,"passwordlessType":"PASSWORDLESS_TYPE_NOT_ALLOWED",
+     "passwordCheckLifetime":"864000s","externalLoginCheckLifetime":"864000s","mfaInitSkipLifetime":"0s",
+     "secondFactorCheckLifetime":"64800s","multiFactorCheckLifetime":"43200s"}
+    """);
 if (tokenLifetime is not null)                                                          // BC-9: an "expired token" test
     _ = await Call(HttpMethod.Put, "/admin/v1/settings/oidc", $$"""
         {"accessTokenLifetime":"{{tokenLifetime}}","idTokenLifetime":"{{tokenLifetime}}","refreshTokenIdleExpiration":"2592000s","refreshTokenExpiration":"7776000s"}
