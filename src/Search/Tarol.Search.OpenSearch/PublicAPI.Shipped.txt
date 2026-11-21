@@ -1,1 +1,30 @@
 #nullable enable
+Tarol.Search.OpenSearch.OpenSearchIndex
+Tarol.Search.OpenSearch.OpenSearchIndex.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Search.OpenSearch.OpenSearchIndex.Documents(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! aggregates, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>
+Tarol.Search.OpenSearch.OpenSearchIndex.IndexOf(int version) -> string!
+Tarol.Search.OpenSearch.OpenSearchIndex.OpenSearchIndex(System.Net.Http.HttpClient! http, Tarol.Search.ISearchCheckpoints! checkpoints, Tarol.Search.OpenSearch.OpenSearchOptions? options = null) -> void
+Tarol.Search.OpenSearch.OpenSearchIndex.Prepare(Tarol.Search.SearchIndexDefinition! definition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.OpenSearch.OpenSearchIndex.Problem.get -> string?
+Tarol.Search.OpenSearch.OpenSearchIndex.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Search.StreamDocuments!>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.OpenSearch.OpenSearchIndex.Search(Tarol.Search.SearchRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.OpenSearch.OpenSearchIndex.Write(Tarol.Search.SearchBatch! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.OpenSearch.OpenSearchOptions
+Tarol.Search.OpenSearch.OpenSearchOptions.<Clone>$() -> Tarol.Search.OpenSearch.OpenSearchOptions!
+Tarol.Search.OpenSearch.OpenSearchOptions.Equals(Tarol.Search.OpenSearch.OpenSearchOptions? other) -> bool
+Tarol.Search.OpenSearch.OpenSearchOptions.IndexPrefix.get -> string!
+Tarol.Search.OpenSearch.OpenSearchOptions.IndexPrefix.init -> void
+Tarol.Search.OpenSearch.OpenSearchOptions.OpenSearchOptions() -> void
+Tarol.Search.OpenSearch.OpenSearchOptions.Replicas.get -> int
+Tarol.Search.OpenSearch.OpenSearchOptions.Replicas.init -> void
+Tarol.Search.OpenSearch.OpenSearchOptions.Shards.get -> int
+Tarol.Search.OpenSearch.OpenSearchOptions.Shards.init -> void
+Tarol.Search.OpenSearch.OpenSearchOptions.WaitForRefresh.get -> bool
+Tarol.Search.OpenSearch.OpenSearchOptions.WaitForRefresh.init -> void
+Tarol.Search.OpenSearch.OpenSearchTarolBuilderExtensions
+override Tarol.Search.OpenSearch.OpenSearchOptions.Equals(object? obj) -> bool
+override Tarol.Search.OpenSearch.OpenSearchOptions.GetHashCode() -> int
+override Tarol.Search.OpenSearch.OpenSearchOptions.ToString() -> string!
+static Tarol.Search.OpenSearch.OpenSearchOptions.operator !=(Tarol.Search.OpenSearch.OpenSearchOptions? left, Tarol.Search.OpenSearch.OpenSearchOptions? right) -> bool
+static Tarol.Search.OpenSearch.OpenSearchOptions.operator ==(Tarol.Search.OpenSearch.OpenSearchOptions? left, Tarol.Search.OpenSearch.OpenSearchOptions? right) -> bool
+static Tarol.Search.OpenSearch.OpenSearchTarolBuilderExtensions.UseOpenSearch(this Tarol.Persistence.TarolBuilder! builder, System.Func<System.IServiceProvider!, System.Net.Http.HttpClient!>! http, Tarol.Search.OpenSearch.OpenSearchOptions? options = null) -> Tarol.Persistence.TarolBuilder!

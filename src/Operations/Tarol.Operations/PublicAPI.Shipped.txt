@@ -6,6 +6,7 @@ Tarol.Operations.AdminError.Deconstruct(out string! Error) -> void
 Tarol.Operations.AdminError.Equals(Tarol.Operations.AdminError? other) -> bool
 Tarol.Operations.AdminError.Error.get -> string!
 Tarol.Operations.AdminError.Error.init -> void
+Tarol.Operations.AdminProblems
 Tarol.Operations.DeadLetterAdmin
 Tarol.Operations.DeadLetterAdmin.DeadLetterAdmin(System.Collections.Generic.IEnumerable<Tarol.Persistence.IDeadLetterSource!>! sources, Tarol.Persistence.IReadModelAdmin? readModels = null, Microsoft.Extensions.Logging.ILogger<Tarol.Operations.DeadLetterAdmin!>? logger = null) -> void
 Tarol.Operations.DeadLetterAdmin.Discard(string! kind, long id, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -81,6 +82,7 @@ Tarol.Operations.OperationsJson
 ~Tarol.Operations.OperationsJson.Guid.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Guid>
 ~Tarol.Operations.OperationsJson.IReadOnlyListDeadLetterView.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IReadOnlyList<Tarol.Operations.DeadLetterView>>
 ~Tarol.Operations.OperationsJson.IReadOnlyListProjectionVersion.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ProjectionVersion>>
+~Tarol.Operations.OperationsJson.IReadOnlyListString.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IReadOnlyList<string>>
 ~Tarol.Operations.OperationsJson.Int32.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<int>
 ~Tarol.Operations.OperationsJson.Int64.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<long>
 ~Tarol.Operations.OperationsJson.NullableGuid.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Guid?>
@@ -148,9 +150,16 @@ Tarol.Operations.RedriveView.Redriven.init -> void
 Tarol.Operations.TarolAdminEndpoints
 Tarol.Operations.TarolHealthEndpoints
 Tarol.Operations.TarolHealthTags
+const Tarol.Operations.AdminProblems.ErasureIncomplete = "DataProtection.ErasureIncomplete" -> string!
+const Tarol.Operations.AdminProblems.Kind = "Admin.Kind" -> string!
+const Tarol.Operations.AdminProblems.NotFound = "Admin.NotFound" -> string!
+const Tarol.Operations.AdminProblems.ProjectionDrop = "Projection.Drop" -> string!
+const Tarol.Operations.AdminProblems.Query = "Admin.Query" -> string!
+const Tarol.Operations.AdminProblems.Tenant = "Admin.Tenant" -> string!
 const Tarol.Operations.IDeadLetterAdmin.MaxRedrive = 1000 -> int
 const Tarol.Operations.OperationsTarolBuilderExtensions.PurgeAuditJob = "tarol.purge-audit" -> string!
 const Tarol.Operations.OperationsTarolBuilderExtensions.PurgeDeadJob = "tarol.purge-dead" -> string!
+const Tarol.Operations.TarolAdminEndpoints.OpenApiTag = "Tarol.Admin" -> string!
 const Tarol.Operations.TarolHealthTags.Live = "live" -> string!
 const Tarol.Operations.TarolHealthTags.Ready = "ready" -> string!
 const Tarol.Operations.TarolHealthTags.Tarol = "tarol" -> string!

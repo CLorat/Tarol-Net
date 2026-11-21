@@ -1,6 +1,1 @@
 #nullable enable
-Tarol.Persistence.IIncompleteErasure
-Tarol.Persistence.IIncompleteErasure.Failed.get -> System.Collections.Generic.IReadOnlyList<string!>!
-Tarol.Persistence.IIncompleteErasure.Subject.get -> System.Guid?
-Tarol.Persistence.IIncompleteErasure.Tenant.get -> System.Guid
-Tarol.Persistence.IOutbox.Release(Tarol.Persistence.OutboxRow! row, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!

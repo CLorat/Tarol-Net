@@ -1,7 +1,1 @@
 #nullable enable
-Tarol.Queries.ProjectionHost.ProjectionHost(string! name, int version, Tarol.Persistence.IEventFeed! feed, Tarol.Queries.ProjectionOptions? options, System.TimeProvider? time, Microsoft.Extensions.Logging.ILogger? logger, Tarol.Queries.IFeedSignal? signal, Tarol.Queries.IProjectionGate? gate, System.Diagnostics.Metrics.IMeterFactory? meters) -> void
-abstract Tarol.Queries.ProjectionHost.LoadCheckpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
-abstract Tarol.Queries.ProjectionHost.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-abstract Tarol.Queries.ProjectionHost.Write(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>! events, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(bool Written, int Rows)>
-override Tarol.Queries.ProjectionHost.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
-static Tarol.Queries.Cursor.ETag(System.Collections.Generic.IEnumerable<(System.Guid Id, long Version)>! rows, string? next, long? total) -> string!

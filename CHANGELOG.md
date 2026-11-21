@@ -6,7 +6,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
-### Added
+## [0.1.0]
+
+The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
+(`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
+"in 0.1.0-preview.2" sections list what came after it.
+
+### Added in 0.1.0-preview.2
 
 * `x-tarol-rules` in the OpenAPI document (BC-4): every rule-carrying schema (value objects, members of multi-field and class
   value objects and of `IValidatable` inputs, `Count`) lists `{rule, code, min?, max?, pattern?, flags?}`; `IgnoreCase` is
@@ -70,7 +76,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   cache clears; `NpgsqlTracing.AutoPrepareUnlessSet`; `ViolationJsonConverter`.
 * Store schema version 4 (compatible from 1): the index `streams_retention` on `streams (type, updated_at)`.
 
-### Changed
+### Changed in 0.1.0-preview.2
 
 * The message hub's refusals are `<code>: <detail>` with documented codes (BC-12, CC-7): `Hub.Forbidden` (was `Forbidden:`),
   `Hub.Topic` (was `Topic:`), `Auth.Tenant`; constants and `CodeOf` in the new `HubErrors`. **Breaking** for clients that
@@ -88,7 +94,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * `Violation` JSON is read in any member order and accepts only `ErrorType` names for `type`.
 * Zitadel: roles come only from this project's claim and only when granted in the user's organisation, which also sets the tenant.
 
-### Fixed
+### Fixed in 0.1.0-preview.2
 
 * The search index's erasure participant failed in a process whose `SearchHost` never ran (an API process, where the host stays
   gated): the Npgsql index had no table yet (`42P01`), so every erasure through the admin entry was incomplete (`failed:
@@ -133,11 +139,6 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   parameters is reported (TVAL002); TRES002 does not report the awaited `Tap` extensions.
 * CI runs every integration-test project (DataProtection and Operations were left out).
 * SignalR: a push connection that closes again during the client's own restart is started again instead of staying disconnected.
-
-## [0.1.0]
-
-The first release of Tarol-Net: 25 packages (24 and the meta-package `Tarol`), the public API baseline
-(`PublicAPI.Shipped.txt`) and 83 diagnostics (below).
 
 ### Added
 

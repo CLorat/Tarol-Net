@@ -34,6 +34,7 @@ Tarol.Changes.AspNetCore.ChangeEndpoints.Payload<TPayload>(byte[]! data) -> TPay
 Tarol.Changes.AspNetCore.ChangeEndpoints.Pipeline.get -> Tarol.Changes.ChangePipeline!
 Tarol.Changes.AspNetCore.ChangeEndpoints.Problem(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Results.Violation! violation) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.ChangeEndpoints.ReadBytes(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<(byte[]? Bytes, int Status)>
+Tarol.Changes.AspNetCore.ChangeEndpoints.ReadJson(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<(byte[]? Bytes, int Status)>
 Tarol.Changes.AspNetCore.ChangeEndpoints.Reader.get -> Tarol.Persistence.IAggregateReader!
 Tarol.Changes.AspNetCore.ChangeEndpoints.TryValue<TMember>(ref System.Text.Json.Utf8JsonReader reader, out TMember? value) -> bool
 Tarol.Changes.AspNetCore.ChangeEndpoints.Write(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Results.Result<Tarol.Changes.ChangeOutcome> result, bool created = false) -> System.Threading.Tasks.Task!
@@ -51,6 +52,7 @@ Tarol.Changes.AspNetCore.FromClaimAttribute.FromClaimAttribute(string! type) -> 
 Tarol.Changes.AspNetCore.FromClaimAttribute.Type.get -> string!
 Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>
 Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>.From(TAggregate! aggregate) -> TSelf
+Tarol.Changes.AspNetCore.MeEndpoint
 Tarol.Changes.AspNetCore.Positions
 Tarol.Changes.AspNetCore.QueryEndpointOptions
 Tarol.Changes.AspNetCore.QueryEndpointOptions.DefaultLimit.get -> int
@@ -79,6 +81,8 @@ Tarol.Changes.AspNetCore.QueryParameter.Values.get -> System.Collections.Generic
 Tarol.Changes.AspNetCore.QueryParameter.Values.init -> void
 Tarol.Changes.AspNetCore.RouteValue
 Tarol.Changes.AspNetCore.RouteValue.<Clone>$() -> Tarol.Changes.AspNetCore.RouteValue!
+Tarol.Changes.AspNetCore.RouteValue.Aggregate.get -> string?
+Tarol.Changes.AspNetCore.RouteValue.Aggregate.init -> void
 Tarol.Changes.AspNetCore.RouteValue.Deconstruct(out string! Name, out string! Kind, out string! Property) -> void
 Tarol.Changes.AspNetCore.RouteValue.Equals(Tarol.Changes.AspNetCore.RouteValue? other) -> bool
 Tarol.Changes.AspNetCore.RouteValue.Kind.get -> string!
@@ -88,12 +92,15 @@ Tarol.Changes.AspNetCore.RouteValue.Name.init -> void
 Tarol.Changes.AspNetCore.RouteValue.Property.get -> string!
 Tarol.Changes.AspNetCore.RouteValue.Property.init -> void
 Tarol.Changes.AspNetCore.RouteValue.RouteValue(string! Name, string! Kind, string! Property) -> void
+Tarol.Changes.AspNetCore.SearchEndpoints
 Tarol.Changes.AspNetCore.TarolEndpointMetadata
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.<Clone>$() -> Tarol.Changes.AspNetCore.TarolEndpointMetadata!
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.BodyMembers.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.BodyMembers.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Deconstruct(out string! Kind, out System.Type! Input, out System.Collections.Generic.IReadOnlyList<Tarol.Changes.AspNetCore.RouteValue!>! RouteValues, out System.Collections.Generic.IReadOnlyList<string!>! BodyMembers, out string? Policy, out System.Collections.Generic.IReadOnlyList<Tarol.Changes.AspNetCore.QueryParameter!>? Query) -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Equals(Tarol.Changes.AspNetCore.TarolEndpointMetadata? other) -> bool
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Errors.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Errors.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Input.get -> System.Type!
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Input.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Kind.get -> string!
@@ -105,6 +112,7 @@ Tarol.Changes.AspNetCore.TarolEndpointMetadata.Query.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.RouteValues.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.AspNetCore.RouteValue!>!
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.RouteValues.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.TarolEndpointMetadata(string! Kind, System.Type! Input, System.Collections.Generic.IReadOnlyList<Tarol.Changes.AspNetCore.RouteValue!>! RouteValues, System.Collections.Generic.IReadOnlyList<string!>! BodyMembers, string? Policy, System.Collections.Generic.IReadOnlyList<Tarol.Changes.AspNetCore.QueryParameter!>? Query = null) -> void
+Tarol.Changes.AspNetCore.TarolHeaders
 Tarol.Changes.AspNetCore.WebhookAttribute
 Tarol.Changes.AspNetCore.WebhookAttribute.Sender.get -> string!
 Tarol.Changes.AspNetCore.WebhookAttribute.Type.get -> string!
@@ -147,9 +155,14 @@ Tarol.Changes.AspNetCore.Webhooks.Webhooks(Microsoft.Extensions.Options.IOptions
 const Tarol.Changes.AspNetCore.CacheHeaders.CacheControl = "private, no-cache" -> string!
 const Tarol.Changes.AspNetCore.CacheHeaders.Vary = "Authorization" -> string!
 const Tarol.Changes.AspNetCore.ChangeEndpoints.BuildingCode = "Projection.Building" -> string!
+const Tarol.Changes.AspNetCore.ChangeEndpoints.UnknownKeyCode = "Unknown" -> string!
 const Tarol.Changes.AspNetCore.Positions.PositionHeader = "Tarol-Position" -> string!
 const Tarol.Changes.AspNetCore.Positions.ReadAfterHeader = "Tarol-Read-After" -> string!
 const Tarol.Changes.AspNetCore.Positions.StaleHeader = "Tarol-Stale" -> string!
+const Tarol.Changes.AspNetCore.SearchEndpoints.BuildingCode = "Search.Building" -> string!
+const Tarol.Changes.AspNetCore.TarolHeaders.IdempotencyKey = "Idempotency-Key" -> string!
+const Tarol.Changes.AspNetCore.TarolHeaders.IdempotentReplayed = "Idempotent-Replayed" -> string!
+const Tarol.Changes.AspNetCore.TarolHeaders.RequestId = "Tarol-Request-Id" -> string!
 override Tarol.Changes.AspNetCore.QueryParameter.Equals(object? obj) -> bool
 override Tarol.Changes.AspNetCore.QueryParameter.GetHashCode() -> int
 override Tarol.Changes.AspNetCore.QueryParameter.ToString() -> string!
@@ -164,20 +177,28 @@ override Tarol.Changes.AspNetCore.WebhookDelivery.GetHashCode() -> int
 ~override Tarol.Changes.AspNetCore.WebhookDelivery.ToString() -> string
 static Tarol.Changes.AspNetCore.CacheHeaders.Apply(Microsoft.AspNetCore.Http.HttpContext! http) -> void
 static Tarol.Changes.AspNetCore.ChangeEndpoints.Claim(Microsoft.AspNetCore.Http.HttpContext! http, string! type) -> string?
+static Tarol.Changes.AspNetCore.ChangeEndpoints.IsJson(string? contentType) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.JsonPath(string! path, System.Text.Json.JsonNamingPolicy! naming) -> string!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.Of(Microsoft.AspNetCore.Http.HttpContext! http) -> Tarol.Changes.AspNetCore.ChangeEndpoints!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.One(Microsoft.AspNetCore.Http.HttpContext! http, string! key, out string? value) -> bool
+static Tarol.Changes.AspNetCore.ChangeEndpoints.RequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
+static Tarol.Changes.AspNetCore.ChangeEndpoints.StampRequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnum<TEnum>(string! text, out TEnum value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryFilter<T>(string! text, out T value) -> bool
 static Tarol.Changes.AspNetCore.EndpointsTarolBuilderExtensions.AddEndpoints(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Changes.AspNetCore.ChangeEndpointOptions!>? configure = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Changes.AspNetCore.MeEndpoint.MapTarolMe(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern = "/me") -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Tarol.Changes.AspNetCore.Positions.Format(Tarol.Persistence.GlobalPosition position) -> string!
 static Tarol.Changes.AspNetCore.Positions.TryParse(string? text, out Tarol.Persistence.GlobalPosition position) -> bool
 static Tarol.Changes.AspNetCore.QueryParameter.operator !=(Tarol.Changes.AspNetCore.QueryParameter? left, Tarol.Changes.AspNetCore.QueryParameter? right) -> bool
 static Tarol.Changes.AspNetCore.QueryParameter.operator ==(Tarol.Changes.AspNetCore.QueryParameter? left, Tarol.Changes.AspNetCore.QueryParameter? right) -> bool
 static Tarol.Changes.AspNetCore.RouteValue.operator !=(Tarol.Changes.AspNetCore.RouteValue? left, Tarol.Changes.AspNetCore.RouteValue? right) -> bool
 static Tarol.Changes.AspNetCore.RouteValue.operator ==(Tarol.Changes.AspNetCore.RouteValue? left, Tarol.Changes.AspNetCore.RouteValue? right) -> bool
+static Tarol.Changes.AspNetCore.SearchEndpoints.MapTarolSearch(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! endpoints, string! pattern = "/search", string? policy = null) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Tarol.Changes.AspNetCore.TarolEndpointMetadata.operator !=(Tarol.Changes.AspNetCore.TarolEndpointMetadata? left, Tarol.Changes.AspNetCore.TarolEndpointMetadata? right) -> bool
 static Tarol.Changes.AspNetCore.TarolEndpointMetadata.operator ==(Tarol.Changes.AspNetCore.TarolEndpointMetadata? left, Tarol.Changes.AspNetCore.TarolEndpointMetadata? right) -> bool
+static Tarol.Changes.AspNetCore.TarolHeaders.Allowed.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tarol.Changes.AspNetCore.TarolHeaders.Exposed.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static Tarol.Changes.AspNetCore.TarolHeaders.WithTarolHeaders(this Microsoft.AspNetCore.Cors.Infrastructure.CorsPolicyBuilder! policy) -> Microsoft.AspNetCore.Cors.Infrastructure.CorsPolicyBuilder!
 static Tarol.Changes.AspNetCore.WebhookDelivery.operator !=(Tarol.Changes.AspNetCore.WebhookDelivery left, Tarol.Changes.AspNetCore.WebhookDelivery right) -> bool
 static Tarol.Changes.AspNetCore.WebhookDelivery.operator ==(Tarol.Changes.AspNetCore.WebhookDelivery left, Tarol.Changes.AspNetCore.WebhookDelivery right) -> bool
 static Tarol.Changes.AspNetCore.Webhooks.Answer(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Results.Result<Tarol.Changes.ChangeOutcome> result) -> System.Threading.Tasks.Task!

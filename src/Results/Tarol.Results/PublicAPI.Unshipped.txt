@@ -1,5 +1,1 @@
 #nullable enable
-Tarol.Results.Json.ViolationJsonConverter
-Tarol.Results.Json.ViolationJsonConverter.ViolationJsonConverter() -> void
-override Tarol.Results.Json.ViolationJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Results.Violation!
-override Tarol.Results.Json.ViolationJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Results.Violation! value, System.Text.Json.JsonSerializerOptions! options) -> void

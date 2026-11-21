@@ -165,6 +165,10 @@ Tarol.Persistence.IEventUpcaster.Into.get -> Tarol.Primitives.EventType
 Tarol.Persistence.IEventUpcaster.Upcast(System.Text.Json.Nodes.JsonObject! payload) -> void
 Tarol.Persistence.IIdempotencyKeyPurge
 Tarol.Persistence.IIdempotencyKeyPurge.PurgeKeys(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Tarol.Persistence.IIncompleteErasure
+Tarol.Persistence.IIncompleteErasure.Failed.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Persistence.IIncompleteErasure.Subject.get -> System.Guid?
+Tarol.Persistence.IIncompleteErasure.Tenant.get -> System.Guid
 Tarol.Persistence.IJobRows
 Tarol.Persistence.IJobRows.Advance(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Tarol.Persistence.IJobRows.Bury(Tarol.Persistence.JobRow! row, System.DateTimeOffset cursor, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
@@ -201,6 +205,7 @@ Tarol.Persistence.IOutbox.Discard(long id, System.Threading.CancellationToken ca
 Tarol.Persistence.IOutbox.OldestDue(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Tarol.Options.Option<System.DateTimeOffset>>!
 Tarol.Persistence.IOutbox.Pending(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Tarol.Persistence.IOutbox.Redrive(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.IOutbox.Release(Tarol.Persistence.OutboxRow! row, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Tarol.Persistence.IOutbox.Retry(Tarol.Persistence.OutboxRow! row, System.DateTimeOffset retryAt, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Tarol.Persistence.IOutbox.WaitForRows(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Tarol.Persistence.IOutboxReactions

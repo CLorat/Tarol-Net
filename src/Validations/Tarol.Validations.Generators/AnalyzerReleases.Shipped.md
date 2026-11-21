@@ -16,3 +16,4 @@ TVAL006 | Tarol.Validations | Warning | ValidationAnalyzer
 TVAL007 | Tarol.Validations | Warning | ValidationAnalyzer
 TVAL008 | Tarol.Validations | Warning | ValidationGenerator
 TVAL009 | Tarol.Validations | Warning | ValidationAnalyzer
+TVAL010 | Tarol.Validations | Warning | Diagnostics

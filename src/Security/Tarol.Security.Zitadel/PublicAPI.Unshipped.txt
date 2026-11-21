@@ -1,5 +1,1 @@
 #nullable enable
-Tarol.Security.Zitadel.ZitadelOptions.ClockSkew.get -> System.TimeSpan?
-Tarol.Security.Zitadel.ZitadelOptions.ClockSkew.set -> void
-Tarol.Security.Zitadel.ZitadelOptions.HubPath.get -> string?
-Tarol.Security.Zitadel.ZitadelOptions.HubPath.set -> void

@@ -1,10 +1,1 @@
 #nullable enable
-Tarol.Operations.AdminProblems
-~Tarol.Operations.OperationsJson.IReadOnlyListString.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IReadOnlyList<string>>
-const Tarol.Operations.AdminProblems.ErasureIncomplete = "DataProtection.ErasureIncomplete" -> string!
-const Tarol.Operations.AdminProblems.Kind = "Admin.Kind" -> string!
-const Tarol.Operations.AdminProblems.NotFound = "Admin.NotFound" -> string!
-const Tarol.Operations.AdminProblems.ProjectionDrop = "Projection.Drop" -> string!
-const Tarol.Operations.AdminProblems.Query = "Admin.Query" -> string!
-const Tarol.Operations.AdminProblems.Tenant = "Admin.Tenant" -> string!
-const Tarol.Operations.TarolAdminEndpoints.OpenApiTag = "Tarol.Admin" -> string!

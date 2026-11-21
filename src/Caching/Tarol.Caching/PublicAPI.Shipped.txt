@@ -16,12 +16,14 @@ Tarol.Caching.CachingTarolBuilderExtensions
 Tarol.Caching.IPageCache
 Tarol.Caching.IPageCache.Clear() -> void
 Tarol.Caching.IPageCache.Clear(System.Guid tenant) -> void
+Tarol.Caching.IPageCache.Clears.get -> long
 Tarol.Caching.IPageCache.Put<TRow>(Tarol.Caching.PageKey key, Tarol.Persistence.GlobalPosition position, Tarol.Queries.Page<TRow!>! page, long size) -> void
 Tarol.Caching.IPageCache.TryGet<TRow>(Tarol.Caching.PageKey key, Tarol.Persistence.GlobalPosition position, out Tarol.Queries.Page<TRow!>? page) -> bool
 Tarol.Caching.MemoryPageCache
 Tarol.Caching.MemoryPageCache.Bytes.get -> long
 Tarol.Caching.MemoryPageCache.Clear() -> void
 Tarol.Caching.MemoryPageCache.Clear(System.Guid tenant) -> void
+Tarol.Caching.MemoryPageCache.Clears.get -> long
 Tarol.Caching.MemoryPageCache.Count.get -> int
 Tarol.Caching.MemoryPageCache.Dispose() -> void
 Tarol.Caching.MemoryPageCache.MemoryPageCache(Tarol.Caching.CacheOptions? options = null, System.TimeProvider? time = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
