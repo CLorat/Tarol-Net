@@ -30,6 +30,14 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void With_the_UI_push_referenced_the_topics_are_in_the_document()            // BC-25: x-tarol-topics
+        => Snapshot.Match("topics", GeneratorTestHost.Run(GeneratorTestHost.Compile(true, true, GeneratorTestHost.Domain, Sources.Entries)));
+
+    [Fact]
+    public void The_topics_transformer_compiles_without_warnings()
+        => string.Join("\n", GeneratorTestHost.Diagnose(true, true, Sources.Entries).Select(d => d.ToString())).ShouldBeEmpty();
+
+    [Fact]
     public void The_static_problem_codes_of_a_change_are_its_metadata()            // BC-3: x-tarol-errors
     {
         const string source = GeneratorTestHost.Usings + """

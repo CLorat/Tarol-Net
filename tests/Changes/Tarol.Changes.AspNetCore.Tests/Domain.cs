@@ -109,6 +109,9 @@ public sealed record AuctionSummary(Guid Id, string Title, string Seller, Auctio
 public sealed record PaymentSucceededV2(string PaymentId, Guid Reference, decimal Amount, string Currency);
 public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
 
+/// <summary>A bid for the browsers (BC-25: its schema is the topic's in x-tarol-topics).</summary>
+public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At);
+
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(CreateAuction)), JsonSerializable(typeof(PlaceBid)), JsonSerializable(typeof(CloseAuction))]
@@ -117,7 +120,7 @@ public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
 [JsonSerializable(typeof(decimal)), JsonSerializable(typeof(string)), JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]
 [JsonSerializable(typeof(Auction.Watched)), JsonSerializable(typeof(Bid.Placed)), JsonSerializable(typeof(Payout.Due))]
-[JsonSerializable(typeof(AuctionRow)), JsonSerializable(typeof(Memo.Written))]
+[JsonSerializable(typeof(AuctionRow)), JsonSerializable(typeof(Memo.Written)), JsonSerializable(typeof(BidPlacedV1))]
 public sealed partial class AppJson : JsonSerializerContext;
 
 /// <summary>A note visible to its owner only (step 18D: the audience of a search hit).</summary>
