@@ -17,22 +17,22 @@
   </ItemGroup>
 
   <ItemGroup Label="Roslyn (generators and generator tests)">
-    <!-- Lowest Roslyn that provides every API the generators use; SDK 11 ships a newer compiler. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" />
+    <!-- The compiler of SDK 11.0.100 (Roslyn 5.12, results.md §8); a consumer's compiler must be at least this. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.12.0" />
   </ItemGroup>
 
   <ItemGroup Label="Messaging brokers (step 11D)">
     <!-- AOT-clean as used by Tarol.Messaging.Nats / .RabbitMq (published, 0 IL warnings; docs/migration/messaging.md §3.3). -->
-    <PackageVersion Include="NATS.Net" Version="3.3.2" />
+    <PackageVersion Include="NATS.Net" Version="3.4.0" />
     <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
     <!-- the UI push's .NET client (the server side is the Microsoft.AspNetCore.App framework reference) -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">
-    <PackageVersion Include="Testcontainers.Nats" Version="4.16.0" />
-    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.Nats" Version="4.17.0" />
+    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.17.0" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.3" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.3" />
@@ -41,8 +41,8 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
     <!-- FakeTimeProvider: the test clock Tarol recommends instead of an ambient clock (docs/architecture/time.md). -->
     <PackageVersion Include="Npgsql" Version="10.0.3" />
-    <PackageVersion Include="Testcontainers" Version="4.16.0" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers" Version="4.17.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.17.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
