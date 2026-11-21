@@ -995,3 +995,35 @@ loop ends it looks once more and starts a new restart if a `Closed` came between
 Test: `PushTests.A_connection_that_closes_again_while_the_client_restarts_is_started_again`. A hub filter in the test host closes
 the first connection after the restart right after its handshake, so the client's start succeeds and the connection then closes.
 Without the fix the client is still `Disconnected` after 60 s; with it the suite passed 5 of 5.
+
+## 27. The UI push's topics in the OpenAPI document (BC-25, 2026-11-21)
+
+**Public API change, no behaviour change on the wire.** Requested by Tarol-Svelte (`docs/backend/changes.md` BC-25): the
+typed-client generator knew nothing about push topics, so apps hand-typed `'artflow.bid-placed'` and got `unknown` data. The
+document now has `x-tarol-topics`; the shape and the sources are in [client-contract.md §23](client-contract.md).
+
+* `Tarol.Messaging`: `PublicationInfo.ContractType`, `.EventType`, `.Stream` (init-only, `null` when not stated, so a hand-built
+  `PublicationInfo` still compiles). The generator fills them in `GeneratedPublications`:
+  `new(P0, "artflow.bid-placed", 1) { ContractType = typeof(BidPlacedV1), EventType = typeof(Bid.Placed), Stream = "Auction" }`.
+  `Stream` is the root of the nearest base declared by `AggregateRoot<T>` (`Event`) or `Entity<TRoot, TSelf>` (`Event`,
+  `Created`, `CreatedIn<T>`, `Deleted`); an event that derives from `DomainEvent` directly has none (never guessed).
+* `Tarol.Messaging.SignalR`: `UiPushTopic` (`Name`, `Version`, `Stream`, `ContractType`, `Forwarded`, `Subscribe`, `Publish`) and
+  `UiPushTopics` (`Topics`, sorted by name), registered by `PushToUi` (`TryAddSingleton`). It reads the publications from
+  `TarolBuilder.OutboxRows` when it is resolved, so `WithOutboxRows(GeneratedPublications.Set)` (the sample's API, which writes
+  the rows the worker publishes) and `Publish(…)` both count, in any order. Of several versions of a contract the highest is
+  described. `Subscribe`/`Publish` say whether a rule of `UiPushOptions.Rules` lets anyone (any user, or a role) do it; `null`
+  when the app registered its own `ITopicAuthorizer`. `TopicRules` gained two internal helpers (`ExactTopics`, `Permits`).
+* No new package dependency: the document transformer is generated into the app by `Tarol.Changes.AspNetCore`'s endpoint
+  generator when the compilation has both `Microsoft.AspNetCore.OpenApi` and `Tarol.Messaging.SignalR.UiPushTopics`.
+
+Tests: `UiPushTopicsTests` (2: forwarded, trusted and client-only topics with the latest version and the rules; unknown rules
+with an own authorizer); `PublicationGeneratorTests.The_stream_is_the_root_of_an_entity_event_and_absent_for_a_free_event`; the
+`publications` snapshot accepted (the three new properties per row). Suppressions: none.
+
+### 27.1 Skill evaluation checklist (`tarol-messaging-signalr`, added)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| the browser client should know the push topics and their payload types | nothing beyond `PushToUi` + `AddOpenApi(o => o.AddTarolEndpoints())`; read `x-tarol-topics` | a hand-written document transformer; a second list of topic names |
+| a forwarded topic has no `schema` in the document | give the `[Publishes<T>]` set to `WithOutboxRows` or `Publish` in the web app | duplicating the contract record in the web app |
+

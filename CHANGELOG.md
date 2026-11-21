@@ -6,6 +6,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* `x-tarol-topics` in the OpenAPI document (BC-25): with `PushToUi` (`Tarol.Messaging.SignalR`) and the generated
+  `AddTarolEndpoints()`, every UI push topic as `{version?, stream?, schema?, subscribe?, publish?}`, the contract record's
+  schema in `components/schemas`. New API: `UiPushTopic`, `UiPushTopics` (`Tarol.Messaging.SignalR`);
+  `PublicationInfo.ContractType`, `.EventType`, `.Stream` (`Tarol.Messaging`, filled by the generator);
+  `TarolBuilder.OutboxRows` (`Tarol.Persistence`).
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
