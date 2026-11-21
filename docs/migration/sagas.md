@@ -727,3 +727,10 @@ interface member that returns `false`, so another store compiles unchanged and i
 
 Tests: `WorkerTests.A_batch_that_outlived_half_its_lease_hands_its_tail_back_unrun_and_uncounted` (fails without the fix) and
 `NpgsqlOutboxTests.A_released_row_is_due_again_at_once_uncounted_and_the_old_claim_is_void`.
+
+## 20. The worker runs a row with its feed position (Tarol-Svelte BC-23, 2026-11-21)
+
+**Behaviour change.** `ReactionWorker` calls `IOutboxRowHandler.RunPositioned(pipeline, reaction, row.Event, ct)` with the
+claimed `PositionedEvent` instead of `Run(…, row.Event.Event, …)`. For reactions and effects nothing changes (the default
+member runs `Run`); publications put the position into the message. Details: docs/migration/messaging.md §27,
+docs/migration/changes.md §16.
