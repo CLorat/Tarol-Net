@@ -1,1 +1,41 @@
 #nullable enable
+Tarol.Search.Npgsql.NpgsqlSearchCheckpoints
+Tarol.Search.Npgsql.NpgsqlSearchCheckpoints.Checkpoint(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Search.Npgsql.NpgsqlSearchCheckpoints.Move(int version, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.Npgsql.NpgsqlSearchCheckpoints.NewestCurrent(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(int Version, Tarol.Queries.ProjectionCheckpoint Checkpoint)?>
+Tarol.Search.Npgsql.NpgsqlSearchCheckpoints.NpgsqlSearchCheckpoints(Npgsql.NpgsqlDataSource! dataSource, string! schema = "tarol") -> void
+Tarol.Search.Npgsql.NpgsqlSearchCheckpoints.Prepare(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.Npgsql.NpgsqlSearchCheckpoints.Schema.get -> string!
+Tarol.Search.Npgsql.NpgsqlSearchIndex
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Checkpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Documents(System.Guid tenant, System.Collections.Generic.IReadOnlyCollection<System.Guid>! aggregates, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.Search.SearchHit!>!>
+Tarol.Search.Npgsql.NpgsqlSearchIndex.NpgsqlSearchIndex(Npgsql.NpgsqlDataSource! dataSource, string! schema = "tarol", Tarol.Search.Npgsql.NpgsqlSearchOptions? options = null) -> void
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Prepare(Tarol.Search.SearchIndexDefinition! definition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Search.StreamDocuments!>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Schema.get -> string!
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Search(Tarol.Search.SearchRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Search.SearchPage!>>
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Table.get -> string!
+Tarol.Search.Npgsql.NpgsqlSearchIndex.Write(Tarol.Search.SearchBatch! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Search.Npgsql.NpgsqlSearchOptions
+Tarol.Search.Npgsql.NpgsqlSearchOptions.<Clone>$() -> Tarol.Search.Npgsql.NpgsqlSearchOptions!
+Tarol.Search.Npgsql.NpgsqlSearchOptions.Equals(Tarol.Search.Npgsql.NpgsqlSearchOptions? other) -> bool
+Tarol.Search.Npgsql.NpgsqlSearchOptions.NpgsqlSearchOptions() -> void
+Tarol.Search.Npgsql.NpgsqlSearchOptions.Rank.get -> int
+Tarol.Search.Npgsql.NpgsqlSearchOptions.Rank.init -> void
+Tarol.Search.Npgsql.NpgsqlSearchOptions.Schema.get -> string?
+Tarol.Search.Npgsql.NpgsqlSearchOptions.Schema.init -> void
+Tarol.Search.Npgsql.NpgsqlSearchOptions.TypoThreshold.get -> double
+Tarol.Search.Npgsql.NpgsqlSearchOptions.TypoThreshold.init -> void
+Tarol.Search.Npgsql.NpgsqlSearchSchema
+Tarol.Search.Npgsql.NpgsqlSearchTarolBuilderExtensions
+override Tarol.Search.Npgsql.NpgsqlSearchOptions.Equals(object? obj) -> bool
+override Tarol.Search.Npgsql.NpgsqlSearchOptions.GetHashCode() -> int
+override Tarol.Search.Npgsql.NpgsqlSearchOptions.ToString() -> string!
+static Tarol.Search.Npgsql.NpgsqlSearchOptions.operator !=(Tarol.Search.Npgsql.NpgsqlSearchOptions? left, Tarol.Search.Npgsql.NpgsqlSearchOptions? right) -> bool
+static Tarol.Search.Npgsql.NpgsqlSearchOptions.operator ==(Tarol.Search.Npgsql.NpgsqlSearchOptions? left, Tarol.Search.Npgsql.NpgsqlSearchOptions? right) -> bool
+static Tarol.Search.Npgsql.NpgsqlSearchSchema.Configuration(string! schema, string? language) -> string!
+static Tarol.Search.Npgsql.NpgsqlSearchSchema.Prepare(string! schema, int version) -> string!
+static Tarol.Search.Npgsql.NpgsqlSearchSchema.TableOf(int version) -> string!
+static Tarol.Search.Npgsql.NpgsqlSearchSchema.Validate(string! schema) -> void
+static Tarol.Search.Npgsql.NpgsqlSearchTarolBuilderExtensions.UseNpgsqlSearch(this Tarol.Persistence.TarolBuilder! builder, Tarol.Search.Npgsql.NpgsqlSearchOptions? options = null, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>? dataSource = null) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Search.Npgsql.NpgsqlSearchTarolBuilderExtensions.UseNpgsqlSearchCheckpoints(this Tarol.Persistence.TarolBuilder! builder, string? schema = null, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>? dataSource = null) -> Tarol.Persistence.TarolBuilder!

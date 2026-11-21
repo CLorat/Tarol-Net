@@ -34,6 +34,8 @@ Tarol.Results.Json.ResultJsonConverter
 Tarol.Results.Json.ResultJsonConverter.ResultJsonConverter() -> void
 Tarol.Results.Json.ResultJsonConverter<T>
 Tarol.Results.Json.ResultJsonConverter<T>.ResultJsonConverter() -> void
+Tarol.Results.Json.ViolationJsonConverter
+Tarol.Results.Json.ViolationJsonConverter.ViolationJsonConverter() -> void
 Tarol.Results.OptionResultExtensions
 Tarol.Results.Result
 Tarol.Results.Result.Bind(System.Func<Tarol.Results.Result>! bind) -> Tarol.Results.Result
@@ -111,6 +113,8 @@ override Tarol.Results.Json.ResultJsonConverter.Read(ref System.Text.Json.Utf8Js
 override Tarol.Results.Json.ResultJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Results.Result value, System.Text.Json.JsonSerializerOptions! options) -> void
 override Tarol.Results.Json.ResultJsonConverter<T>.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Results.Result<T>
 override Tarol.Results.Json.ResultJsonConverter<T>.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Results.Result<T> value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Tarol.Results.Json.ViolationJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Results.Violation!
+override Tarol.Results.Json.ViolationJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Tarol.Results.Violation! value, System.Text.Json.JsonSerializerOptions! options) -> void
 override Tarol.Results.Result.Equals(object? obj) -> bool
 override Tarol.Results.Result.GetHashCode() -> int
 override Tarol.Results.Result.ToString() -> string!

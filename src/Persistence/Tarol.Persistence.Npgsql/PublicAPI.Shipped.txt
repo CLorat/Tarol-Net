@@ -78,6 +78,7 @@ Tarol.Persistence.Npgsql.NpgsqlOutbox.OldestDue(System.Threading.CancellationTok
 Tarol.Persistence.Npgsql.NpgsqlOutbox.Pending(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
 Tarol.Persistence.Npgsql.NpgsqlOutbox.Purge(System.DateTimeOffset olderThan, int max, string! actor, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
 Tarol.Persistence.Npgsql.NpgsqlOutbox.Redrive(long id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Tarol.Persistence.Npgsql.NpgsqlOutbox.Release(Tarol.Persistence.OutboxRow! row, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Tarol.Persistence.Npgsql.NpgsqlOutbox.Retry(Tarol.Persistence.OutboxRow! row, System.DateTimeOffset retryAt, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
 Tarol.Persistence.Npgsql.NpgsqlOutbox.WaitForRows(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
 Tarol.Persistence.Npgsql.NpgsqlSchema
@@ -156,6 +157,7 @@ Tarol.Persistence.Npgsql.UpgradeStep.Version.get -> int
 Tarol.Persistence.Npgsql.UpgradeStep.Version.init -> void
 const Tarol.Persistence.Npgsql.NpgsqlSchema.DefaultSchema = "tarol" -> string!
 const Tarol.Persistence.Npgsql.NpgsqlSchema.SealingVersion = 3 -> int
+const Tarol.Persistence.Npgsql.NpgsqlSchema.Version = 4 -> int
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.Equals(object? obj) -> bool
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.GetHashCode() -> int
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.ToString() -> string!
@@ -185,6 +187,7 @@ static Tarol.Persistence.Npgsql.NpgsqlStoreOptions.operator ==(Tarol.Persistence
 static Tarol.Persistence.Npgsql.NpgsqlTarolBuilderExtensions.UseNpgsqlKeyStore(this Tarol.Persistence.TarolBuilder! builder, Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions? options = null) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Persistence.Npgsql.NpgsqlTarolBuilderExtensions.UseNpgsqlStore(this Tarol.Persistence.TarolBuilder! builder, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>! dataSource, Tarol.Persistence.Npgsql.NpgsqlStoreOptions? options = null, bool ensureSchema = true) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Persistence.Npgsql.NpgsqlTarolBuilderExtensions.UseNpgsqlStore(this Tarol.Persistence.TarolBuilder! builder, string! connectionString, Tarol.Persistence.Npgsql.NpgsqlStoreOptions? options = null, bool ensureSchema = true) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Persistence.Npgsql.NpgsqlTracing.AutoPrepareUnlessSet(this Npgsql.NpgsqlSlimDataSourceBuilder! builder, int statements = 64) -> Npgsql.NpgsqlSlimDataSourceBuilder!
 static Tarol.Persistence.Npgsql.NpgsqlTracing.TraceOnlyInActivities(this Npgsql.NpgsqlSlimDataSourceBuilder! builder) -> Npgsql.NpgsqlSlimDataSourceBuilder!
 static Tarol.Persistence.Npgsql.SchemaState.operator !=(Tarol.Persistence.Npgsql.SchemaState left, Tarol.Persistence.Npgsql.SchemaState right) -> bool
 static Tarol.Persistence.Npgsql.SchemaState.operator ==(Tarol.Persistence.Npgsql.SchemaState left, Tarol.Persistence.Npgsql.SchemaState right) -> bool

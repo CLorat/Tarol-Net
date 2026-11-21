@@ -3,6 +3,7 @@ Tarol.Messaging.SignalR.HubConnections
 Tarol.Messaging.SignalR.HubConnections.Count.get -> int
 Tarol.Messaging.SignalR.HubConnections.Dispose() -> void
 Tarol.Messaging.SignalR.HubConnections.HubConnections(Microsoft.Extensions.Hosting.IHostApplicationLifetime! lifetime) -> void
+Tarol.Messaging.SignalR.HubErrors
 Tarol.Messaging.SignalR.ITopicAuthorizer
 Tarol.Messaging.SignalR.ITopicAuthorizer.Authorize(System.Security.Claims.ClaimsPrincipal! principal, Tarol.Messaging.SignalR.TopicOperation operation, string! topic, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Tarol.Messaging.SignalR.MessageHub
@@ -62,6 +63,8 @@ Tarol.Messaging.SignalR.UiPushForwarder.Forward(Tarol.Messaging.Incoming! incomi
 Tarol.Messaging.SignalR.UiPushForwarder.Subscription.get -> Tarol.Messaging.Subscription!
 Tarol.Messaging.SignalR.UiPushForwarder.UiPushForwarder(Tarol.Messaging.IMessageTransport! transport, Microsoft.AspNetCore.SignalR.IHubContext<Tarol.Messaging.SignalR.MessageHub!>! hub, Tarol.Messaging.MessagingOptions! messaging, Tarol.Messaging.SignalR.UiPushOptions! options, System.TimeProvider! time, Microsoft.Extensions.Logging.ILogger<Tarol.Messaging.SignalR.UiPushForwarder!>? logger = null) -> void
 Tarol.Messaging.SignalR.UiPushOptions
+Tarol.Messaging.SignalR.UiPushOptions.CloseOnAuthenticationExpiration.get -> bool
+Tarol.Messaging.SignalR.UiPushOptions.CloseOnAuthenticationExpiration.set -> void
 Tarol.Messaging.SignalR.UiPushOptions.Forward(params string![]! topics) -> Tarol.Messaging.SignalR.UiPushOptions!
 Tarol.Messaging.SignalR.UiPushOptions.HubPath.get -> string!
 Tarol.Messaging.SignalR.UiPushOptions.HubPath.set -> void
@@ -76,6 +79,9 @@ Tarol.Messaging.SignalR.UiPushOptions.TenantClaim.get -> string!
 Tarol.Messaging.SignalR.UiPushOptions.TenantClaim.set -> void
 Tarol.Messaging.SignalR.UiPushOptions.Topics.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Tarol.Messaging.SignalR.UiPushOptions.UiPushOptions() -> void
+const Tarol.Messaging.SignalR.HubErrors.Forbidden = "Hub.Forbidden" -> string!
+const Tarol.Messaging.SignalR.HubErrors.Tenant = "Auth.Tenant" -> string!
+const Tarol.Messaging.SignalR.HubErrors.Topic = "Hub.Topic" -> string!
 const Tarol.Messaging.SignalR.MessageHub.MessageMethod = "message" -> string!
 override Tarol.Messaging.SignalR.MessageHub.OnConnectedAsync() -> System.Threading.Tasks.Task!
 override Tarol.Messaging.SignalR.MessageHub.OnDisconnectedAsync(System.Exception? exception) -> System.Threading.Tasks.Task!
@@ -83,6 +89,8 @@ override Tarol.Messaging.SignalR.PushedMessage.Equals(object? obj) -> bool
 override Tarol.Messaging.SignalR.PushedMessage.GetHashCode() -> int
 override Tarol.Messaging.SignalR.PushedMessage.ToString() -> string!
 override Tarol.Messaging.SignalR.SignalRJson.GetTypeInfo(System.Type! type) -> System.Text.Json.Serialization.Metadata.JsonTypeInfo?
+static Tarol.Messaging.SignalR.HubErrors.CodeOf(string? message) -> string?
+static Tarol.Messaging.SignalR.HubErrors.Exception(string! code, string! detail) -> Microsoft.AspNetCore.SignalR.HubException!
 static Tarol.Messaging.SignalR.MessageHub.Group(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant, string! topic) -> string!
 static Tarol.Messaging.SignalR.MessagePushClient.Connect(System.Uri! hub, System.Func<System.Threading.Tasks.Task<string?>!>? accessToken = null, System.Action<Microsoft.AspNetCore.Http.Connections.Client.HttpConnectionOptions!>? configure = null, Microsoft.Extensions.Logging.ILogger? logger = null) -> Tarol.Messaging.SignalR.MessagePushClient!
 static Tarol.Messaging.SignalR.PushedMessage.operator !=(Tarol.Messaging.SignalR.PushedMessage? left, Tarol.Messaging.SignalR.PushedMessage? right) -> bool

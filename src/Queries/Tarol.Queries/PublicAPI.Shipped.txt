@@ -167,6 +167,7 @@ Tarol.Queries.ProjectionHost.Conflicts.get -> long
 Tarol.Queries.ProjectionHost.IsRunner.get -> bool
 Tarol.Queries.ProjectionHost.Name.get -> string!
 Tarol.Queries.ProjectionHost.Position.get -> Tarol.Persistence.GlobalPosition
+Tarol.Queries.ProjectionHost.ProjectionHost(string! name, int version, Tarol.Persistence.IEventFeed! feed, Tarol.Queries.ProjectionOptions? options, System.TimeProvider? time, Microsoft.Extensions.Logging.ILogger? logger, Tarol.Queries.IFeedSignal? signal, Tarol.Queries.IProjectionGate? gate, System.Diagnostics.Metrics.IMeterFactory? meters) -> void
 Tarol.Queries.ProjectionHost.RunOnce(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 Tarol.Queries.ProjectionHost.State.get -> Tarol.Queries.ProjectionState
 Tarol.Queries.ProjectionHost.Version.get -> int
@@ -238,6 +239,9 @@ Tarol.Queries.Versioned<TRow>.Versioned(Tarol.Queries.RowKey Key, long Version, 
 abstract Tarol.Queries.ProjectionColumn<TRow>.CompareTo(TRow row, object? value) -> int
 abstract Tarol.Queries.ProjectionColumn<TRow>.Value(TRow row) -> object?
 abstract Tarol.Queries.ProjectionColumn<TRow>.Values(System.Collections.Generic.IReadOnlyList<TRow>! rows) -> System.Array!
+abstract Tarol.Queries.ProjectionHost.LoadCheckpoint(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+abstract Tarol.Queries.ProjectionHost.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+abstract Tarol.Queries.ProjectionHost.Write(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>! events, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(bool Written, int Rows)>
 const Tarol.Queries.ListQuery.DefaultLimit = 50 -> int
 const Tarol.Queries.ListQuery.MaxLimit = 200 -> int
 const Tarol.Queries.ListQuery.MaxOffset = 1000 -> int
@@ -265,6 +269,7 @@ override Tarol.Queries.ProjectionEraser<TRow>.Deleted(System.Collections.Generic
 override Tarol.Queries.ProjectionEraser<TRow>.Forget(System.Guid tenant, System.Guid subject, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Tarol.Queries.ProjectionEraser<TRow>.ForgetTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 override Tarol.Queries.ProjectionEraser<TRow>.Name.get -> string!
+override Tarol.Queries.ProjectionHost.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
 ~override Tarol.Queries.RowKey.Equals(object obj) -> bool
 override Tarol.Queries.RowKey.GetHashCode() -> int
 ~override Tarol.Queries.RowKey.ToString() -> string
@@ -281,6 +286,7 @@ static Tarol.Queries.ColumnValues.Timestamp(System.DateTimeOffset value) -> Syst
 static Tarol.Queries.ColumnValues.Timestamp(System.DateTimeOffset? value) -> System.DateTimeOffset?
 static Tarol.Queries.ColumnValues.TryParse(Tarol.Queries.ColumnType type, string! text, out object? value) -> bool
 static Tarol.Queries.Cursor.ETag(System.Collections.Generic.IEnumerable<(System.Guid Id, long Version)>! rows) -> string!
+static Tarol.Queries.Cursor.ETag(System.Collections.Generic.IEnumerable<(System.Guid Id, long Version)>! rows, string? next, long? total) -> string!
 static Tarol.Queries.Cursor.Encode(string! sort, ulong filters, string! value, System.Guid id) -> string!
 static Tarol.Queries.Cursor.Hash(System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, object? Value)>! filters) -> ulong
 static Tarol.Queries.Cursor.TryDecode(string! text, string! sort, ulong filters, out string! value, out System.Guid id) -> bool

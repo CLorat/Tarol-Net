@@ -1,9 +1,1 @@
 #nullable enable
-Tarol.Messaging.SignalR.HubErrors
-Tarol.Messaging.SignalR.UiPushOptions.CloseOnAuthenticationExpiration.get -> bool
-Tarol.Messaging.SignalR.UiPushOptions.CloseOnAuthenticationExpiration.set -> void
-const Tarol.Messaging.SignalR.HubErrors.Forbidden = "Hub.Forbidden" -> string!
-const Tarol.Messaging.SignalR.HubErrors.Tenant = "Auth.Tenant" -> string!
-const Tarol.Messaging.SignalR.HubErrors.Topic = "Hub.Topic" -> string!
-static Tarol.Messaging.SignalR.HubErrors.CodeOf(string? message) -> string?
-static Tarol.Messaging.SignalR.HubErrors.Exception(string! code, string! detail) -> Microsoft.AspNetCore.SignalR.HubException!
