@@ -35,7 +35,9 @@ waits until it is ready, prints what a browser needs and stays up until Ctrl-C:
   `ArtFlow:BrowserOrigins` overrides it);
 * Zitadel on `http://localhost:8080` with the user-agent app `artflow-web` (PKCE, no secret, JWT access tokens with the roles,
   redirect `http://localhost:5173/*` in dev mode); its client id is in `$TMPDIR/artflow-zitadel/web.txt`, the project in
-  `project.txt`;
+  `project.txt`; the authorize request ends on Zitadel's own login page (`/ui/login/login`: user name, then password; no
+  2-factor prompt), because the setup turns off the instance's `loginV2.required` (login v2 is a separate application the
+  AppHost does not run, BC-18);
 * human users with grants, their passwords generated per run in `users.txt` (`user <login> <password> <user id> <roles>`):
   ada (seller, tarol-admin), ben and cleo (bidder); the machine users alice and bob stay in `clients.txt`;
 * the message hub `/tarol/messages` (the token in `?access_token=`), topic `artflow.bid-placed` (every bid; the worker publishes,
