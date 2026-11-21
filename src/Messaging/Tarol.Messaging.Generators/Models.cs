@@ -19,8 +19,12 @@ internal sealed record PublicationModel(string Contract, int Version, string Eve
 {
     public string Name => "publish:" + Contract + "@" + Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
+    /// <summary>The simple name of the aggregate whose stream the event belongs to, if known statically (BC-25).</summary>
+    public string? Stream { get; init; }
+
     public bool Equals(PublicationModel? other) => other is not null && Contract == other.Contract && Version == other.Version && Event == other.Event
-        && EventBases.Equals(other.EventBases) && Record == other.Record && Type == other.Type && Method == other.Method && TakesRecorded == other.TakesRecorded;
+        && EventBases.Equals(other.EventBases) && Record == other.Record && Type == other.Type && Method == other.Method && TakesRecorded == other.TakesRecorded
+        && Stream == other.Stream;
 
     public override int GetHashCode() => (Contract, Version, Event, Method).GetHashCode();
 }

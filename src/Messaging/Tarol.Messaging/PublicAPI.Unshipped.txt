@@ -1,1 +1,7 @@
 #nullable enable
+Tarol.Messaging.PublicationInfo.ContractType.get -> System.Type?
+Tarol.Messaging.PublicationInfo.ContractType.init -> void
+Tarol.Messaging.PublicationInfo.EventType.get -> System.Type?
+Tarol.Messaging.PublicationInfo.EventType.init -> void
+Tarol.Messaging.PublicationInfo.Stream.get -> string?
+Tarol.Messaging.PublicationInfo.Stream.init -> void

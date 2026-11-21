@@ -52,8 +52,25 @@ public sealed class PublishesAttribute<TEvent>(string contract, int version) : A
 /// <param name="Name">The row name, <c>publish:&lt;contract&gt;@&lt;version&gt;</c> (<see cref="NameOf"/>).</param>
 /// <param name="Contract">The contract.</param>
 /// <param name="Version">The contract version.</param>
+/// <remarks>
+/// The generated set (<c>GeneratedPublications</c>) also states the contract record, the event and the event's stream, so a
+/// host can describe what it publishes (BC-25: <c>x-tarol-topics</c> in the OpenAPI document of <c>Tarol.Messaging.SignalR</c>).
+/// </remarks>
 public sealed record PublicationInfo(string Name, string Contract, int Version)
 {
+    /// <summary>The contract record the mapping method returns, e.g. <c>BidPlacedV1</c>; <see langword="null"/> when not stated.</summary>
+    public Type? ContractType { get; init; }
+
+    /// <summary>The domain event published, e.g. <c>Bid.Placed</c>; <see langword="null"/> when not stated.</summary>
+    public Type? EventType { get; init; }
+
+    /// <summary>
+    /// The simple name of the aggregate whose stream the event belongs to, e.g. <c>Auction</c> for <c>Bid.Placed</c> of
+    /// <c>Bid : Entity&lt;Auction, Bid&gt;</c>: the message's subject is that aggregate's id. <see langword="null"/> when the
+    /// generator cannot know it (an event that derives from neither <c>AggregateRoot&lt;T&gt;.Event</c> nor an entity's events).
+    /// </summary>
+    public string? Stream { get; init; }
+
     /// <summary>The row name of a publication: <c>publish:&lt;contract&gt;@&lt;version&gt;</c>.</summary>
     /// <param name="contract">The contract.</param>
     /// <param name="version">The contract version.</param>

@@ -93,8 +93,14 @@ internal static class Emitter
         }
         sb.Append("\n    private static readonly global::Tarol.Messaging.PublicationInfo[] All =\n    {\n");
         foreach (var p in sorted)
+        {
             sb.Append("        new(").Append(constant[p.Name]).Append(", ").Append(Literal(p.Contract)).Append(", ")
-                .Append(p.Version.ToString(CultureInfo.InvariantCulture)).Append("),\n");
+                .Append(p.Version.ToString(CultureInfo.InvariantCulture)).Append(") { ContractType = typeof(").Append(p.Record).Append("), EventType = typeof(")
+                .Append(p.Event).Append(')');
+            if (p.Stream is not null)
+                sb.Append(", Stream = ").Append(Literal(p.Stream));
+            sb.Append(" },\n");
+        }
         sb.Append("    };\n\n");
         sb.Append("    /// <summary>The publication set of this assembly.</summary>\n");
         sb.Append("    public static global::Tarol.Messaging.PublicationSet Set { get; } = new(All, Rows, Map);\n\n");

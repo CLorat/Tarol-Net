@@ -19,10 +19,10 @@ public static class GeneratedPublications
 
     private static readonly global::Tarol.Messaging.PublicationInfo[] All =
     {
-        new(P0, "shop.order-moved", 1),
-        new(P1, "shop.order-paid", 1),
-        new(P2, "shop.order-paid", 2),
-        new(P3, "shop.order-shipped", 1),
+        new(P0, "shop.order-moved", 1) { ContractType = typeof(global::Shop.OrderMovedV1), EventType = typeof(global::Shop.Order.Moved), Stream = "Order" },
+        new(P1, "shop.order-paid", 1) { ContractType = typeof(global::Shop.OrderPaidV1), EventType = typeof(global::Shop.Order.PaymentRecorded), Stream = "Order" },
+        new(P2, "shop.order-paid", 2) { ContractType = typeof(global::Shop.OrderPaidV2), EventType = typeof(global::Shop.Order.PaymentRecorded), Stream = "Order" },
+        new(P3, "shop.order-shipped", 1) { ContractType = typeof(global::Shop.OrderShippedV1), EventType = typeof(global::Shop.Order.Shipped), Stream = "Order" },
     };
 
     /// <summary>The publication set of this assembly.</summary>
