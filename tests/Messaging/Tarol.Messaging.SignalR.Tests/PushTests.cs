@@ -63,6 +63,7 @@ public sealed class PushTests
         message.Sender.ShouldBe("alice");                                                          // the server's, not the client's word
         message.Topic.ShouldBe("artflow.chat");
         message.Data.GetProperty("text").GetString().ShouldBe("hello");
+        (message.Subject, message.Revision, message.Position).ShouldBe((null, null, null));        // no stream, no feed position
     }
 
     [Fact]
@@ -316,7 +317,44 @@ public sealed class PushTests
         pushed.Sender.ShouldBe("artflow");
         pushed.Subject.ShouldBe(settled.Subject);
         pushed.Data.GetProperty("price").GetInt32().ShouldBe(150);
+        (pushed.Revision, pushed.Position).ShouldBe((null, null));                                  // the envelope has neither
         await inboxB.Quiet(0);
+    }
+
+    [Fact]
+    public async Task A_forwarded_message_carries_the_events_revision_and_feed_position()
+    {
+        await using var host = await PushHost.Start();
+        var (a, inbox, _) = await Subscribed(host, "artflow.auction-settled", "alice");
+        await using var _a = a;
+        var settled = PushHost.Envelope("artflow.auction-settled", PushHost.TenantA) with { StreamVersion = 3, Position = "7341.1000412" };
+
+        await host.Transport.Publish(settled, Ct);
+
+        await inbox.Until(m => m.Count == 1, "the forwarded message");
+        var pushed = inbox.Messages[0];
+        pushed.Revision.ShouldBe(3);                                                                // ce-streamversion: the view's ETag "3"
+        pushed.Position.ShouldBe("7341.1000412");                                                   // ce-position: Tarol-Read-After
+        pushed.Version.ShouldBe(1);                                                                 // still the contract version
+    }
+
+    [Fact]
+    public void The_wire_shape_has_revision_and_position_in_web_camel_case()
+    {
+        var message = new PushedMessage("artflow.bid-placed", Guid.Parse("01a1dfee-4770-7f95-b718-26961f92af46"), 1, "01a1dfee-4770-7f95-b718-26961f92af00",
+            new DateTimeOffset(2026, 11, 21, 10, 0, 0, TimeSpan.Zero), "artflow", Json.Of("{\"amount\":150}"), 3, "7341.1000412");
+
+        var json = System.Text.Json.JsonSerializer.Serialize(message, SignalRJson.Default.PushedMessage);
+        var published = System.Text.Json.JsonSerializer.Serialize(message with { Subject = null, Revision = null, Position = null }, SignalRJson.Default.PushedMessage);
+
+        json.ShouldBe("{\"topic\":\"artflow.bid-placed\",\"id\":\"01a1dfee-4770-7f95-b718-26961f92af46\",\"version\":1,"
+            + "\"subject\":\"01a1dfee-4770-7f95-b718-26961f92af00\",\"time\":\"2026-11-21T10:00:00+00:00\",\"sender\":\"artflow\","
+            + "\"data\":{\"amount\":150},\"revision\":3,\"position\":\"7341.1000412\"}");
+        published.ShouldEndWith("\"revision\":null,\"position\":null}");                          // a client's publish: present, null
+        System.Text.Json.JsonSerializer.Deserialize(json, SignalRJson.Default.PushedMessage)!.ShouldSatisfyAllConditions(
+            m => m.Revision.ShouldBe(3), m => m.Position.ShouldBe("7341.1000412"));
+        System.Text.Json.JsonSerializer.Deserialize("{\"topic\":\"t.x\",\"id\":\"01a1dfee-4770-7f95-b718-26961f92af46\",\"version\":1,\"time\":\"2026-11-21T10:00:00Z\",\"sender\":\"s\",\"data\":{}}",
+            SignalRJson.Default.PushedMessage)!.Revision.ShouldBeNull();                         // an older server's message still reads
     }
 
     [Fact]

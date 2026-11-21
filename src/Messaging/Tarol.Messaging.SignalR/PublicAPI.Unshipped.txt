@@ -1,1 +1,9 @@
 #nullable enable
+Tarol.Messaging.SignalR.PushedMessage.Deconstruct(out string! Topic, out System.Guid Id, out int Version, out string? Subject, out System.DateTimeOffset Time, out string! Sender, out System.Text.Json.JsonElement Data, out long? Revision, out string? Position) -> void
+Tarol.Messaging.SignalR.PushedMessage.Position.get -> string?
+Tarol.Messaging.SignalR.PushedMessage.Position.init -> void
+Tarol.Messaging.SignalR.PushedMessage.PushedMessage(string! Topic, System.Guid Id, int Version, string? Subject, System.DateTimeOffset Time, string! Sender, System.Text.Json.JsonElement Data, long? Revision = null, string? Position = null) -> void
+Tarol.Messaging.SignalR.PushedMessage.Revision.get -> long?
+Tarol.Messaging.SignalR.PushedMessage.Revision.init -> void
+~Tarol.Messaging.SignalR.SignalRJson.Int64.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<long>
+~Tarol.Messaging.SignalR.SignalRJson.NullableInt64.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<long?>

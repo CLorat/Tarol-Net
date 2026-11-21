@@ -102,7 +102,8 @@ public sealed partial class MessageHub : Hub
     {
         var group = await Authorized(TopicOperation.Publish, topic).ConfigureAwait(false);
         var sender = Context.User?.FindFirst(_options.SubjectClaim)?.Value ?? Context.UserIdentifier ?? "anonymous";   // never the client's word
-        var message = new PushedMessage(topic, Guid.CreateVersion7(_time.GetUtcNow()), 1, null, _time.GetUtcNow(), sender, data);
+        var message = new PushedMessage(topic, Guid.CreateVersion7(_time.GetUtcNow()), 1, null, _time.GetUtcNow(), sender, data,
+            Revision: null, Position: null);                                                     // no stream, no feed: a notification only
         await Clients.Group(group).SendAsync(MessageMethod, message, Context.ConnectionAborted).ConfigureAwait(false);
     }
 
