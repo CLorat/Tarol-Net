@@ -58,6 +58,30 @@ A browser: `connection.invoke("Subscribe", "artflow.auction-settled")`, then `co
   server again; it reconnects forever (0, 1, 2, 5 s, then every 10 s with jitter) and starts again by itself if a connection
   still closes for good, until `Stop` or disposal; a failing handler is logged and the others still run; a refused subscribe keeps no handler.
 
+## Topics in the OpenAPI document (`x-tarol-topics`)
+
+With `Microsoft.AspNetCore.OpenApi` and the generated `AddOpenApi(o => o.AddTarolEndpoints())` of `Tarol.Changes.AspNetCore`,
+the document has a top-level `x-tarol-topics` (BC-25), so a typed client knows the topics and their payloads. Nothing else to
+call: `PushToUi` registers `UiPushTopics`, the generated transformer writes it.
+
+```json
+"x-tarol-topics": {
+  "artflow.bid-placed": { "version": 1, "stream": "Auction", "schema": { "$ref": "#/components/schemas/BidPlacedV1" },
+                          "subscribe": true, "publish": false }
+}
+```
+
+* **Which topics**: every `Forward(…)` topic, and every exact topic of `Rules` (a client-only topic, clients publish to each
+  other: no schema), sorted by name. Prefix rules (`artflow.*`) add no topic; they decide `subscribe`/`publish`.
+* **`version`, `schema`, `stream`** come from the app's `[Publishes<TEvent>(contract, version)]` registrations
+  (`GeneratedPublications.Set`, given to `WithOutboxRows` or `Publish`): the highest version, the contract record's schema
+  (from the app's source-generated JSON context) as a component, and the aggregate whose id is the message's `subject`
+  (`Bid.Placed` of `Bid : Entity<Auction, Bid>` → `Auction`). A topic forwarded from a trusted system without a local
+  registration has no `version`/`schema`; an event the generator cannot place in a stream has no `stream`.
+* **`subscribe` / `publish`**: whether a rule lets someone (any user, or a role) do it. With your own `ITopicAuthorizer`
+  both are absent: the authorizer decides at run time.
+* Needs at least one generated HTTP entry (`AddTarolEndpoints` is generated with the entries).
+
 ## Native AOT
 
 The JSON of the hub is source-generated (`SignalRJson`, added by `PushToUi` and `Connect`). SignalR's server needs one

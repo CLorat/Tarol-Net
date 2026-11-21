@@ -211,7 +211,8 @@ public static class UiPushExtensions
     /// <summary>
     /// Pushes messages to UI clients over SignalR: SignalR with the source-generated hub JSON (<see cref="SignalRJson"/>), the
     /// <see cref="UiPushForwarder"/> for <see cref="UiPushOptions.Topics"/>, and the <see cref="ITopicAuthorizer"/> of
-    /// <see cref="UiPushOptions.Rules"/> unless one is registered. Map the hub with <see cref="MapMessageHub"/>.
+    /// <see cref="UiPushOptions.Rules"/> unless one is registered, and <see cref="UiPushTopics"/> (the topics for the OpenAPI
+    /// document's <c>x-tarol-topics</c>, BC-25). Map the hub with <see cref="MapMessageHub"/>.
     /// </summary>
     /// <param name="messaging">The messaging builder (its transport and trust are used).</param>
     /// <param name="configure">Topics, rules, claims, the hub's path.</param>
@@ -226,6 +227,10 @@ public static class UiPushExtensions
         var services = messaging.Tarol.Services;
         services.AddSingleton(options);
         services.TryAddSingleton<ITopicAuthorizer>(options.Rules);
+        var tarol = messaging.Tarol;                       // BC-25: the publications are read when resolved (WithOutboxRows may follow)
+        services.TryAddSingleton(provider => new UiPushTopics(provider.GetRequiredService<UiPushOptions>(),
+            tarol.OutboxRows.OfType<PublicationSet>().SelectMany(static set => set.Publications),
+            ReferenceEquals(provider.GetService<ITopicAuthorizer>(), options.Rules)));
         services.TryAddSingleton<HubConnections>();
         services.AddSignalR().AddJsonProtocol(static o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, SignalRJson.Default));
         if (options.Topics.Count > 0)
