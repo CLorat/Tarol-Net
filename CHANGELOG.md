@@ -6,19 +6,19 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
-### Changed
-
-* Dependencies: `NATS.Net` 3.4.0 (was 3.3.2; the dependency of `Tarol.Messaging.Nats`); `Microsoft.CodeAnalysis.CSharp`
-  and `.Analyzers` 5.12.0 (was 5.9.0) for the generators, the compiler of SDK 11.0.100; `Testcontainers`,
-  `.PostgreSql`, `.Nats`, `.RabbitMq` 4.17.0 (tests only). CI: `actions/checkout` v7.0.1, `setup-dotnet` v6.1.0, `cache`
-  v6.1.0, `upload-artifact` v7.0.2, `download-artifact` v8.0.2, all on Node 24 (the Dependabot PRs #84 … #90 in one).
-
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
 (`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
 "in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
 `0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version.
+
+### Changed in 0.1.0-preview.4
+
+* Dependencies: `NATS.Net` 3.4.0 (was 3.3.2; the dependency of `Tarol.Messaging.Nats`); `Microsoft.CodeAnalysis.CSharp`
+  and `.Analyzers` 5.12.0 (was 5.9.0) for the generators, the compiler of SDK 11.0.100; `Testcontainers`,
+  `.PostgreSql`, `.Nats`, `.RabbitMq` 4.17.0 (tests only). CI: `actions/checkout` v7.0.1, `setup-dotnet` v6.1.0, `cache`
+  v6.1.0, `upload-artifact` v7.0.2, `download-artifact` v8.0.2, all on Node 24 (the Dependabot PRs #84 … #90 in one).
 
 ### Added in 0.1.0-preview.2
 
