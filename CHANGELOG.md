@@ -6,6 +6,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* `tag.yml` (Actions → Tag): creates the release tag `v<version>` on `main` after `eng/release.py check` and starts
+  `release.yml` on it, for releases without local git. `release.yml` now also publishes when dispatched on a `v*` tag.
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline

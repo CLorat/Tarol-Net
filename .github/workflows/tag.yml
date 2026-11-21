@@ -1,0 +1,66 @@
+name: Tag
+
+# docs/architecture/release.md §2.1. Creates the release tag v<version> on main's head and starts release.yml for it, so a
+# release needs no local git (e.g. from a phone or a cloud agent session). A tag pushed with GITHUB_TOKEN starts no workflow
+# by itself, so this one dispatches release.yml on the tag; `publish` there still waits for the "release" environment.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the v, e.g. 0.1.0-preview.2 or 1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: tag
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' # tags are cut from main only, like release.yml requires
+    permissions:
+      contents: write # push the tag
+      actions: write # dispatch release.yml
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0 # the existing tags
+
+      # the input reaches the scripts through env, never spliced into the script text
+      - name: The version is valid and not yet tagged
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::not a version: $VERSION (expected 1.2.3 or 1.2.3-preview.1, without the v)"; exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION exists already"; exit 1
+          fi
+
+      - name: The release ships its API, diagnostics and CHANGELOG section
+        env:
+          VERSION: ${{ inputs.version }}
+        run: python3 eng/release.py check "$VERSION"
+
+      - name: Create and push the tag
+        env:
+          VERSION: ${{ inputs.version }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Tarol $VERSION" -m "Tagged by the Tag workflow, started by $ACTOR." "$GITHUB_SHA"
+          git push origin "refs/tags/v$VERSION"
+          echo "Tagged v$VERSION on $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Start the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "v$VERSION"

@@ -59,6 +59,21 @@ tag v1.2.3[-pre] ──► release.yml
 * **The tag** is created by the owner only. A tag ruleset (Settings → Rules) restricting `v*` to the owner is recommended;
   the workflow cannot enforce it.
 
+### 2.1 Tagging without git (tag.yml)
+
+`tag.yml` (Actions → Tag → Run workflow, on `main`, input `version` without the `v`) cuts a release where no local git is at
+hand: a phone, or a cloud agent session, whose git proxy only pushes the session's branch.
+1. checks the version (`1.2.3[-pre]`), that `v<version>` does not exist, and `eng/release.py check <version>` on `main`'s head;
+2. creates the annotated tag `v<version>` ("Tarol <version>", tagger `github-actions[bot]`, the starting user in the message) on
+   that commit and pushes it with `GITHUB_TOKEN` (`contents: write`);
+3. dispatches `release.yml` on the tag (`actions: write`): a tag pushed with `GITHUB_TOKEN` starts no `push` run, so `publish`
+   runs on `push` **or** `workflow_dispatch` when the ref is a `v*` tag.
+
+Only users with write access can start it. `publish` still runs in the `release` environment, so a required reviewer there
+(the owner) approves every release however the tag was made. A tag ruleset restricting `v*` must let GitHub Actions bypass it,
+or step 2 is refused. Dispatching `release.yml` by hand on an existing tag re-runs the release (`--skip-duplicate`; the GitHub
+release step fails if the release exists).
+
 ## 3. The public API baseline (D-6, RL-5)
 
 * `Microsoft.CodeAnalysis.PublicApiAnalyzers` 5.6.0 on every runtime package (`src/*/*`, not the generators, tests or samples:
