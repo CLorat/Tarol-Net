@@ -6,18 +6,25 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-* `tag.yml` (Actions → Tag): creates the release tag `v<version>` on `main` after `eng/release.py check` and starts
-  `release.yml` on it, for releases without local git. `release.yml` now also publishes when dispatched on a `v*` tag.
+* Dependencies: `NATS.Net` 3.4.0 (was 3.3.2; the dependency of `Tarol.Messaging.Nats`); `Microsoft.CodeAnalysis.CSharp`
+  and `.Analyzers` 5.12.0 (was 5.9.0) for the generators, the compiler of SDK 11.0.100; `Testcontainers`,
+  `.PostgreSql`, `.Nats`, `.RabbitMq` 4.17.0 (tests only). CI: `actions/checkout` v7.0.1, `setup-dotnet` v6.1.0, `cache`
+  v6.1.0, `upload-artifact` v7.0.2, `download-artifact` v8.0.2, all on Node 24 (the Dependabot PRs #84 … #90 in one).
 
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
 (`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
-"in 0.1.0-preview.2" sections list what came after it.
+"in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
+`0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version.
 
 ### Added in 0.1.0-preview.2
+
+* `tag.yml` (Actions → Tag): creates the release tag `v<version>` on `main` after `eng/release.py check` and starts
+  `release.yml` on it, for releases without local git. `release.yml` now also publishes when dispatched on a `v*` tag.
+  (Listed under `[Unreleased]` until now; it was merged before the `v0.1.0-preview.2` tag, `9b68afc`.)
 
 * `x-tarol-rules` in the OpenAPI document (BC-4): every rule-carrying schema (value objects, members of multi-field and class
   value objects and of `IValidatable` inputs, `Count`) lists `{rule, code, min?, max?, pattern?, flags?}`; `IgnoreCase` is

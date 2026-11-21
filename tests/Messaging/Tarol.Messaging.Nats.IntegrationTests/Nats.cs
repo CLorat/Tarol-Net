@@ -33,7 +33,7 @@ public sealed class Nats : IAsyncLifetime
         .Build();
 
     private readonly IContainer _secured = new ContainerBuilder("nats:2.11")
-        .WithResourceMapping(Encoding.UTF8.GetBytes(SecuredConfig), "/etc/nats/secured.conf")
+        .WithResourceMapping(Encoding.UTF8.GetBytes(SecuredConfig), FilePath.Of("/etc/nats/secured.conf"))
         .WithCommand("-c", "/etc/nats/secured.conf")
         .WithPortBinding(4222, true)
         .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("Server is ready"))
