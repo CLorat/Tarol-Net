@@ -1,1 +1,9 @@
 #nullable enable
+Tarol.Messaging.Message.Position.get -> string?
+Tarol.Messaging.Message.Position.init -> void
+Tarol.Messaging.Message.StreamVersion.get -> long?
+Tarol.Messaging.Message.StreamVersion.init -> void
+Tarol.Messaging.MessagePublisher.RunPositioned(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Persistence.PositionedEvent! positioned, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+const Tarol.Messaging.MessageHeaders.Position = "ce-position" -> string!
+const Tarol.Messaging.MessageHeaders.StreamVersion = "ce-streamversion" -> string!
+static Tarol.Messaging.Message.Of(Tarol.Persistence.PositionedEvent! positioned, string! contract, int version, System.ReadOnlyMemory<byte> data, string? traceparent) -> Tarol.Messaging.Message!

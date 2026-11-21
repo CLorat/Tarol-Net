@@ -1,5 +1,7 @@
 using Tarol.Kernel;
 using Tarol.Options;
+using Tarol.Persistence;
+using Tarol.Primitives;
 using Tarol.StronglyTypedId;
 
 namespace Tarol.Messaging.Tests;
@@ -14,6 +16,8 @@ public sealed class EnvelopeTests
         Version = 2,
         Time = new DateTimeOffset(2026, 11, 15, 16, 1, 59, TimeSpan.Zero),
         Subject = "01a1dfee47707f95b71826961f92af00",
+        StreamVersion = 3,
+        Position = "7341.1000412",
         Tenant = (Id<ITenant>)Guid.Parse("0193a000-0000-7000-8000-00000000000a"),
         Correlation = (Id<ICorrelation>)Guid.Parse("0193a000-0000-7000-8000-0000000000c0"),
         Causation = (Id<ICausation>)Guid.Parse("0193a000-0000-7000-8000-0000000000c1"),
@@ -37,6 +41,8 @@ public sealed class EnvelopeTests
             ["ce-time"] = "2026-11-15T16:01:59.0000000+00:00",
             ["content-type"] = "application/json",
             ["ce-subject"] = "01a1dfee47707f95b71826961f92af00",
+            ["ce-streamversion"] = "3",
+            ["ce-position"] = "7341.1000412",
             ["ce-tenant"] = "0193a000-0000-7000-8000-00000000000a",
             ["ce-correlation"] = "0193a000-0000-7000-8000-0000000000c0",
             ["ce-causation"] = "0193a000-0000-7000-8000-0000000000c1",
@@ -96,6 +102,42 @@ public sealed class EnvelopeTests
         read.Tenant.ShouldBe((Option<Id<ITenant>>)Option.None);
         read.Causation.ShouldBe((Option<Id<ICausation>>)Option.None);
         (read.Actor, read.Subject, read.Traceparent).ShouldBe((null, null, null));
+        (read.StreamVersion, read.Position).ShouldBe((null, null));                            // a message of an older publisher
+    }
+
+    [Theory]
+    [InlineData("ce-streamversion", "-1")]
+    [InlineData("ce-streamversion", "three")]
+    [InlineData("ce-position", "7341")]
+    [InlineData("ce-position", "7341.")]
+    [InlineData("ce-position", ".12")]
+    [InlineData("ce-position", "a.b")]
+    [InlineData("ce-position", "1.-2")]
+    public void A_malformed_stream_version_or_position_reads_as_absent(string name, string value)
+    {
+        var headers = Sample().Headers().ToDictionary();
+        headers[name] = value;
+
+        var read = Message.From(h => headers.TryGetValue(h, out var v) ? v : null, ReadOnlyMemory<byte>.Empty);
+
+        read.ShouldNotBeNull();                                                                 // a hint, not a poison message
+        (name == "ce-streamversion" ? (object?)read.StreamVersion : read.Position).ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_committed_event_carries_its_stream_version_and_with_its_feed_position_the_position()
+    {
+        var context = OperationContext.Start(Actor.User("alice"), (Id<ITenant>)Guid.Parse("0193a000-0000-7000-8000-00000000000a"), TimeProvider.System);
+        var stream = Guid.Parse("01a1dfee-4770-7f95-b718-26961f92af00");
+        var recorded = new RecordedEvent(stream, new StreamEvent(5, stream, Guid.Empty, new Shop.Auction.Noted(1)), Guid.CreateVersion7(), DateTimeOffset.UnixEpoch, context);
+
+        var plain = Message.Of(recorded, "artflow.noted", 1, "{}"u8.ToArray(), null);
+        var positioned = Message.Of(new PositionedEvent(new GlobalPosition(7341, 1000412), "Auction", recorded), "artflow.noted", 1, "{}"u8.ToArray(), null);
+
+        (plain.StreamVersion, plain.Position).ShouldBe((5L, (string?)null));
+        (positioned.StreamVersion, positioned.Position).ShouldBe((5L, "7341.1000412"));
+        positioned.Headers().ToDictionary()["ce-position"].ShouldBe("7341.1000412");
+        (positioned with { Position = null, Data = plain.Data }).ShouldBe(plain);
     }
 
     [Fact]
