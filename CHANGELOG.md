@@ -6,7 +6,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
-### Added
+## [0.1.0]
+
+The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
+(`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
+"in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
+`0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version.
+
+### Added in 0.1.0-preview.5
 
 * The event's revision and feed position in every published message and UI push (BC-23): `Message.StreamVersion`
   (`ce-streamversion`, the stream version after the event, a view's `ETag`) and `Message.Position` (`ce-position`, the
@@ -20,17 +27,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `PublicationInfo.ContractType`, `.EventType`, `.Stream` (`Tarol.Messaging`, filled by the generator);
   `TarolBuilder.OutboxRows` (`Tarol.Persistence`).
 
-### Changed
+### Changed in 0.1.0-preview.5
 
 * `PushedMessage`'s constructor and `Deconstruct` take `Revision` and `Position` as two more (optional) parameters: binary
   breaking, recompile callers. Messages without the new headers still read (`null`); a malformed one reads as absent.
-
-## [0.1.0]
-
-The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
-(`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
-"in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
-`0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version.
 
 ### Changed in 0.1.0-preview.4
 

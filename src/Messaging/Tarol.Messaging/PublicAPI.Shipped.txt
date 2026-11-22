@@ -170,8 +170,12 @@ Tarol.Messaging.Message.Headers() -> System.Collections.Generic.IEnumerable<Syst
 Tarol.Messaging.Message.Id.get -> System.Guid
 Tarol.Messaging.Message.Id.init -> void
 Tarol.Messaging.Message.Message() -> void
+Tarol.Messaging.Message.Position.get -> string?
+Tarol.Messaging.Message.Position.init -> void
 Tarol.Messaging.Message.Source.get -> string!
 Tarol.Messaging.Message.Source.init -> void
+Tarol.Messaging.Message.StreamVersion.get -> long?
+Tarol.Messaging.Message.StreamVersion.init -> void
 Tarol.Messaging.Message.Subject.get -> string?
 Tarol.Messaging.Message.Subject.init -> void
 Tarol.Messaging.Message.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
@@ -203,6 +207,7 @@ Tarol.Messaging.MessagePublisher.Names.get -> System.Collections.Generic.IReadOn
 Tarol.Messaging.MessagePublisher.Publications.get -> Tarol.Messaging.PublicationSet!
 Tarol.Messaging.MessagePublisher.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
 Tarol.Messaging.MessagePublisher.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Messaging.MessagePublisher.RunPositioned(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Persistence.PositionedEvent! positioned, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 Tarol.Messaging.MessageScope
 Tarol.Messaging.MessageScope.MessageScope(Tarol.Kernel.OperationContext! operation, Tarol.Changes.ChangeOptions options, System.Text.Json.JsonSerializerOptions! json) -> void
 Tarol.Messaging.MessageScope.Operation.get -> Tarol.Kernel.OperationContext!
@@ -316,11 +321,17 @@ Tarol.Messaging.PublicationInfo
 Tarol.Messaging.PublicationInfo.<Clone>$() -> Tarol.Messaging.PublicationInfo!
 Tarol.Messaging.PublicationInfo.Contract.get -> string!
 Tarol.Messaging.PublicationInfo.Contract.init -> void
+Tarol.Messaging.PublicationInfo.ContractType.get -> System.Type?
+Tarol.Messaging.PublicationInfo.ContractType.init -> void
 Tarol.Messaging.PublicationInfo.Deconstruct(out string! Name, out string! Contract, out int Version) -> void
 Tarol.Messaging.PublicationInfo.Equals(Tarol.Messaging.PublicationInfo? other) -> bool
+Tarol.Messaging.PublicationInfo.EventType.get -> System.Type?
+Tarol.Messaging.PublicationInfo.EventType.init -> void
 Tarol.Messaging.PublicationInfo.Name.get -> string!
 Tarol.Messaging.PublicationInfo.Name.init -> void
 Tarol.Messaging.PublicationInfo.PublicationInfo(string! Name, string! Contract, int Version) -> void
+Tarol.Messaging.PublicationInfo.Stream.get -> string?
+Tarol.Messaging.PublicationInfo.Stream.init -> void
 Tarol.Messaging.PublicationInfo.Version.get -> int
 Tarol.Messaging.PublicationInfo.Version.init -> void
 Tarol.Messaging.PublicationMapper
@@ -366,8 +377,10 @@ const Tarol.Messaging.MessageHeaders.ContentType = "content-type" -> string!
 const Tarol.Messaging.MessageHeaders.ContractVersion = "ce-contractversion" -> string!
 const Tarol.Messaging.MessageHeaders.Correlation = "ce-correlation" -> string!
 const Tarol.Messaging.MessageHeaders.Id = "ce-id" -> string!
+const Tarol.Messaging.MessageHeaders.Position = "ce-position" -> string!
 const Tarol.Messaging.MessageHeaders.Source = "ce-source" -> string!
 const Tarol.Messaging.MessageHeaders.SpecVersion = "ce-specversion" -> string!
+const Tarol.Messaging.MessageHeaders.StreamVersion = "ce-streamversion" -> string!
 const Tarol.Messaging.MessageHeaders.Subject = "ce-subject" -> string!
 const Tarol.Messaging.MessageHeaders.Tenant = "ce-tenant" -> string!
 const Tarol.Messaging.MessageHeaders.Time = "ce-time" -> string!
@@ -424,6 +437,7 @@ static Tarol.Messaging.Handled.operator ==(Tarol.Messaging.Handled left, Tarol.M
 static Tarol.Messaging.Incoming.operator !=(Tarol.Messaging.Incoming? left, Tarol.Messaging.Incoming? right) -> bool
 static Tarol.Messaging.Incoming.operator ==(Tarol.Messaging.Incoming? left, Tarol.Messaging.Incoming? right) -> bool
 static Tarol.Messaging.Message.From(System.Func<string!, string?>! header, System.ReadOnlyMemory<byte> data) -> Tarol.Messaging.Message?
+static Tarol.Messaging.Message.Of(Tarol.Persistence.PositionedEvent! positioned, string! contract, int version, System.ReadOnlyMemory<byte> data, string? traceparent) -> Tarol.Messaging.Message!
 static Tarol.Messaging.Message.Of(Tarol.Primitives.RecordedEvent! recorded, string! contract, int version, System.ReadOnlyMemory<byte> data, string? traceparent) -> Tarol.Messaging.Message!
 static Tarol.Messaging.Message.SystemOf(string! contract) -> string!
 static Tarol.Messaging.Message.operator !=(Tarol.Messaging.Message? left, Tarol.Messaging.Message? right) -> bool
