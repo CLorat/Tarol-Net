@@ -83,6 +83,7 @@ Tarol.Changes.IOutboxRowHandler
 Tarol.Changes.IOutboxRowHandler.ActivityName(string! reaction) -> string!
 Tarol.Changes.IOutboxRowHandler.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Tarol.Changes.IOutboxRowHandler.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Changes.IOutboxRowHandler.RunPositioned(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Persistence.PositionedEvent! positioned, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 Tarol.Changes.JobDefinition
 Tarol.Changes.JobDefinition.<Clone>$() -> Tarol.Changes.JobDefinition!
 Tarol.Changes.JobDefinition.Cron.get -> string!
@@ -132,6 +133,7 @@ Tarol.Changes.OutboxRows.Names.get -> System.Collections.Generic.IReadOnlyList<s
 Tarol.Changes.OutboxRows.Parts.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.IOutboxRowHandler!>!
 Tarol.Changes.OutboxRows.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
 Tarol.Changes.OutboxRows.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Changes.OutboxRows.RunPositioned(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Persistence.PositionedEvent! positioned, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 Tarol.Changes.ReactionRunner
 Tarol.Changes.ReactionSchedule
 Tarol.Changes.ReactionSet

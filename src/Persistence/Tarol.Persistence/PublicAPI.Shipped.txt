@@ -547,6 +547,7 @@ Tarol.Persistence.TarolBuilder
 Tarol.Persistence.TarolBuilder.Codec.get -> Tarol.Persistence.EventCodec!
 Tarol.Persistence.TarolBuilder.HasStore.get -> bool
 Tarol.Persistence.TarolBuilder.Json.get -> System.Text.Json.JsonSerializerOptions!
+Tarol.Persistence.TarolBuilder.OutboxRows.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.IOutboxReactions!>!
 Tarol.Persistence.TarolBuilder.OutboxTable.get -> Tarol.Persistence.IOutboxReactions?
 Tarol.Persistence.TarolBuilder.Reactions.get -> Tarol.Persistence.IOutboxReactions?
 Tarol.Persistence.TarolBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
