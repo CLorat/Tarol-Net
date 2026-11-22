@@ -371,7 +371,8 @@ public sealed class NpgsqlBusTests(Postgres postgres)
         (await store.Append(auction, 0, alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
         Primitives.AggregateChanges.Committed(auction);
         _ = auction.Settle();
-        (await store.Append(auction, 1, alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
+        var settled = await store.Append(auction, 1, alice, Option.None, Ct);
+        settled.TryGetValue(out GlobalPosition committed).ShouldBeTrue();          // the change answer's Tarol-Position
 
         var clock = Stopwatch.StartNew();
         while ((long)(await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.events"))! < 4 && clock.Elapsed < TimeSpan.FromSeconds(30))
@@ -381,6 +382,9 @@ public sealed class NpgsqlBusTests(Postgres postgres)
         (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.events WHERE actor_id = 'Consumers.IssueInvoice' AND on_behalf_of = 'alice'")).ShouldBe(1L);
         (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.events WHERE actor_id = 'Consumers.Sales'")).ShouldBe(1L);
         (await postgres.Scalar($"SELECT count(*) FROM {busSchema}.messages WHERE type = 'artflow.auction-settled'")).ShouldBe(1L);
+        (await postgres.Scalar($"SELECT headers->>'ce-streamversion' FROM {busSchema}.messages WHERE type = 'artflow.auction-settled'")).ShouldBe("2");
+        (await postgres.Scalar($"SELECT headers->>'ce-position' FROM {busSchema}.messages WHERE type = 'artflow.auction-settled'"))
+            .ShouldBe($"{committed.Transaction}.{committed.Position}");                          // BC-23: the client's Tarol-Read-After
         (await postgres.Scalar($"SELECT count(*) FROM {busSchema}.deliveries")).ShouldBe(0L);
         (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.outbox")).ShouldBe(0L);
         (await postgres.Scalar($"SELECT count(*) FROM {storeSchema}.messages_dead")).ShouldBe(0L);

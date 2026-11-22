@@ -96,6 +96,7 @@ Stacked: each PR's base is the one before it; retarget each to `main` before its
 | #107 | TWEB007 (CC-5) | 20 |
 | #108 | BC-4 `x-tarol-rules`, TVAL010 | 21 |
 | (this) | BC-18 (Tarol-Svelte) a login page for the sample's browser app | 22 |
+| (this) | BC-23 (Tarol-Svelte) revision and feed position in the pushed message | 23 |
 
 The reply for the client is Tarol-Svelte `docs/backend/tarol-net-reply.md`.
 
@@ -456,3 +457,12 @@ packages):
   http://localhost:8080/ui/login/login`; the rest of the run as in §14. With `ARTFLOW_STAY_UP=1`, Chromium (Playwright) signs
   ada in on the login page (user name, password) and Zitadel redirects to `http://localhost:5173/?code=…` without a prompt;
   so does cleo's first sign-in.
+
+## 23. The event's revision and feed position in the pushed message (Tarol-Svelte BC-23)
+
+* **Change**: `PushedMessage` gains `revision` (the stream version after the event, the number of a view's strong `ETag`) and
+  `position` (the event's feed position, the text of `Tarol-Position`, for `Tarol-Read-After`), carried through the outbox as the
+  CloudEvents extensions `ce-streamversion` and `ce-position`; both `null` for a client's publish and for a message of an older
+  publisher. Implemented in full, position included: the outbox claim already reads the event's position, and the worker now
+  passes it to the publication (`IOutboxRowHandler.RunPositioned`).
+* Details, public API, behaviour and tests: docs/migration/messaging.md §27.

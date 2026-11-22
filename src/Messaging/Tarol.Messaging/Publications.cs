@@ -222,7 +222,7 @@ public sealed class PublicationSet : IOutboxReactions
 
 /// <summary>
 /// Runs the publication rows (M-10) on the reaction worker: map the event (the generated map through the application's
-/// JSON context), build the envelope (<see cref="Message.Of"/>: message id = event id, <c>traceparent</c> = the worker's
+/// JSON context), build the envelope (<see cref="Message.Of(PositionedEvent, string, int, ReadOnlyMemory{byte}, string?)"/>: message id = event id, <c>traceparent</c> = the worker's
 /// <c>publish &lt;contract&gt;</c> activity) and publish it. A row completes once the transport holds the message durably; a
 /// failure is a retry with the worker's backoff, then <c>outbox_dead</c>.
 /// </summary>
@@ -282,10 +282,25 @@ public sealed partial class MessagePublisher : IOutboxRowHandler
 
     /// <inheritdoc />
     /// <exception cref="InvalidOperationException">No publication has that name.</exception>
-    public async ValueTask<Result<ChangeOutcome>> Run(ChangePipeline pipeline, string reaction, RecordedEvent recorded, CancellationToken cancellationToken)
+    /// <remarks>Without the feed position the message has no <see cref="Message.Position"/>; the reaction worker calls <see cref="RunPositioned"/>.</remarks>
+    public ValueTask<Result<ChangeOutcome>> Run(ChangePipeline pipeline, string reaction, RecordedEvent recorded, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(recorded);
+        return Publish(reaction, recorded, null, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">No publication has that name.</exception>
+    /// <remarks>The message carries the event's position (<see cref="Message.Position"/>, <c>ce-position</c>).</remarks>
+    public ValueTask<Result<ChangeOutcome>> RunPositioned(ChangePipeline pipeline, string reaction, PositionedEvent positioned, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(positioned);
+        return Publish(reaction, positioned.Event, positioned, cancellationToken);
+    }
+
+    private async ValueTask<Result<ChangeOutcome>> Publish(string reaction, RecordedEvent recorded, PositionedEvent? positioned, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(reaction);
-        ArgumentNullException.ThrowIfNull(recorded);
         var info = _set.Find(reaction)
             ?? throw new InvalidOperationException($"No publication named '{reaction}' is registered (removed, or its contract version changed).");
         var done = new ChangeOutcome(recorded.StreamId, recorded.Event.Version, 0);
@@ -296,7 +311,10 @@ public sealed partial class MessagePublisher : IOutboxRowHandler
             return done;
         }
         var activity = Activity.Current;
-        var message = Message.Of(recorded, info.Contract, info.Version, data, activity is { IdFormat: ActivityIdFormat.W3C } ? activity.Id : null);
+        var traceparent = activity is { IdFormat: ActivityIdFormat.W3C } ? activity.Id : null;
+        var message = positioned is null
+            ? Message.Of(recorded, info.Contract, info.Version, data, traceparent)
+            : Message.Of(positioned, info.Contract, info.Version, data, traceparent);
         activity?.SetTag("messaging.operation.type", "send");
         activity?.SetTag("messaging.destination.name", info.Contract);
         activity?.SetTag("tarol.contract.version", info.Version);
