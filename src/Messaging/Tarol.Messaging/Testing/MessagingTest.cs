@@ -361,5 +361,10 @@ public sealed class MessagingSystem
             => given.ContainsKey(recorded.EventId)
                 ? ValueTask.FromResult<Result<ChangeOutcome>>(new ChangeOutcome(recorded.StreamId, recorded.Event.Version, 0))
                 : rows.Run(pipeline, reaction, recorded, cancellationToken);
+
+        public ValueTask<Result<ChangeOutcome>> RunPositioned(ChangePipeline pipeline, string reaction, PositionedEvent positioned, CancellationToken cancellationToken)
+            => given.ContainsKey(positioned.Event.EventId)
+                ? ValueTask.FromResult<Result<ChangeOutcome>>(new ChangeOutcome(positioned.Event.StreamId, positioned.Event.Event.Version, 0))
+                : rows.RunPositioned(pipeline, reaction, positioned, cancellationToken);
     }
 }

@@ -24,11 +24,9 @@ Tarol.Messaging.SignalR.PushedMessage
 Tarol.Messaging.SignalR.PushedMessage.<Clone>$() -> Tarol.Messaging.SignalR.PushedMessage!
 Tarol.Messaging.SignalR.PushedMessage.Data.get -> System.Text.Json.JsonElement
 Tarol.Messaging.SignalR.PushedMessage.Data.init -> void
-Tarol.Messaging.SignalR.PushedMessage.Deconstruct(out string! Topic, out System.Guid Id, out int Version, out string? Subject, out System.DateTimeOffset Time, out string! Sender, out System.Text.Json.JsonElement Data) -> void
 Tarol.Messaging.SignalR.PushedMessage.Equals(Tarol.Messaging.SignalR.PushedMessage? other) -> bool
 Tarol.Messaging.SignalR.PushedMessage.Id.get -> System.Guid
 Tarol.Messaging.SignalR.PushedMessage.Id.init -> void
-Tarol.Messaging.SignalR.PushedMessage.PushedMessage(string! Topic, System.Guid Id, int Version, string? Subject, System.DateTimeOffset Time, string! Sender, System.Text.Json.JsonElement Data) -> void
 Tarol.Messaging.SignalR.PushedMessage.Sender.get -> string!
 Tarol.Messaging.SignalR.PushedMessage.Sender.init -> void
 Tarol.Messaging.SignalR.PushedMessage.Subject.get -> string?

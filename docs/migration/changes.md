@@ -564,3 +564,12 @@ the stored outcome (`Replayed: true`, or `KeyReused` when the fingerprint differ
 
 Tests: `PipelineTests.A_concurrent_run_under_the_same_key_gets_the_stored_outcome_not_a_conflict` and
 `A_concurrent_creation_under_the_same_key_gets_the_stored_outcome_not_a_conflict` (both fail without the fix).
+
+## 16. `IOutboxRowHandler.RunPositioned`: a row with its feed position (Tarol-Svelte BC-23, 2026-11-21)
+
+**Public API addition, behaviour change.** `IOutboxRowHandler.RunPositioned(pipeline, reaction, PositionedEvent, ct)` is a
+default interface member that runs `Run(pipeline, reaction, positioned.Event, ct)`, so every existing handler compiles and
+behaves unchanged; `OutboxRows.RunPositioned` forwards it to the part that owns the row. The reaction worker (`Tarol.Sagas`)
+now calls it with the claimed `OutboxRow.Event`, so a publication can put the event's feed position into its message
+(`ce-position`). A handler that wraps another must forward `RunPositioned` as well. Details, reasons and tests:
+docs/migration/messaging.md §27.

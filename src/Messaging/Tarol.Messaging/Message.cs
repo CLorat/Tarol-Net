@@ -1,6 +1,7 @@
 using System.Globalization;
 using Tarol.Kernel;
 using Tarol.Options;
+using Tarol.Persistence;
 using Tarol.Primitives;
 using Tarol.StronglyTypedId;
 
@@ -34,6 +35,20 @@ public sealed record Message
 
     /// <summary><c>ce-subject</c>: the stream id, the ordering key; <see langword="null"/> when there is none.</summary>
     public string? Subject { get; init; }
+
+    /// <summary>
+    /// <c>ce-streamversion</c> (extension): the stream's version after the event (<c>StreamEvent.Version</c>), the number a
+    /// view's strong <c>ETag</c> carries; <see langword="null"/> when there is no stream (or the publisher is older).
+    /// </summary>
+    public long? StreamVersion { get; init; }
+
+    /// <summary>
+    /// <c>ce-position</c> (extension): the event's position in the publisher's event feed, in the text of the HTTP header
+    /// <c>Tarol-Position</c> (<c>&lt;transaction&gt;.&lt;position&gt;</c>); for the last event of a commit it equals the change
+    /// answer's <c>Tarol-Position</c>. A client of the publishing system sends it as <c>Tarol-Read-After</c> to read a projection
+    /// that has the event. Opaque to every other system. <see langword="null"/> when the publisher does not know it.
+    /// </summary>
+    public string? Position { get; init; }
 
     /// <summary><c>ce-tenant</c> (extension): the tenant the publisher acted in.</summary>
     public Option<Id<ITenant>> Tenant { get; init; }
@@ -89,6 +104,10 @@ public sealed record Message
         yield return new(MessageHeaders.ContentType, "application/json");
         if (Subject is not null)
             yield return new(MessageHeaders.Subject, Subject);
+        if (StreamVersion is { } streamVersion)
+            yield return new(MessageHeaders.StreamVersion, streamVersion.ToString(CultureInfo.InvariantCulture));
+        if (Position is not null)
+            yield return new(MessageHeaders.Position, Position);
         if (Tenant.TryGetValue(out Id<ITenant> tenant))
             yield return new(MessageHeaders.Tenant, tenant.Value.ToString("D", CultureInfo.InvariantCulture));
         yield return new(MessageHeaders.Correlation, Correlation.Value.ToString("D", CultureInfo.InvariantCulture));
@@ -100,7 +119,10 @@ public sealed record Message
             yield return new(MessageHeaders.Traceparent, Traceparent);
     }
 
-    /// <summary>Reads a message from its headers; <see langword="null"/> when a required one is missing or malformed (a poison message).</summary>
+    /// <summary>
+    /// Reads a message from its headers; <see langword="null"/> when a required one is missing or malformed (a poison message).
+    /// A malformed <c>ce-streamversion</c> or <c>ce-position</c> reads as absent: they are hints, not part of the contract.
+    /// </summary>
     /// <param name="header">The header of a name, or <see langword="null"/>.</param>
     /// <param name="data">The body.</param>
     /// <returns>The message, or <see langword="null"/>.</returns>
@@ -138,6 +160,9 @@ public sealed record Message
             Version = version,
             Time = time,
             Subject = header(MessageHeaders.Subject),
+            StreamVersion = long.TryParse(header(MessageHeaders.StreamVersion), NumberStyles.None, CultureInfo.InvariantCulture, out var streamVersion)
+                ? streamVersion : null,
+            Position = header(MessageHeaders.Position) is { } position && IsPosition(position) ? position : null,
             Tenant = tenant,
             Correlation = (Id<ICorrelation>)correlation,
             Causation = causation,
@@ -150,7 +175,9 @@ public sealed record Message
     /// <summary>
     /// The message of a committed event for one publication: id = the event id (the same for every contract version, so a
     /// consumer of both commits once), source = the contract's prefix, time = when it was recorded, subject = the stream id,
-    /// tenant, correlation and causation of the event's operation, actor <c>Kind:id[:onBehalfOf]</c>.
+    /// stream version = the event's version, tenant, correlation and causation of the event's operation, actor
+    /// <c>Kind:id[:onBehalfOf]</c>. <see cref="Position"/> stays <see langword="null"/>: the overload with a
+    /// <see cref="PositionedEvent"/> sets it.
     /// </summary>
     /// <param name="recorded">The committed event.</param>
     /// <param name="contract">The contract, prefixed by this system.</param>
@@ -177,6 +204,7 @@ public sealed record Message
             Version = version,
             Time = recorded.RecordedAt,
             Subject = recorded.StreamId.ToString("D", CultureInfo.InvariantCulture),
+            StreamVersion = recorded.Event.Version,
             Tenant = context.Tenant,
             Correlation = context.CorrelationId,
             Causation = context.CausationId,
@@ -184,6 +212,36 @@ public sealed record Message
             Traceparent = traceparent,
             Data = data,
         };
+    }
+
+    /// <summary>
+    /// The message of a committed event with its feed position (what the reaction worker claims from the outbox): as
+    /// <see cref="Of(RecordedEvent, string, int, ReadOnlyMemory{byte}, string?)"/>, and <see cref="Position"/> = the event's
+    /// position as <c>Tarol-Position</c> writes it.
+    /// </summary>
+    /// <param name="positioned">The committed event and its position in the feed.</param>
+    /// <param name="contract">The contract, prefixed by this system.</param>
+    /// <param name="version">The contract version.</param>
+    /// <param name="data">The contract's JSON.</param>
+    /// <param name="traceparent">The publishing activity (W3C), or <see langword="null"/>.</param>
+    /// <returns>The message.</returns>
+    /// <exception cref="ArgumentException">The contract has no system prefix, or the version is below 1.</exception>
+    public static Message Of(PositionedEvent positioned, string contract, int version, ReadOnlyMemory<byte> data, string? traceparent)
+    {
+        ArgumentNullException.ThrowIfNull(positioned);
+        return Of(positioned.Event, contract, version, data, traceparent) with { Position = FormatPosition(positioned.Position) };
+    }
+
+    // the text of Tarol.Changes.AspNetCore's Positions.Format (Tarol-Position), which this package does not reference
+    private static string FormatPosition(GlobalPosition position)
+        => position.Transaction.ToString(CultureInfo.InvariantCulture) + "." + position.Position.ToString(CultureInfo.InvariantCulture);
+
+    private static bool IsPosition(string text)
+    {
+        var dot = text.IndexOf('.', StringComparison.Ordinal);
+        return text.Length <= 41 && dot > 0
+            && ulong.TryParse(text.AsSpan(0, dot), NumberStyles.None, CultureInfo.InvariantCulture, out _)
+            && long.TryParse(text.AsSpan(dot + 1), NumberStyles.None, CultureInfo.InvariantCulture, out _);
     }
 
     /// <summary>The system that owns a contract: its prefix before the first dot; empty when there is none.</summary>
@@ -216,6 +274,10 @@ public static class MessageHeaders
     public const string ContentType = "content-type";
     /// <summary><c>ce-subject</c>.</summary>
     public const string Subject = "ce-subject";
+    /// <summary><c>ce-streamversion</c>: the stream's version after the event (<see cref="Message.StreamVersion"/>).</summary>
+    public const string StreamVersion = "ce-streamversion";
+    /// <summary><c>ce-position</c>: the event's position in the publisher's feed (<see cref="Message.Position"/>).</summary>
+    public const string Position = "ce-position";
     /// <summary><c>ce-tenant</c>.</summary>
     public const string Tenant = "ce-tenant";
     /// <summary><c>ce-correlation</c>.</summary>

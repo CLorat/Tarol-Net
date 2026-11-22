@@ -104,6 +104,7 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
   should leave; it needs no reactions. The worker's span is `publish <contract>`, linked to the commit; it is the
   message's `traceparent`.
 * The envelope (`Message.Of`): id = the event id, `ce-source` = the contract's prefix, `ce-subject` = the stream id,
+  `ce-streamversion` = the event's stream version, `ce-position` = its feed position (`<tx>.<pos>`, as `Tarol-Position`),
   `ce-time` = when it was recorded, tenant, correlation and causation of the event's operation, `ce-actor`
   `Kind:id[:for]`.
 * At least once: a crash after publishing publishes again; the transport drops the duplicate by
@@ -208,7 +209,10 @@ app.MapMessageHub();                                           // /tarol/message
 
 * **Forwarding**: a consumer subscription `<app>.UiPush` sends each forwarded message to the SignalR group
   `<tenant>/<topic>` of its envelope's tenant; only this application's messages and those of a trusted source for an
-  allowed tenant are forwarded. A disconnected client misses it: the push notifies, the store is the truth.
+  allowed tenant are forwarded. A disconnected client misses it: the push notifies, the store is the truth. A client
+  receives `{topic, id, version, subject, time, sender, data, revision, position}`: `version` is the contract version,
+  `revision` the stream version after the event (a view's `ETag`), `position` the event's feed position for
+  `Tarol-Read-After`; both `null` for a client's publish.
 * **The hub** (`MessageHub`, `[Authorize]`): `Subscribe`, `Unsubscribe`, `Publish`. The tenant comes from the caller's
   claim, never from the client; `ITopicAuthorizer` decides every subscribe and publish (nothing is allowed by default); a
   client's publish carries the caller's `sub` as `Sender`.

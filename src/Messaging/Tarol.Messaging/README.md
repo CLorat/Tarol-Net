@@ -66,7 +66,10 @@ builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
 The commit writes one outbox row per publication (`publish:<contract>@<version>`) and effect (`effect:<name>`); the
 reaction worker runs them with its claim, head order per stream, backoff, lease, `outbox_dead` and trace links. Message id =
 the event id (the same for every contract version); a duplicate after a crash is dropped by the transport or replayed by
-the consumer's key. A mapping method returning `null` publishes nothing.
+the consumer's key. A mapping method returning `null` publishes nothing. The envelope also carries the event's stream
+version (`ce-streamversion`, `Message.StreamVersion`) and its position in this system's feed (`ce-position`,
+`Message.Position`, the text of `Tarol-Position`), for a UI client of this system; both are `null` in a message of an older
+publisher.
 
 ## What happens to a message
 
