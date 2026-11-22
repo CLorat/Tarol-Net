@@ -1,1 +1,2 @@
 #nullable enable
+Tarol.Persistence.TarolBuilder.OutboxRows.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.IOutboxReactions!>!

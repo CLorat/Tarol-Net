@@ -717,3 +717,10 @@ with both changes. Not measured here: the gain per commit.
 Tests: the schema state assertions move to version 4 (`DataProtectionTests`: 9 and 6 steps run); the suite with Docker passes
 (1883). `A_Cached_Key_Costs_No_Key_Query` now waits for the key store's `LISTEN` first: the cache clear that follows it could land
 while the test counted (it failed once in a full run).
+
+## 27. `TarolBuilder.OutboxRows` (BC-25, 2026-11-21)
+
+**Public API change.** `TarolBuilder.OutboxRows`: the rows added with `WithOutboxRows`, in order (`OutboxTable` combines them and
+loses the parts). `Tarol.Messaging.SignalR`'s `PushToUi` reads the `PublicationSet`s among them to describe its topics in the
+OpenAPI document (`x-tarol-topics`, [client-contract.md §24](client-contract.md)). No behaviour change. Suppressions: none.
+

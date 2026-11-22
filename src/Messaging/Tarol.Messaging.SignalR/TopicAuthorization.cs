@@ -73,6 +73,12 @@ public sealed class TopicRules : ITopicAuthorizer
         return ValueTask.FromResult(false);
     }
 
+    /// <summary>The topics of the rules that are not prefixes (BC-25: client-only topics are described too).</summary>
+    internal IEnumerable<string> ExactTopics => _rules.Where(static r => !r.Pattern.EndsWith('*')).Select(static r => r.Pattern);
+
+    /// <summary>Whether a rule lets someone (any user, or a role) do <paramref name="operation"/> on <paramref name="topic"/>.</summary>
+    internal bool Permits(TopicOperation operation, string topic) => _rules.Any(r => r.Operation == operation && Matches(r.Pattern, topic));
+
     private static bool Matches(string pattern, string topic)
         => pattern.EndsWith('*') ? topic.StartsWith(pattern[..^1], StringComparison.Ordinal) : string.Equals(pattern, topic, StringComparison.Ordinal);
 }

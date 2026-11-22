@@ -67,6 +67,9 @@ app.MapChanges();
   value objects, the members of multi-field and class value objects and of `IValidatable` inputs (with `minLength`,
   `minimum`, `minItems`, … as JSON Schema keywords too), `Count`, `IgnoreCase` (`flags: "i"`), Unicode categories
   (`flags: "u"`), and `x-tarol-email` with `[Email]`'s exact check. Patterns a JavaScript `RegExp` reads differently warn TVAL010.
+  With `Tarol.Messaging.SignalR`'s `PushToUi` in the app, the document also has `x-tarol-topics` (BC-25): per UI push topic
+  `{version?, stream?, schema?, subscribe?, publish?}`, the contract record's schema in `components/schemas` (see that
+  package's README).
 * **Problem details** through `IProblemDetailsService` when the app registered one, else written directly.
 * **`GET /me`** (opt-in, `app.MapTarolMe()`): `{subject, actor: {kind, id}, tenant, roles}` of an authenticated caller by the
   entries' own rules (actor rule, tenant claim and mapping, role claims), so a UI shows role-dependent actions without

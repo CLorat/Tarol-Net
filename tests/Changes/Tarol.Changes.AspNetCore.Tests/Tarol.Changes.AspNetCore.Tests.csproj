@@ -16,6 +16,10 @@
     <!-- the page cache under the list entries (13C) -->
     <ProjectReference Include="../../../src/Caching/Tarol.Caching/Tarol.Caching.csproj" />
     <ProjectReference Include="../../../src/Operations/Tarol.Operations/Tarol.Operations.csproj" />
+    <!-- BC-25: the UI push's topics in the document (x-tarol-topics) -->
+    <ProjectReference Include="../../../src/Messaging/Tarol.Messaging.SignalR/Tarol.Messaging.SignalR.csproj" />
+    <ProjectReference Include="../../../src/Messaging/Tarol.Messaging.Generators/Tarol.Messaging.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- Analyzer project references do not flow: reference the bundled generators like a package consumer gets them. -->
     <ProjectReference Include="../../../src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

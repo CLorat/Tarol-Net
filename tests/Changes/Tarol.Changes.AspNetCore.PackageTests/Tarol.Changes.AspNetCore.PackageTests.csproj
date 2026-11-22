@@ -15,6 +15,8 @@
     <PackageReference Include="Tarol.Changes.AspNetCore" VersionOverride="$(TarolPackageVersion)" />
     <PackageReference Include="Tarol.Persistence.Npgsql" VersionOverride="$(TarolPackageVersion)" />
     <PackageReference Include="Tarol.Queries.Npgsql" VersionOverride="$(TarolPackageVersion)" />
+    <!-- BC-25: the smoke program pushes to the UI (x-tarol-topics) -->
+    <PackageReference Include="Tarol.Messaging.SignalR" VersionOverride="$(TarolPackageVersion)" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs;../Tarol.Changes.AspNetCore.Tests/Queries.cs" LinkBase="ArtFlow" />
     <Compile Include="../Tarol.Changes.AspNetCore.AotSmoke/Program.cs" Link="Program.cs" />

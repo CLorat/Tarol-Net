@@ -98,8 +98,12 @@ internal static class Discovery
             for (var b = domainEvent!.BaseType; b is not null && b.SpecialType != SpecialType.System_Object; b = b.BaseType)
                 bases.Add(b.ToDisplayString(Fq));
             var record = method.ReturnType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(Fq);
-            results.Add(new PublicationResult(new PublicationModel(contract, version, domainEvent.ToDisplayString(Fq), new EquatableArray<string>(bases.ToImmutable()),
-                record, method.ContainingType.ToDisplayString(Fq), method.Name, method.Parameters.Length == 2, location), null));
+            var model = new PublicationModel(contract, version, domainEvent.ToDisplayString(Fq), new EquatableArray<string>(bases.ToImmutable()),
+                record, method.ContainingType.ToDisplayString(Fq), method.Name, method.Parameters.Length == 2, location)
+            {
+                Stream = StreamOf(domainEvent),
+            };
+            results.Add(new PublicationResult(model, null));
         }
         return results.ToImmutable();
     }
@@ -123,6 +127,20 @@ internal static class Discovery
             .First(p => p.Contract.StartsWith(prefixes[1] + ".", StringComparison.Ordinal));
         return DiagnosticInfo.AsWarning(Diagnostics.PublicationCollision, first.Location,
             $"This assembly publishes under {prefixes.Length} system prefixes ({string.Join(", ", prefixes)}); a system publishes under its own prefix, which consumers trust as the source");
+    }
+
+    /// <summary>
+    /// The aggregate whose stream the event belongs to (BC-25): the root of the nearest base declared by
+    /// <c>AggregateRoot&lt;TSelf&gt;</c> (<c>Event</c>) or <c>Entity&lt;TRoot, TSelf&gt;</c> (<c>Event</c>, <c>Created</c>,
+    /// <c>CreatedIn&lt;T&gt;</c>, <c>Deleted</c>); <see langword="null"/> for an event that derives from neither (not known statically).
+    /// </summary>
+    private static string? StreamOf(INamedTypeSymbol domainEvent)
+    {
+        for (var b = domainEvent.BaseType; b is not null && b.SpecialType != SpecialType.System_Object; b = b.BaseType)
+            if (b.ContainingType is { IsGenericType: true, TypeArguments.Length: > 0 } owner
+                && owner.OriginalDefinition.ToDisplayString() is "Tarol.Primitives.AggregateRoot<TSelf>" or "Tarol.Primitives.Entity<TRoot, TSelf>")
+                return owner.TypeArguments[0] is INamedTypeSymbol root and not IErrorTypeSymbol ? root.Name : null;
+        return null;
     }
 
     private static bool Hidden(INamedTypeSymbol type)

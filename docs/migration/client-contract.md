@@ -95,8 +95,9 @@ Stacked: each PR's base is the one before it; retarget each to `main` before its
 | #106 | BC-13 `GET /me` | 19 |
 | #107 | TWEB007 (CC-5) | 20 |
 | #108 | BC-4 `x-tarol-rules`, TVAL010 | 21 |
-| (this) | BC-18 (Tarol-Svelte) a login page for the sample's browser app | 22 |
+| #109 | BC-18 (Tarol-Svelte) a login page for the sample's browser app | 22 |
 | (this) | BC-23 (Tarol-Svelte) revision and feed position in the pushed message | 23 |
+| (this) | BC-25 (Tarol-Svelte) `x-tarol-topics` | 24 |
 
 The reply for the client is Tarol-Svelte `docs/backend/tarol-net-reply.md`.
 
@@ -466,3 +467,42 @@ packages):
   publisher. Implemented in full, position included: the outbox claim already reads the event's position, and the worker now
   passes it to the publication (`IOutboxRowHandler.RunPositioned`).
 * Details, public API, behaviour and tests: docs/migration/messaging.md §27.
+
+## 24. The UI push's topics in the document: `x-tarol-topics` (Tarol-Svelte BC-25)
+
+* **Finding** (Tarol-Svelte `docs/backend/changes.md` BC-25): `@clorat/tarol-codegen` builds its client from `/openapi/v1.json`
+  and knew no push topic: an app hand-typed `'artflow.bid-placed'`, the payload was `unknown`, a typo surfaced only as
+  `Hub.Forbidden` at run time.
+* **Change**: a top-level document extension, an object keyed by topic name. The sample's API (no app code added; it already
+  calls `AddOpenApi(o => o.AddTarolEndpoints())` and `PushToUi`) **[verified]** (its document built against a throwaway
+  PostgreSQL, the AppHost not run):
+
+  ```json
+  "x-tarol-topics": {
+    "artflow.bid-placed": { "version": 1, "stream": "Auction", "schema": { "$ref": "#/components/schemas/BidPlacedV1" },
+                            "subscribe": true, "publish": false }
+  }
+  ```
+
+  and `components.schemas.BidPlacedV1` = `{"type": "object", "required": ["auction", "amount", "at"], "properties": {"auction":
+  {"type": "string", "format": "uuid"}, "amount": {"type": "number", "format": "double"}, "at": {"type": "string", "format":
+  "date-time"}}}` (`Auction` is a `Guid` in the contract, so no `x-tarol-id`; an `Id<Auction>` member would carry it).
+* **Fields**: `version` (the contract version the app publishes, the highest of several), `stream` (the aggregate whose id is
+  the message's `subject`, from the event's base: `Bid.Placed : Entity<Auction, Bid>.Created` → `Auction`; omitted when not
+  known statically), `schema` (a `$ref` to the contract record, generated from the app's HTTP JSON metadata, the same
+  source-generated context as the entries; the reference id is the document's own `CreateSchemaReferenceId`), `subscribe` and
+  `publish` (whether a rule of `UiPushOptions.Rules` lets someone, any user or a role, do it; omitted with the app's own
+  `ITopicAuthorizer`). A topic forwarded from a trusted system without a local `[Publishes]` has only `subscribe`/`publish`; a
+  client-only topic (an exact rule, nothing forwarded) likewise, with `publish: true` when a rule allows it. Prefix rules
+  (`artflow.*`) add no topic. A client still reads `PushedMessage.version` and handles an older version during a migration.
+* **Where it comes from**: `PublicationInfo.ContractType`/`EventType`/`Stream` (generated), `UiPushTopics` (registered by
+  `PushToUi`, reading `TarolBuilder.OutboxRows`), and a document transformer generated into the app's `AddTarolEndpoints()` when
+  it references `Tarol.Messaging.SignalR` (messaging.md §28, persistence.md §27).
+* **Tests**: `OpenApiTopicsTests` (3: forwarded/trusted/client-only topics and the `BidPlacedV1` component; an own authorizer; no
+  topics, no extension); `GeneratorTests.With_the_UI_push_referenced_the_topics_are_in_the_document` (new `topics` snapshot; the
+  `openapi` snapshot is unchanged without the UI push) and `The_topics_transformer_compiles_without_warnings`; the
+  `Tarol.Changes.AspNetCore` AOT smoke app checks `x-tarol-topics` natively (0 IL warnings) and, through the shared program,
+  its package consumer test.
+* **Public API** (generated): see messaging.md §28 and persistence.md §27. **Behaviour**: the document only.
+  **Suppressions**: none.
+

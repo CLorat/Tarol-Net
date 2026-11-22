@@ -8,7 +8,8 @@ namespace Tarol.Changes.AspNetCore.Generators;
 /// <summary>
 ///     Generates the HTTP entries (docs/architecture/rest.md): for every <c>[Endpoint]</c> change or view and every
 ///     <c>[Webhook]</c> factory, a <c>RequestDelegate</c>; per assembly <c>GeneratedEndpoints.MapChanges()</c>, and, when the
-///     application references <c>Microsoft.AspNetCore.OpenApi</c>, <c>GeneratedOpenApi.AddTarolEndpoints(OpenApiOptions)</c>.
+///     application references <c>Microsoft.AspNetCore.OpenApi</c>, <c>GeneratedOpenApi.AddTarolEndpoints(OpenApiOptions)</c>
+///     (with <c>x-tarol-topics</c> when it also references <c>Tarol.Messaging.SignalR</c>).
 ///     The Request Delegate Generator does not see generated <c>MapPost</c> calls (C-12), so the delegates bind by
 ///     themselves. Diagnostics TWEB001–TWEB007. Models are symbol-free; a body edit or an unrelated file regenerates nothing.
 /// </summary>
@@ -41,6 +42,8 @@ public sealed class EndpointGenerator : IIncrementalGenerator
 
         var assembly = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
         var openApi = context.CompilationProvider.Select(static (c, _) => c.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null);
+        // BC-25: with Tarol.Messaging.SignalR referenced, the document also lists the UI push's topics (x-tarol-topics)
+        var pushTopics = context.CompilationProvider.Select(static (c, _) => c.GetTypeByMetadataName("Tarol.Messaging.SignalR.UiPushTopics") is not null);
 
         context.RegisterSourceOutput(models.Combine(hookModels).Combine(assembly), static (spc, all) =>
         {
@@ -55,12 +58,12 @@ public sealed class EndpointGenerator : IIncrementalGenerator
             spc.AddSource("GeneratedEndpoints.g.cs", Emitter.Endpoints(ordered, hookList, name));
         });
 
-        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(assembly), static (spc, all) =>
+        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(pushTopics).Combine(assembly), static (spc, all) =>
         {
-            var ((((entryModels, objects), rules), available), name) = all;
+            var (((((entryModels, objects), rules), available), topics), name) = all;
             if (!available || entryModels.IsEmpty)
                 return;
-            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name));
+            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name, topics));
         });
     }
 }

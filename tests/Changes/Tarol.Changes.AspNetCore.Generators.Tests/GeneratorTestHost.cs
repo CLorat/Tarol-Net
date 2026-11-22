@@ -13,7 +13,7 @@ internal static class GeneratorTestHost
 {
     public static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
 
-    private static IReadOnlyList<MetadataReference> References(bool openApi)
+    private static IReadOnlyList<MetadataReference> References(bool openApi, bool pushTopics)
         => [
             .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
                 .Split(Path.PathSeparator)
@@ -33,7 +33,9 @@ internal static class GeneratorTestHost
                 .Where(static path => !Path.GetFileName(path).StartsWith("Microsoft.CodeAnalysis", StringComparison.Ordinal)
                                       && !Path.GetFileName(path).Contains(".Generators", StringComparison.Ordinal)
                                       && !Path.GetFileName(path).StartsWith("Microsoft.AspNetCore.OpenApi", StringComparison.Ordinal)
-                                      && !Path.GetFileName(path).StartsWith("Microsoft.OpenApi", StringComparison.Ordinal))
+                                      && !Path.GetFileName(path).StartsWith("Microsoft.OpenApi", StringComparison.Ordinal)
+                                      && !Path.GetFileName(path).StartsWith("Tarol.Messaging", StringComparison.Ordinal))   // only with pushTopics
+                .Concat(pushTopics ? [typeof(Tarol.Messaging.SignalR.UiPushTopics).Assembly.Location, typeof(Tarol.Messaging.PublicationInfo).Assembly.Location] : [])
                 .Concat(openApi ? [typeof(Microsoft.AspNetCore.OpenApi.OpenApiOptions).Assembly.Location, typeof(Microsoft.OpenApi.OpenApiSchema).Assembly.Location] : [])
                 .Distinct(StringComparer.Ordinal)
                 .Select(static path => (MetadataReference)MetadataReference.CreateFromFile(path))
@@ -84,11 +86,14 @@ internal static class GeneratorTestHost
         }
         """;
 
-    public static CSharpCompilation Compile(bool openApi, params string[] sources)
+    public static CSharpCompilation Compile(bool openApi, params string[] sources) => Compile(openApi, false, sources);
+
+    /// <summary>Compiles, with <paramref name="pushTopics"/> also against <c>Tarol.Messaging.SignalR</c> (BC-25: x-tarol-topics).</summary>
+    public static CSharpCompilation Compile(bool openApi, bool pushTopics, params string[] sources)
         => CSharpCompilation.Create(
             "Shop.Api",
             sources.Select((s, i) => CSharpSyntaxTree.ParseText(s, Parse, path: $"Source{i}.cs")),
-            References(openApi),
+            References(openApi, pushTopics),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable)
                 // the SDK's default NoWarn: unification notes (Microsoft.OpenApi references System.Text.Json 8, the app runs 11)
                 .WithSpecificDiagnosticOptions([new("CS1701", ReportDiagnostic.Suppress), new("CS1702", ReportDiagnostic.Suppress)]));
@@ -100,9 +105,12 @@ internal static class GeneratorTestHost
             .RunGenerators(compilation);
 
     /// <summary>Generator diagnostics plus the compiler's warnings and errors with the Primitives, Changes and endpoint generators.</summary>
-    public static ImmutableArray<Diagnostic> Diagnose(bool openApi, params string[] sources)
+    public static ImmutableArray<Diagnostic> Diagnose(bool openApi, params string[] sources) => Diagnose(openApi, false, sources);
+
+    /// <summary>As <see cref="Diagnose(bool, string[])"/>, with <paramref name="pushTopics"/> against <c>Tarol.Messaging.SignalR</c>.</summary>
+    public static ImmutableArray<Diagnostic> Diagnose(bool openApi, bool pushTopics, params string[] sources)
     {
-        var compilation = Compile(openApi, [Domain, .. sources]);
+        var compilation = Compile(openApi, pushTopics, [Domain, .. sources]);
         _ = CSharpGeneratorDriver
             .Create([new AggregateGenerator().AsSourceGenerator(), new ChangesGenerator().AsSourceGenerator(), new ValidationGenerator().AsSourceGenerator(),
                 new ProjectionGenerator().AsSourceGenerator(), new EndpointGenerator().AsSourceGenerator()], parseOptions: Parse)

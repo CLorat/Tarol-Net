@@ -29,7 +29,12 @@ public sealed class PublicationSetTests
         set.ReactionsTo(new Auction.Opened()).IsEmpty.ShouldBeTrue();
         set.DueAt(new Auction.Settled(1m), "publish:artflow.auction-settled@1").ShouldBeNull();
         set.IsScheduled("publish:artflow.auction-settled@1").ShouldBeFalse();
-        set.Find("publish:artflow.auction-settled@1").ShouldBe(new PublicationInfo("publish:artflow.auction-settled@1", "artflow.auction-settled", 1));
+        set.Find("publish:artflow.auction-settled@1").ShouldBe(new PublicationInfo("publish:artflow.auction-settled@1", "artflow.auction-settled", 1)
+        {
+            ContractType = typeof(AuctionSettledV1),                                                                 // BC-25
+            EventType = typeof(Auction.Settled),
+            Stream = "Auction",
+        });
         set.Find("publish:artflow.unknown@1").ShouldBeNull();
         PublicationInfo.NameOf("billing.invoice-paid", 2).ShouldBe("publish:billing.invoice-paid@2");
     }

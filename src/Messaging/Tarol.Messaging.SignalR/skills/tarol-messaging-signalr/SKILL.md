@@ -3,8 +3,8 @@ name: tarol-messaging-signalr
 description: >-
   Use when a Tarol app pushes messages to browsers or .NET clients over SignalR, or a client listens: PushToUi
   (UiPushOptions: Forward, Rules, Name, HubPath, TenantClaim, Tenant, SubjectClaim), MapMessageHub, MessageHub
-  (Subscribe, Unsubscribe, Publish, Group), ITopicAuthorizer, TopicRules, PushedMessage, SignalRJson, HubConnections and
-  MessagePushClient (Connect, Start, Subscribe, Publish, Stop). Do not write your own hub, a typed hub, a backplane
+  (Subscribe, Unsubscribe, Publish, Group), ITopicAuthorizer, TopicRules, PushedMessage, SignalRJson, HubConnections,
+  UiPushTopics (x-tarol-topics in the OpenAPI document) and MessagePushClient (Connect, Start, Subscribe, Publish, Stop). Do not write your own hub, a typed hub, a backplane
   relay, or a client reconnect loop; do not decompile or web-search.
 ---
 # Tarol.Messaging.SignalR
@@ -28,6 +28,10 @@ description: >-
 7. **The .NET client**: `MessagePushClient.Connect(hubUri, accessToken)`, `Subscribe` (any time, before or after `Start`),
    dispose the returned handle to stop one handler, `Start`. It reconnects forever (0, 1, 2, 5 s, then every 10 s) and
    replays the subscriptions; only `Stop` or disposing ends it.
+7. **Topics in the OpenAPI document**: with `AddOpenApi(o => o.AddTarolEndpoints())`, `x-tarol-topics` lists every
+   forwarded topic and every exact rule topic as `{version?, stream?, schema?, subscribe?, publish?}`; version, schema
+   (`$ref` to the contract record) and stream come from `[Publishes<T>]` (`GeneratedPublications.Set` given to
+   `WithOutboxRows` or `Publish`). No extra call; with your own `ITopicAuthorizer`, `subscribe`/`publish` are absent.
 8. **Native AOT** needs `Microsoft.AspNetCore.SignalR.Hub.IsCustomAwaitableSupported=false` in the app
    (`RuntimeHostConfigurationOption`).
 
@@ -72,6 +76,7 @@ await push.Start(cancellationToken);
 | an unauthenticated connection | 401 at `Start` |
 | a typed hub or `Hub<T>` of your own under AOT | Reflection.Emit: not AOT-compatible |
 | forgetting the AOT feature switch | IL2026/IL3050 at publish (`DefaultHubDispatcher`) |
+| a forwarded topic without `version`/`schema` in `x-tarol-topics` | its `[Publishes<T>]` set is not given to `WithOutboxRows`/`Publish` in this app |
 | one forwarder name on several web nodes | each message reaches the clients of one node only |
 | comparing `Version` with a view's `ETag` | always 1 (the contract version); compare `Revision` |
 | re-reading a list right after a push without `Tarol-Read-After: <Position>` | the old row (the projection lags the outbox) |
