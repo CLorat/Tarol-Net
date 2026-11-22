@@ -7,3 +7,30 @@ Tarol.Messaging.SignalR.PushedMessage.Revision.get -> long?
 Tarol.Messaging.SignalR.PushedMessage.Revision.init -> void
 ~Tarol.Messaging.SignalR.SignalRJson.Int64.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<long>
 ~Tarol.Messaging.SignalR.SignalRJson.NullableInt64.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<long?>
+Tarol.Messaging.SignalR.UiPushTopic
+Tarol.Messaging.SignalR.UiPushTopic.<Clone>$() -> Tarol.Messaging.SignalR.UiPushTopic!
+Tarol.Messaging.SignalR.UiPushTopic.ContractType.get -> System.Type?
+Tarol.Messaging.SignalR.UiPushTopic.ContractType.init -> void
+Tarol.Messaging.SignalR.UiPushTopic.Deconstruct(out string! Name) -> void
+Tarol.Messaging.SignalR.UiPushTopic.Equals(Tarol.Messaging.SignalR.UiPushTopic? other) -> bool
+Tarol.Messaging.SignalR.UiPushTopic.Forwarded.get -> bool
+Tarol.Messaging.SignalR.UiPushTopic.Forwarded.init -> void
+Tarol.Messaging.SignalR.UiPushTopic.Name.get -> string!
+Tarol.Messaging.SignalR.UiPushTopic.Name.init -> void
+Tarol.Messaging.SignalR.UiPushTopic.Publish.get -> bool?
+Tarol.Messaging.SignalR.UiPushTopic.Publish.init -> void
+Tarol.Messaging.SignalR.UiPushTopic.Stream.get -> string?
+Tarol.Messaging.SignalR.UiPushTopic.Stream.init -> void
+Tarol.Messaging.SignalR.UiPushTopic.Subscribe.get -> bool?
+Tarol.Messaging.SignalR.UiPushTopic.Subscribe.init -> void
+Tarol.Messaging.SignalR.UiPushTopic.UiPushTopic(string! Name) -> void
+Tarol.Messaging.SignalR.UiPushTopic.Version.get -> int?
+Tarol.Messaging.SignalR.UiPushTopic.Version.init -> void
+Tarol.Messaging.SignalR.UiPushTopics
+Tarol.Messaging.SignalR.UiPushTopics.Topics.get -> System.Collections.Generic.IReadOnlyList<Tarol.Messaging.SignalR.UiPushTopic!>!
+Tarol.Messaging.SignalR.UiPushTopics.UiPushTopics(Tarol.Messaging.SignalR.UiPushOptions! options, System.Collections.Generic.IEnumerable<Tarol.Messaging.PublicationInfo!>! publications, bool rulesDecide = true) -> void
+override Tarol.Messaging.SignalR.UiPushTopic.Equals(object? obj) -> bool
+override Tarol.Messaging.SignalR.UiPushTopic.GetHashCode() -> int
+override Tarol.Messaging.SignalR.UiPushTopic.ToString() -> string!
+static Tarol.Messaging.SignalR.UiPushTopic.operator !=(Tarol.Messaging.SignalR.UiPushTopic? left, Tarol.Messaging.SignalR.UiPushTopic? right) -> bool
+static Tarol.Messaging.SignalR.UiPushTopic.operator ==(Tarol.Messaging.SignalR.UiPushTopic? left, Tarol.Messaging.SignalR.UiPushTopic? right) -> bool

@@ -7,3 +7,9 @@ Tarol.Messaging.MessagePublisher.RunPositioned(Tarol.Changes.ChangePipeline! pip
 const Tarol.Messaging.MessageHeaders.Position = "ce-position" -> string!
 const Tarol.Messaging.MessageHeaders.StreamVersion = "ce-streamversion" -> string!
 static Tarol.Messaging.Message.Of(Tarol.Persistence.PositionedEvent! positioned, string! contract, int version, System.ReadOnlyMemory<byte> data, string? traceparent) -> Tarol.Messaging.Message!
+Tarol.Messaging.PublicationInfo.ContractType.get -> System.Type?
+Tarol.Messaging.PublicationInfo.ContractType.init -> void
+Tarol.Messaging.PublicationInfo.EventType.get -> System.Type?
+Tarol.Messaging.PublicationInfo.EventType.init -> void
+Tarol.Messaging.PublicationInfo.Stream.get -> string?
+Tarol.Messaging.PublicationInfo.Stream.init -> void

@@ -49,6 +49,12 @@ public sealed class TarolBuilder
     /// </summary>
     public IOutboxReactions? OutboxTable => OutboxReactions.Combine([Reactions, .. _rows]);
 
+    /// <summary>
+    /// The rows added with <see cref="WithOutboxRows"/>, in order (BC-25: the UI push of <c>Tarol.Messaging.SignalR</c> reads the
+    /// publications among them to describe its topics). Read it when services are resolved: rows may be added after a package.
+    /// </summary>
+    public IReadOnlyList<IOutboxReactions> OutboxRows => _rows;
+
     /// <summary>Whether a store was registered.</summary>
     public bool HasStore { get; private set; }
 

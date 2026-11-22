@@ -57,6 +57,41 @@ public sealed class PublicationGeneratorTests
         => string.Join("\n", GeneratorTestHost.Diagnose(Sources.Publications).Select(d => d.ToString())).ShouldBeEmpty();
 
     [Fact]
+    public void The_stream_is_the_root_of_an_entity_event_and_absent_for_a_free_event()     // BC-25
+    {
+        const string source = """
+            using System;
+            using Tarol.Messaging;
+            using Tarol.Primitives;
+            using Tarol.StronglyTypedId;
+
+            namespace Shop;
+
+            public sealed record LineAddedV1(int Count);
+            public sealed record AuditedV1(string Note);
+            public partial class Line : Entity<Order, Line>
+            {
+                public sealed record Added(int Count) : Created;
+            }
+            public sealed record Audited(string Note) : DomainEvent;
+
+            public static class Publications
+            {
+                [Publishes<Line.Added>("shop.line-added", 1)]
+                public static LineAddedV1 Added(Line.Added e) => new(e.Count);
+
+                [Publishes<Audited>("shop.audited", 1)]
+                public static AuditedV1 Audited(Audited e) => new(e.Note);
+            }
+            """;
+        var generated = GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, source)).GetRunResult().GeneratedTrees
+            .Single(t => t.FilePath.EndsWith("GeneratedPublications.g.cs", StringComparison.Ordinal)).GetText(TestContext.Current.CancellationToken).ToString();
+
+        generated.ShouldContain("""new(P1, "shop.line-added", 1) { ContractType = typeof(global::Shop.LineAddedV1), EventType = typeof(global::Shop.Line.Added), Stream = "Order" },""");
+        generated.ShouldContain("""new(P0, "shop.audited", 1) { ContractType = typeof(global::Shop.AuditedV1), EventType = typeof(global::Shop.Audited) },""");
+    }
+
+    [Fact]
     public void Consumers_and_publications_of_one_assembly_are_two_files()
         => GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Consumers, Sources.Publications.Replace(GeneratorTestHost.Usings, "using System; using Tarol.Messaging; using Tarol.Primitives; using Tarol.Results;\n", StringComparison.Ordinal)
                 .Replace("public sealed record MoneyV2(decimal Amount, string Currency);", "", StringComparison.Ordinal)))

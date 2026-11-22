@@ -10,6 +10,8 @@
     <ProjectReference Include="../../../src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj" />
     <ProjectReference Include="../../../src/Queries/Tarol.Queries.Generators/Tarol.Queries.Generators.csproj" />
     <ProjectReference Include="../../../src/Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <!-- BC-25: the generated x-tarol-topics transformer compiles against the UI push -->
+    <ProjectReference Include="../../../src/Messaging/Tarol.Messaging.SignalR/Tarol.Messaging.SignalR.csproj" />
     <ProjectReference Include="../../Shared/Tarol.Testing.Generators/Tarol.Testing.Generators.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>

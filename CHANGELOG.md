@@ -14,6 +14,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `PushedMessage.Revision` and `PushedMessage.Position` (JSON `revision`, `position`; `null` for a client's publish), so a
   UI client skips a message it already has and re-reads a list with `Tarol-Read-After`. `IOutboxRowHandler.RunPositioned`
   (a default member) gives a row handler the claimed event's position; the reaction worker calls it.
+* `x-tarol-topics` in the OpenAPI document (BC-25): with `PushToUi` (`Tarol.Messaging.SignalR`) and the generated
+  `AddTarolEndpoints()`, every UI push topic as `{version?, stream?, schema?, subscribe?, publish?}`, the contract record's
+  schema in `components/schemas`. New API: `UiPushTopic`, `UiPushTopics` (`Tarol.Messaging.SignalR`);
+  `PublicationInfo.ContractType`, `.EventType`, `.Stream` (`Tarol.Messaging`, filled by the generator);
+  `TarolBuilder.OutboxRows` (`Tarol.Persistence`).
 
 ### Changed
 

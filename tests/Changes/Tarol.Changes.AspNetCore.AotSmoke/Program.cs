@@ -11,7 +11,10 @@ using Microsoft.Extensions.Options;
 using Tarol.Changes;
 using Tarol.Changes.AspNetCore;
 using Tarol.Changes.AspNetCore.Tests;
+using Tarol.Messaging;
+using Tarol.Messaging.SignalR;
 using Tarol.Persistence.Npgsql;
+using Tarol.Primitives;
 using Tarol.Queries;
 using Tarol.Queries.Npgsql;
 using Tarol.Search;
@@ -46,6 +49,13 @@ tarol.AddSecurity(roles =>
         roles.Role("bidder").May<PlaceBid>().May<Read<Auction>>();
     })
     .AddEndpoints();
+// BC-25: the UI push's topics in the document (x-tarol-topics), the publication rows only (as the sample's API)
+tarol.WithOutboxRows(GeneratedPublications.Set)
+    .AddMessaging("artflow", m => m.UseInMemoryTransport().PushToUi(push =>
+    {
+        push.Forward("artflow.bid-placed");
+        push.Rules.Subscribe("artflow.bid-placed");
+    }));
 builder.Services.AddSingleton<IAuthorizationHandler, CloseAuctionRule>();
 builder.Services.AddSingleton<IAuthorizationHandler, ReadOwnAuction>();
 builder.Services.AddProblemDetails();
@@ -159,6 +169,12 @@ Check("OpenAPI natively: x-tarol-rules on a value object, an input member and a 
     && ruled.GetProperty("MakeOffer").GetProperty("properties").GetProperty("contacts").GetProperty("x-tarol-rules")[0].GetProperty("rule").GetString() == "Count"
     && ruled.GetProperty("Price").GetProperty("properties").GetProperty("currency").GetProperty("x-tarol-rules")[0].GetProperty("flags").GetString() == "i",
     openapi.Body.Length);
+var topic = JsonElement.Parse(openapi.Body).GetProperty("x-tarol-topics").GetProperty("artflow.bid-placed");
+Check("OpenAPI natively: x-tarol-topics with the contract's version, stream and schema (BC-25)",
+    topic.GetProperty("version").GetInt32() == 1 && topic.GetProperty("stream").GetString() == "Auction" && topic.GetProperty("subscribe").GetBoolean()
+    && topic.GetProperty("schema").GetProperty("$ref").GetString() == "#/components/schemas/BidPlacedV1"
+    && ruled.GetProperty("BidPlacedV1").GetProperty("properties").GetProperty("auction").GetProperty("format").GetString() == "uuid",
+    topic.ToString());
 
 await app.StopAsync();
 Console.WriteLine(failures == 0 ? $"Tarol.Changes.AspNetCore AOT smoke ({(pg is { Length: > 0 } ? "Npgsql" : "in-memory")}): all checks passed" : $"{failures} failed");
@@ -174,4 +190,11 @@ internal sealed class SmokeScheme(IOptionsMonitor<AuthenticationSchemeOptions> o
         Claim[] claims = [new("sub", user), new("tenant", Request.Headers["X-Tenant"].ToString()), new("role", "seller"), new("role", "bidder")];
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, "smoke", "sub", "role")), "smoke")));
     }
+}
+
+/// <summary>BC-25: the publication behind the topic artflow.bid-placed.</summary>
+internal static class Publications
+{
+    [Publishes<Bid.Placed>("artflow.bid-placed", 1)]
+    public static BidPlacedV1 BidPlacedV1(Bid.Placed e, RecordedEvent r) => new(r.StreamId, e.Amount, e.At);
 }
