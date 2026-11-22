@@ -97,7 +97,9 @@ else
         var patient = Patient.Admit("Ada", "B2");
         Check("append sealed", (await sealing.Append(patient, 0, context, Option.None, default)).IsSuccess);
         await using (var raw = db.CreateCommand($"SELECT payload::text FROM {schema}.events WHERE stream_id = '{patient.Id.Value}'"))
-            Check("no plaintext stored", await raw.ExecuteScalarAsync() is string payload && !payload.Contains("Ada", StringComparison.Ordinal) && payload.Contains("tdp1.", StringComparison.Ordinal));
+            // the plaintext would be the JSON string "Ada"; the sealed value is "tdp1.<base64url>", whose random characters can
+            // spell Ada but never contain a quote
+            Check("no plaintext stored", await raw.ExecuteScalarAsync() is string payload && !payload.Contains("\"Ada\"", StringComparison.Ordinal) && payload.Contains("\"tdp1.", StringComparison.Ordinal));
         Check("load opens", (await sealing.Load(patient.Id, context, default)).GetValueOrThrow().Name == "Ada");
         Check("erase", await keys.EraseSubject(context.Tenant.GetValueOrThrow().Value, patient.Id.Value, default));
         var erased = (await sealing.Load(patient.Id, context, default)).GetValueOrThrow();
