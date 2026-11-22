@@ -120,6 +120,8 @@ public static class Publications
 | `ce-specversion`, `ce-id`, `ce-source`, `ce-type`, `ce-time` | `1.0`, the event id, the system, the contract, `RecordedAt` | id, type, time: yes; source: checked against the prefix |
 | `ce-contractversion` | the contract version (extension) | yes |
 | `ce-subject` | the stream id (the ordering key) | — |
+| `ce-streamversion` | the stream's version after the event (extension, BC-23; a view's `ETag`) | — (a hint for the publisher's UI) |
+| `ce-position` | the event's feed position at the publisher, `<tx>.<pos>` as `Tarol-Position` (extension, BC-23) | — (opaque to other systems) |
 | `ce-tenant` | `Id<ITenant>` | only within the source's allow-list |
 | `ce-correlation`, `ce-causation` | the operation's ids | correlation: yes (not security data); causation becomes the message id |
 | `ce-actor` | `Kind:id[:for]` | recorded as "for" only (M-6) |

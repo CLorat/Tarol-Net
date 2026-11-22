@@ -6,7 +6,7 @@ namespace Tarol.Changes;
 
 /// <summary>
 /// Runs one kind of outbox row (docs/architecture/messaging.md §4, M-10): the store writes the rows of its table in the
-/// commit, and the reaction worker claims them and calls <see cref="Run"/>. <see cref="ReactionSet"/> runs reactions;
+/// commit, and the reaction worker claims them and calls <see cref="RunPositioned"/>. <see cref="ReactionSet"/> runs reactions;
 /// <c>Tarol.Messaging</c> adds publications (<c>publish:&lt;contract&gt;@&lt;version&gt;</c>) and effects (<c>effect:&lt;name&gt;</c>).
 /// </summary>
 /// <remarks>
@@ -30,6 +30,23 @@ public interface IOutboxRowHandler : IOutboxReactions
     /// <param name="cancellationToken">Cancels the run.</param>
     /// <returns>A success (for a publication or an effect: the event's stream and version, no events), or the violation to classify.</returns>
     ValueTask<Result<ChangeOutcome>> Run(ChangePipeline pipeline, string reaction, RecordedEvent recorded, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs one row with the event's position in the feed, as the reaction worker claims it (BC-23): publications put the
+    /// position into the message (<c>ce-position</c>). The default runs <see cref="Run(ChangePipeline, string, RecordedEvent, CancellationToken)"/>
+    /// with <see cref="PositionedEvent.Event"/>; a handler that needs the position overrides it, and a handler that wraps
+    /// another forwards it.
+    /// </summary>
+    /// <param name="pipeline">The pipeline (reactions run their change through it; publications and effects ignore it).</param>
+    /// <param name="reaction">The row's name (<see cref="OutboxRow.Reaction"/>).</param>
+    /// <param name="positioned">The row's event (<see cref="OutboxRow.Event"/>).</param>
+    /// <param name="cancellationToken">Cancels the run.</param>
+    /// <returns>A success (for a publication or an effect: the event's stream and version, no events), or the violation to classify.</returns>
+    ValueTask<Result<ChangeOutcome>> RunPositioned(ChangePipeline pipeline, string reaction, PositionedEvent positioned, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(positioned);
+        return Run(pipeline, reaction, positioned.Event, cancellationToken);
+    }
 }
 
 /// <summary>
@@ -93,6 +110,16 @@ public sealed class OutboxRows : IOutboxRowHandler
         ArgumentNullException.ThrowIfNull(reaction);
         return _byName.TryGetValue(reaction, out var handler)
             ? handler.Run(pipeline, reaction, recorded, cancellationToken)
+            : throw new InvalidOperationException($"No outbox row handler runs '{reaction}' (removed, or renamed without pinning its name).");
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="InvalidOperationException">No handler runs a row of that name (removed, or renamed without pinning its name).</exception>
+    public ValueTask<Result<ChangeOutcome>> RunPositioned(ChangePipeline pipeline, string reaction, PositionedEvent positioned, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(reaction);
+        return _byName.TryGetValue(reaction, out var handler)
+            ? handler.RunPositioned(pipeline, reaction, positioned, cancellationToken)
             : throw new InvalidOperationException($"No outbox row handler runs '{reaction}' (removed, or renamed without pinning its name).");
     }
 }

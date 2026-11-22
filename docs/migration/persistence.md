@@ -722,5 +722,5 @@ while the test counted (it failed once in a full run).
 
 **Public API change.** `TarolBuilder.OutboxRows`: the rows added with `WithOutboxRows`, in order (`OutboxTable` combines them and
 loses the parts). `Tarol.Messaging.SignalR`'s `PushToUi` reads the `PublicationSet`s among them to describe its topics in the
-OpenAPI document (`x-tarol-topics`, [client-contract.md §23](client-contract.md)). No behaviour change. Suppressions: none.
+OpenAPI document (`x-tarol-topics`, [client-contract.md §24](client-contract.md)). No behaviour change. Suppressions: none.
 

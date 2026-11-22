@@ -96,7 +96,8 @@ Stacked: each PR's base is the one before it; retarget each to `main` before its
 | #107 | TWEB007 (CC-5) | 20 |
 | #108 | BC-4 `x-tarol-rules`, TVAL010 | 21 |
 | #109 | BC-18 (Tarol-Svelte) a login page for the sample's browser app | 22 |
-| (this) | BC-25 (Tarol-Svelte) `x-tarol-topics` | 23 |
+| (this) | BC-23 (Tarol-Svelte) revision and feed position in the pushed message | 23 |
+| (this) | BC-25 (Tarol-Svelte) `x-tarol-topics` | 24 |
 
 The reply for the client is Tarol-Svelte `docs/backend/tarol-net-reply.md`.
 
@@ -458,7 +459,16 @@ packages):
   ada in on the login page (user name, password) and Zitadel redirects to `http://localhost:5173/?code=…` without a prompt;
   so does cleo's first sign-in.
 
-## 23. The UI push's topics in the document: `x-tarol-topics` (Tarol-Svelte BC-25)
+## 23. The event's revision and feed position in the pushed message (Tarol-Svelte BC-23)
+
+* **Change**: `PushedMessage` gains `revision` (the stream version after the event, the number of a view's strong `ETag`) and
+  `position` (the event's feed position, the text of `Tarol-Position`, for `Tarol-Read-After`), carried through the outbox as the
+  CloudEvents extensions `ce-streamversion` and `ce-position`; both `null` for a client's publish and for a message of an older
+  publisher. Implemented in full, position included: the outbox claim already reads the event's position, and the worker now
+  passes it to the publication (`IOutboxRowHandler.RunPositioned`).
+* Details, public API, behaviour and tests: docs/migration/messaging.md §27.
+
+## 24. The UI push's topics in the document: `x-tarol-topics` (Tarol-Svelte BC-25)
 
 * **Finding** (Tarol-Svelte `docs/backend/changes.md` BC-25): `@clorat/tarol-codegen` builds its client from `/openapi/v1.json`
   and knew no push topic: an app hand-typed `'artflow.bid-placed'`, the payload was `unknown`, a typo surfaced only as
@@ -487,12 +497,12 @@ packages):
   (`artflow.*`) add no topic. A client still reads `PushedMessage.version` and handles an older version during a migration.
 * **Where it comes from**: `PublicationInfo.ContractType`/`EventType`/`Stream` (generated), `UiPushTopics` (registered by
   `PushToUi`, reading `TarolBuilder.OutboxRows`), and a document transformer generated into the app's `AddTarolEndpoints()` when
-  it references `Tarol.Messaging.SignalR` (messaging.md §27, persistence.md §27).
+  it references `Tarol.Messaging.SignalR` (messaging.md §28, persistence.md §27).
 * **Tests**: `OpenApiTopicsTests` (3: forwarded/trusted/client-only topics and the `BidPlacedV1` component; an own authorizer; no
   topics, no extension); `GeneratorTests.With_the_UI_push_referenced_the_topics_are_in_the_document` (new `topics` snapshot; the
   `openapi` snapshot is unchanged without the UI push) and `The_topics_transformer_compiles_without_warnings`; the
   `Tarol.Changes.AspNetCore` AOT smoke app checks `x-tarol-topics` natively (0 IL warnings) and, through the shared program,
   its package consumer test.
-* **Public API** (generated): see messaging.md §27 and persistence.md §27. **Behaviour**: the document only.
+* **Public API** (generated): see messaging.md §28 and persistence.md §27. **Behaviour**: the document only.
   **Suppressions**: none.
 

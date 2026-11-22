@@ -81,7 +81,9 @@ public sealed partial record RecordPayment(Id<Auction> Auction, string Invoice, 
    publish the domain event itself. One method per contract version (TMSG005); v2 is a second method.
 10. **Rows, not sends**: the commit writes `publish:<contract>@<version>` rows; the reaction worker publishes them at
     least once, in version order per stream, so `AddReactionWorker()` must run (it needs no reactions). Message id =
-    event id: a duplicate is dropped by the transport or replayed by the consumer's key.
+    event id: a duplicate is dropped by the transport or replayed by the consumer's key. `Message.StreamVersion`
+    (`ce-streamversion`) is the event's stream version, `Message.Position` (`ce-position`) its feed position at the
+    publisher: a hint for the publisher's own UI, opaque to other systems, `null` from an older publisher.
 11. **An effect** is `IEffect<TEvent>` (`effect:<name>` rows), registered with `.Effect<TEvent, THandler>("name")`,
     resolved from DI per row, run at least once: pass `context.IdempotencyKey` (the event id) to the receiver.
     `Unavailable` or an exception retries; `Invalid` goes to `outbox_dead`.

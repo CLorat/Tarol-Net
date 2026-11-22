@@ -8,11 +8,22 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* The event's revision and feed position in every published message and UI push (BC-23): `Message.StreamVersion`
+  (`ce-streamversion`, the stream version after the event, a view's `ETag`) and `Message.Position` (`ce-position`, the
+  event's feed position as `Tarol-Position` writes it), set by `Message.Of` and the new `Message.Of(PositionedEvent, …)`;
+  `PushedMessage.Revision` and `PushedMessage.Position` (JSON `revision`, `position`; `null` for a client's publish), so a
+  UI client skips a message it already has and re-reads a list with `Tarol-Read-After`. `IOutboxRowHandler.RunPositioned`
+  (a default member) gives a row handler the claimed event's position; the reaction worker calls it.
 * `x-tarol-topics` in the OpenAPI document (BC-25): with `PushToUi` (`Tarol.Messaging.SignalR`) and the generated
   `AddTarolEndpoints()`, every UI push topic as `{version?, stream?, schema?, subscribe?, publish?}`, the contract record's
   schema in `components/schemas`. New API: `UiPushTopic`, `UiPushTopics` (`Tarol.Messaging.SignalR`);
   `PublicationInfo.ContractType`, `.EventType`, `.Stream` (`Tarol.Messaging`, filled by the generator);
   `TarolBuilder.OutboxRows` (`Tarol.Persistence`).
+
+### Changed
+
+* `PushedMessage`'s constructor and `Deconstruct` take `Revision` and `Position` as two more (optional) parameters: binary
+  breaking, recompile callers. Messages without the new headers still read (`null`); a malformed one reads as absent.
 
 ## [0.1.0]
 

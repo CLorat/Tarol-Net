@@ -109,6 +109,10 @@ public sealed class PublicationTests
         message.Tenant.ShouldBe((Option<Id<ITenant>>)TenantA);
         message.Correlation.ShouldBe(settled.Context.CorrelationId);
         message.Actor.ShouldBe("User:alice");
+        message.StreamVersion.ShouldBe(settled.Event.Version);                                 // ce-streamversion = the view's ETag
+        var feed = await test["artflow"].Store.ReadAll(Tarol.Persistence.GlobalPosition.Start, 100, TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
+        var at = feed.Single(e => e.Event.EventId == settled.EventId).Position;
+        message.Position.ShouldBe($"{at.Transaction}.{at.Position}");                           // ce-position = Tarol-Position's text
 
         var invoice = test["billing"].Store.Recorded.Single(r => r.Event.Event is Invoice.Issued);
         invoice.Context.Actor.ToString().ShouldBe("System:Consumers.IssueInvoice (for alice)");      // M-6

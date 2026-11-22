@@ -87,7 +87,7 @@ Old shape → new shape: `Publish(topic, bytes)` → `Publish(Message)`; `Start(
 
 | # | Candidate | On the wire |
 |---|---|---|
-| E-A | **CloudEvents 1.0, binary mode** (decided) | headers `ce-specversion`, `ce-id` (event id), `ce-source`, `ce-type` (contract), `ce-contractversion`, `ce-time`, `ce-subject` (stream id), `ce-tenant`, `ce-correlation`, `ce-causation`, `ce-actor`, `traceparent`, `content-type: application/json`; body = the contract JSON |
+| E-A | **CloudEvents 1.0, binary mode** (decided) | headers `ce-specversion`, `ce-id` (event id), `ce-source`, `ce-type` (contract), `ce-contractversion`, `ce-time`, `ce-subject` (stream id), `ce-streamversion`, `ce-position` (both since §27), `ce-tenant`, `ce-correlation`, `ce-causation`, `ce-actor`, `traceparent`, `content-type: application/json`; body = the contract JSON |
 | E-B | own JSON envelope (the webhook shape) | body `{id, type, version, source, tenant, correlation, causation, actor, traceparent, data}` |
 
 ### 2.3 Consumers (question 2)
@@ -996,11 +996,81 @@ Test: `PushTests.A_connection_that_closes_again_while_the_client_restarts_is_sta
 the first connection after the restart right after its handshake, so the client's start succeeds and the connection then closes.
 Without the fix the client is still `Disconnected` after 60 s; with it the suite passed 5 of 5.
 
-## 27. The UI push's topics in the OpenAPI document (BC-25, 2026-11-21)
+## 27. The event's revision and feed position in the envelope and the UI push (Tarol-Svelte BC-23, 2026-11-21)
+
+**Finding** (Tarol-Svelte `docs/backend/changes.md` BC-23) **[verified]** by the client session against the sample: a pushed
+message said `version: 1` for two bids whose view ETags were `"2"` and `"3"` (`Version` is the contract version), and a list
+re-read right after a push returned the old row in 19 of 20 runs, because the projection lags the outbox and the message
+carried no position for `Tarol-Read-After`.
+
+**Change.**
+
+* `Message.StreamVersion` (`long?`, header `ce-streamversion`): the stream's version after the event
+  (`RecordedEvent.Event.Version`), the number a view's strong `ETag` carries. `Message.Of(RecordedEvent, …)` sets it.
+* `Message.Position` (`string?`, header `ce-position`): the event's position in the publisher's feed in the text of
+  `Tarol-Position` (`<transaction>.<position>`, `Positions.Format` of `Tarol.Changes.AspNetCore`, which `Tarol.Messaging`
+  does not reference: `Message` formats it the same way). The new overload `Message.Of(PositionedEvent, …)` sets it. A text,
+  not a `GlobalPosition`: it is only meaningful to the publisher's own clients, and a consumer in another system must not
+  compare it with its own feed.
+* Where the position comes from **[verified by reading]**: the outbox claim already reads the event row with its
+  `(tx_id, position)` (`NpgsqlOutbox.Claim` → `RecordedEvents.ReadRaw` → `OutboxRow.Event`, a `PositionedEvent`; the
+  in-memory outbox holds the same), but `ReactionWorker` passed only `row.Event.Event` (the `RecordedEvent`) to
+  `IOutboxRowHandler.Run`. The new default interface member `IOutboxRowHandler.RunPositioned(pipeline, reaction,
+  PositionedEvent, ct)` runs `Run(…, positioned.Event, …)`; the worker calls it; `OutboxRows` forwards it to the part,
+  `MessagePublisher` overrides it and builds the message with the position. Reactions and effects keep the default. No
+  extra query: the position was already read. (A distinct name, not an overload of `Run`: `Run(…, null!, …)` in a test
+  became ambiguous.)
+* Which position: the event's own. For the last event of a commit it equals the change answer's `Tarol-Position` (the
+  commit's last event, `NpgsqlAggregateStore`'s `CommitPosition`); for an earlier event of a multi-event commit it is
+  smaller, and a projection that passed it has that event. **[verified]** on PostgreSQL: the `ce-position` of
+  `artflow.auction-settled` equals the `GlobalPosition` its `Append` returned.
+* Reading: an absent header is `null` (a message of an older publisher still parses); a malformed `ce-streamversion` or
+  `ce-position` reads as `null`, not as a poison message: they are hints, not part of the contract.
+* `PushedMessage` gains `long? Revision = null, string? Position = null` at the end; `UiPushForwarder.Forward` fills them
+  from `StreamVersion` and `Position`; a client's `MessageHub.Publish` sets both to `null` explicitly. The JSON (web camel
+  case, `SignalRJson`) gains `"revision"` and `"position"`, `null` when absent:
+  `{"topic":"artflow.bid-placed","id":"…","version":1,"subject":"…","time":"…","sender":"artflow","data":{…},"revision":3,"position":"7341.1000412"}`.
+  `MessagePushClient` reads both, and a message of an older server without them (`null`).
+
+**Public API** (generated): `+ Message.StreamVersion`, `+ Message.Position`, `+ MessageHeaders.StreamVersion`,
+`+ MessageHeaders.Position`, `+ Message.Of(PositionedEvent, string, int, ReadOnlyMemory<byte>, string?)`,
+`+ MessagePublisher.RunPositioned`; `Tarol.Changes`: `+ IOutboxRowHandler.RunPositioned` (default member),
+`+ OutboxRows.RunPositioned`; `Tarol.Messaging.SignalR`: `PushedMessage`'s constructor and `Deconstruct` gain `Revision`
+and `Position` (**binary breaking**: a caller compiled against the 7-parameter constructor or `Deconstruct` must be
+recompiled; source compatible for the constructor, since both parameters are optional), `+ PushedMessage.Revision`,
+`+ PushedMessage.Position`, and the generated `SignalRJson.Int64` / `NullableInt64`.
+
+**Behaviour change**: every published message has two more headers (`ce-streamversion`, and `ce-position` when published
+by the reaction worker; `MessagePublisher.Run` with a bare `RecordedEvent` has no position); every pushed message has two
+more JSON members. A handler that wraps another `IOutboxRowHandler` must forward `RunPositioned` too, or its inner handler
+gets no position (`MessagingTest`'s own wrapper does).
+
+**Tests**: `EnvelopeTests` (the two headers in the fixed header list and the round trip;
+`A_malformed_stream_version_or_position_reads_as_absent`, 7 cases; `Optional_headers_may_be_absent` reads both as `null`;
+`A_committed_event_carries_its_stream_version_and_with_its_feed_position_the_position`);
+`PublicationTests.The_envelope_is_the_committed_event_and_the_consumer_continues_its_conversation` (stream version and
+the in-memory feed position through the worker); `NpgsqlBusTests.A_hosted_system_publishes_through_its_outbox_and_consumes_on_the_bus`
+(PostgreSQL store and bus: `ce-streamversion = "2"`, `ce-position` = the commit's position); `PushTests.A_forwarded_message_carries_the_events_revision_and_feed_position`,
+`A_client_receives_its_own_publish_stamped_by_the_server` (both `null`), `Messages_from_the_transport_reach_their_tenants_subscribers`
+(an envelope without them: `null`), `The_wire_shape_has_revision_and_position_in_web_camel_case` (the exact JSON, `null`
+members, and an older server's JSON still reads).
+
+**Skill evaluation checklist** (`tarol-messaging-signalr`, rule 6): a task "skip pushed bids the view already shows" uses
+`PushedMessage.Revision` against the view's `ETag`, not `Version`; a task "refresh the list after a push" sends
+`Tarol-Read-After: <Position>`; `null` is handled as unknown (a client's publish).
+
+**Suppressions**: none.
+
+**Verification** (SDK 11.0.100, Docker, 2026-11-21) **[verified]**: `dotnet build Tarol.slnx` 0 warnings, 0 errors;
+`dotnet test --solution Tarol.slnx` 2114 passed, 0 failed, 0 skipped; `dotnet format Tarol.slnx --verify-no-changes` clean;
+`dotnet pack Tarol.slnx -c Release` and `eng/verify-packages.sh` OK; `eng/aot-smoke.sh` 23 apps, 0 IL warnings each, all
+checks passed; `dotnet build samples/Sagas/AppHost` succeeded (its one warning, ASPIRE010, is on `main` too).
+
+## 28. The UI push's topics in the OpenAPI document (BC-25, 2026-11-21)
 
 **Public API change, no behaviour change on the wire.** Requested by Tarol-Svelte (`docs/backend/changes.md` BC-25): the
 typed-client generator knew nothing about push topics, so apps hand-typed `'artflow.bid-placed'` and got `unknown` data. The
-document now has `x-tarol-topics`; the shape and the sources are in [client-contract.md §23](client-contract.md).
+document now has `x-tarol-topics`; the shape and the sources are in [client-contract.md §24](client-contract.md).
 
 * `Tarol.Messaging`: `PublicationInfo.ContractType`, `.EventType`, `.Stream` (init-only, `null` when not stated, so a hand-built
   `PublicationInfo` still compiles). The generator fills them in `GeneratedPublications`:

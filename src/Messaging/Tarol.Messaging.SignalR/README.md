@@ -33,7 +33,11 @@ app.MapMessageHub();                                               // /tarol/mes
 ```
 
 A browser: `connection.invoke("Subscribe", "artflow.auction-settled")`, then `connection.on("message", m => …)` with
-`m = { topic, id, version, subject, time, sender, data }`.
+`m = { topic, id, version, subject, time, sender, data, revision, position }`. `version` is the contract version;
+`revision` is the stream's version after the event (the number of a view's strong `ETag` of `subject`), so a client skips a
+message it already has (its own change, a newer read); `position` is the event's feed position in the text of
+`Tarol-Position`, so a client re-reads a list with `Tarol-Read-After: <position>` and gets the projection that has the
+event. Both are `null` for a client's publish and for a message of a publisher without them.
 
 ## What it does
 

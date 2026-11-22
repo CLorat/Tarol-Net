@@ -187,7 +187,7 @@ public sealed partial class ReactionWorker
         string? reason = null;
         try
         {
-            var result = await _rows.Run(_pipeline, row.Reaction, row.Event.Event, cancellationToken).ConfigureAwait(false);
+            var result = await _rows.RunPositioned(_pipeline, row.Reaction, row.Event, cancellationToken).ConfigureAwait(false);
             verdict = DeliveryPolicy.Classify(result);
             if (result.TryGetValue(out Violation? violation))
                 reason = Describe(violation);

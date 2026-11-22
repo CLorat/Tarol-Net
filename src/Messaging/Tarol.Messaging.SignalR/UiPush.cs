@@ -143,7 +143,8 @@ public sealed partial class UiPushForwarder : BackgroundService
         try
         {
             await _hub.Clients.Group(MessageHub.Group(message.Tenant, message.Type))
-                .SendAsync(MessageHub.MessageMethod, new PushedMessage(message.Type, message.Id, message.Version, message.Subject, message.Time, source, data), cancellationToken)
+                .SendAsync(MessageHub.MessageMethod, new PushedMessage(message.Type, message.Id, message.Version, message.Subject, message.Time, source, data,
+                    message.StreamVersion, message.Position), cancellationToken)
                 .ConfigureAwait(false);
             return new Handled(Ack.Ack);
         }

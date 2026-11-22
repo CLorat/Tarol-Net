@@ -21,7 +21,11 @@ description: >-
    reaches only `<its tenant>/<topic>`. A claim that does not map is `HubException("Auth.Tenant: …")`.
 5. **The server stamps the sender**: `PushedMessage.Sender` is the caller's `sub` for a client publish, the source system
    for a forwarded message.
-6. **The .NET client**: `MessagePushClient.Connect(hubUri, accessToken)`, `Subscribe` (any time, before or after `Start`),
+6. **Revision and position of a forwarded message**: `PushedMessage.Version` is the *contract* version. `Revision` is the
+   stream version after the event (a view's `ETag` `"n"` of `Subject`): skip a message with `Revision <=` the one you hold.
+   `Position` (`<tx>.<pos>`) goes into `Tarol-Read-After` when a list is re-read after the push. Both are `null` for a
+   client's `Publish` (and from an older publisher): treat `null` as "unknown", never as 0.
+7. **The .NET client**: `MessagePushClient.Connect(hubUri, accessToken)`, `Subscribe` (any time, before or after `Start`),
    dispose the returned handle to stop one handler, `Start`. It reconnects forever (0, 1, 2, 5 s, then every 10 s) and
    replays the subscriptions; only `Stop` or disposing ends it.
 7. **Topics in the OpenAPI document**: with `AddOpenApi(o => o.AddTarolEndpoints())`, `x-tarol-topics` lists every
@@ -74,6 +78,8 @@ await push.Start(cancellationToken);
 | forgetting the AOT feature switch | IL2026/IL3050 at publish (`DefaultHubDispatcher`) |
 | a forwarded topic without `version`/`schema` in `x-tarol-topics` | its `[Publishes<T>]` set is not given to `WithOutboxRows`/`Publish` in this app |
 | one forwarder name on several web nodes | each message reaches the clients of one node only |
+| comparing `Version` with a view's `ETag` | always 1 (the contract version); compare `Revision` |
+| re-reading a list right after a push without `Tarol-Read-After: <Position>` | the old row (the projection lags the outbox) |
 
 ## AOT
 
