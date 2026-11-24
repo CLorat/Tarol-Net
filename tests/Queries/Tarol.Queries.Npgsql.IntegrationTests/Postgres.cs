@@ -99,7 +99,8 @@ public sealed record Setup(Postgres Postgres, NpgsqlAggregateStore Store, Npgsql
         => new(Store, ReadModels.Store<TRow>(), options, signal: signal);
 
     /// <summary>Commits the aggregate's uncommitted events; returns the commit's position.</summary>
-    public async Task<GlobalPosition> Commit(Auction auction, Option<Id<ITenant>> tenant)
+    public async Task<GlobalPosition> Commit<T>(T auction, Option<Id<ITenant>> tenant)
+        where T : Tarol.Primitives.AggregateRoot<T>, Tarol.Primitives.IAggregateRoot<T>
     {
         var expected = auction.Version - auction.UncommittedChanges.Length;
         var appended = await Store.Append(auction, expected, Context(tenant), Option.None, default);

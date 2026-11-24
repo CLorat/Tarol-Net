@@ -18,19 +18,13 @@ public sealed class ListScopeTests(Postgres postgres)
         var at = Postgres.Now;
         foreach (var child in new[] { Mia, Leo, Ida })
             for (var i = 0; i < 2; i++)
-                await Commit(setup, LogEntry.Write(child, [], [], $"{child.ToString()[^1]} {i}", at = at.AddMinutes(1)), TenantA);
-        await Commit(setup, LogEntry.Write(Guid.Empty, [Mia, Ida], ["paint", "a \"quoted\", {odd} \\ label"], "group", at.AddMinutes(1)), TenantA);
-        await Commit(setup, LogEntry.Write(Mia, [], [], "elsewhere", at.AddMinutes(2)), TenantB);
+                await setup.Commit(LogEntry.Write(child, [], [], $"{child.ToString()[^1]} {i}", at = at.AddMinutes(1)), TenantA);
+        await setup.Commit(LogEntry.Write(Guid.Empty, [Mia, Ida], ["paint", "a \"quoted\", {odd} \\ label"], "group", at.AddMinutes(1)), TenantA);
+        await setup.Commit(LogEntry.Write(Mia, [], [], "elsewhere", at.AddMinutes(2)), TenantB);
         await setup.CatchUp(setup.Host<LogRow>());
         return setup;
     }
 
-    private static async Task Commit(Setup setup, LogEntry entry, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant>> tenant)
-    {
-        var appended = await setup.Store.Append(entry, 0, Context(tenant), Tarol.Options.Option.None, Ct);
-        appended.IsSuccess.ShouldBeTrue(appended.ToString());
-        Tarol.Primitives.AggregateChanges.Committed(entry);
-    }
 
     private static ListQuery Logs => Query(TenantA) with { Sort = "at", Limit = 2 };
 

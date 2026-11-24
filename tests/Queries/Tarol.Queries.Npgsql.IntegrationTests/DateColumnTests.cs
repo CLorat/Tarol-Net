@@ -17,20 +17,14 @@ public sealed class DateColumnTests(Postgres postgres)
         var setup = await postgres.Create();
         for (var d = 0; d < 5; d++)
         {
-            await Commit(setup, Attendance.CheckIn(Mia, Monday.AddDays(d), new TimeOnly(7, 30 + d), null, Postgres.Now.AddMinutes(d)));
-            await Commit(setup, Attendance.CheckIn(Leo, Monday.AddDays(d), new TimeOnly(8, 15, 0, 123, 456).Add(TimeSpan.FromTicks(7)), Monday.AddDays(2),
-                Postgres.Now.AddMinutes(10 + d)));
+            await setup.Commit(Attendance.CheckIn(Mia, Monday.AddDays(d), new TimeOnly(7, 30 + d), null, Postgres.Now.AddMinutes(d)), TenantA);
+            await setup.Commit(Attendance.CheckIn(Leo, Monday.AddDays(d), new TimeOnly(8, 15, 0, 123, 456).Add(TimeSpan.FromTicks(7)), Monday.AddDays(2),
+                Postgres.Now.AddMinutes(10 + d)), TenantA);
         }
         await setup.CatchUp(setup.Host<AttendanceRow>());
         return setup;
     }
 
-    private static async Task Commit(Setup setup, Attendance attendance)
-    {
-        var appended = await setup.Store.Append(attendance, 0, Context(TenantA), Tarol.Options.Option.None, Ct);
-        appended.IsSuccess.ShouldBeTrue(appended.ToString());
-        Tarol.Primitives.AggregateChanges.Committed(attendance);
-    }
 
     [Fact]
     public async Task Days_and_times_of_day_are_date_and_time_columns()
