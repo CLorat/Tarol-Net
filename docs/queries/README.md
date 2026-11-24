@@ -22,7 +22,9 @@ User guide for `Tarol.Queries`, `Tarol.Queries.Npgsql` and the list entries of `
    the projection's position. A client that needs its own write sends `Tarol-Read-After`; after 2 s it gets the list with
    `Tarol-Stale: true`. A decision never reads a projection.
 6. **Who sees which rows.** A list needs the role map's `Read<TAggregate>` and is always tenant-scoped; "my rows" is a
-   `[FromClaim("sub")]` member. Row rules authorize one loaded aggregate and do **not** run on lists.
+   `[FromClaim("sub")]` member. Row rules authorize one loaded aggregate and do **not** run on lists; rows that depend on
+   domain data (a parent's children, a substitute's children for two weeks) come from an `IListScope<TQuery>` (TN-6): set
+   filters over a column, an array column or the row id; an empty set is an empty page.
 
 ## Packages
 

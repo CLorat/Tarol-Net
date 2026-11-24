@@ -28,6 +28,13 @@ internal static class Emitter
         sb.Append(b).Append("private static readonly ").Append(column).Append(">[] __TarolColumns =\n").Append(b).Append("[\n");
         foreach (var c in model.Columns)
         {
+            if (c.Array)
+            {
+                sb.Append(b).Append("    new global::Tarol.Queries.ProjectionArrayColumn<").Append(row).Append(", ").Append(c.ValueType).Append(">(")
+                    .Append(Literal(c.Column)).Append(", ").Append(Literal(c.Member)).Append(", global::Tarol.Queries.ColumnType.").Append(c.Type)
+                    .Append(", ").Append(c.Nullable ? "true" : "false").Append(", static r => ").Append(c.Getter).Append("),\n");
+                continue;
+            }
             sb.Append(b).Append("    new ").Append(column).Append(", ").Append(c.ValueType).Append(">(")
                 .Append(Literal(c.Column)).Append(", ").Append(Literal(c.Member)).Append(", global::Tarol.Queries.ColumnType.").Append(c.Type)
                 .Append(", ").Append(c.Nullable ? "true" : "false").Append(", ").Append(c.Sortable ? "true" : "false")

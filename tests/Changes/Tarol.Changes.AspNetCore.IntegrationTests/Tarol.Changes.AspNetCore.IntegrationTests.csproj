@@ -30,6 +30,6 @@
     <ProjectReference Include="../../../src/Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- the ArtFlow app of the endpoint tests -->
-    <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs;../Tarol.Changes.AspNetCore.Tests/Queries.cs;../Tarol.Changes.AspNetCore.Tests/TestApp.cs" LinkBase="ArtFlow" />
+    <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs;../Tarol.Changes.AspNetCore.Tests/Queries.cs;../Tarol.Changes.AspNetCore.Tests/Scopes.cs;../Tarol.Changes.AspNetCore.Tests/TestApp.cs" LinkBase="ArtFlow" />
   </ItemGroup>
 </Project>

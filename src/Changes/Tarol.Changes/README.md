@@ -56,6 +56,11 @@ Register everything at once with `services.AddTarol(AppJson.Default, codec => co
 pipeline over the store and the `IChangeAuthorization` (`Tarol.Security`). `Delivery.Classify` is the table every
 at-least-once entry shares (`Verdict.Done` / `Retry` / `Bury`).
 
+An application of several assemblies (bounded contexts): `[assembly: GenerateTarolModule]` in each generates
+`GeneratedModule.Module`; `services.AddTarol(moduleA, moduleB)` combines their JSON contexts, aggregates and reactions, and
+`AddProjections(p => p.AddModules())`, `AddJobs(j => j.AddModules())`, `app.MapModules()` and `tarol.Modules.ConfigureOpenApi(o)`
+take the rest (TN-8). `AddTarol([ctxA, ctxB], codec => …)` takes several JSON contexts without modules.
+
 A failure discards the loaded instance. An exception propagates and discards it too. A behaviour that raises nothing
 appends nothing (`Events = 0`).
 

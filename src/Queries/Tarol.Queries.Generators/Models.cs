@@ -7,8 +7,8 @@ namespace Tarol.Queries.Generators;
 /// <summary>One When: the event (fully qualified), whether it takes the RecordedEvent too, and its inheritance depth.</summary>
 internal sealed record WhenModel(string Event, bool WithRecorded, int Depth);
 
-/// <summary>One typed column: member, column name, ColumnType member, stored CLR type, getter expression over 'r'.</summary>
-internal sealed record ColumnModel(string Member, string Column, string Type, string ValueType, string Getter, bool Nullable, bool Sortable);
+/// <summary>One typed column: member, column name, ColumnType member, stored CLR type (the element type of an array column), getter expression over 'r'.</summary>
+internal sealed record ColumnModel(string Member, string Column, string Type, string ValueType, string Getter, bool Nullable, bool Sortable, bool Array = false);
 
 /// <summary>What the source is emitted from: no locations, no symbols, no bodies.</summary>
 internal sealed record ProjectionModel(

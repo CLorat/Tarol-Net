@@ -30,14 +30,14 @@ internal sealed class TestApp : IAsyncDisposable
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
         Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null,
-        string? corsOrigin = null)
+        string? corsOrigin = null, bool scopes = true)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
         if (searchIndex is not null)
             builder.Services.AddSingleton(searchIndex);
-        var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>())
+        var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>().Add<House>())
             .WithReactions(GeneratedReactions.Set)
             .Store(store)
             .AddSecurity(roles =>
@@ -47,6 +47,7 @@ internal sealed class TestApp : IAsyncDisposable
                 roles.Role("reader").May<Read<Auction>>();
                 roles.Role("admin").May<CloseAuction>().May<Read<Auction>>();
                 roles.Authenticated().May<WatchAuction>();
+                roles.Role("seller").May<OpenHouse>().May<RenameHouse>().May<Read<House>>();
             })
             .AddEndpoints(endpoints)
             .Projections(projections);
@@ -58,6 +59,8 @@ internal sealed class TestApp : IAsyncDisposable
             }));
         foreach (var rule in new IAuthorizationHandler[] { new CloseAuctionRule(), new CreateAuctionRule(), new ReadOwnAuction() })
             builder.Services.AddSingleton(rule);
+        if (scopes)
+            builder.Services.AddSingleton<FamilyScope>().AddSingleton<IListScope<FamilyAuctions>>(s => s.GetRequiredService<FamilyScope>());
         if (problemDetailsService)
             builder.Services.AddProblemDetails();
         builder.Services.Configure<WebhookOptions>(o =>

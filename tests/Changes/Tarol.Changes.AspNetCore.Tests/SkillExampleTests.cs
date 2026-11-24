@@ -26,6 +26,9 @@ public sealed class SkillExampleTests
             .AddPolicy("auctions:write", p => p.RequireAuthenticatedUser())
             .AddPolicy("auctions:bid", p => p.RequireAuthenticatedUser())
             .AddPolicy("auctions:read", p => p.RequireAuthenticatedUser());
+        // ── end ──
+        builder.Services.AddScoped<IListScope<FamilyAuctions>, FamilyScope>();   // this assembly's list with RequiresScope (TN-6)
+        // ── verbatim ──
         builder.Services.AddOpenApi(o => o.AddTarolEndpoints());
 
         var app = builder.Build();

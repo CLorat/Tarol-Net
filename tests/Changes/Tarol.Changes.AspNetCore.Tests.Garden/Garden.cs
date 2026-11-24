@@ -1,0 +1,59 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Tarol.Primitives;
+using Tarol.Queries;
+using Tarol.Results;
+using Tarol.StronglyTypedId;
+
+[assembly: Tarol.Changes.GenerateTarolModule("Garden")]
+
+namespace Tarol.Changes.AspNetCore.Tests.Garden;
+
+/// <summary>A garden plot: one bounded context of the two-assembly test application (TN-8).</summary>
+public partial class Plot : AggregateRoot<Plot>
+{
+    public string Name { get; private set; } = "";
+
+    public static Plot Lay(string name, DateTimeOffset now)
+    {
+        var plot = new Plot(Id<Plot>.New(now));
+        plot.Raise(new Laid(name));
+        return plot;
+    }
+
+    public Result Rename(string name) => Raise(new Renamed(name));
+
+    public sealed record Laid(string Name) : Event;
+    public sealed record Renamed(string Name) : Event;
+
+    private void On(Laid e) => Name = e.Name;
+    private void On(Renamed e) => Name = e.Name;
+}
+
+[Endpoint("POST /plots")]
+public sealed partial record LayPlot(string Name) : ICreation<Plot>
+{
+    public Result<Plot> Execute(ChangeContext context) => Plot.Lay(Name, context.Now);
+}
+
+[Endpoint("PUT /plots/{plot}/name")]
+public sealed partial record RenamePlot(Id<Plot> Plot, string Name) : IChange<Plot>
+{
+    public Result Execute(Plot plot, ChangeContext context) => plot.Rename(Name);
+}
+
+[Projection("plot-list")]
+public sealed partial record PlotRow(Guid Id, string Name)
+{
+    public static PlotRow When(Plot.Laid e, RecordedEvent r) => new(r.StreamId, e.Name);
+
+    public PlotRow When(Plot.Renamed e) => this with { Name = e.Name };
+}
+
+[Endpoint("GET /plots")]
+public sealed record PlotSearch(string? Name) : IQuery<PlotRow>;
+
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(LayPlot)), JsonSerializable(typeof(RenamePlot)), JsonSerializable(typeof(PlotRow))]
+[JsonSerializable(typeof(Plot.Laid)), JsonSerializable(typeof(Plot.Renamed))]
+public sealed partial class GardenJson : JsonSerializerContext;

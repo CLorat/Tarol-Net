@@ -138,7 +138,8 @@ internal static class Discovery
             Array(members), Array(handlers), Array(invariants), hasIdConstructor,
             Array(state), !stored, Array(lifecycle.Select(static f => f.Model).ToList()),
             EventKind.None, null, null, type.IsAbstract, default, streamType, 0, location, Array(diagnostics),
-            RetentionDays: kind == TypeKind.Root ? PersonalDiscovery.RetentionDays(type) : 0);
+            RetentionDays: kind == TypeKind.Root ? PersonalDiscovery.RetentionDays(type) : 0,
+            PerTenant: kind == TypeKind.Root && Symbols.HasAttribute(type, "PerTenantAttribute"));
     }
 
     /// <summary>Marks the stored fields of <paramref name="type"/> whose member is <c>[PersonalData]</c> (valid marks only; TPRM030/031 report the rest).</summary>

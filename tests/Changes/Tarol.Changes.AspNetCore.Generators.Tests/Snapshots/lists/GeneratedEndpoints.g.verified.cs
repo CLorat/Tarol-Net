@@ -38,6 +38,35 @@ public static class GeneratedEndpoints
                     })
                 {
                     Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
+                    Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.CustomerOrders>(app.ServiceProvider, false),
+                });
+            global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
+        }
+        {
+            var endpoint = global::Microsoft.AspNetCore.Builder.EndpointRouteBuilderExtensions.MapMethods(app, "/my/orders", VerbGet, (global::Microsoft.AspNetCore.Http.RequestDelegate)List_Shop_MyOrders);
+            global::Microsoft.AspNetCore.Builder.RoutingEndpointConventionBuilderExtensions.WithName(endpoint, names + "MyOrders");
+            global::Microsoft.AspNetCore.Builder.RoutingEndpointConventionBuilderExtensions.WithMetadata(endpoint,
+                new global::Microsoft.AspNetCore.Http.ProducesResponseTypeMetadata(200, typeof(global::Shop.OrderRow), new[] { "application/json" }),
+                ((global::Microsoft.AspNetCore.Http.RequestDelegate)List_Shop_MyOrders).Method,                // OpenAPI describes endpoints that carry a MethodInfo
+                new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata("list", typeof(global::Shop.MyOrders),
+                    new global::Tarol.Changes.AspNetCore.RouteValue[] {  },
+                    new string[] {  },
+                    null,
+                    new global::Tarol.Changes.AspNetCore.QueryParameter[]
+                    {
+                        new(web.Names(("State", null))[0], "enum", new string[] { "Open", "Paid" }, "Equal to the row's state; absent: any"),
+                        new(web.Names(("Day", null))[0], "date", new string[] {  }, "Equal to the row's day; absent: any"),
+                        new(web.Names(("Slot", null))[0], "time", new string[] {  }, "Equal to the row's slot; absent: any"),
+                        new("after", "string", global::System.Array.Empty<string>(), "The cursor of the previous page (its next)"),
+                        new("limit", "int32", global::System.Array.Empty<string>(), "The page size (default and maximum: the endpoint options)"),
+                        new("offset", "int32", global::System.Array.Empty<string>(), "Rows to skip, bounded; page deeper with after"),
+                        new("count", "boolean", global::System.Array.Empty<string>(), "Also count every row of the filters (total)"),
+                    })
+                {
+                    Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
+                    Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.MyOrders>(app.ServiceProvider, true),
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
@@ -63,6 +92,8 @@ public static class GeneratedEndpoints
                     })
                 {
                     Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
+                    Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.OrderSearch>(app.ServiceProvider, false),
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:read");
         }
@@ -94,6 +125,57 @@ public static class GeneratedEndpoints
             await web.Problem(http, new global::Tarol.Results.Invalid(errors));
             return;
         }
+        query = await web.Scope<global::Shop.CustomerOrders>(http, query);          // the caller's rows (IListScope, TN-6)
+        await web.List<global::Shop.OrderRow>(http, query);
+    }
+
+    private static string[]? names_Shop_MyOrders;
+
+    private static async global::System.Threading.Tasks.Task List_Shop_MyOrders(global::Microsoft.AspNetCore.Http.HttpContext http)
+    {
+        var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
+        var tenant = await web.ListAccess<global::Shop.Order>(http);
+        if (tenant is null)
+            return;                                                     // 401, 403 or 404 written
+        global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;
+        var filters = new global::System.Collections.Generic.List<global::Tarol.Queries.ColumnFilter>(3);
+        var names = names_Shop_MyOrders ??= web.Names(("State", null), ("Day", null), ("Slot", null));
+        if (!global::Tarol.Changes.AspNetCore.ChangeEndpoints.One(http, names[0], out var q_State))
+            (errors ??= new()).Add(new("State", "Multiple"));
+        else if (q_State is not null)
+        {
+            if (global::Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnum<global::Shop.OrderState>(q_State, out var v_State))
+                filters.Add(new("state", v_State));
+            else
+                (errors ??= new()).Add(new("State", "Format"));
+        }
+        if (!global::Tarol.Changes.AspNetCore.ChangeEndpoints.One(http, names[1], out var q_Day))
+            (errors ??= new()).Add(new("Day", "Multiple"));
+        else if (q_Day is not null)
+        {
+            if (global::Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(q_Day, out var v_Day))
+                filters.Add(new("day", v_Day));
+            else
+                (errors ??= new()).Add(new("Day", "Format"));
+        }
+        if (!global::Tarol.Changes.AspNetCore.ChangeEndpoints.One(http, names[2], out var q_Slot))
+            (errors ??= new()).Add(new("Slot", "Multiple"));
+        else if (q_Slot is not null)
+        {
+            if (global::Tarol.Changes.AspNetCore.ChangeEndpoints.TryTime(q_Slot, out var v_Slot))
+                filters.Add(new("slot", v_Slot));
+            else
+                (errors ??= new()).Add(new("Slot", "Format"));
+        }
+        string? sort = null;
+        var descending = false;
+        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters, Sort = sort, Descending = descending }, ref errors);
+        if (errors is not null)
+        {
+            await web.Problem(http, new global::Tarol.Results.Invalid(errors));
+            return;
+        }
+        query = await web.Scope<global::Shop.MyOrders>(http, query, required: true);          // the caller's rows (IListScope, TN-6)
         await web.List<global::Shop.OrderRow>(http, query);
     }
 
@@ -142,6 +224,7 @@ public static class GeneratedEndpoints
             await web.Problem(http, new global::Tarol.Results.Invalid(errors));
             return;
         }
+        query = await web.Scope<global::Shop.OrderSearch>(http, query);          // the caller's rows (IListScope, TN-6)
         await web.List<global::Shop.OrderRow>(http, query);
     }
 }

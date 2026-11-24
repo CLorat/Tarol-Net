@@ -206,6 +206,12 @@ internal sealed partial class Emitter
     {
         Line($"/// <summary>The stored stream type of this aggregate.</summary>");
         Line($"public static string StreamType => {Literal(_root.Alias)};");
+        if (_root.PerTenant)
+        {
+            Line();
+            Line($"/// <summary>One instance per tenant ([PerTenant]): its id is the tenant's (TN-2).</summary>");
+            Line($"public static bool PerTenant => true;");
+        }
         Line();
         Line($"/// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>");
         var events = _model.Events.Where(static e => !e.IsAbstract).OrderBy(static e => e.FullName, System.StringComparer.Ordinal).ToList();

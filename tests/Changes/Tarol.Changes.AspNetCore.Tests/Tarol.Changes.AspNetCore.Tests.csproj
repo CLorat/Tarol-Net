@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../../../src/Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <!-- TN-8: an application of two assemblies, each a module -->
+    <ProjectReference Include="../Tarol.Changes.AspNetCore.Tests.Garden/Tarol.Changes.AspNetCore.Tests.Garden.csproj" />
+    <ProjectReference Include="../Tarol.Changes.AspNetCore.Tests.Kitchen/Tarol.Changes.AspNetCore.Tests.Kitchen.csproj" />
     <!-- the page cache under the list entries (13C) -->
     <ProjectReference Include="../../../src/Caching/Tarol.Caching/Tarol.Caching.csproj" />
     <ProjectReference Include="../../../src/Operations/Tarol.Operations/Tarol.Operations.csproj" />

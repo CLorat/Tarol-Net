@@ -44,7 +44,7 @@ public sealed class Postgres : IAsyncLifetime
     public async Task<Setup> Create(bool notifyFeed = false, bool pushCheckpoints = false)
     {
         var schema = $"q{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}";
-        var codec = new EventCodec(Json).Add<Auction>().Add<Lot>();
+        var codec = new EventCodec(Json).Add<Auction>().Add<Lot>().Add<LogEntry>().Add<Attendance>();
         var store = new NpgsqlAggregateStore(DataSource, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = schema, NotifyFeed = notifyFeed });
         await store.EnsureSchema(default);
         return new Setup(this, store, new NpgsqlReadModels(DataSource, Json, schema, pushCheckpoints));
@@ -99,7 +99,8 @@ public sealed record Setup(Postgres Postgres, NpgsqlAggregateStore Store, Npgsql
         => new(Store, ReadModels.Store<TRow>(), options, signal: signal);
 
     /// <summary>Commits the aggregate's uncommitted events; returns the commit's position.</summary>
-    public async Task<GlobalPosition> Commit(Auction auction, Option<Id<ITenant>> tenant)
+    public async Task<GlobalPosition> Commit<T>(T auction, Option<Id<ITenant>> tenant)
+        where T : Tarol.Primitives.AggregateRoot<T>, Tarol.Primitives.IAggregateRoot<T>
     {
         var expected = auction.Version - auction.UncommittedChanges.Length;
         var appended = await Store.Append(auction, expected, Context(tenant), Option.None, default);

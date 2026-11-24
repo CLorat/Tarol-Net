@@ -96,7 +96,9 @@ internal static class Discovery
             if (Reserved.Contains(column))
                 problem = $"the column name '{column}' is reserved for the key (tenant, id, version, doc); the member stays in the row's jsonb";
             else if (mapped is null)
-                problem = $"{property.Type.ToDisplayString()} has no column type (Guid, string, bool, short, int, long, decimal, double, DateTimeOffset, enum)";
+                problem = $"{property.Type.ToDisplayString()} has no column type (Guid, string, bool, short, int, long, decimal, double, DateTimeOffset, DateOnly, TimeOnly, enum, or an array of Guid, string, short, int, long, enum)";
+            else if (mapped.Value.Array)
+                problem = "an array column takes set filters only; it cannot be a sort";
             else if (mapped.Value.Nullable)
                 problem = "a sort column cannot be nullable";
             if (problem is not null)
@@ -107,8 +109,8 @@ internal static class Discovery
                 if (mapped is null || Reserved.Contains(column))
                     continue;
             }
-            var (columnType, valueType, getter, nullable) = mapped!.Value;
-            columns.Add(new ColumnModel(property.Name, column, columnType, valueType, getter.Replace("{0}", "r." + property.Name), nullable, sort && !nullable));
+            var (columnType, valueType, getter, nullable, array) = mapped!.Value;
+            columns.Add(new ColumnModel(property.Name, column, columnType, valueType, getter.Replace("{0}", "r." + property.Name), nullable, sort && !nullable && !array, array));
         }
 
         if (diagnostics.Count > 0)
@@ -198,8 +200,59 @@ internal static class Discovery
 
     private static bool HasSort(ISymbol symbol) => symbol.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == SortName);
 
-    /// <summary>The column of a member type: (ColumnType, stored type, getter format over {0}, nullable); null when none.</summary>
-    private static (string Type, string ValueType, string Getter, bool Nullable)? Column(ITypeSymbol type)
+    /// <summary>The column of a member type: (ColumnType, stored type, getter format over {0}, nullable, array); null when none.</summary>
+    private static (string Type, string ValueType, string Getter, bool Nullable, bool Array)? Column(ITypeSymbol type)
+    {
+        if (ArrayColumn(type) is { } array)
+            return array;
+        var scalar = Scalar(type);
+        return scalar is { } s ? (s.Type, s.ValueType, s.Getter, s.Nullable, false) : null;
+    }
+
+    /// <summary>
+    /// An array column (TN-6): <c>T[]</c> or <c>IReadOnlyList&lt;T&gt;</c> of a non-nullable Guid, string, short, int, long or
+    /// enum (over int); the stored element type and a getter that yields a <c>T[]</c> (enums as their numbers).
+    /// </summary>
+    private static (string Type, string ValueType, string Getter, bool Nullable, bool Array)? ArrayColumn(ITypeSymbol type)
+    {
+        ITypeSymbol? element = null;
+        var isArray = false;
+        if (type is IArrayTypeSymbol { Rank: 1 } a)
+            (element, isArray) = (a.ElementType, true);
+        else if (type is INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 1 } list
+                 && list.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.IReadOnlyList<T>")
+            element = list.TypeArguments[0];
+        if (element is null || element.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
+            || (element.IsReferenceType && element.NullableAnnotation == NullableAnnotation.Annotated))
+            return null;
+        var nullable = type.NullableAnnotation == NullableAnnotation.Annotated;
+        string kind, stored;
+        var cast = false;
+        if (element.TypeKind == TypeKind.Enum && element is INamedTypeSymbol { EnumUnderlyingType.SpecialType: SpecialType.System_Int32 })
+            (kind, stored, cast) = ("Int4", "int", true);
+        else if (element.SpecialType == SpecialType.System_String)
+            (kind, stored) = ("Text", "string");
+        else if (element.SpecialType == SpecialType.System_Int16)
+            (kind, stored) = ("Int2", "short");
+        else if (element.SpecialType == SpecialType.System_Int32)
+            (kind, stored) = ("Int4", "int");
+        else if (element.SpecialType == SpecialType.System_Int64)
+            (kind, stored) = ("BigInt", "long");
+        else if (element.ToDisplayString() == "System.Guid")
+            (kind, stored) = ("Uuid", "global::System.Guid");
+        else
+            return null;
+        string getter;
+        if (cast)
+            getter = "{0} is null ? null : global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select({0}, static v => (int)v))";
+        else if (isArray)
+            getter = "{0}";
+        else
+            getter = "{0} is null ? null : global::System.Linq.Enumerable.ToArray({0})";
+        return (kind, stored, getter, nullable, true);
+    }
+
+    private static (string Type, string ValueType, string Getter, bool Nullable)? Scalar(ITypeSymbol type)
     {
         var nullable = false;
         if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } wrapped)
@@ -242,6 +295,10 @@ internal static class Discovery
         var name = type.ToDisplayString();
         if (name == "System.Guid")
             return plain("Uuid", "global::System.Guid");
+        if (name == "System.DateOnly")
+            return plain("Date", "global::System.DateOnly");
+        if (name == "System.TimeOnly")
+            return ("Time", "global::System.TimeOnly" + q, "global::Tarol.Queries.ColumnValues.Time({0})", nullable);
         if (name == "System.DateTimeOffset")
             return ("TimestampTz", "global::System.DateTimeOffset" + q, "global::Tarol.Queries.ColumnValues.Timestamp({0})", nullable);
         return null;

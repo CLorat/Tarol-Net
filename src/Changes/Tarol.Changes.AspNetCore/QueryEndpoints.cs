@@ -85,7 +85,7 @@ public sealed partial class ChangeEndpoints
 
     /// <summary>
     /// The access of a list request: the edge (tenant from the claims), then <see cref="IChangeAuthorization.CheckList{T}"/>
-    /// (the role map's <c>Read&lt;T&gt;</c>; row rules do not run on lists).
+    /// (the role map's <c>Read&lt;T&gt;</c>; row rules do not run on lists: an <see cref="IListScope{TQuery}"/> restricts the rows).
     /// </summary>
     /// <typeparam name="TAggregate">The aggregate whose projection is listed.</typeparam>
     /// <param name="http">The request.</param>
@@ -109,6 +109,7 @@ public sealed partial class ChangeEndpoints
             await Problem(http, denied).ConfigureAwait(false);
             return null;
         }
+        http.Items[ListCallerKey] = (context, options.Principal ?? NoOne);     // for the list's scope (TN-6)
         return context.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value : Guid.Empty;
     }
 
@@ -146,6 +147,27 @@ public sealed partial class ChangeEndpoints
     public static bool TryFilter<T>(string text, out T value)
         where T : struct, ISpanParsable<T>
         => T.TryParse(text, CultureInfo.InvariantCulture, out value);
+
+    /// <summary>Parses a calendar-day filter value: RFC 3339 <c>full-date</c> only (<c>2026-11-24</c>, OpenAPI format <c>date</c>).</summary>
+    /// <param name="text">The text.</param>
+    /// <param name="value">The day.</param>
+    /// <returns>Whether it parsed.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool TryDate(string text, out DateOnly value)
+        => DateOnly.TryParseExact(text, "yyyy'-'MM'-'dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
+
+    /// <summary>
+    /// Parses a time-of-day filter value: <c>HH:mm</c>, <c>HH:mm:ss</c> or <c>HH:mm:ss.fffffff</c> (OpenAPI format <c>time</c>,
+    /// without a zone: a <see cref="TimeOnly"/> has none).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="value">The time of day.</param>
+    /// <returns>Whether it parsed.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool TryTime(string text, out TimeOnly value)
+        => TimeOnly.TryParseExact(text, TimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
+
+    private static readonly string[] TimeFormats = ["HH':'mm", "HH':'mm':'ss", "HH':'mm':'ss'.'FFFFFFF"];
 
     /// <summary>Parses an enum filter value by name (case-insensitive; numbers are refused).</summary>
     /// <typeparam name="TEnum">The enum.</typeparam>

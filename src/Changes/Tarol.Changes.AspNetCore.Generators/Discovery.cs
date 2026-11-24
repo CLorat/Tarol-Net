@@ -39,16 +39,20 @@ internal static class Discovery
 
         if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IQuery<TRow>") is { } query)
             return List(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)query.TypeArguments[0], location, ct);
+        if (attribute.NamedArguments.Any(n => n.Key == "RequiresScope" && n.Value.Value is true))
+            return Fail(Diagnostics.NotAnEntry, type.Name, "RequiresScope applies to list queries (IQuery<TRow>) only");
 
         string? aggregate = null;
         var kind = EntryKind.Change;
+        var perTenant = false;
         foreach (var i in type.AllInterfaces)
         {
             var definition = i.OriginalDefinition.ToDisplayString();
-            if (definition is "Tarol.Changes.IChange<T>" or "Tarol.Changes.ICreation<T>")
-                (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq), definition.Contains("ICreation") ? EntryKind.Creation : EntryKind.Change);
-            else if (definition == "Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>")
-                (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq), EntryKind.View);
+            if (definition is not ("Tarol.Changes.IChange<T>" or "Tarol.Changes.ICreation<T>" or "Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>"))
+                continue;
+            (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq),
+                definition.Contains("IView") ? EntryKind.View : definition.Contains("ICreation") ? EntryKind.Creation : EntryKind.Change);
+            perTenant = i.TypeArguments[0].GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute");
         }
         if (aggregate is null)
             return Fail(Diagnostics.NotAnEntry, type.Name, IsAggregate(type)
@@ -67,9 +71,16 @@ internal static class Discovery
         var reached = new HashSet<string>(StringComparer.Ordinal);
         if (kind == EntryKind.View)
         {
-            if (placeholders.Count != 1)
-                return Fail(Diagnostics.RouteValue, type.Name, "a view's route has exactly one value, the aggregate's id");
-            members.Add(new Member("Id", $"global::Tarol.StronglyTypedId.Id<{aggregate}>", null, placeholders[0], "id", false, null));
+            if (perTenant && placeholders.Count == 0)
+            {
+                // TN-2: the tenant's one aggregate; no member, the delegate loads it from the caller's tenant
+            }
+            else if (placeholders.Count != 1)
+                return Fail(Diagnostics.RouteValue, type.Name, perTenant
+                    ? "the view of a [PerTenant] aggregate has no route value (the tenant's one), or exactly one, the aggregate's id"
+                    : "a view's route has exactly one value, the aggregate's id");
+            else
+                members.Add(new Member("Id", $"global::Tarol.StronglyTypedId.Id<{aggregate}>", null, placeholders[0], "id", false, null));
             if (type.InstanceConstructors.Where(c => c.DeclaredAccessibility == Accessibility.Public).OrderByDescending(c => c.Parameters.Length).FirstOrDefault() is { } shape)
                 foreach (var p in shape.Parameters)
                     if (IsOptionWithDefault(p))
@@ -361,7 +372,8 @@ internal static class Discovery
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), EntryKind.List, aggregate, verb, pattern, policy, anonymous,
             new EquatableArray<Member>(members.ToImmutableArray()), location,
             new QueryModel(row.ToDisplayString(Fq), new EquatableArray<FilterModel>(filters.ToImmutableArray()), sortMember,
-                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort))
+                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort,
+                attribute.NamedArguments.FirstOrDefault(n => n.Key == "RequiresScope").Value.Value is true))
         {
             Errors = Codes(EntryKind.List, aggregate, placeholders.Contains("tenant"), type, null, ct),
         };
@@ -384,7 +396,7 @@ internal static class Discovery
         => type.TypeKind == TypeKind.Enum ? ((INamedTypeSymbol)type).EnumUnderlyingType?.SpecialType != SpecialType.System_UInt64
          : type.SpecialType is SpecialType.System_String or SpecialType.System_Boolean or SpecialType.System_Int16 or SpecialType.System_Int32
              or SpecialType.System_Int64 or SpecialType.System_Decimal or SpecialType.System_Double
-           || type.ToDisplayString() is "System.Guid" or "System.DateTimeOffset";
+           || type.ToDisplayString() is "System.Guid" or "System.DateTimeOffset" or "System.DateOnly" or "System.TimeOnly";
 
     /// <summary>How the binder parses a filter ("string", "enum", "parsable") and its OpenAPI kind.</summary>
     private static (string? Parse, string OpenApi) ParseKind(ITypeSymbol type)
@@ -400,6 +412,8 @@ internal static class Discovery
              {
                  "System.Guid" => ("parsable", "uuid"),
                  "System.DateTimeOffset" => ("parsable", "date-time"),
+                 "System.DateOnly" => ("date", "date"),
+                 "System.TimeOnly" => ("time", "time"),
                  _ => (null, "string"),
              },
          };
@@ -663,6 +677,7 @@ internal static class Discovery
             {
                 "System.Guid" => ("String", "uuid"),
                 "System.DateTimeOffset" or "System.DateTime" => ("String", "date-time"),
+                "System.TimeOnly" => ("String", "time"),
                 "System.DateOnly" => ("String", "date"),
                 _ => (null!, null),
             },

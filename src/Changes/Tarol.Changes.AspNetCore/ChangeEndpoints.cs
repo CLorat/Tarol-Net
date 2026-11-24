@@ -493,6 +493,32 @@ public sealed partial class ChangeEndpoints
         return aggregate;
     }
 
+    /// <summary>
+    /// GET of a <see cref="PerTenantAttribute"/> aggregate's view (TN-2): the caller's tenant's one, by the tenant's id; then as
+    /// <see cref="Load{T}"/>. Without a tenant: 403 <see cref="TenantAggregates.TenantRequiredCode"/>.
+    /// </summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> LoadTenant<T>(HttpContext http)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var (context, _, refused) = Edge(http);
+        if (refused is not null)
+        {
+            await Problem(http, refused).ConfigureAwait(false);
+            return null;
+        }
+        if (!TenantAggregates.TryIdOf<T>(context, out var id))
+        {
+            await Problem(http, Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name)).ConfigureAwait(false);
+            return null;
+        }
+        return await Load(http, id).ConfigureAwait(false);
+    }
+
     /// <summary>Writes a view (200, the application's JSON context).</summary>
     /// <typeparam name="TView">The view type.</typeparam>
     /// <param name="http">The request.</param>

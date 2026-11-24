@@ -33,7 +33,10 @@ internal static class OpenApiEmitter
         sb.Append("            return global::System.Threading.Tasks.Task.CompletedTask;\n        });\n");
         sb.Append("        options.AddOperationTransformer(static (operation, context, _) =>\n        {\n");
         sb.Append("            foreach (var item in context.Description.ActionDescriptor.EndpointMetadata)\n");
-        sb.Append("                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)\n");
+        sb.Append("                // TN-9: this assembly's entries and Tarol's own (no Owner: GET /me, search); another assembly's transformer\n");
+        sb.Append("                // completes its own, and Complete skips an operation that is done, so Tarol's are completed once\n");
+        sb.Append("                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata\n");
+        sb.Append("                    && (metadata.Owner is null || metadata.Owner == typeof(GeneratedOpenApi).Assembly))\n");
         sb.Append("                    Complete(operation, metadata);\n");
         sb.Append("                else if (item is global::Microsoft.AspNetCore.Http.Metadata.ITagsMetadata tags && global::System.Linq.Enumerable.Contains(tags.Tags, AdminTag))\n");
         sb.Append("                    Admin(operation);\n");
@@ -420,6 +423,8 @@ internal static class OpenApiEmitter
 
             private static void Complete(global::Microsoft.OpenApi.OpenApiOperation operation, global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)
             {
+                if (operation.Extensions is { } done && done.ContainsKey("x-tarol-kind"))
+                    return;                                     // completed already (idempotent: an operation is completed once)
                 var extensions = operation.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>();
                 Extension(extensions, "x-tarol-kind", global::System.Text.Json.Nodes.JsonValue.Create(metadata.Kind));
                 var codes = new global::System.Text.Json.Nodes.JsonArray();
@@ -562,6 +567,12 @@ internal static class OpenApiEmitter
                 }
                 if (metadata.Policy is not null)
                     operation.Description = (operation.Description is { Length: > 0 } d ? d + "\n\n" : "") + "Policy: " + metadata.Policy;
+                if (metadata.Scoped)
+                {
+                    Extension(extensions, "x-tarol-scoped", global::System.Text.Json.Nodes.JsonValue.Create(true));
+                    operation.Description = (operation.Description is { Length: > 0 } s ? s + "\n\n" : "")
+                        + "Scope: the server lists only the rows the caller may see; a caller who may see none gets an empty page.";
+                }
                 RequestIds(operation);
             }
 
@@ -661,7 +672,7 @@ internal static class OpenApiEmitter
                     "boolean" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Boolean },
                     "int32" or "int64" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = parameter.Kind },
                     "number" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Number },
-                    "uuid" or "date-time" => Text(format: parameter.Kind),
+                    "uuid" or "date-time" or "date" or "time" => Text(format: parameter.Kind),
                     _ => Text(),
                 };
                 if (parameter.Values.Count > 0)

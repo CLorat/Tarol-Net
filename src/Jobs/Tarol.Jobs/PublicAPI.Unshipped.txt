@@ -1,1 +1,3 @@
 #nullable enable
+Tarol.Jobs.JobsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Jobs.JobsBuilder!
+Tarol.Jobs.JobsBuilder.AddModules() -> Tarol.Jobs.JobsBuilder!

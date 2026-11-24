@@ -118,7 +118,8 @@ internal sealed record TypeModel(
     EquatableArray<DiagnosticInfo> Diagnostics,
     // event: its [PersonalData] members; root: its [Retention(Days)] (0 = none)
     EquatableArray<PersonalModel> Personal = default,
-    int RetentionDays = 0)
+    int RetentionDays = 0,
+    bool PerTenant = false)
 {
     public TypeModel WithoutLocations() => this with
     {

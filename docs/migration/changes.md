@@ -573,3 +573,122 @@ behaves unchanged; `OutboxRows.RunPositioned` forwards it to the part that owns 
 now calls it with the claimed `OutboxRow.Event`, so a publication can put the event's feed position into its message
 (`ce-position`). A handler that wraps another must forward `RunPositioned` as well. Details, reasons and tests:
 docs/migration/messaging.md §27.
+
+## 17. TN-8: modules for applications of several assemblies, with TN-9 and TN-10 (2026-11-24)
+
+Feedback from Tatalu ([docs/feedback/tatalu.md](../feedback/tatalu.md)): one assembly per bounded context (13 planned).
+Each assembly generates its own `MapChanges`, `AddTarolEndpoints`, `GeneratedReactions.Set`, `GeneratedJobs.Set`; the host
+listed every one by hand (`Tatalu.Host/TataluApp.cs`), wrote a forwarding `JsonSerializerContext` (`TataluJson.cs`, TN-10) and
+a transformer that removes duplicate OpenAPI parameters (`OpenApiDeduplication.cs`, TN-9).
+
+### 17.1 Public API (additions)
+
+| Package | API | Role |
+|---|---|---|
+| `Tarol.Persistence` | `TarolModule` (`Name`, `Json`, `Aggregates`, `Reactions`, `With<TPart>`, `Part<TPart>`, `Parts`), `TarolModules` (`All`, `In(services)`), `TarolBuilder.Modules` | what one assembly brings; immutable, one typed part per type |
+| `Tarol.Changes` | `[assembly: GenerateTarolModule(name?)]` → generated `GeneratedModule.Module`; `AddTarol(params TarolModule[])`; `AddTarol(IReadOnlyList<IJsonTypeInfoResolver>, Action<EventCodec>)` | the generated module; the registration of modules (JSON combined, aggregates, reactions `ReactionSet.Combine`d); several contexts without modules |
+| `Tarol.Validations` | `ValueObjectJson.Options(IReadOnlyList<IJsonTypeInfoResolver>)` | the first context's settings, value objects first, then every context |
+| `Tarol.Queries` | `ProjectionModule`, `ProjectionsBuilder.AddModules()`, `.Add(IEnumerable<TarolModule>)` | a module's projections |
+| `Tarol.Jobs` | `JobsBuilder.AddModules()`, `.Add(IEnumerable<TarolModule>)` | a module's `GeneratedJobs.Set` (the part type is `JobSet`) |
+| `Tarol.Security` | `SecurityModule(Action<ChangeRoles>)` | a module's role map; `AddSecurity` applies every module's after the app's |
+| `Tarol.Changes.AspNetCore` | `TarolEndpointMetadata.Owner` | the assembly whose generated `MapChanges` mapped an entry (TN-9) |
+| | `EndpointModule`, `OpenApiModule`, `app.MapModules(names?)`, `modules.ConfigureOpenApi(object)` | a module's HTTP entries and OpenAPI transformers (`OpenApiOptions` is typed `object`: the package does not reference the OpenAPI package) |
+
+The generated module holds what the generator can see in the assembly: its `JsonSerializerContext`s (one: its `Default`; several:
+`JsonTypeInfoResolver.Combine`), its concrete `AggregateRoot<T>` types, `GeneratedReactions.Set`, `GeneratedJobs.Set`, a
+`ProjectionModule` over its `[Projection]` rows, an `EndpointModule` over its `GeneratedEndpoints.MapChanges` and an
+`OpenApiModule` over its `GeneratedOpenApi.AddTarolEndpoints` (each only when the assembly references the package and has
+such members). The role map is hand-written in Tatalu and stays so: attach it with `.With(new SecurityModule(…))`.
+
+### 17.2 Behaviour changes
+
+* **TN-9:** the generated OpenAPI operation transformer completes only the operations of its own assembly
+  (`TarolEndpointMetadata.Owner`, new, set by the generated `MapChanges`) and Tarol's own entries (`GET /me`, search: no
+  `Owner`), and every operation only once (an operation with `x-tarol-kind` is done). The first attempt compared the
+  input's assembly and left `/me` and search incomplete (`EdgeTests` caught it), hence the explicit `Owner`. With two assemblies,
+  `Idempotency-Key`, `If-Match`, the list parameters and the "Policy" paragraph appeared twice; `tarol-codegen` emitted
+  duplicate identifiers (TS2300). Red on the TN-7 commit **[verified]**: the composition of `ModuleTests.Without_modules_…`
+  answers `Idempotency-Key` twice on `PUT /plots/{plot}/name`.
+* **TN-10:** `AddTarol(JsonSerializerContext, …)` is unchanged; the new overload takes several contexts. The fault Tatalu hit
+  (a hand-written context subclass answers only for its own options, so a copy of the options fails with "returned a
+  JsonTypeInfo instance whose JsonSerializerOptions setting does not match") does not arise: every context is asked with the
+  caller's options. Red: one context for two assemblies fails at `codec.Add<Recipe>()` ("no metadata for Scaled, Written").
+* `AddSecurity` applies the `SecurityModule` parts of the registered modules (none without modules: unchanged).
+* No module is generated without the assembly attribute: existing assemblies get no new code.
+
+### 17.3 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Changes.AspNetCore.Tests` (+ fixtures `….Tests.Garden`, `….Tests.Kitchen`) | +6 (`ModuleTests`) | two assemblies, each `[assembly: GenerateTarolModule]`: one `AddTarol`, `MapModules`, `ConfigureOpenApi`; aggregates, both JSON contexts through the options and a copy; changes, lists and each module's role map over HTTP; every operation's parameters once, `x-tarol-kind` on each; the manual composition without modules also has every parameter once (TN-9); unique names, a module needs JSON; parts replace by type |
+| `Tarol.Changes.Generators.Tests` | +2 | the module snapshot (JSON, aggregates, reactions, jobs); no module without the attribute |
+
+### 17.4 Skill evaluation checklist (`tarol-overview`)
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| a host for three context assemblies | `[assembly: GenerateTarolModule]` in each, `AddTarol(a, b, c)`, `p.AddModules()`, `MapModules()`, `tarol.Modules.ConfigureOpenApi(o)` | a forwarding `JsonSerializerContext`; a de-duplicating OpenAPI transformer; listing `MapChanges` per assembly |
+| a context's role map | `.With(new SecurityModule(Map))` | one central role map that every context edits |
+
+### 17.5 Suppressions
+
+None.
+
+### 17.6 Verification (SDK 11.0.100, 2026-11-24) **[verified]**
+
+`dotnet build` 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker:
+**2167 of 2167**; `dotnet pack` + `eng/verify-packages.sh`: OK; `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings,
+all checks passed. No AOT check of its own: a module is delegates and a part dictionary keyed by `typeof(TPart)`; the
+packages that ship it keep `IsAotCompatible` and publish without IL warnings.
+
+## 18. TN-2: aggregates with one instance per tenant (2026-11-24)
+
+Feedback from Tatalu (TN-2): the day-care facility *is* the tenant; settings, invoice number ranges and profile assignments
+are one per tenant too. Tatalu wrote `Id<ChildDayCare>.From(tenant.Value)` and a hand-written `ILoads` per change
+(`RenameDayCare.Load`), and its view took the tenant id as `{childDayCare}`.
+
+### 18.1 Public API (additions)
+
+| Package | API | Role |
+|---|---|---|
+| `Tarol.Primitives` | `PerTenantAttribute`; `IAggregateRoot<TSelf>.PerTenant` (static virtual, default `false`; the generator writes `public static bool PerTenant => true` for a `[PerTenant]` root) | the marker, readable without reflection (`T.PerTenant`) |
+| `Tarol.Changes` | `TenantAggregates.IdOf<T>(Id<ITenant>)`, `IdOf<T>(OperationContext)`, `TryIdOf<T>`, `TenantRequiredCode` (`Tenant.Required`) | the id is `Id<T>.From(tenant.Value)` |
+| `Tarol.Changes.AspNetCore` | `ChangeEndpoints.LoadTenant<T>` (EditorBrowsable Never) | the generated view of a per-tenant aggregate without `{id}` |
+
+### 18.2 Behaviour
+
+* **Changes:** for a `[PerTenant]` aggregate the pipeline ignores `Target` and loads the caller's tenant's id; without a tenant
+  it answers 403 `Tenant.Required`; a missing one is `<T>.NotFound`. The Changes generator writes `Target => Id<T>.Empty` for
+  such a change without an `Id<T>` member instead of TCHG001. An `ILoads<T>` still loads itself.
+* **Creations:** the factory must create it with `TenantAggregates.IdOf<T>(context.Operation)`; another id is an
+  `InvalidOperationException` (a programming error, before the append). A second creation is `<T>.AlreadyExists` (409), as
+  for any creation whose stream exists.
+* **HTTP:** a change entry needs no route value (it had none to bind); a view of a `[PerTenant]` aggregate may have no route
+  value (`GET /house`): the delegate calls `LoadTenant<T>`, then the read check, ETag and 304 as for any view. With one route
+  value it is the ordinary view by id. The OpenAPI operation has no path parameter, so `tarol-codegen` generates
+  `requests.houseView()` without an id (TS-8).
+* The stored data does not change: the id was already the tenant's in Tatalu; the stream key stays (tenant, type, id).
+
+### 18.3 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Changes.AspNetCore.Tests` | +4 (`PerTenantTests`) | two tenants open, rename and read their one house with no id anywhere (the id is the tenant's, ETag `"2"`); a change before the creation is `House.NotFound`, a second creation `House.AlreadyExists`; no tenant is 403 for change and view; no path parameter in the document |
+| `Tarol.Changes.Generators.Tests` | +2 | the generated `Target => Id<Settings>.Empty`; it compiles without warnings with the Primitives generator (`PerTenant`) |
+
+### 18.4 Skill evaluation checklist (`tarol-changes`)
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| tenant settings with `PUT /settings/name` | `[PerTenant]` root, `RenameSettings(string Name) : IChange<Settings>`, `[Endpoint("PUT /settings/name")]` | an `ILoads<Settings>`; an `Id<Settings>` route value filled with the tenant id |
+| create them | `new Settings(TenantAggregates.IdOf<Settings>(context.Operation))` | `Id<Settings>.New(now)` (throws: not the tenant's id) |
+
+### 18.5 Suppressions
+
+None.
+
+### 18.6 Verification (SDK 11.0.100, 2026-11-24) **[verified]**
+
+`dotnet build` 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker:
+**2173 of 2173**; `dotnet pack` + `eng/verify-packages.sh`: OK; `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings
+(`T.PerTenant` is a static virtual member: no reflection).

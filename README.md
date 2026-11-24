@@ -71,6 +71,29 @@ var response = Find(id) switch
 };
 ```
 
+### Consuming the packages from GitHub Packages
+
+The packages are on the owner's GitHub Packages feed, never on nuget.org. That feed has no vulnerability data, so NuGet
+audit reports NU1900, an error with `TreatWarningsAsErrors`; take the audit data from nuget.org (TN-18):
+
+```xml
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="github" value="https://nuget.pkg.github.com/CLorat/index.json" />
+  </packageSources>
+  <auditSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+  </auditSources>
+  <packageSourceMapping>
+    <packageSource key="github"><package pattern="Tarol" /><package pattern="Tarol.*" /></packageSource>
+    <packageSource key="nuget.org"><package pattern="*" /></packageSource>
+  </packageSourceMapping>
+</configuration>
+```
+
 ## Build
 
 Requires the .NET SDK 11.0.x (`global.json`).

@@ -105,6 +105,35 @@ public sealed record AuctionSummary(Guid Id, string Title, string Seller, Auctio
         a.PaymentId is { } payment ? payment : Tarol.Options.Option.None);
 }
 
+/// <summary>The auction house's settings: one per tenant (TN-2), its id is the tenant's.</summary>
+[PerTenant]
+public partial class House : AggregateRoot<House>
+{
+    public string Name { get; private set; } = "";
+
+    public static House Open(Tarol.Kernel.OperationContext operation, string name)
+    {
+        var house = new House(TenantAggregates.IdOf<House>(operation));
+        house.Raise(new Founded(name));
+        return house;
+    }
+
+    public Result Rename(string name) => Raise(new Retitled(name));
+
+    public sealed record Founded(string Name) : Event;
+    public sealed record Retitled(string Name) : Event;
+
+    private void On(Founded e) => Name = e.Name;
+    private void On(Retitled e) => Name = e.Name;
+}
+
+/// <summary>GET /house: the tenant's one house, no id in the route (TN-2, TS-8).</summary>
+[Endpoint("GET /house")]
+public sealed record HouseView(Guid Id, string Name) : IView<House, HouseView>
+{
+    public static HouseView From(House h) => new(h.Id.Value, h.Name);
+}
+
 /// <summary>The payment provider's own contract (anti-corruption: its names stay here).</summary>
 public sealed record PaymentSucceededV2(string PaymentId, Guid Reference, decimal Amount, string Currency);
 public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
@@ -121,6 +150,8 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]
 [JsonSerializable(typeof(Auction.Watched)), JsonSerializable(typeof(Bid.Placed)), JsonSerializable(typeof(Payout.Due))]
 [JsonSerializable(typeof(AuctionRow)), JsonSerializable(typeof(Memo.Written)), JsonSerializable(typeof(BidPlacedV1))]
+[JsonSerializable(typeof(House.Founded)), JsonSerializable(typeof(House.Retitled)), JsonSerializable(typeof(OpenHouse)), JsonSerializable(typeof(RenameHouse))]
+[JsonSerializable(typeof(HouseView))]
 public sealed partial class AppJson : JsonSerializerContext;
 
 /// <summary>A note visible to its owner only (step 18D: the audience of a search hit).</summary>

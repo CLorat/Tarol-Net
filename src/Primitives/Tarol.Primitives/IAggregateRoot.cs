@@ -36,6 +36,12 @@ public interface IAggregateRoot<TSelf> : IAggregateRoot
     /// </summary>
     static abstract string StreamType { get; }
 
+    /// <summary>
+    /// Whether each tenant has exactly one of this aggregate (<see cref="PerTenantAttribute"/>, TN-2): its id is the tenant's.
+    /// Generated as <see langword="true"/> for a <c>[PerTenant]</c> root.
+    /// </summary>
+    static virtual bool PerTenant => false;
+
     /// <summary>The stream type and every concrete event with its stored alias, version and CLR type, for an event codec.</summary>
     static abstract EventCatalog EventTypes { get; }
 

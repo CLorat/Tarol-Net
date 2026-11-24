@@ -42,6 +42,11 @@ public static partial class NpgsqlReadModelSchema
     /// <returns>The SQL (idempotent).</returns>
     public static string Script<TRow>(string schema = DefaultSchema)
         where TRow : class, IProjection<TRow>
+        => TableScript<TRow>(schema) + IndexScript<TRow>(schema);
+
+    /// <summary>The checkpoint table, the checkpoint row and the read table (without its indexes).</summary>
+    internal static string TableScript<TRow>(string schema)
+        where TRow : class, IProjection<TRow>
     {
         Validate(schema);
         var table = $"{schema}.{Projections.TableOf<TRow>()}";
@@ -50,14 +55,25 @@ public static partial class NpgsqlReadModelSchema
         sb.Append(CultureInfo.InvariantCulture, $"CREATE TABLE IF NOT EXISTS {table} (\n");
         sb.Append("    tenant      uuid        NOT NULL,\n    id          uuid        NOT NULL,\n    version     bigint      NOT NULL,\n");
         foreach (var column in TRow.Columns)
-            sb.Append(CultureInfo.InvariantCulture, $"    {column.Name} {SqlType(column.Type)}{(column.Nullable ? "" : " NOT NULL")},\n");
+            sb.Append(CultureInfo.InvariantCulture, $"    {column.Name} {SqlType(column)}{(column.Nullable ? "" : " NOT NULL")},\n");
         sb.Append("    doc         jsonb       NOT NULL,\n    PRIMARY KEY (tenant, id));\n");
+        return sb.ToString();
+    }
+
+    /// <summary>The read table's indexes: (tenant, column, id) per sort, a GIN index per array column (set filters).</summary>
+    internal static string IndexScript<TRow>(string schema)
+        where TRow : class, IProjection<TRow>
+    {
+        var table = $"{schema}.{Projections.TableOf<TRow>()}";
+        var sb = new StringBuilder();
         var i = 0;
         foreach (var column in TRow.Columns)
         {
             i++;
             if (column.Sortable)
                 sb.Append(CultureInfo.InvariantCulture, $"CREATE INDEX IF NOT EXISTS {Projections.TableOf<TRow>()}_s{i} ON {table} (tenant, {column.Name}, id);\n");
+            if (column.IsArray)
+                sb.Append(CultureInfo.InvariantCulture, $"CREATE INDEX IF NOT EXISTS {Projections.TableOf<TRow>()}_a{i} ON {table} USING gin ({column.Name});\n");
         }
         return sb.ToString();
     }
@@ -76,8 +92,25 @@ public static partial class NpgsqlReadModelSchema
         ColumnType.Numeric => "numeric",
         ColumnType.Float8 => "double precision",
         ColumnType.TimestampTz => "timestamptz",
+        ColumnType.Date => "date",
+        ColumnType.Time => "time",
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
     };
+
+    /// <summary>The PostgreSQL type of a column: <see cref="SqlType(ColumnType)"/>, or its array for an array column (<c>uuid[]</c>, <c>text[] COLLATE "C"</c>).</summary>
+    /// <typeparam name="TRow">The row record.</typeparam>
+    /// <param name="column">The column.</param>
+    /// <returns>The SQL type.</returns>
+    public static string SqlType<TRow>(ProjectionColumn<TRow> column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        if (!column.IsArray)
+            return SqlType(column.Type);
+        return column.Type == ColumnType.Text ? "text[] COLLATE \"C\"" : SqlType(column.Type) + "[]";
+    }
+
+    /// <summary>The array type of a cast (<c>uuid[]</c>, <c>text[]</c>): no collation, which a cast does not take.</summary>
+    internal static string CastArrayType(ColumnType type) => type == ColumnType.Text ? "text[]" : SqlType(type) + "[]";
 
     internal static string ArrayType(ColumnType type) => type switch
     {

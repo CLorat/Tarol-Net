@@ -30,6 +30,7 @@ public sealed class OpenApiTopicsTests
             .AddMessaging("shop", m => m.UseInMemoryTransport().Trust("billing").PushToUi(push));
         builder.Services.AddAuthentication("test").AddScheme<AuthenticationSchemeOptions, TestApp.HeaderScheme>("test", null);
         builder.Services.AddAuthorization();
+        builder.Services.AddSingleton<IListScope<FamilyAuctions>, FamilyScope>();
         builder.Services.AddOpenApi(o => o.AddTarolEndpoints());
         await using var app = builder.Build();
         app.MapOpenApi();

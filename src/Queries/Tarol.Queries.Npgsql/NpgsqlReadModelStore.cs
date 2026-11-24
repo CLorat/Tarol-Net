@@ -55,27 +55,36 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
 
         var names = new StringBuilder("tenant, id, version");
         var arrays = new StringBuilder("$1::uuid[], $2::uuid[], $3::bigint[]");
+        var aliases = new StringBuilder("c1, c2, c3");
+        var select = new StringBuilder("c1, c2, c3");
         var updates = new StringBuilder("version = excluded.version");
         var p = 3;
         foreach (var column in _columns)
         {
+            p++;
             names.Append(", ").Append(column.Name);
-            arrays.Append(CultureInfo.InvariantCulture, $", ${++p}::{NpgsqlReadModelSchema.ArrayType(column.Type)}");
+            // an array column travels as text[] of PostgreSQL array literals: unnest would flatten an array of arrays
+            arrays.Append(CultureInfo.InvariantCulture, $", ${p}::{(column.IsArray ? "text[]" : NpgsqlReadModelSchema.ArrayType(column.Type))}");
+            aliases.Append(CultureInfo.InvariantCulture, $", c{p}");
+            select.Append(column.IsArray ? $", c{p}::{NpgsqlReadModelSchema.CastArrayType(column.Type)}" : $", c{p}");
             updates.Append(CultureInfo.InvariantCulture, $", {column.Name} = excluded.{column.Name}");
         }
         names.Append(", doc");
-        arrays.Append(CultureInfo.InvariantCulture, $", ${++p}::jsonb[]");
+        p++;
+        arrays.Append(CultureInfo.InvariantCulture, $", ${p}::jsonb[]");
+        aliases.Append(CultureInfo.InvariantCulture, $", c{p}");
+        select.Append(CultureInfo.InvariantCulture, $", c{p}");
         updates.Append(", doc = excluded.doc");
         _upsert = $"""
             INSERT INTO {Table} AS t ({names})
-            SELECT * FROM unnest({arrays})
+            SELECT {select} FROM unnest({arrays}) AS u({aliases})
             ON CONFLICT (tenant, id) DO UPDATE SET {updates}
             WHERE t.version < excluded.version
             """;
         // an erasure's re-fold rewrites a row at the same version (DP-5): the guard above would refuse it
         _replace = $"""
             INSERT INTO {Table} AS t ({names})
-            SELECT * FROM unnest({arrays})
+            SELECT {select} FROM unnest({arrays}) AS u({aliases})
             ON CONFLICT (tenant, id) DO UPDATE SET {updates}
             """;
         _advance = $"""
@@ -110,10 +119,87 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                     lockCommand.Parameters.Add(new NpgsqlParameter { Value = "tarol.read-models:" + _schema });
                     await lockCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 }
-                await using (var create = new NpgsqlCommand(NpgsqlReadModelSchema.Script<TRow>(_schema), connection, transaction))
+                await using (var create = new NpgsqlCommand(NpgsqlReadModelSchema.TableScript<TRow>(_schema), connection, transaction))
                     await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                await Upgrade(connection, transaction, cancellationToken).ConfigureAwait(false);
+                await using (var indexes = new NpgsqlCommand(NpgsqlReadModelSchema.IndexScript<TRow>(_schema), connection, transaction))
+                    if (indexes.CommandText.Length > 0)
+                        await indexes.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
             }
+        }
+    }
+
+    /// <summary>
+    /// The schema upgrade of a read table created before a member type got a column (array columns, TN-6): adds the missing
+    /// columns, fills them from the stored rows' <c>doc</c> (the row's shape is the version's, so the JSON still reads), then
+    /// sets <c>NOT NULL</c> where the member is not nullable. The checkpoint does not move; nothing is rebuilt.
+    /// </summary>
+    private async Task Upgrade(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        var existing = new HashSet<string>(StringComparer.Ordinal);
+        await using (var read = new NpgsqlCommand("SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2", connection, transaction))
+        {
+            read.Parameters.Add(new NpgsqlParameter { Value = _schema });
+            read.Parameters.Add(new NpgsqlParameter { Value = Projections.TableOf<TRow>() });
+            await using var reader = await read.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                existing.Add(reader.GetString(0));
+        }
+        var missing = _columns.Where(c => !existing.Contains(c.Name)).ToList();
+        if (missing.Count == 0)
+            return;
+        foreach (var column in missing)
+        {
+            await using var add = new NpgsqlCommand($"ALTER TABLE {Table} ADD COLUMN {column.Name} {NpgsqlReadModelSchema.SqlType(column)}", connection, transaction);
+            await add.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        var set = string.Join(", ", missing.Select((c, i) => $"{c.Name} = u.c{i + 3}"));
+        var arrays = string.Join(", ", missing.Select((c, i) => $"${i + 3}::" + (c.IsArray ? "text[]" : NpgsqlReadModelSchema.ArrayType(c.Type))));
+        var aliases = string.Join(", ", missing.Select((c, i) => $"c{i + 3}"));
+        var update = $"UPDATE {Table} t SET {set} FROM (SELECT c1, c2, "
+            + string.Join(", ", missing.Select((c, i) => c.IsArray ? $"c{i + 3}::{NpgsqlReadModelSchema.CastArrayType(c.Type)} AS c{i + 3}" : $"c{i + 3}"))
+            + $" FROM unnest($1::uuid[], $2::uuid[], {arrays}) AS x(c1, c2, {aliases})) AS u WHERE t.tenant = u.c1 AND t.id = u.c2";
+        const int Chunk = 500;
+        (Guid Tenant, Guid Id)? after = null;
+        while (true)
+        {
+            var keys = new List<(Guid Tenant, Guid Id)>(Chunk);
+            var rows = new List<TRow>(Chunk);
+            await using (var page = new NpgsqlCommand(after is null
+                ? $"SELECT tenant, id, doc::text FROM {Table} ORDER BY tenant, id LIMIT {Chunk}"
+                : $"SELECT tenant, id, doc::text FROM {Table} WHERE (tenant, id) > ($1, $2) ORDER BY tenant, id LIMIT {Chunk}", connection, transaction))
+            {
+                if (after is { } a)
+                {
+                    page.Parameters.Add(new NpgsqlParameter { Value = a.Tenant });
+                    page.Parameters.Add(new NpgsqlParameter { Value = a.Id });
+                }
+                await using var reader = await page.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    keys.Add((reader.GetGuid(0), reader.GetGuid(1)));
+                    rows.Add(Deserialize(reader.GetString(2)));
+                }
+            }
+            if (keys.Count == 0)
+                break;
+            await using (var fill = new NpgsqlCommand(update, connection, transaction))
+            {
+                fill.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Tenant).ToArray() });
+                fill.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Id).ToArray() });
+                foreach (var column in missing)
+                    fill.Parameters.Add(ColumnParameter(column, rows));
+                await fill.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            after = keys[^1];
+            if (keys.Count < Chunk)
+                break;
+        }
+        foreach (var column in missing.Where(static c => !c.Nullable))
+        {
+            await using var required = new NpgsqlCommand($"ALTER TABLE {Table} ALTER COLUMN {column.Name} SET NOT NULL", connection, transaction);
+            await required.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -316,6 +402,14 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             parameters.Add(new NpgsqlParameter { Value = value });
             where.Append(CultureInfo.InvariantCulture, $" AND {column.Name} = ${parameters.Count}");
         }
+        foreach (var set in plan.Sets)
+        {
+            // an empty array matches nothing: = ANY('{}') and && '{}' are false, so a scope without rows lists no row
+            parameters.Add(new NpgsqlParameter { Value = TypedArray(set.Type, set.Values), NpgsqlDbType = NpgsqlDbType.Array | DbType(set.Type) });
+            where.Append(set.Column is { IsArray: true }
+                ? $" AND {set.Name} && ${parameters.Count}"
+                : $" AND {set.Name} = ANY(${parameters.Count})");
+        }
         return where.ToString();
     }
 
@@ -338,9 +432,57 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         parameters.Add(new NpgsqlParameter { Value = ids });
         parameters.Add(new NpgsqlParameter { Value = versions });
         foreach (var column in _columns)
-            parameters.Add(new NpgsqlParameter { Value = column.Values(values), NpgsqlDbType = NpgsqlDbType.Array | DbType(column.Type) });
+            parameters.Add(ColumnParameter(column, values));
         parameters.Add(new NpgsqlParameter { Value = docs, NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Jsonb });
     }
+
+    private static NpgsqlParameter ColumnParameter(ProjectionColumn<TRow> column, IReadOnlyList<TRow> rows)
+    {
+        var values = column.Values(rows);
+        if (!column.IsArray)
+            return new NpgsqlParameter { Value = values, NpgsqlDbType = NpgsqlDbType.Array | DbType(column.Type) };
+        var literals = new string?[values.Length];
+        for (var i = 0; i < literals.Length; i++)
+            literals[i] = values.GetValue(i) is System.Collections.IEnumerable items ? ArrayLiteral(column.Type, items) : null;
+        return new NpgsqlParameter { Value = literals, NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text };
+    }
+
+    /// <summary>A PostgreSQL array literal: every element quoted, <c>\</c> and <c>"</c> escaped (<c>{"a","b"}</c>).</summary>
+    private static string ArrayLiteral(ColumnType type, System.Collections.IEnumerable items)
+    {
+        var sb = new StringBuilder("{");
+        foreach (var item in items)
+        {
+            if (sb.Length > 1)
+                sb.Append(',');
+            var text = item switch
+            {
+                null => throw new InvalidOperationException("An array column cannot hold a null element."),
+                Guid g => g.ToString("D"),
+                string t => t,
+                IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+                _ => throw new InvalidOperationException($"A {type} array cannot hold {item.GetType().Name}."),
+            };
+            sb.Append('"').Append(text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal)).Append('"');
+        }
+        return sb.Append('}').ToString();
+    }
+
+    private static Array TypedArray(ColumnType type, IReadOnlyList<object> values) => type switch
+    {
+        ColumnType.Uuid => values.Cast<Guid>().ToArray(),
+        ColumnType.Text => values.Cast<string>().ToArray(),
+        ColumnType.Boolean => values.Cast<bool>().ToArray(),
+        ColumnType.Int2 => values.Cast<short>().ToArray(),
+        ColumnType.Int4 => values.Cast<int>().ToArray(),
+        ColumnType.BigInt => values.Cast<long>().ToArray(),
+        ColumnType.Numeric => values.Cast<decimal>().ToArray(),
+        ColumnType.Float8 => values.Cast<double>().ToArray(),
+        ColumnType.TimestampTz => values.Cast<DateTimeOffset>().ToArray(),
+        ColumnType.Date => values.Cast<DateOnly>().ToArray(),
+        ColumnType.Time => values.Cast<TimeOnly>().ToArray(),
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
+    };
 
     private static NpgsqlDbType DbType(ColumnType type) => type switch
     {
@@ -353,6 +495,8 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         ColumnType.Numeric => NpgsqlDbType.Numeric,
         ColumnType.Float8 => NpgsqlDbType.Double,
         ColumnType.TimestampTz => NpgsqlDbType.TimestampTz,
+        ColumnType.Date => NpgsqlDbType.Date,
+        ColumnType.Time => NpgsqlDbType.Time,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
     };
 

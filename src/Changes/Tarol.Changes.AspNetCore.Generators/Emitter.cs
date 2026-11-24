@@ -99,7 +99,12 @@ internal static class Emitter
             sb.Append("                        new(\"count\", \"boolean\", global::System.Array.Empty<string>(), \"Also count every row of the filters (total)\"),\n");
             sb.Append("                    }");
         }
-        sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n                });\n");
+        sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n");
+        sb.Append("                    Owner = typeof(GeneratedEndpoints).Assembly,\n");
+        if (e.Query is { } scoped)
+            sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
+              .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");
+        sb.Append("                });\n");
         sb.Append("            ").Append(Builder).Append(".AuthorizationEndpointConventionBuilderExtensions.")
           .Append(e.Anonymous ? "AllowAnonymous(endpoint)" : e.Policy is null ? "RequireAuthorization(endpoint)" : $"RequireAuthorization(endpoint, {Literal(e.Policy)})")
           .Append(';').Append(e.Anonymous || e.Policy is not null ? "" : "                   // no Policy: the default policy (fail closed, C-11)").Append('\n');
@@ -138,11 +143,16 @@ internal static class Emitter
 
     private static void View(StringBuilder sb, EntryModel e)
     {
-        var id = e.Members.First();
+        var id = e.Members.FirstOrDefault();
         sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
-        Route(sb, id);
-        sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
+        if (id is null)                                 // TN-2: a [PerTenant] aggregate, the caller's tenant's one
+            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http);\n");
+        else
+        {
+            Route(sb, id);
+            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
+        }
         sb.Append("        if (aggregate is null)\n            return;                                                     // 404, 403, 401 or 304 written\n");
         sb.Append("        await web.WriteView(http, ").Append(e.FullName).Append(".From(aggregate));\n    }\n");
     }
@@ -186,7 +196,8 @@ internal static class Emitter
             }
             else
             {
-                sb.Append("            if (").Append(Web).Append(f.Parse == "enum" ? ".TryEnum<" : ".TryFilter<").Append(f.Type).Append(">(q_").Append(f.Member).Append(", out var v_").Append(f.Member).Append("))\n");
+                sb.Append("            if (").Append(Web).Append(f.Parse switch { "enum" => ".TryEnum<", "date" => ".TryDate(", "time" => ".TryTime(", _ => ".TryFilter<" })
+                  .Append(f.Parse is "date" or "time" ? "" : f.Type + ">(").Append("q_").Append(f.Member).Append(", out var v_").Append(f.Member).Append("))\n");
                 sb.Append("                filters.Add(new(").Append(Literal(f.Column)).Append(", v_").Append(f.Member).Append("));\n");
                 sb.Append("            else\n                (errors ??= new()).Add(new(\"").Append(f.Member).Append("\", \"Format\"));\n");
             }
@@ -211,6 +222,8 @@ internal static class Emitter
         }
         sb.Append("        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters, Sort = sort, Descending = descending }, ref errors);\n");
         sb.Append("        if (errors is not null)\n        {\n            await web.Problem(http, new global::Tarol.Results.Invalid(errors));\n            return;\n        }\n");
+        sb.Append("        query = await web.Scope<").Append(e.FullName).Append(">(http, query").Append(q.RequiresScope ? ", required: true" : "")
+          .Append(");          // the caller's rows (IListScope, TN-6)\n");
         sb.Append("        await web.List<").Append(q.Row).Append(">(http, query);\n    }\n");
     }
 

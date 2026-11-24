@@ -18,7 +18,7 @@
     <!-- BC-25: the smoke program pushes to the UI (x-tarol-topics) -->
     <PackageReference Include="Tarol.Messaging.SignalR" VersionOverride="$(TarolPackageVersion)" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
-    <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs;../Tarol.Changes.AspNetCore.Tests/Queries.cs" LinkBase="ArtFlow" />
+    <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs;../Tarol.Changes.AspNetCore.Tests/Queries.cs;../Tarol.Changes.AspNetCore.Tests/Scopes.cs" LinkBase="ArtFlow" />
     <Compile Include="../Tarol.Changes.AspNetCore.AotSmoke/Program.cs" Link="Program.cs" />
     <!-- the smoke program names its own assembly's generated namespace -->
     <Using Include="Tarol.Changes.AspNetCore.PackageTests" />

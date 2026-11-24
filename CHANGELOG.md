@@ -6,6 +6,45 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Documentation
+
+* README: consuming the packages from GitHub Packages with `<auditSources>` (nuget.org) against NU1900 (TN-18); the
+  `tarol-overview` skill names the error.
+
+### Added
+
+* List scopes (TN-6, from Tatalu): `IListScope<TQuery>` (`Tarol.Changes.AspNetCore`) restricts a list to the rows the
+  caller may see, from domain data; `[Endpoint(…, RequiresScope = true)]` makes it mandatory (startup fails without it).
+  Set filters (`SetFilter`, `ListScope`, `ListQuery.Sets`, `ListQuery.Within`) in `Tarol.Queries`: `= ANY(…)`, overlap over
+  an array column, or the row id; an empty set is an empty page. They bind the cursor and the page cache key; OpenAPI
+  marks the list `x-tarol-scoped`.
+* Array columns: `T[]` and `IReadOnlyList<T>` members of Guid, string, short, int, long or an int enum
+  (`ProjectionArrayColumn<TRow, TElement>`, PostgreSQL arrays with a GIN index).
+
+* `DateOnly` and `TimeOnly` projection columns (TN-7): `date` and `time`, filterable and sortable (`ColumnType.Date`,
+  `.Time`, `ColumnValues.Time`); list query strings take `yyyy-MM-dd` and `HH:mm[:ss[.fffffff]]` (`ChangeEndpoints.TryDate`,
+  `.TryTime`), OpenAPI formats `date` and `time`.
+
+* Per-tenant singleton aggregates (TN-2): `[PerTenant]` on a root (`Tarol.Primitives`; `IAggregateRoot<T>.PerTenant`); the
+  pipeline loads the caller's tenant's one, so a change needs no `Id<T>` member and an entry no `{id}` (`GET /settings`);
+  `TenantAggregates.IdOf<T>` (`Tarol.Changes`) gives the id; `ChangeEndpoints.LoadTenant<T>`.
+* Modules for applications of several assemblies (TN-8): `[assembly: GenerateTarolModule]` generates `GeneratedModule.Module`
+  (`TarolModule`: JSON contexts, aggregates, reactions, jobs, projections, HTTP entries, OpenAPI); `AddTarol(params
+  TarolModule[])`, `ProjectionsBuilder.AddModules()`, `JobsBuilder.AddModules()`, `SecurityModule`, `app.MapModules()`,
+  `modules.ConfigureOpenApi(o)`. `AddTarol(IReadOnlyList<IJsonTypeInfoResolver>, …)` and
+  `ValueObjectJson.Options(IReadOnlyList<IJsonTypeInfoResolver>)` take several JSON contexts (TN-10).
+
+### Changed
+
+* The generated OpenAPI operation transformer completes only its own assembly's operations, once (TN-9): with two
+  assemblies no parameter or "Policy" paragraph appears twice.
+* `DateOnly` and `TimeOnly` members of a projection row get a column (they were jsonb-only); `Prepare` adds and fills it
+  on an existing read table.
+* Array members of a projection row get a column. `NpgsqlReadModelStore.Prepare` adds the missing columns to an existing
+  read table and fills them from the stored rows (no rebuild). `[Sort]` on an array member reports "takes set filters
+  only" (TQRY004).
+* `Tarol.Caching`'s `PageKey` includes the set filters.
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline

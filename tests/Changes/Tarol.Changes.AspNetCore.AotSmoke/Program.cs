@@ -58,6 +58,7 @@ tarol.WithOutboxRows(GeneratedPublications.Set)
     }));
 builder.Services.AddSingleton<IAuthorizationHandler, CloseAuctionRule>();
 builder.Services.AddSingleton<IAuthorizationHandler, ReadOwnAuction>();
+builder.Services.AddSingleton<IListScope<FamilyAuctions>, FamilyScope>();                 // TN-6: the list requires its scope
 builder.Services.AddProblemDetails();
 builder.Services.Configure<WebhookOptions>(o => o.Senders["payments"] = new WebhookSender { Secrets = { "whsec" } });
 builder.Services.AddAuthentication("smoke").AddScheme<AuthenticationSchemeOptions, SmokeScheme>("smoke", null);
@@ -125,6 +126,11 @@ var listed = list.Status == HttpStatusCode.OK ? JsonElement.Parse(list.Body) : d
 Check("list after the bid's Tarol-Position: the row, its ETag and the position", list.Status == HttpStatusCode.OK && position.Length > 0
     && listed.GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id && i.GetProperty("bids").GetInt32() == 1)
     && list.R.Headers.ETag is { IsWeak: true } && list.R.Headers.Contains(Positions.PositionHeader) && !list.R.Headers.Contains(Positions.StaleHeader), list.Body);
+var family = await Send(HttpMethod.Get, "/family/auctions?count=true", null, "paula", h => h.Add(Positions.ReadAfterHeader, position));
+var stranger = await Send(HttpMethod.Get, "/family/auctions?count=true", null, "sam", h => h.Add(Positions.ReadAfterHeader, position));
+Check("list scope natively: a parent sees the followed sellers' rows, a stranger an empty page (TN-6)",
+    family.Status == HttpStatusCode.OK && JsonElement.Parse(family.Body).GetProperty("items").EnumerateArray().Any(i => i.GetProperty("id").GetString() == id)
+    && stranger.Status == HttpStatusCode.OK && JsonElement.Parse(stranger.Body).GetProperty("total").GetInt64() == 0, family.Body + stranger.Body);
 var search = await Send(HttpMethod.Get, $"/search?q=sunflowers%20{word}&counts=true&snippets=true", null, "alice", h => h.Add(Positions.ReadAfterHeader, position));
 var searched = search.Status == HttpStatusCode.OK ? JsonElement.Parse(search.Body) : default;
 Check("search after the bid's Tarol-Position: the auction, counts, a weak ETag (step 18D)", search.Status == HttpStatusCode.OK
