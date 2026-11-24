@@ -633,3 +633,10 @@ such members). The role map is hand-written in Tatalu and stays so: attach it wi
 ### 17.5 Suppressions
 
 None.
+
+### 17.6 Verification (SDK 11.0.100, 2026-11-24) **[verified]**
+
+`dotnet build` 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker:
+**2167 of 2167**; `dotnet pack` + `eng/verify-packages.sh`: OK; `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings,
+all checks passed. No AOT check of its own: a module is delegates and a part dictionary keyed by `typeof(TPart)`; the
+packages that ship it keep `IsAotCompatible` and publish without IL warnings.
