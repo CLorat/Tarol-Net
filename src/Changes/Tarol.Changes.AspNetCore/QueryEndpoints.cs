@@ -85,7 +85,7 @@ public sealed partial class ChangeEndpoints
 
     /// <summary>
     /// The access of a list request: the edge (tenant from the claims), then <see cref="IChangeAuthorization.CheckList{T}"/>
-    /// (the role map's <c>Read&lt;T&gt;</c>; row rules do not run on lists).
+    /// (the role map's <c>Read&lt;T&gt;</c>; row rules do not run on lists: an <see cref="IListScope{TQuery}"/> restricts the rows).
     /// </summary>
     /// <typeparam name="TAggregate">The aggregate whose projection is listed.</typeparam>
     /// <param name="http">The request.</param>
@@ -109,6 +109,7 @@ public sealed partial class ChangeEndpoints
             await Problem(http, denied).ConfigureAwait(false);
             return null;
         }
+        http.Items[ListCallerKey] = (context, options.Principal ?? NoOne);     // for the list's scope (TN-6)
         return context.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value : Guid.Empty;
     }
 

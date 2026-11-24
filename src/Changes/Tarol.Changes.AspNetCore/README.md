@@ -42,7 +42,8 @@ app.MapChanges();
 * **Lists** (step 12): `[Endpoint("GET /auctions", Policy = "auctions:read")]` on a record implementing `IQuery<TRow>`
   over a `[Projection]` row (`Tarol.Queries`): nullable members named like a row column are equality filters from the query
   string (`?status=Open`), a `Sort` enum member names `[Sort]` columns (`[Descending]`; the id breaks ties), route members
-  filter too, `[FromClaim("sub")]` members come from the caller only. Paging: `limit` (≤ 200), `after` (the opaque cursor of
+  filter too, `[FromClaim("sub")]` members come from the caller only, and an `IListScope<TQuery>` adds the rows the
+  caller may see from domain data (`RequiresScope = true`: startup fails without one; an empty set is an empty page). Paging: `limit` (≤ 200), `after` (the opaque cursor of
   the previous page's `next`), `offset` (≤ 1,000), `count=true`. Any other key is 400 with the field code `Unknown` (a typo
   would list unfiltered rows; a claim-bound member such as `?seller=` is refused, not ignored). The answer is `{"items":[…],"next":…,"total":…}` with a weak
   `ETag` (304 on `If-None-Match`) and `Tarol-Position`; `Tarol-Read-After: <position>` waits up to 2 s for the projection,

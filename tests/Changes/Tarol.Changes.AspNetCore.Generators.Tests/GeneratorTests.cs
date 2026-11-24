@@ -122,6 +122,8 @@ public sealed class DiagnosticTests
     {
         Message("""[Endpoint("POST /x")] public sealed record NotAChange(int X);""", "TWEB002").ShouldContain("neither IChange<T>");
         Message("""[Endpoint("GET /orders/{order}")] public sealed partial record C(Id<Order> Order)""" + Close, "TWEB002").ShouldContain("not read with GET");
+        Message("""[Endpoint("POST /orders/{order}/x", RequiresScope = true)] public sealed partial record C(Id<Order> Order)""" + Close, "TWEB002")
+            .ShouldContain("RequiresScope applies to list queries");
         Message("""
             [Endpoint("POST /orders/{order}")] public sealed record V(Guid Id) : IView<Order, V> { public static V From(Order o) => new(o.Id.Value); }
             """, "TWEB002").ShouldContain("read with GET");
@@ -215,4 +217,32 @@ public sealed class DiagnosticTests
     [Fact]
     public void Valid_entries_report_nothing()
         => Diagnose("""[Endpoint("POST /orders/{order}/a")] public sealed partial record A(Id<Order> Order)""" + Close).ShouldBeEmpty();
+}
+
+/// <summary>The list scope example of skills/tarol-queries/SKILL.md (TN-6), read from the file: every API name compiles.</summary>
+public sealed class ListScopeSkillExampleTests
+{
+    [Fact]
+    public void The_scope_example_compiles_with_the_generators()
+    {
+        var skill = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../src/Queries/Tarol.Queries/skills/tarol-queries/SKILL.md"));
+        var start = skill.IndexOf("[Endpoint(\"GET /logs\"", StringComparison.Ordinal);
+        var example = skill[start..skill.IndexOf("```", start, StringComparison.Ordinal)];
+        var source = GeneratorTestHost.Usings + """
+            using System.Collections.Generic;
+            using System.Security.Claims;
+            using System.Threading;
+            using System.Threading.Tasks;
+            namespace Shop;
+
+            [Projection("log-list")]
+            public sealed partial record LogRow(Guid Id, Guid Child, Guid[] Tagged)
+            {
+                public static LogRow When(Order.Opened e, RecordedEvent r) => new(r.StreamId, Guid.Empty, []);
+            }
+
+            """ + example;
+
+        GeneratorTestHost.Diagnose(false, source).Select(d => d.ToString()).ShouldBeEmpty();
+    }
 }

@@ -131,6 +131,9 @@ internal static class Sources
         [Endpoint("GET /orders", Policy = "orders:read")]
         public sealed record OrderSearch(OrderState? State, string? Customer, OrderSort Sort = OrderSort.Items) : IQuery<OrderRow>;
 
+        [Endpoint("GET /my/orders", RequiresScope = true)]
+        public sealed record MyOrders(OrderState? State) : IQuery<OrderRow>;
+
         [Endpoint("GET /customers/{customer}/orders")]
         public sealed record CustomerOrders(string Customer, [FromClaim("owner")] Guid Owner) : IQuery<OrderRow>;
         """;

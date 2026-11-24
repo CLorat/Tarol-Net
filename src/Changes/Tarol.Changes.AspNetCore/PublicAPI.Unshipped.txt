@@ -1,1 +1,9 @@
 #nullable enable
+Tarol.Changes.AspNetCore.ChangeEndpoints.Scope<TQuery>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Queries.ListQuery! query, bool required = false) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListQuery!>
+Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.get -> bool
+Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.init -> void
+Tarol.Changes.AspNetCore.IListScope<TQuery>
+Tarol.Changes.AspNetCore.IListScope<TQuery>.Scope(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListScope!>
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.init -> void
+static Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<TQuery>(System.IServiceProvider! services, bool required) -> bool

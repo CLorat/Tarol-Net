@@ -42,7 +42,7 @@
     <ProjectReference Include="../../../src/StronglyTypedId/Tarol.StronglyTypedId.Generators/Tarol.StronglyTypedId.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- the ArtFlow domain of the endpoint tests -->
-    <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs;../Tarol.Changes.AspNetCore.Tests/Queries.cs" LinkBase="ArtFlow" />
+    <Compile Include="../Tarol.Changes.AspNetCore.Tests/Domain.cs;../Tarol.Changes.AspNetCore.Tests/Changes.cs;../Tarol.Changes.AspNetCore.Tests/Queries.cs;../Tarol.Changes.AspNetCore.Tests/Scopes.cs" LinkBase="ArtFlow" />
     <!-- the generated MapChanges/AddTarolEndpoints live in a namespace named after the assembly (Program.cs is shared) -->
     <Using Include="Tarol.Changes.AspNetCore.AotSmoke" />
   </ItemGroup>

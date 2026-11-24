@@ -430,6 +430,12 @@ public static class GeneratedOpenApi
         }
         if (metadata.Policy is not null)
             operation.Description = (operation.Description is { Length: > 0 } d ? d + "\n\n" : "") + "Policy: " + metadata.Policy;
+        if (metadata.Scoped)
+        {
+            Extension(extensions, "x-tarol-scoped", global::System.Text.Json.Nodes.JsonValue.Create(true));
+            operation.Description = (operation.Description is { Length: > 0 } s ? s + "\n\n" : "")
+                + "Scope: the server lists only the rows the caller may see; a caller who may see none gets an empty page.";
+        }
         RequestIds(operation);
     }
 

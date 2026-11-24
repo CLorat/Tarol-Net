@@ -99,7 +99,11 @@ internal static class Emitter
             sb.Append("                        new(\"count\", \"boolean\", global::System.Array.Empty<string>(), \"Also count every row of the filters (total)\"),\n");
             sb.Append("                    }");
         }
-        sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n                });\n");
+        sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n");
+        if (e.Query is { } scoped)
+            sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
+              .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");
+        sb.Append("                });\n");
         sb.Append("            ").Append(Builder).Append(".AuthorizationEndpointConventionBuilderExtensions.")
           .Append(e.Anonymous ? "AllowAnonymous(endpoint)" : e.Policy is null ? "RequireAuthorization(endpoint)" : $"RequireAuthorization(endpoint, {Literal(e.Policy)})")
           .Append(';').Append(e.Anonymous || e.Policy is not null ? "" : "                   // no Policy: the default policy (fail closed, C-11)").Append('\n');
@@ -211,6 +215,8 @@ internal static class Emitter
         }
         sb.Append("        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters, Sort = sort, Descending = descending }, ref errors);\n");
         sb.Append("        if (errors is not null)\n        {\n            await web.Problem(http, new global::Tarol.Results.Invalid(errors));\n            return;\n        }\n");
+        sb.Append("        query = await web.Scope<").Append(e.FullName).Append(">(http, query").Append(q.RequiresScope ? ", required: true" : "")
+          .Append(");          // the caller's rows (IListScope, TN-6)\n");
         sb.Append("        await web.List<").Append(q.Row).Append(">(http, query);\n    }\n");
     }
 

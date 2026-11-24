@@ -15,8 +15,9 @@ internal sealed record FilterModel(string Member, string Type, string Column, st
 /// <summary>A sort of a list: the enum member, the column (or "id") and the direction.</summary>
 internal sealed record SortModel(string EnumMember, string Column, bool Descending);
 
-/// <summary>What a list entry adds: the row, its filters and its sorts (with the default).</summary>
-internal sealed record QueryModel(string Row, EquatableArray<FilterModel> Filters, string? SortMember, EquatableArray<SortModel> Sorts, string? DefaultSort);
+/// <summary>What a list entry adds: the row, its filters and its sorts (with the default), whether a list scope is required (TN-6).</summary>
+internal sealed record QueryModel(string Row, EquatableArray<FilterModel> Filters, string? SortMember, EquatableArray<SortModel> Sorts, string? DefaultSort,
+    bool RequiresScope = false);
 
 /// <summary>An [Endpoint] entry, symbol- and location-free (incrementality).</summary>
 internal sealed record EntryModel(string Name, string FullName, EntryKind Kind, string Aggregate, string Verb, string Pattern, string? Policy,

@@ -20,6 +20,12 @@ public sealed class EndpointAttribute(string route) : Attribute
 
     /// <summary>Lets unauthenticated callers reach the entry; the change is still authorized for the anonymous principal.</summary>
     public bool Anonymous { get; init; }
+
+    /// <summary>
+    /// For a list query: an <see cref="IListScope{TQuery}"/> must be registered (startup fails without one), so a list whose rows
+    /// depend on the caller can never answer unfiltered (TN-6). Without it, a registered scope still applies.
+    /// </summary>
+    public bool RequiresScope { get; init; }
 }
 
 /// <summary>
@@ -81,6 +87,9 @@ public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyLis
     /// <c>x-tarol-errors</c>): Tarol's own for the kind, and the literal codes of <c>Error.*("…")</c> calls in the input and the
     /// aggregate methods it calls. Codes built at run time are not listed.</summary>
     public IReadOnlyList<string> Errors { get; init; } = [];
+
+    /// <summary>A list whose rows an <see cref="IListScope{TQuery}"/> restricts to the caller's (the OpenAPI document's <c>x-tarol-scoped</c>).</summary>
+    public bool Scoped { get; init; }
 }
 
 /// <summary>A query-string parameter of a list entry.</summary>

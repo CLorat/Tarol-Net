@@ -39,6 +39,8 @@ internal static class Discovery
 
         if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IQuery<TRow>") is { } query)
             return List(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)query.TypeArguments[0], location, ct);
+        if (attribute.NamedArguments.Any(n => n.Key == "RequiresScope" && n.Value.Value is true))
+            return Fail(Diagnostics.NotAnEntry, type.Name, "RequiresScope applies to list queries (IQuery<TRow>) only");
 
         string? aggregate = null;
         var kind = EntryKind.Change;
@@ -361,7 +363,8 @@ internal static class Discovery
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), EntryKind.List, aggregate, verb, pattern, policy, anonymous,
             new EquatableArray<Member>(members.ToImmutableArray()), location,
             new QueryModel(row.ToDisplayString(Fq), new EquatableArray<FilterModel>(filters.ToImmutableArray()), sortMember,
-                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort))
+                new EquatableArray<SortModel>(sorts.ToImmutableArray()), defaultSort,
+                attribute.NamedArguments.FirstOrDefault(n => n.Key == "RequiresScope").Value.Value is true))
         {
             Errors = Codes(EntryKind.List, aggregate, placeholders.Contains("tenant"), type, null, ct),
         };
