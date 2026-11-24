@@ -788,3 +788,57 @@ None.
 with Docker: **2143 of 2143** (one earlier full run had `PushTests.A_timed_out_restart_attempt_does_not_end_the_restarts` fail
 on timing under load; the project then ran three times, 31 of 31 each); `dotnet pack -c Release` + `eng/verify-packages.sh`:
 OK; `eng/aot-smoke.sh` with `TAROL_PG`: **28 apps**, 0 IL warnings each, all checks passed.
+
+## 20. TN-7: DateOnly and TimeOnly columns (2026-11-24)
+
+Feedback from Tatalu (TN-7): attendance by day, the monthly list per child, closing days and validity periods
+(`MembershipRow.ValidUntil`) are calendar days. Until now only `Guid, string, bool, short, int, long, decimal, double,
+DateTimeOffset, enum` got columns; a `DateOnly` lived in the row's jsonb only, so it could be neither filtered nor sorted.
+
+### 20.1 Public API (additions)
+
+| Package | API | Role |
+|---|---|---|
+| `Tarol.Queries` | `ColumnType.Date` (`date`), `ColumnType.Time` (`time`), appended after `TimestampTz` (the existing numbers stay) | the stored types |
+| | `ColumnValues.Time(TimeOnly)`, `ColumnValues.Time(TimeOnly?)` | a time of day as `time` stores it: truncated to the microsecond |
+| `Tarol.Changes.AspNetCore` | `ChangeEndpoints.TryDate`, `ChangeEndpoints.TryTime` (`EditorBrowsable(Never)`) | the binder of a `DateOnly?` / `TimeOnly?` filter member |
+
+### 20.2 Behaviour changes
+
+* A `DateOnly` / `TimeOnly` (or nullable) member of a projection row is a column; `[Sort]` on one is allowed. An existing read
+  table gets the column through `Prepare`'s upgrade (§19.2: added, filled from `doc`, `NOT NULL` where the member is not
+  nullable, indexes created; no rebuild).
+* A list query record may filter on such a member: `?endsOn=2026-11-24` (RFC 3339 `full-date` only) and `?at=08:15`,
+  `08:15:30` or `08:15:30.1234567` (no zone: a `TimeOnly` has none). Any other form (`24.11.2026`, `11/24/2026`, a
+  `date-time`, `9pm`, an offset) is the field error `Format`. The OpenAPI parameters carry `format: date` / `time`; a value
+  object over `TimeOnly` is `{type: string, format: time}`.
+* The cursor carries a day as its day number and a time of day as its ticks; a cursor of another column type does not decode.
+
+### 20.3 tarol-codegen
+
+`tarol-codegen` types a `{type: string, format: date|time}` parameter or member as `string` (it only special-cases
+`uuid` with `x-tarol-id`, `generate.ts:238`) **[verified by reading]**; the client sends the text as it is. No client change
+is needed; the clients format a day as `yyyy-MM-dd`.
+
+### 20.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Queries.Tests` | +6 (`DateColumnTests`) | the column map; a day as equality filter and as descending sort with cursor pages; a nullable day (`IS NULL`, a value) and a set of days; a time of day stored to the microsecond; cursor text round trips and bounds; an instant is not a day |
+| `Tarol.Queries.Npgsql.IntegrationTests` | +3 | `date` / `time without time zone` columns; six queries answer like the in-memory store; `Prepare` adds and fills the columns on a table without them, with their sort indexes, without moving the checkpoint |
+| `Tarol.Changes.AspNetCore.Tests` | +7 (`DateFilterEndpointTests`) | day and time filters and the day sort over HTTP, the row's JSON; five wrong formats are 400 `Format`; the document's `format: date` / `time` |
+| generator snapshots | | a `[Sort] DateOnly` and a `TimeOnly?` column; the list binder with `TryDate` / `TryTime` and their OpenAPI kinds |
+
+Red before the fix **[verified]**: the test domain built on the TN-6 commit fails with `TQRY004: [Sort] on
+'AttendanceRow.Day': System.DateOnly has no column type` (and the same for `TimeOnly`).
+
+### 20.5 Skill evaluation checklist (`tarol-queries`)
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| attendance per day | a `[Sort] DateOnly Day` row member; `?day=2026-11-24` | a `DateTimeOffset` at midnight in some zone; filtering in memory |
+| a validity period ends on a day | `DateOnly? ValidUntil` | a `string` column with a formatted date |
+
+### 20.6 Suppressions
+
+None.

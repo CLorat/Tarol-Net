@@ -16,8 +16,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * Array columns: `T[]` and `IReadOnlyList<T>` members of Guid, string, short, int, long or an int enum
   (`ProjectionArrayColumn<TRow, TElement>`, PostgreSQL arrays with a GIN index).
 
+* `DateOnly` and `TimeOnly` projection columns (TN-7): `date` and `time`, filterable and sortable (`ColumnType.Date`,
+  `.Time`, `ColumnValues.Time`); list query strings take `yyyy-MM-dd` and `HH:mm[:ss[.fffffff]]` (`ChangeEndpoints.TryDate`,
+  `.TryTime`), OpenAPI formats `date` and `time`.
+
 ### Changed
 
+* `DateOnly` and `TimeOnly` members of a projection row get a column (they were jsonb-only); `Prepare` adds and fills it
+  on an existing read table.
 * Array members of a projection row get a column. `NpgsqlReadModelStore.Prepare` adds the missing columns to an existing
   read table and fills them from the stored rows (no rebuild). `[Sort]` on an array member reports "takes set filters
   only" (TQRY004).
