@@ -41,7 +41,7 @@ public enum ColumnType
 /// <typeparam name="TRow">The row record.</typeparam>
 public abstract class ProjectionColumn<TRow>
 {
-    private protected ProjectionColumn(string name, string member, ColumnType type, bool nullable, bool sortable)
+    private protected ProjectionColumn(string name, string member, ColumnType type, bool nullable, bool sortable, bool isArray = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(member);
@@ -50,6 +50,7 @@ public abstract class ProjectionColumn<TRow>
         Type = type;
         Nullable = nullable;
         Sortable = sortable;
+        IsArray = isArray;
     }
 
     /// <summary>The column name: the member's name in snake case (<c>EndsAt</c> → <c>ends_at</c>).</summary>
@@ -66,6 +67,32 @@ public abstract class ProjectionColumn<TRow>
 
     /// <summary>Whether the member carries <see cref="SortAttribute"/> (an index per sort).</summary>
     public bool Sortable { get; }
+
+    /// <summary>
+    /// Whether the column holds an array of <see cref="Type"/> (a <c>Guid[]</c> member: <c>uuid[]</c>). An array column takes
+    /// set filters only (<see cref="SetFilter"/>: the array shares a value with the set); it cannot be an equality filter or a sort.
+    /// </summary>
+    public bool IsArray { get; }
+
+    /// <summary>
+    /// Whether <paramref name="row"/> passes a set filter: its value is one of <paramref name="values"/>, or, for an
+    /// <see cref="IsArray"/> column, one of its elements is (<c>column = ANY(values)</c>, <c>column &amp;&amp; values</c>).
+    /// </summary>
+    /// <param name="row">The row.</param>
+    /// <param name="values">The stored values (<see cref="ColumnValues.Normalize"/>d).</param>
+    /// <returns>Whether it matches; a <see langword="null"/> value never does.</returns>
+    public bool Matches(TRow row, IReadOnlySet<object> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        var value = Value(row);
+        if (!IsArray)
+            return value is not null && values.Contains(value);
+        if (value is System.Collections.IEnumerable items)
+            foreach (var item in items)
+                if (item is not null && values.Contains(item))
+                    return true;
+        return false;
+    }
 
     /// <summary>The column's value of <paramref name="row"/>, as stored (an enum as its number, a time in UTC to the microsecond).</summary>
     /// <param name="row">The row.</param>
@@ -120,6 +147,50 @@ public sealed class ProjectionColumn<TRow, TValue> : ProjectionColumn<TRow>
 
     /// <inheritdoc />
     public override int CompareTo(TRow row, object? value) => ColumnValues.Compare(Type, _get(row), value);
+}
+
+/// <summary>
+/// An array column (<see cref="ProjectionColumn{TRow}.IsArray"/>): a <c>Guid[]</c>, <c>string[]</c>, <c>int[]</c>, … member
+/// (or an <c>IReadOnlyList&lt;T&gt;</c>), stored as a PostgreSQL array of <see cref="ProjectionColumn{TRow}.Type"/>. It takes set
+/// filters only (the array shares a value with the set, <c>&amp;&amp;</c>), never an equality filter or a sort.
+/// </summary>
+/// <typeparam name="TRow">The row record.</typeparam>
+/// <typeparam name="TElement">The stored element type (<c>int</c> for an enum).</typeparam>
+public sealed class ProjectionArrayColumn<TRow, TElement> : ProjectionColumn<TRow>
+{
+    private readonly Func<TRow, TElement[]?> _get;
+
+    /// <summary>Creates an array column (the generated column map calls it).</summary>
+    /// <param name="name">The column name.</param>
+    /// <param name="member">The row member.</param>
+    /// <param name="type">The element's storage type.</param>
+    /// <param name="nullable">Whether the column holds nulls (a <see langword="null"/> array; never matches a set).</param>
+    /// <param name="get">Reads the stored elements from a row.</param>
+    public ProjectionArrayColumn(string name, string member, ColumnType type, bool nullable, Func<TRow, TElement[]?> get)
+        : base(name, member, type, nullable, sortable: false, isArray: true)
+    {
+        ArgumentNullException.ThrowIfNull(get);
+        _get = get;
+    }
+
+    /// <inheritdoc />
+    public override object? Value(TRow row) => _get(row);
+
+    /// <inheritdoc />
+    /// <remarks>An array of arrays (<c>Guid[]?[]</c>).</remarks>
+    public override Array Values(IReadOnlyList<TRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        var values = new TElement[]?[rows.Count];
+        for (var i = 0; i < values.Length; i++)
+            values[i] = _get(rows[i]);
+        return values;
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="NotSupportedException">Always: an array column is neither an equality filter nor a sort.</exception>
+    public override int CompareTo(TRow row, object? value)
+        => throw new NotSupportedException($"The array column '{Name}' takes set filters only.");
 }
 
 /// <summary>Conversions of column values: normalizing a filter value, the cursor's text form, the PostgreSQL order.</summary>

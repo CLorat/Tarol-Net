@@ -91,6 +91,9 @@ else
         var top = Ok(await reads.Search(new ListQuery(Guid.Empty) { Sort = "highest_bid", Descending = true, Limit = 3, Count = true }, default));
         Check("descending sort and count", top.Total == 26 && top.Items[0].HighestBid == 20m && top.ETag.StartsWith("W/", StringComparison.Ordinal));
         Check("a bad cursor is Invalid", (await reads.Search(query with { After = "x" }, default)).IsFailure);
+        var scoped = Ok(await reads.Search(new ListQuery(Guid.Empty) { Count = true }.Within(ListScope.In("bidders", ["b1"])), default));
+        var none = Ok(await reads.Search(new ListQuery(Guid.Empty) { Count = true }.Within(ListScope.None), default));
+        Check("set filter over a text[] column and an empty scope (TN-6)", scoped.Total > 0 && scoped.Items.All(r => r.Bidders.Contains("b1")) && none.Total == 0);
 
         var titles = new TitleCount(schema);
         var sql = new SqlProjectionHost(titles, store, readModels);

@@ -1,1 +1,45 @@
 #nullable enable
+Tarol.Queries.ListQuery.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilter!>!
+Tarol.Queries.ListQuery.Sets.init -> void
+Tarol.Queries.ListQuery.Within(Tarol.Queries.ListScope! scope) -> Tarol.Queries.ListQuery!
+Tarol.Queries.ListQueryPlan<TRow>.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilterPlan<TRow!>!>!
+Tarol.Queries.ListScope
+Tarol.Queries.ListScope.AndIn<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.ListScope!
+Tarol.Queries.ListScope.AndWhere(string! column, object? value) -> Tarol.Queries.ListScope!
+Tarol.Queries.ListScope.Filters.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ColumnFilter>!
+Tarol.Queries.ListScope.IsAll.get -> bool
+Tarol.Queries.ListScope.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilter!>!
+Tarol.Queries.ProjectionArrayColumn<TRow, TElement>
+Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.ProjectionArrayColumn(string! name, string! member, Tarol.Queries.ColumnType type, bool nullable, System.Func<TRow, TElement[]?>! get) -> void
+Tarol.Queries.ProjectionColumn<TRow>.IsArray.get -> bool
+Tarol.Queries.ProjectionColumn<TRow>.Matches(TRow row, System.Collections.Generic.IReadOnlySet<object!>! values) -> bool
+Tarol.Queries.SetFilter
+Tarol.Queries.SetFilter.<Clone>$() -> Tarol.Queries.SetFilter!
+Tarol.Queries.SetFilter.Column.get -> string!
+Tarol.Queries.SetFilter.Column.init -> void
+Tarol.Queries.SetFilter.Deconstruct(out string! Column, out System.Collections.Generic.IReadOnlyCollection<object!>! Values) -> void
+Tarol.Queries.SetFilter.Equals(Tarol.Queries.SetFilter? other) -> bool
+Tarol.Queries.SetFilter.SetFilter(string! Column, System.Collections.Generic.IReadOnlyCollection<object!>! Values) -> void
+Tarol.Queries.SetFilter.Values.get -> System.Collections.Generic.IReadOnlyCollection<object!>!
+Tarol.Queries.SetFilter.Values.init -> void
+Tarol.Queries.SetFilterPlan<TRow>
+Tarol.Queries.SetFilterPlan<TRow>.Column.get -> Tarol.Queries.ProjectionColumn<TRow!>?
+Tarol.Queries.SetFilterPlan<TRow>.Matches(Tarol.Queries.Versioned<TRow!>! row) -> bool
+Tarol.Queries.SetFilterPlan<TRow>.Name.get -> string!
+Tarol.Queries.SetFilterPlan<TRow>.Type.get -> Tarol.Queries.ColumnType
+Tarol.Queries.SetFilterPlan<TRow>.Values.get -> System.Collections.Generic.IReadOnlyList<object!>!
+const Tarol.Queries.SetFilter.IdColumn = "id" -> string!
+override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.CompareTo(TRow row, object? value) -> int
+override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.Value(TRow row) -> object?
+override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.Values(System.Collections.Generic.IReadOnlyList<TRow>! rows) -> System.Array!
+override Tarol.Queries.SetFilter.Equals(object? obj) -> bool
+override Tarol.Queries.SetFilter.GetHashCode() -> int
+override Tarol.Queries.SetFilter.ToString() -> string!
+static Tarol.Queries.Cursor.Hash(System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, object? Value)>! filters, System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, System.Collections.Generic.IReadOnlyList<object!>! Values)>! sets) -> ulong
+static Tarol.Queries.ListScope.All.get -> Tarol.Queries.ListScope!
+static Tarol.Queries.ListScope.In<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.ListScope!
+static Tarol.Queries.ListScope.None.get -> Tarol.Queries.ListScope!
+static Tarol.Queries.ListScope.Where(string! column, object? value) -> Tarol.Queries.ListScope!
+static Tarol.Queries.SetFilter.Of<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.SetFilter!
+static Tarol.Queries.SetFilter.operator !=(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool
+static Tarol.Queries.SetFilter.operator ==(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool

@@ -89,6 +89,30 @@ public sealed partial record AuctionRowV2(Guid Id, string Title, string Seller, 
     public AuctionRowV2 When(Auction.Closed e) => this with { Status = AuctionStatus.Closed };
 }
 
+/// <summary>A day-care log entry (Tatalu, TN-6): about one child, or a group entry that names several children and labels.</summary>
+public partial class LogEntry : AggregateRoot<LogEntry>
+{
+    public Guid Child { get; private set; }
+
+    public static LogEntry Write(Guid child, Guid[] tagged, string[] labels, string text, DateTimeOffset now)
+    {
+        var entry = new LogEntry(Id<LogEntry>.New(now));
+        entry.Raise(new Written(child, tagged, labels, text));
+        return entry;
+    }
+
+    public sealed record Written(Guid Child, Guid[] Tagged, string[] Labels, string Text) : Event;
+
+    private void On(Written e) => Child = e.Child;
+}
+
+/// <summary>The log list: a uuid column, a uuid[] and a text[] column (set filters, TN-6).</summary>
+[Projection("log-list")]
+public sealed partial record LogRow(Guid Id, Guid Child, Guid[] Tagged, IReadOnlyList<string> Labels, string Text, [Sort] DateTimeOffset At)
+{
+    public static LogRow When(LogEntry.Written e, RecordedEvent r) => new(r.StreamId, e.Child, e.Tagged, e.Labels, e.Text, r.RecordedAt);
+}
+
 [System.Text.Json.Serialization.JsonSourceGenerationOptions(PropertyNamingPolicy = System.Text.Json.Serialization.JsonKnownNamingPolicy.CamelCase)]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.Opened))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.BidPlaced))]
@@ -97,4 +121,6 @@ public sealed partial record AuctionRowV2(Guid Id, string Title, string Seller, 
 [System.Text.Json.Serialization.JsonSerializable(typeof(Lot.Registered))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(AuctionRow))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(AuctionRowV2))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(LogEntry.Written))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(LogRow))]
 public sealed partial class TestJson : System.Text.Json.Serialization.JsonSerializerContext;

@@ -112,7 +112,8 @@ public sealed class DiagnosticTests
                    + when + " }", "TQRY003").ShouldContain(reason);
 
     [Theory]
-    [InlineData("[Sort] int[] Tags", "has no column type")]
+    [InlineData("[Sort] int[] Tags", "takes set filters only")]
+    [InlineData("[Sort] System.Collections.Generic.List<int> Tags", "has no column type")]
     [InlineData("[Sort] string? Note", "cannot be nullable")]
     [InlineData("[Sort] int? Count", "cannot be nullable")]
     [InlineData("[Sort] long Version", "reserved for the key")]

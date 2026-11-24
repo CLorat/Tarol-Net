@@ -13,7 +13,7 @@ namespace Tarol.Caching;
 /// <param name="Version">The projection's version.</param>
 /// <param name="Query">
 /// The canonical query: the sort and direction, the filters sorted by column (a <c>[FromClaim]</c> value is a filter, so each
-/// claim value has its own key), the cursor, the offset, the limit and the count flag. Every part is length-prefixed, so no
+/// claim value has its own key), the set filters of a list scope with their values (each scope has its own key), the cursor, the offset, the limit and the count flag. Every part is length-prefixed, so no
 /// value can make two queries share a key.
 /// </param>
 public readonly record struct PageKey(Guid Tenant, string Projection, int Version, string Query)
@@ -41,6 +41,20 @@ public readonly record struct PageKey(Guid Tenant, string Projection, int Versio
             Part(query, "f", column);
             Part(query, "=", value);
         }
+        // the set filters of a list scope (TN-6): two callers of one tenant with different scopes never share a page
+        var sets = new List<string>(plan.Sets.Count);
+        foreach (var set in plan.Sets)
+        {
+            var part = new StringBuilder();
+            Part(part, "i", set.Name);
+            part.Append(CultureInfo.InvariantCulture, $"n{set.Values.Count};");
+            foreach (var value in set.Values)
+                Part(part, "v", ColumnValues.Format(set.Type, value));
+            sets.Add(part.ToString());
+        }
+        sets.Sort(StringComparer.Ordinal);
+        foreach (var set in sets)
+            query.Append(set);
         Part(query, "a", plan.HasCursor ? plan.Query.After : null);
         query.Append(CultureInfo.InvariantCulture, $"o{plan.Offset};l{plan.Limit};c{(plan.Query.Count ? 1 : 0)}");
         return new PageKey(plan.Query.Tenant, NameOf<TRow>(), VersionOf<TRow>(), query.ToString());

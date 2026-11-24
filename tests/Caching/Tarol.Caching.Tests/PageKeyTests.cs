@@ -43,4 +43,19 @@ public sealed class PageKeyTests
         two.ShouldBe(one);
         KeyOf(new ListQuery(Lab.TenantA) { Offset = 3, After = null }).ShouldNotBe(KeyOf(new ListQuery(Lab.TenantA)));
     }
+
+    [Fact]
+    public void Two_callers_of_one_tenant_with_different_scopes_never_share_a_page()
+    {
+        var (one, two) = (Guid.CreateVersion7(), Guid.CreateVersion7());
+        var plain = KeyOf(new ListQuery(Lab.TenantA));
+        var parent = KeyOf(new ListQuery(Lab.TenantA).Within(ListScope.In(SetFilter.IdColumn, [one, two])));
+        var sameParent = KeyOf(new ListQuery(Lab.TenantA).Within(ListScope.In(SetFilter.IdColumn, [two, one, two])));
+        var otherParent = KeyOf(new ListQuery(Lab.TenantA).Within(ListScope.In(SetFilter.IdColumn, [one])));
+        var nobody = KeyOf(new ListQuery(Lab.TenantA).Within(ListScope.None));
+
+        sameParent.ShouldBe(parent);                                        // order and duplicates do not matter
+        new[] { plain, parent, otherParent, nobody }.Distinct().Count().ShouldBe(4);
+        nobody.Query.ShouldBe("s2:id;i2:id;n0;a-;o0;l50;c0");
+    }
 }

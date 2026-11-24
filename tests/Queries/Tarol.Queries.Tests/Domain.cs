@@ -75,3 +75,27 @@ public sealed partial record AuctionRow(Guid Id, string Title, string Seller, [S
 
     public AuctionRow When(Auction.Closed e) => this with { Status = AuctionStatus.Closed };
 }
+
+/// <summary>A day-care log entry (Tatalu, TN-6): about one child, or a group entry that names several.</summary>
+public partial class LogEntry : AggregateRoot<LogEntry>
+{
+    public Guid Child { get; private set; }
+
+    public static LogEntry Write(Guid child, Guid[] tagged, string text, DateTimeOffset now)
+    {
+        var entry = new LogEntry(Id<LogEntry>.New(now));
+        entry.Raise(new Written(child, tagged, text));
+        return entry;
+    }
+
+    public sealed record Written(Guid Child, Guid[] Tagged, string Text) : Event;
+
+    private void On(Written e) => Child = e.Child;
+}
+
+/// <summary>The log list: the child as a uuid column, the tagged children as a uuid[] column (set filters, TN-6).</summary>
+[Projection("log-list")]
+public sealed partial record LogRow(Guid Id, Guid Child, Guid[] Tagged, string Text, [Sort] DateTimeOffset At)
+{
+    public static LogRow When(LogEntry.Written e, RecordedEvent r) => new(r.StreamId, e.Child, e.Tagged, e.Text, r.RecordedAt);
+}

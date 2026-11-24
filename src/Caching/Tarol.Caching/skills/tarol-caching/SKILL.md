@@ -22,8 +22,8 @@ description: >-
 4. `CacheOptions` (`MaxEntries` 10,000, `MaxBytes` 64 MB estimated from the rows' JSON, `IdleExpiry` 5 min) bound
    memory only. Nothing is cached while the projection is `Building`.
 5. The key (`PageKey`) is tenant first, then projection name and version, then the canonical query (sort, direction,
-   filters sorted by column, cursor, offset, limit, count). A `[FromClaim]` member is a filter, so each claim value
-   has its own entry. Authorization (`CheckList`, `Read<T>`) runs in the endpoint before `Search`: a hit never skips it.
+   filters sorted by column, the set filters of a list scope with their values, cursor, offset, limit, count). A
+   `[FromClaim]` member is a filter and a scope's set is part of the key, so each claim value and each scope has its own entry. Authorization (`CheckList`, `Read<T>`) runs in the endpoint before `Search`: a hit never skips it.
 6. Read-your-writes: the client sends `Tarol-Read-After` with the change's `Tarol-Position`; the endpoint waits for the
    pushed checkpoint, then `Search` misses and reads. Never clear the cache from a change.
 7. HTTP (`Tarol.Changes.AspNetCore`): list and view answers carry `Cache-Control: private, no-cache` and

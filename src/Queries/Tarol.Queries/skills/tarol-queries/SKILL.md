@@ -3,7 +3,7 @@ name: tarol-queries
 description: >-
   Use when adding a read model, list or search over a Tarol event-sourced application: a [Projection] row record with
   When(event) methods, its ProjectionHost (AddProjections), list endpoints ([Endpoint("GET …")] on an IQuery<TRow>
-  record with filters, a Sort enum, [FromClaim], cursor, Tarol-Read-After), ListQuery pages with ETag, read-your-writes,
+  record with filters, a Sort enum, [FromClaim], IListScope, cursor, Tarol-Read-After), ListQuery pages with ETag, read-your-writes,
   ISqlProjection, and testing with ProjectionTest; fixing TQRY001-TQRY006. Do not query streams.state, read a projection
   inside a change, or decompile the package.
 ---
@@ -86,6 +86,31 @@ public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<Aucti
   copy it as it is) as `Tarol-Read-After`; after 2 s the list answers with
   `Tarol-Stale: true`. 503 + `Retry-After` while a new projection version builds.
 * Grant the list with the role map: `roles.Role("bidder").May<Read<Auction>>()`. Row rules do not run on lists.
+* Rows that depend on domain data ("a parent sees only their children's entries"): implement `IListScope<TQuery>` and
+  mark the entry `RequiresScope = true` (startup fails without the registration):
+
+```csharp
+[Endpoint("GET /logs", RequiresScope = true)]
+public sealed record Logs(Guid? Child) : IQuery<LogRow>;          // LogRow(Guid Id, Guid Child, Guid[] Tagged, …)
+
+public interface IChildren                                         // your port: null = every child
+{
+    ValueTask<IReadOnlySet<Guid>?> Visible(ClaimsPrincipal user, DateTimeOffset now, CancellationToken ct);
+}
+
+public sealed class ChildScope(IChildren children) : IListScope<Logs>
+{
+    public async ValueTask<ListScope> Scope(ChangeContext context, ClaimsPrincipal principal, CancellationToken ct)
+        => await children.Visible(principal, context.Now, ct) is { } visible
+            ? ListScope.In(nameof(LogRow.Child), visible)           // = ANY(…); on Guid[] Tagged: overlap (&&)
+            : ListScope.All;                                       // null: the owner sees every row
+}
+// services.AddScoped<IListScope<Logs>, ChildScope>();
+```
+  An empty set (or `ListScope.None`) answers an empty page, never an unfiltered one. `SetFilter.IdColumn` ("id") filters
+  the row id. The scope binds the cursor (another scope's cursor is a 400) and the page cache key.
+* Array members (`Guid[]`, `string[]`, `int[]`, `long[]`, `short[]`, an int enum's array, or `IReadOnlyList<T>` of them)
+  are array columns: set filters only, never a sort or an equality filter.
 * Only the row goes in your `JsonSerializerContext`; the query record is bound by generated code. An `ISqlProjection`'s
   tables are not served by list endpoints: read them behind your own port.
 * Register the read models in the API process too (`UseNpgsqlReadModels()` / `UseInMemoryReadModels()`).
@@ -114,6 +139,9 @@ come with it. `Write` returns `(false, 0)` when another runner moved the checkpo
 | only instance `When`s, or two static `When`s for one event | TQRY002 |
 | a `When` for another aggregate's event, `When(e, int x)`, returning `void` | TQRY003 |
 | `[Sort]` on `string?`, `int[]` or a member named `Version` | TQRY004 |
+| `new ColumnFilter("tagged", id)` on an array column, a `null` in a set | `ArgumentException` (use a `SetFilter`; nulls need a `ColumnFilter`) |
+| a scope that returns `ListScope.All` when the caller's set is empty | the caller sees every row: return the empty set (or `ListScope.None`) |
+| `RequiresScope = true` without the registration, or on a change | `InvalidOperationException` at `MapChanges`; TWEB002 |
 | a `When` that does not use `this` | CA1822 in your build: make it `static` only if it creates the row, otherwise use the row |
 | `Sort = "EndsAt"` or a filter on a member without a column | `ArgumentException` (column names are snake case) |
 | a cursor reused with another sort or filter, `Limit = 500`, `Offset = 5000` | `Invalid` with field `after`, `limit` or `offset` (HTTP 400) |
