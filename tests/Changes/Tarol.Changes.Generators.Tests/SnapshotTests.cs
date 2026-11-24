@@ -17,6 +17,14 @@ public sealed class SnapshotTests
         => Snapshot.Match("module", GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Reactions, Sources.Jobs, Sources.Module)));
 
     [Fact]
+    public void A_change_of_a_per_tenant_aggregate_needs_no_id_member()
+        => Snapshot.Match("per-tenant", GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.PerTenant)));
+
+    [Fact]
+    public void The_per_tenant_change_compiles_without_warnings()
+        => string.Join("\n", GeneratorTestHost.Diagnose(Sources.PerTenant).Select(d => d.ToString())).ShouldBeEmpty();
+
+    [Fact]
     public void An_assembly_without_the_module_attribute_gets_no_module()
         => GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Reactions)).GetRunResult().GeneratedTrees
             .ShouldNotContain(t => t.FilePath.EndsWith("GeneratedModule.g.cs", StringComparison.Ordinal));

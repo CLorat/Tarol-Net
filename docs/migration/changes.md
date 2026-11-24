@@ -640,3 +640,49 @@ None.
 **2167 of 2167**; `dotnet pack` + `eng/verify-packages.sh`: OK; `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings,
 all checks passed. No AOT check of its own: a module is delegates and a part dictionary keyed by `typeof(TPart)`; the
 packages that ship it keep `IsAotCompatible` and publish without IL warnings.
+
+## 18. TN-2: aggregates with one instance per tenant (2026-11-24)
+
+Feedback from Tatalu (TN-2): the day-care facility *is* the tenant; settings, invoice number ranges and profile assignments
+are one per tenant too. Tatalu wrote `Id<ChildDayCare>.From(tenant.Value)` and a hand-written `ILoads` per change
+(`RenameDayCare.Load`), and its view took the tenant id as `{childDayCare}`.
+
+### 18.1 Public API (additions)
+
+| Package | API | Role |
+|---|---|---|
+| `Tarol.Primitives` | `PerTenantAttribute`; `IAggregateRoot<TSelf>.PerTenant` (static virtual, default `false`; the generator writes `public static bool PerTenant => true` for a `[PerTenant]` root) | the marker, readable without reflection (`T.PerTenant`) |
+| `Tarol.Changes` | `TenantAggregates.IdOf<T>(Id<ITenant>)`, `IdOf<T>(OperationContext)`, `TryIdOf<T>`, `TenantRequiredCode` (`Tenant.Required`) | the id is `Id<T>.From(tenant.Value)` |
+| `Tarol.Changes.AspNetCore` | `ChangeEndpoints.LoadTenant<T>` (EditorBrowsable Never) | the generated view of a per-tenant aggregate without `{id}` |
+
+### 18.2 Behaviour
+
+* **Changes:** for a `[PerTenant]` aggregate the pipeline ignores `Target` and loads the caller's tenant's id; without a tenant
+  it answers 403 `Tenant.Required`; a missing one is `<T>.NotFound`. The Changes generator writes `Target => Id<T>.Empty` for
+  such a change without an `Id<T>` member instead of TCHG001. An `ILoads<T>` still loads itself.
+* **Creations:** the factory must create it with `TenantAggregates.IdOf<T>(context.Operation)`; another id is an
+  `InvalidOperationException` (a programming error, before the append). A second creation is `<T>.AlreadyExists` (409), as
+  for any creation whose stream exists.
+* **HTTP:** a change entry needs no route value (it had none to bind); a view of a `[PerTenant]` aggregate may have no route
+  value (`GET /house`): the delegate calls `LoadTenant<T>`, then the read check, ETag and 304 as for any view. With one route
+  value it is the ordinary view by id. The OpenAPI operation has no path parameter, so `tarol-codegen` generates
+  `requests.houseView()` without an id (TS-8).
+* The stored data does not change: the id was already the tenant's in Tatalu; the stream key stays (tenant, type, id).
+
+### 18.3 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Changes.AspNetCore.Tests` | +4 (`PerTenantTests`) | two tenants open, rename and read their one house with no id anywhere (the id is the tenant's, ETag `"2"`); a change before the creation is `House.NotFound`, a second creation `House.AlreadyExists`; no tenant is 403 for change and view; no path parameter in the document |
+| `Tarol.Changes.Generators.Tests` | +2 | the generated `Target => Id<Settings>.Empty`; it compiles without warnings with the Primitives generator (`PerTenant`) |
+
+### 18.4 Skill evaluation checklist (`tarol-changes`)
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| tenant settings with `PUT /settings/name` | `[PerTenant]` root, `RenameSettings(string Name) : IChange<Settings>`, `[Endpoint("PUT /settings/name")]` | an `ILoads<Settings>`; an `Id<Settings>` route value filled with the tenant id |
+| create them | `new Settings(TenantAggregates.IdOf<Settings>(context.Operation))` | `Id<Settings>.New(now)` (throws: not the tenant's id) |
+
+### 18.5 Suppressions
+
+None.

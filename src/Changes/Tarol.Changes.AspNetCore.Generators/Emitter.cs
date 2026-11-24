@@ -143,11 +143,16 @@ internal static class Emitter
 
     private static void View(StringBuilder sb, EntryModel e)
     {
-        var id = e.Members.First();
+        var id = e.Members.FirstOrDefault();
         sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
-        Route(sb, id);
-        sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
+        if (id is null)                                 // TN-2: a [PerTenant] aggregate, the caller's tenant's one
+            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http);\n");
+        else
+        {
+            Route(sb, id);
+            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
+        }
         sb.Append("        if (aggregate is null)\n            return;                                                     // 404, 403, 401 or 304 written\n");
         sb.Append("        await web.WriteView(http, ").Append(e.FullName).Append(".From(aggregate));\n    }\n");
     }

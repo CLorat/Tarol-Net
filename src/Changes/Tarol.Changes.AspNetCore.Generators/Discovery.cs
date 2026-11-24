@@ -44,13 +44,15 @@ internal static class Discovery
 
         string? aggregate = null;
         var kind = EntryKind.Change;
+        var perTenant = false;
         foreach (var i in type.AllInterfaces)
         {
             var definition = i.OriginalDefinition.ToDisplayString();
-            if (definition is "Tarol.Changes.IChange<T>" or "Tarol.Changes.ICreation<T>")
-                (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq), definition.Contains("ICreation") ? EntryKind.Creation : EntryKind.Change);
-            else if (definition == "Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>")
-                (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq), EntryKind.View);
+            if (definition is not ("Tarol.Changes.IChange<T>" or "Tarol.Changes.ICreation<T>" or "Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>"))
+                continue;
+            (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq),
+                definition.Contains("IView") ? EntryKind.View : definition.Contains("ICreation") ? EntryKind.Creation : EntryKind.Change);
+            perTenant = i.TypeArguments[0].GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute");
         }
         if (aggregate is null)
             return Fail(Diagnostics.NotAnEntry, type.Name, IsAggregate(type)
@@ -69,9 +71,16 @@ internal static class Discovery
         var reached = new HashSet<string>(StringComparer.Ordinal);
         if (kind == EntryKind.View)
         {
-            if (placeholders.Count != 1)
-                return Fail(Diagnostics.RouteValue, type.Name, "a view's route has exactly one value, the aggregate's id");
-            members.Add(new Member("Id", $"global::Tarol.StronglyTypedId.Id<{aggregate}>", null, placeholders[0], "id", false, null));
+            if (perTenant && placeholders.Count == 0)
+            {
+                // TN-2: the tenant's one aggregate; no member, the delegate loads it from the caller's tenant
+            }
+            else if (placeholders.Count != 1)
+                return Fail(Diagnostics.RouteValue, type.Name, perTenant
+                    ? "the view of a [PerTenant] aggregate has no route value (the tenant's one), or exactly one, the aggregate's id"
+                    : "a view's route has exactly one value, the aggregate's id");
+            else
+                members.Add(new Member("Id", $"global::Tarol.StronglyTypedId.Id<{aggregate}>", null, placeholders[0], "id", false, null));
             if (type.InstanceConstructors.Where(c => c.DeclaredAccessibility == Accessibility.Public).OrderByDescending(c => c.Parameters.Length).FirstOrDefault() is { } shape)
                 foreach (var p in shape.Parameters)
                     if (IsOptionWithDefault(p))

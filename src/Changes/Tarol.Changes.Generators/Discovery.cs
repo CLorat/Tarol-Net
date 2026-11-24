@@ -101,6 +101,8 @@ internal static class Discovery
             {
                 if (idOfAggregate.Count == 1)
                     target = idOfAggregate[0].Name;
+                else if (idOfAggregate.Count == 0 && aggregate.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute"))
+                    target = "";                                // TN-2: the pipeline loads the tenant's one aggregate
                 else
                     diagnostics.Add(DiagnosticInfo.Create(Diagnostics.NoTarget, location, type.Name, aggregate.Name, idOfAggregate.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }

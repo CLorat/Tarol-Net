@@ -37,6 +37,25 @@ internal static class Sources
         }
         """;
 
+    /// <summary>TN-2: a change of a [PerTenant] aggregate without an Id member.</summary>
+    public const string PerTenant = GeneratorTestHost.Usings + """
+        namespace Shop;
+
+        [PerTenant]
+        public partial class Settings : AggregateRoot<Settings>
+        {
+            public string Name { get; private set; } = "";
+            public Result Rename(string name) => Raise(new Renamed(name));
+            public sealed record Renamed(string Name) : Event;
+            private void On(Renamed e) => Name = e.Name;
+        }
+
+        public sealed partial record RenameSettings(string Name) : IChange<Settings>
+        {
+            public Result Execute(Settings settings, ChangeContext context) => settings.Rename(Name);
+        }
+        """;
+
     /// <summary>TN-8: the module attribute and a JSON context (the System.Text.Json generator does not run here).</summary>
     public const string Module = """
         [assembly: Tarol.Changes.GenerateTarolModule("Shop")]

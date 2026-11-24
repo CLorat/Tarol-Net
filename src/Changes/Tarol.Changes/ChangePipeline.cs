@@ -6,6 +6,7 @@ using Tarol.Kernel;
 using Tarol.Persistence;
 using Tarol.Primitives;
 using Tarol.Results;
+using Tarol.StronglyTypedId;
 using Tarol.Validations;
 
 namespace Tarol.Changes;
@@ -176,9 +177,16 @@ public sealed partial class ChangePipeline
             aggregate = own.GetValueOrThrow();
             ArgumentNullException.ThrowIfNull(aggregate, nameof(ILoads<>.Load));
         }
-        else if (!(await _store.Load(change.Target, context, cancellationToken)).TryGetValue(out aggregate))
+        else
         {
-            return Error.NotFound($"{typeof(T).Name}.NotFound", change.Target.ToString());       // also another tenant's stream
+            // TN-2: the one aggregate of the caller's tenant ([PerTenant]): its id is the tenant's, never the request's
+            Id<T> target;
+            if (!T.PerTenant)
+                target = change.Target;
+            else if (!TenantAggregates.TryIdOf<T>(context, out target))
+                return Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name);
+            if (!(await _store.Load(target, context, cancellationToken)).TryGetValue(out aggregate))
+                return Error.NotFound($"{typeof(T).Name}.NotFound", target.ToString());           // also another tenant's stream
         }
 
         if (await Permission(change, aggregate, changeContext, options, cancellationToken) is { } denied)
@@ -230,6 +238,14 @@ public sealed partial class ChangePipeline
         ArgumentNullException.ThrowIfNull(aggregate, nameof(ICreation<>.Execute));
         if (aggregate.Version != aggregate.UncommittedChanges.Length)
             throw new InvalidOperationException($"The factory of {typeof(T).Name} returned a loaded aggregate; a creation returns a new one.");
+        if (T.PerTenant)
+        {
+            if (!TenantAggregates.TryIdOf<T>(context, out var tenantId))
+                return Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name);
+            if (aggregate.Id != tenantId)
+                throw new InvalidOperationException(
+                    $"{typeof(T).Name} is [PerTenant]: create it with TenantAggregates.IdOf<{typeof(T).Name}>(context.Operation), the tenant's id.");
+        }
         if (await Permission(creation, aggregate, changeContext, options, cancellationToken) is { } denied)
             return denied;
         if (options.ExpectedVersion.TryGetValue(out long seenVersion) && seenVersion != 0)

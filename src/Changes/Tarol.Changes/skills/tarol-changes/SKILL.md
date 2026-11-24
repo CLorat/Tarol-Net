@@ -18,6 +18,10 @@ description: >-
    Members are the input (value objects, ids), never the aggregate instance. `Execute` must not load, save or `Raise`.
 2. **The pipeline loads the target.** The generator implements `Target` from the record's only `Id<T>` member. With two,
    implement `Id<T> IChange<T>.Target => Second;` (TCHG001). Keep the record `partial` (TCHG002).
+   **One per tenant** (the facility that is the tenant, its settings): mark the root `[PerTenant]`; a change needs no
+   `Id<T>` member (the pipeline loads the caller's tenant's one), the creation's factory uses
+   `new Settings(TenantAggregates.IdOf<Settings>(context.Operation))`, an entry needs no `{id}` (`PUT /settings/name`,
+   a view at `GET /settings`). Do not write an `ILoads<T>` for it.
 3. **Creation** = `ICreation<T>` whose `Execute(context)` returns the static factory's `Result<T>`. The factory makes the
    id (`Id<T>.New(now)`). No load. `ChangeOutcome.StreamId` is the new id.
 4. **Special changes**: another key or load-or-create → `ILoads<T>` with `Load(IAggregateReader reader, ChangeContext

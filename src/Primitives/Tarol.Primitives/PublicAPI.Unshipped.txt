@@ -1,1 +1,4 @@
 #nullable enable
+Tarol.Primitives.IAggregateRoot<TSelf>.PerTenant.get -> bool
+Tarol.Primitives.PerTenantAttribute
+Tarol.Primitives.PerTenantAttribute.PerTenantAttribute() -> void

@@ -25,7 +25,14 @@ internal static class Emitter
             sb.Append(" : global::Tarol.Changes.IHasReads");
         sb.Append('\n').Append(indent).Append("{\n");
         var body = indent + "    ";
-        if (model.TargetMember is { } target)
+        if (model.TargetMember is "")
+        {
+            sb.Append(body).Append("/// <summary>Not read: <c>").Append(model.Aggregate.Substring(model.Aggregate.LastIndexOf('.') + 1))
+                .Append("</c> is [PerTenant], the pipeline loads the caller's tenant's one.</summary>\n");
+            sb.Append(body).Append("global::Tarol.StronglyTypedId.Id<").Append(model.Aggregate).Append("> global::Tarol.Changes.IChange<")
+                .Append(model.Aggregate).Append(">.Target => global::Tarol.StronglyTypedId.Id<").Append(model.Aggregate).Append(">.Empty;\n");
+        }
+        else if (model.TargetMember is { } target)
         {
             sb.Append(body).Append("/// <summary>The aggregate the pipeline loads: <see cref=\"").Append(target).Append("\"/>.</summary>\n");
             sb.Append(body).Append("global::Tarol.StronglyTypedId.Id<").Append(model.Aggregate).Append("> global::Tarol.Changes.IChange<")

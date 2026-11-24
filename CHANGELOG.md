@@ -20,6 +20,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `.Time`, `ColumnValues.Time`); list query strings take `yyyy-MM-dd` and `HH:mm[:ss[.fffffff]]` (`ChangeEndpoints.TryDate`,
   `.TryTime`), OpenAPI formats `date` and `time`.
 
+* Per-tenant singleton aggregates (TN-2): `[PerTenant]` on a root (`Tarol.Primitives`; `IAggregateRoot<T>.PerTenant`); the
+  pipeline loads the caller's tenant's one, so a change needs no `Id<T>` member and an entry no `{id}` (`GET /settings`);
+  `TenantAggregates.IdOf<T>` (`Tarol.Changes`) gives the id; `ChangeEndpoints.LoadTenant<T>`.
 * Modules for applications of several assemblies (TN-8): `[assembly: GenerateTarolModule]` generates `GeneratedModule.Module`
   (`TarolModule`: JSON contexts, aggregates, reactions, jobs, projections, HTTP entries, OpenAPI); `AddTarol(params
   TarolModule[])`, `ProjectionsBuilder.AddModules()`, `JobsBuilder.AddModules()`, `SecurityModule`, `app.MapModules()`,

@@ -17,6 +17,20 @@ public sealed partial record CreateAuction(Title Title, Amount Reserve, DateTime
         => Auction.Create(context.Operation.Actor.Id, Title, Reserve, EndsAt, context.Now);
 }
 
+/// <summary>TN-2: the tenant's one house, created with the tenant's id.</summary>
+[Endpoint("POST /house")]
+public sealed partial record OpenHouse(string Name) : ICreation<House>
+{
+    public Result<House> Execute(ChangeContext context) => House.Open(context.Operation, Name);
+}
+
+/// <summary>TN-2: no Id&lt;House&gt; member and no {id}: the pipeline loads the caller's tenant's house.</summary>
+[Endpoint("PUT /house/name")]
+public sealed partial record RenameHouse(string Name) : IChange<House>
+{
+    public Result Execute(House house, ChangeContext context) => house.Rename(Name);
+}
+
 [Endpoint("POST /auctions/{auction}/bids", Policy = "auctions:bid")]
 public sealed partial record PlaceBid(Id<Auction> Auction, Amount Amount) : IChange<Auction>, IValidatable
 {

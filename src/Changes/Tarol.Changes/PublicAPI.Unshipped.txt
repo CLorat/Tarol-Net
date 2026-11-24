@@ -2,5 +2,10 @@
 Tarol.Changes.GenerateTarolModuleAttribute
 Tarol.Changes.GenerateTarolModuleAttribute.GenerateTarolModuleAttribute(string? name = null) -> void
 Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?
+Tarol.Changes.TenantAggregates
+const Tarol.Changes.TenantAggregates.TenantRequiredCode = "Tenant.Required" -> string!
 static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! json, System.Action<Tarol.Persistence.EventCodec!>! aggregates) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params Tarol.Persistence.TarolModule![]! modules) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Changes.TenantAggregates.IdOf<T>(Tarol.Kernel.OperationContext! operation) -> Tarol.StronglyTypedId.Id<T!>
+static Tarol.Changes.TenantAggregates.IdOf<T>(Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!> tenant) -> Tarol.StronglyTypedId.Id<T!>
+static Tarol.Changes.TenantAggregates.TryIdOf<T>(Tarol.Kernel.OperationContext! operation, out Tarol.StronglyTypedId.Id<T!> id) -> bool
