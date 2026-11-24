@@ -33,7 +33,8 @@ internal static class OpenApiEmitter
         sb.Append("            return global::System.Threading.Tasks.Task.CompletedTask;\n        });\n");
         sb.Append("        options.AddOperationTransformer(static (operation, context, _) =>\n        {\n");
         sb.Append("            foreach (var item in context.Description.ActionDescriptor.EndpointMetadata)\n");
-        sb.Append("                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)\n");
+        sb.Append("                // TN-9: only this assembly's entries; another assembly's transformer completes its own\n");
+        sb.Append("                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata && metadata.Input.Assembly == typeof(GeneratedOpenApi).Assembly)\n");
         sb.Append("                    Complete(operation, metadata);\n");
         sb.Append("                else if (item is global::Microsoft.AspNetCore.Http.Metadata.ITagsMetadata tags && global::System.Linq.Enumerable.Contains(tags.Tags, AdminTag))\n");
         sb.Append("                    Admin(operation);\n");
@@ -420,6 +421,8 @@ internal static class OpenApiEmitter
 
             private static void Complete(global::Microsoft.OpenApi.OpenApiOperation operation, global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)
             {
+                if (operation.Extensions is { } done && done.ContainsKey("x-tarol-kind"))
+                    return;                                     // completed already (idempotent: an operation is completed once)
                 var extensions = operation.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>();
                 Extension(extensions, "x-tarol-kind", global::System.Text.Json.Nodes.JsonValue.Create(metadata.Kind));
                 var codes = new global::System.Text.Json.Nodes.JsonArray();
