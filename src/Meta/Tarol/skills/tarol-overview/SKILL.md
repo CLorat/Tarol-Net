@@ -68,6 +68,8 @@ entries and OpenAPI transformers. Give every context the same `[JsonSourceGenera
 * One `JsonSerializerContext` subclass that forwards to the others: use modules, or `AddTarol([ctxA, ctxB], codec => …)`.
 * Calling every assembly's `GeneratedOpenApi.AddTarolEndpoints` and `MapChanges` by hand: it works (each completes only its
   own operations), but a forgotten assembly shows only at run time; `MapModules` and `ConfigureOpenApi` take them all.
+* NU1900 ("error occurred while getting vulnerability data") with warnings as errors: the GitHub Packages feed has no audit
+  data; the repository README shows the `nuget.config` with `<auditSources>` (nuget.org only). Do not disable NuGet audit.
 * Expecting `Tarol` to bring PostgreSQL or a broker: it brings no implementation. `UseNpgsqlStore` needs
   `Tarol.Persistence.Npgsql`.
 

@@ -6,6 +6,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Documentation
+
+* README: consuming the packages from GitHub Packages with `<auditSources>` (nuget.org) against NU1900 (TN-18); the
+  `tarol-overview` skill names the error.
+
 ### Added
 
 * List scopes (TN-6, from Tatalu): `IListScope<TQuery>` (`Tarol.Changes.AspNetCore`) restricts a list to the rows the
