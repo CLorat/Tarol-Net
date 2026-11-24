@@ -842,3 +842,11 @@ Red before the fix **[verified]**: the test domain built on the TN-6 commit fail
 ### 20.6 Suppressions
 
 None.
+
+### 20.7 Verification (SDK 11.0.100, 2026-11-24) **[verified]**
+
+`dotnet build` 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker:
+**2158 of 2159** — the one failure was `Tarol.Messaging.SignalR.Tests` `PushTests.A_connection_that_closes_again_while_the_client_restarts_is_started_again`
+(timing, while other builds ran on the machine); the project then ran three times, 31 of 31 each. `dotnet pack` +
+`eng/verify-packages.sh`: OK. `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings, all checks passed (the new
+`DateOnly`/`TimeOnly` check of `Tarol.Queries.Npgsql.AotSmoke` among them).
