@@ -34,6 +34,7 @@ public static class GeneratedEndpoints
                     "orders:write")
                 {
                     Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.AlreadyExists", "Stream.VersionConflict" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:write");
         }
@@ -49,6 +50,7 @@ public static class GeneratedEndpoints
                     null)
                 {
                     Errors = new string[] { "Auth.Forbidden", "Order.NotFound" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
@@ -65,6 +67,7 @@ public static class GeneratedEndpoints
                     null)
                 {
                     Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.NotFound", "Stream.VersionConflict" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
@@ -81,6 +84,7 @@ public static class GeneratedEndpoints
                     null)
                 {
                     Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.NotFound", "Stream.VersionConflict" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.AllowAnonymous(endpoint);
         }

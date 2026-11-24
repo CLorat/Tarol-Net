@@ -100,6 +100,7 @@ internal static class Emitter
             sb.Append("                    }");
         }
         sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n");
+        sb.Append("                    Owner = typeof(GeneratedEndpoints).Assembly,\n");
         if (e.Query is { } scoped)
             sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
               .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");

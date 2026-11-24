@@ -19,6 +19,8 @@ Tarol.Changes.AspNetCore.OpenApiModule.Configure.init -> void
 Tarol.Changes.AspNetCore.OpenApiModule.Deconstruct(out System.Action<object!>! Configure) -> void
 Tarol.Changes.AspNetCore.OpenApiModule.Equals(Tarol.Changes.AspNetCore.OpenApiModule? other) -> bool
 Tarol.Changes.AspNetCore.OpenApiModule.OpenApiModule(System.Action<object!>! Configure) -> void
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.get -> System.Reflection.Assembly?
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.init -> void
 override Tarol.Changes.AspNetCore.EndpointModule.Equals(object? obj) -> bool

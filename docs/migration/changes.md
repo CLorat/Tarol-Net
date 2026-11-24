@@ -591,7 +591,8 @@ a transformer that removes duplicate OpenAPI parameters (`OpenApiDeduplication.c
 | `Tarol.Queries` | `ProjectionModule`, `ProjectionsBuilder.AddModules()`, `.Add(IEnumerable<TarolModule>)` | a module's projections |
 | `Tarol.Jobs` | `JobsBuilder.AddModules()`, `.Add(IEnumerable<TarolModule>)` | a module's `GeneratedJobs.Set` (the part type is `JobSet`) |
 | `Tarol.Security` | `SecurityModule(Action<ChangeRoles>)` | a module's role map; `AddSecurity` applies every module's after the app's |
-| `Tarol.Changes.AspNetCore` | `EndpointModule`, `OpenApiModule`, `app.MapModules(names?)`, `modules.ConfigureOpenApi(object)` | a module's HTTP entries and OpenAPI transformers (`OpenApiOptions` is typed `object`: the package does not reference the OpenAPI package) |
+| `Tarol.Changes.AspNetCore` | `TarolEndpointMetadata.Owner` | the assembly whose generated `MapChanges` mapped an entry (TN-9) |
+| | `EndpointModule`, `OpenApiModule`, `app.MapModules(names?)`, `modules.ConfigureOpenApi(object)` | a module's HTTP entries and OpenAPI transformers (`OpenApiOptions` is typed `object`: the package does not reference the OpenAPI package) |
 
 The generated module holds what the generator can see in the assembly: its `JsonSerializerContext`s (one: its `Default`; several:
 `JsonTypeInfoResolver.Combine`), its concrete `AggregateRoot<T>` types, `GeneratedReactions.Set`, `GeneratedJobs.Set`, a
@@ -602,7 +603,9 @@ such members). The role map is hand-written in Tatalu and stays so: attach it wi
 ### 17.2 Behaviour changes
 
 * **TN-9:** the generated OpenAPI operation transformer completes only the operations of its own assembly
-  (`TarolEndpointMetadata.Input.Assembly`) and only once (an operation with `x-tarol-kind` is done). With two assemblies,
+  (`TarolEndpointMetadata.Owner`, new, set by the generated `MapChanges`) and Tarol's own entries (`GET /me`, search: no
+  `Owner`), and every operation only once (an operation with `x-tarol-kind` is done). The first attempt compared the
+  input's assembly and left `/me` and search incomplete (`EdgeTests` caught it), hence the explicit `Owner`. With two assemblies,
   `Idempotency-Key`, `If-Match`, the list parameters and the "Policy" paragraph appeared twice; `tarol-codegen` emitted
   duplicate identifiers (TS2300). Red on the TN-7 commit **[verified]**: the composition of `ModuleTests.Without_modules_…`
   answers `Idempotency-Key` twice on `PUT /plots/{plot}/name`.

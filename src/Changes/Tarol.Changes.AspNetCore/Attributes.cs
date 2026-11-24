@@ -88,6 +88,12 @@ public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyLis
     /// aggregate methods it calls. Codes built at run time are not listed.</summary>
     public IReadOnlyList<string> Errors { get; init; } = [];
 
+    /// <summary>
+    /// The assembly whose generated <c>MapChanges</c> mapped the entry; its generated OpenAPI transformer completes the operation
+    /// (TN-9). <see langword="null"/> for Tarol's own entries (<c>GET /me</c>, search): the first transformer completes them.
+    /// </summary>
+    public System.Reflection.Assembly? Owner { get; init; }
+
     /// <summary>A list whose rows an <see cref="IListScope{TQuery}"/> restricts to the caller's (the OpenAPI document's <c>x-tarol-scoped</c>).</summary>
     public bool Scoped { get; init; }
 }

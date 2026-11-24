@@ -38,6 +38,7 @@ public static class GeneratedEndpoints
                     })
                 {
                     Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
                     Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.CustomerOrders>(app.ServiceProvider, false),
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
@@ -64,6 +65,7 @@ public static class GeneratedEndpoints
                     })
                 {
                     Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
                     Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.MyOrders>(app.ServiceProvider, true),
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
@@ -90,6 +92,7 @@ public static class GeneratedEndpoints
                     })
                 {
                     Errors = new string[] { "Auth.Forbidden", "Projection.Building" },
+                    Owner = typeof(GeneratedEndpoints).Assembly,
                     Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.OrderSearch>(app.ServiceProvider, false),
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:read");

@@ -23,7 +23,10 @@ public static class GeneratedOpenApi
         options.AddOperationTransformer(static (operation, context, _) =>
         {
             foreach (var item in context.Description.ActionDescriptor.EndpointMetadata)
-                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)
+                // TN-9: this assembly's entries and Tarol's own (no Owner: GET /me, search); another assembly's transformer
+                // completes its own, and Complete skips an operation that is done, so Tarol's are completed once
+                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata
+                    && (metadata.Owner is null || metadata.Owner == typeof(GeneratedOpenApi).Assembly))
                     Complete(operation, metadata);
                 else if (item is global::Microsoft.AspNetCore.Http.Metadata.ITagsMetadata tags && global::System.Linq.Enumerable.Contains(tags.Tags, AdminTag))
                     Admin(operation);
@@ -287,6 +290,8 @@ public static class GeneratedOpenApi
 
     private static void Complete(global::Microsoft.OpenApi.OpenApiOperation operation, global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata)
     {
+        if (operation.Extensions is { } done && done.ContainsKey("x-tarol-kind"))
+            return;                                     // completed already (idempotent: an operation is completed once)
         var extensions = operation.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>();
         Extension(extensions, "x-tarol-kind", global::System.Text.Json.Nodes.JsonValue.Create(metadata.Kind));
         var codes = new global::System.Text.Json.Nodes.JsonArray();

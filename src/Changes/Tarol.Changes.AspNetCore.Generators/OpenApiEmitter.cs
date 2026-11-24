@@ -33,8 +33,10 @@ internal static class OpenApiEmitter
         sb.Append("            return global::System.Threading.Tasks.Task.CompletedTask;\n        });\n");
         sb.Append("        options.AddOperationTransformer(static (operation, context, _) =>\n        {\n");
         sb.Append("            foreach (var item in context.Description.ActionDescriptor.EndpointMetadata)\n");
-        sb.Append("                // TN-9: only this assembly's entries; another assembly's transformer completes its own\n");
-        sb.Append("                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata && metadata.Input.Assembly == typeof(GeneratedOpenApi).Assembly)\n");
+        sb.Append("                // TN-9: this assembly's entries and Tarol's own (no Owner: GET /me, search); another assembly's transformer\n");
+        sb.Append("                // completes its own, and Complete skips an operation that is done, so Tarol's are completed once\n");
+        sb.Append("                if (item is global::Tarol.Changes.AspNetCore.TarolEndpointMetadata metadata\n");
+        sb.Append("                    && (metadata.Owner is null || metadata.Owner == typeof(GeneratedOpenApi).Assembly))\n");
         sb.Append("                    Complete(operation, metadata);\n");
         sb.Append("                else if (item is global::Microsoft.AspNetCore.Http.Metadata.ITagsMetadata tags && global::System.Linq.Enumerable.Contains(tags.Tags, AdminTag))\n");
         sb.Append("                    Admin(operation);\n");
