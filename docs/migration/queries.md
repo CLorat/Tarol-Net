@@ -782,6 +782,9 @@ and set filters.
 
 None.
 
-### 19.7 Verification (SDK 11.0.100, 2026-11-24)
+### 19.7 Verification (SDK 11.0.100, 2026-11-24) **[verified]**
 
-See the PR: build, format, the full test suite with Docker, the AOT smoke apps and the package verification.
+`dotnet build Tarol.slnx` 0 warnings, 0 errors; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx`
+with Docker: **2143 of 2143** (one earlier full run had `PushTests.A_timed_out_restart_attempt_does_not_end_the_restarts` fail
+on timing under load; the project then ran three times, 31 of 31 each); `dotnet pack -c Release` + `eng/verify-packages.sh`:
+OK; `eng/aot-smoke.sh` with `TAROL_PG`: **28 apps**, 0 IL warnings each, all checks passed.
