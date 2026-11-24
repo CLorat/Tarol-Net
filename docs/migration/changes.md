@@ -686,3 +686,9 @@ are one per tenant too. Tatalu wrote `Id<ChildDayCare>.From(tenant.Value)` and a
 ### 18.5 Suppressions
 
 None.
+
+### 18.6 Verification (SDK 11.0.100, 2026-11-24) **[verified]**
+
+`dotnet build` 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker:
+**2173 of 2173**; `dotnet pack` + `eng/verify-packages.sh`: OK; `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings
+(`T.PerTenant` is a static virtual member: no reflection).
