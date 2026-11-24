@@ -1,1 +1,29 @@
 #nullable enable
+Tarol.Persistence.TarolBuilder.Modules.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>!
+Tarol.Persistence.TarolBuilder.Modules.init -> void
+Tarol.Persistence.TarolModule
+Tarol.Persistence.TarolModule.Aggregates.get -> System.Action<Tarol.Persistence.EventCodec!>?
+Tarol.Persistence.TarolModule.Aggregates.init -> void
+Tarol.Persistence.TarolModule.Json.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver?
+Tarol.Persistence.TarolModule.Json.init -> void
+Tarol.Persistence.TarolModule.Name.get -> string!
+Tarol.Persistence.TarolModule.Part<TPart>() -> TPart?
+Tarol.Persistence.TarolModule.Parts.get -> System.Collections.Generic.IReadOnlyCollection<object!>!
+Tarol.Persistence.TarolModule.Reactions.get -> Tarol.Persistence.IOutboxReactions?
+Tarol.Persistence.TarolModule.Reactions.init -> void
+Tarol.Persistence.TarolModule.TarolModule(string! name) -> void
+Tarol.Persistence.TarolModule.With<TPart>(TPart! part) -> Tarol.Persistence.TarolModule!
+Tarol.Persistence.TarolModules
+Tarol.Persistence.TarolModules.<Clone>$() -> Tarol.Persistence.TarolModules!
+Tarol.Persistence.TarolModules.All.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>!
+Tarol.Persistence.TarolModules.All.init -> void
+Tarol.Persistence.TarolModules.Deconstruct(out System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>! All) -> void
+Tarol.Persistence.TarolModules.Equals(Tarol.Persistence.TarolModules? other) -> bool
+Tarol.Persistence.TarolModules.TarolModules(System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>! All) -> void
+override Tarol.Persistence.TarolModule.ToString() -> string!
+override Tarol.Persistence.TarolModules.Equals(object? obj) -> bool
+override Tarol.Persistence.TarolModules.GetHashCode() -> int
+override Tarol.Persistence.TarolModules.ToString() -> string!
+static Tarol.Persistence.TarolModules.In(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>!
+static Tarol.Persistence.TarolModules.operator !=(Tarol.Persistence.TarolModules? left, Tarol.Persistence.TarolModules? right) -> bool
+static Tarol.Persistence.TarolModules.operator ==(Tarol.Persistence.TarolModules? left, Tarol.Persistence.TarolModules? right) -> bool

@@ -42,6 +42,22 @@ public sealed class ProjectionsBuilder
         return this;
     }
 
+    /// <summary>Adds the projections of every module <c>AddTarol(modules)</c> registered (<see cref="ProjectionModule"/>, TN-8).</summary>
+    /// <returns>The builder.</returns>
+    /// <exception cref="InvalidOperationException">The application was not registered with modules.</exception>
+    public ProjectionsBuilder AddModules() => Add(Tarol.Persistence.TarolModules.In(Services));
+
+    /// <summary>Adds the projections of the given modules (<see cref="ProjectionModule"/>, TN-8).</summary>
+    /// <param name="modules">The modules.</param>
+    /// <returns>The builder.</returns>
+    public ProjectionsBuilder Add(IEnumerable<Tarol.Persistence.TarolModule> modules)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        foreach (var module in modules)
+            module.Part<ProjectionModule>()?.Add(this);
+        return this;
+    }
+
     /// <summary>Hosts an <see cref="ISqlProjection"/> (needs a store implementing <see cref="ISqlProjectionStore"/>: <c>UseNpgsqlReadModels</c>).</summary>
     /// <param name="projection">The projection.</param>
     /// <param name="configure">Options of this projection, after <see cref="Defaults"/>.</param>

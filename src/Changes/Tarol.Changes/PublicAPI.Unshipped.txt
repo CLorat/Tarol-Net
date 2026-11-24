@@ -1,1 +1,6 @@
 #nullable enable
+Tarol.Changes.GenerateTarolModuleAttribute
+Tarol.Changes.GenerateTarolModuleAttribute.GenerateTarolModuleAttribute(string? name = null) -> void
+Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?
+static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! json, System.Action<Tarol.Persistence.EventCodec!>! aggregates) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params Tarol.Persistence.TarolModule![]! modules) -> Tarol.Persistence.TarolBuilder!

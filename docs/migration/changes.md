@@ -573,3 +573,60 @@ behaves unchanged; `OutboxRows.RunPositioned` forwards it to the part that owns 
 now calls it with the claimed `OutboxRow.Event`, so a publication can put the event's feed position into its message
 (`ce-position`). A handler that wraps another must forward `RunPositioned` as well. Details, reasons and tests:
 docs/migration/messaging.md §27.
+
+## 17. TN-8: modules for applications of several assemblies, with TN-9 and TN-10 (2026-11-24)
+
+Feedback from Tatalu ([docs/feedback/tatalu.md](../feedback/tatalu.md)): one assembly per bounded context (13 planned).
+Each assembly generates its own `MapChanges`, `AddTarolEndpoints`, `GeneratedReactions.Set`, `GeneratedJobs.Set`; the host
+listed every one by hand (`Tatalu.Host/TataluApp.cs`), wrote a forwarding `JsonSerializerContext` (`TataluJson.cs`, TN-10) and
+a transformer that removes duplicate OpenAPI parameters (`OpenApiDeduplication.cs`, TN-9).
+
+### 17.1 Public API (additions)
+
+| Package | API | Role |
+|---|---|---|
+| `Tarol.Persistence` | `TarolModule` (`Name`, `Json`, `Aggregates`, `Reactions`, `With<TPart>`, `Part<TPart>`, `Parts`), `TarolModules` (`All`, `In(services)`), `TarolBuilder.Modules` | what one assembly brings; immutable, one typed part per type |
+| `Tarol.Changes` | `[assembly: GenerateTarolModule(name?)]` → generated `GeneratedModule.Module`; `AddTarol(params TarolModule[])`; `AddTarol(IReadOnlyList<IJsonTypeInfoResolver>, Action<EventCodec>)` | the generated module; the registration of modules (JSON combined, aggregates, reactions `ReactionSet.Combine`d); several contexts without modules |
+| `Tarol.Validations` | `ValueObjectJson.Options(IReadOnlyList<IJsonTypeInfoResolver>)` | the first context's settings, value objects first, then every context |
+| `Tarol.Queries` | `ProjectionModule`, `ProjectionsBuilder.AddModules()`, `.Add(IEnumerable<TarolModule>)` | a module's projections |
+| `Tarol.Jobs` | `JobsBuilder.AddModules()`, `.Add(IEnumerable<TarolModule>)` | a module's `GeneratedJobs.Set` (the part type is `JobSet`) |
+| `Tarol.Security` | `SecurityModule(Action<ChangeRoles>)` | a module's role map; `AddSecurity` applies every module's after the app's |
+| `Tarol.Changes.AspNetCore` | `EndpointModule`, `OpenApiModule`, `app.MapModules(names?)`, `modules.ConfigureOpenApi(object)` | a module's HTTP entries and OpenAPI transformers (`OpenApiOptions` is typed `object`: the package does not reference the OpenAPI package) |
+
+The generated module holds what the generator can see in the assembly: its `JsonSerializerContext`s (one: its `Default`; several:
+`JsonTypeInfoResolver.Combine`), its concrete `AggregateRoot<T>` types, `GeneratedReactions.Set`, `GeneratedJobs.Set`, a
+`ProjectionModule` over its `[Projection]` rows, an `EndpointModule` over its `GeneratedEndpoints.MapChanges` and an
+`OpenApiModule` over its `GeneratedOpenApi.AddTarolEndpoints` (each only when the assembly references the package and has
+such members). The role map is hand-written in Tatalu and stays so: attach it with `.With(new SecurityModule(…))`.
+
+### 17.2 Behaviour changes
+
+* **TN-9:** the generated OpenAPI operation transformer completes only the operations of its own assembly
+  (`TarolEndpointMetadata.Input.Assembly`) and only once (an operation with `x-tarol-kind` is done). With two assemblies,
+  `Idempotency-Key`, `If-Match`, the list parameters and the "Policy" paragraph appeared twice; `tarol-codegen` emitted
+  duplicate identifiers (TS2300). Red on the TN-7 commit **[verified]**: the composition of `ModuleTests.Without_modules_…`
+  answers `Idempotency-Key` twice on `PUT /plots/{plot}/name`.
+* **TN-10:** `AddTarol(JsonSerializerContext, …)` is unchanged; the new overload takes several contexts. The fault Tatalu hit
+  (a hand-written context subclass answers only for its own options, so a copy of the options fails with "returned a
+  JsonTypeInfo instance whose JsonSerializerOptions setting does not match") does not arise: every context is asked with the
+  caller's options. Red: one context for two assemblies fails at `codec.Add<Recipe>()` ("no metadata for Scaled, Written").
+* `AddSecurity` applies the `SecurityModule` parts of the registered modules (none without modules: unchanged).
+* No module is generated without the assembly attribute: existing assemblies get no new code.
+
+### 17.3 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Changes.AspNetCore.Tests` (+ fixtures `….Tests.Garden`, `….Tests.Kitchen`) | +6 (`ModuleTests`) | two assemblies, each `[assembly: GenerateTarolModule]`: one `AddTarol`, `MapModules`, `ConfigureOpenApi`; aggregates, both JSON contexts through the options and a copy; changes, lists and each module's role map over HTTP; every operation's parameters once, `x-tarol-kind` on each; the manual composition without modules also has every parameter once (TN-9); unique names, a module needs JSON; parts replace by type |
+| `Tarol.Changes.Generators.Tests` | +2 | the module snapshot (JSON, aggregates, reactions, jobs); no module without the attribute |
+
+### 17.4 Skill evaluation checklist (`tarol-overview`)
+
+| Task | Expected API | Mistakes to avoid |
+|---|---|---|
+| a host for three context assemblies | `[assembly: GenerateTarolModule]` in each, `AddTarol(a, b, c)`, `p.AddModules()`, `MapModules()`, `tarol.Modules.ConfigureOpenApi(o)` | a forwarding `JsonSerializerContext`; a de-duplicating OpenAPI transformer; listing `MapChanges` per assembly |
+| a context's role map | `.With(new SecurityModule(Map))` | one central role map that every context edits |
+
+### 17.5 Suppressions
+
+None.

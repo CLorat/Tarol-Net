@@ -15,6 +15,15 @@ Tarol.Queries.ProjectionArrayColumn<TRow, TElement>
 Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.ProjectionArrayColumn(string! name, string! member, Tarol.Queries.ColumnType type, bool nullable, System.Func<TRow, TElement[]?>! get) -> void
 Tarol.Queries.ProjectionColumn<TRow>.IsArray.get -> bool
 Tarol.Queries.ProjectionColumn<TRow>.Matches(TRow row, System.Collections.Generic.IReadOnlySet<object!>! values) -> bool
+Tarol.Queries.ProjectionModule
+Tarol.Queries.ProjectionModule.<Clone>$() -> Tarol.Queries.ProjectionModule!
+Tarol.Queries.ProjectionModule.Add.get -> System.Action<Tarol.Queries.ProjectionsBuilder!>!
+Tarol.Queries.ProjectionModule.Add.init -> void
+Tarol.Queries.ProjectionModule.Deconstruct(out System.Action<Tarol.Queries.ProjectionsBuilder!>! Add) -> void
+Tarol.Queries.ProjectionModule.Equals(Tarol.Queries.ProjectionModule? other) -> bool
+Tarol.Queries.ProjectionModule.ProjectionModule(System.Action<Tarol.Queries.ProjectionsBuilder!>! Add) -> void
+Tarol.Queries.ProjectionsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.ProjectionsBuilder.AddModules() -> Tarol.Queries.ProjectionsBuilder!
 Tarol.Queries.SetFilter
 Tarol.Queries.SetFilter.<Clone>$() -> Tarol.Queries.SetFilter!
 Tarol.Queries.SetFilter.Column.get -> string!
@@ -34,6 +43,9 @@ const Tarol.Queries.SetFilter.IdColumn = "id" -> string!
 override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.CompareTo(TRow row, object? value) -> int
 override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.Value(TRow row) -> object?
 override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.Values(System.Collections.Generic.IReadOnlyList<TRow>! rows) -> System.Array!
+override Tarol.Queries.ProjectionModule.Equals(object? obj) -> bool
+override Tarol.Queries.ProjectionModule.GetHashCode() -> int
+override Tarol.Queries.ProjectionModule.ToString() -> string!
 override Tarol.Queries.SetFilter.Equals(object? obj) -> bool
 override Tarol.Queries.SetFilter.GetHashCode() -> int
 override Tarol.Queries.SetFilter.ToString() -> string!
@@ -44,6 +56,8 @@ static Tarol.Queries.ListScope.All.get -> Tarol.Queries.ListScope!
 static Tarol.Queries.ListScope.In<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.ListScope!
 static Tarol.Queries.ListScope.None.get -> Tarol.Queries.ListScope!
 static Tarol.Queries.ListScope.Where(string! column, object? value) -> Tarol.Queries.ListScope!
+static Tarol.Queries.ProjectionModule.operator !=(Tarol.Queries.ProjectionModule? left, Tarol.Queries.ProjectionModule? right) -> bool
+static Tarol.Queries.ProjectionModule.operator ==(Tarol.Queries.ProjectionModule? left, Tarol.Queries.ProjectionModule? right) -> bool
 static Tarol.Queries.SetFilter.Of<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.SetFilter!
 static Tarol.Queries.SetFilter.operator !=(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool
 static Tarol.Queries.SetFilter.operator ==(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool

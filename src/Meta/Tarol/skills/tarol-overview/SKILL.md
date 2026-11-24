@@ -44,9 +44,30 @@ description: >-
 
 Then load `tarol-primitives` for the first aggregate and `tarol-changes` for the first change.
 
+## An application of several assemblies (bounded contexts)
+
+Put `[assembly: Tarol.Changes.GenerateTarolModule("Billing")]` in each context assembly; the host lists each module once:
+
+```csharp
+var tarol = builder.Services.AddTarol(Billing.GeneratedModule.Module, Membership.GeneratedModule.Module
+        .With(new SecurityModule(MembershipSecurity.Map)))      // a module's role map
+    .UseNpgsqlStore(connectionString).UseNpgsqlReadModels()
+    .AddProjections(p => p.AddModules())                        // every module's [Projection] rows
+    .AddSecurity(roles => { })                                  // the app's roles, then each SecurityModule
+    .AddEndpoints();
+builder.Services.AddOpenApi(o => tarol.Modules.ConfigureOpenApi(o));
+// after Build(): app.MapModules();                             // every module's [Endpoint]s and [Webhook]s
+```
+
+A module carries its JSON context(s), aggregates, reactions, jobs (`AddJobs(j => j.AddModules())`), projections, HTTP
+entries and OpenAPI transformers. Give every context the same `[JsonSourceGenerationOptions]`; the first module's apply.
+
 ## Common mistakes
 
 * A `*.Generators` package reference: there is none; the generator is in the runtime package.
+* One `JsonSerializerContext` subclass that forwards to the others: use modules, or `AddTarol([ctxA, ctxB], codec => …)`.
+* Calling every assembly's `GeneratedOpenApi.AddTarolEndpoints` and `MapChanges` by hand: it works (each completes only its
+  own operations), but a forgotten assembly shows only at run time; `MapModules` and `ConfigureOpenApi` take them all.
 * Expecting `Tarol` to bring PostgreSQL or a broker: it brings no implementation. `UseNpgsqlStore` needs
   `Tarol.Persistence.Npgsql`.
 

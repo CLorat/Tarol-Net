@@ -2,10 +2,37 @@
 Tarol.Changes.AspNetCore.ChangeEndpoints.Scope<TQuery>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Queries.ListQuery! query, bool required = false) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListQuery!>
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.get -> bool
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.init -> void
+Tarol.Changes.AspNetCore.EndpointModule
+Tarol.Changes.AspNetCore.EndpointModule.<Clone>$() -> Tarol.Changes.AspNetCore.EndpointModule!
+Tarol.Changes.AspNetCore.EndpointModule.Deconstruct(out System.Func<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!, string?, Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!>! Map) -> void
+Tarol.Changes.AspNetCore.EndpointModule.EndpointModule(System.Func<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!, string?, Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!>! Map) -> void
+Tarol.Changes.AspNetCore.EndpointModule.Equals(Tarol.Changes.AspNetCore.EndpointModule? other) -> bool
+Tarol.Changes.AspNetCore.EndpointModule.Map.get -> System.Func<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!, string?, Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!>!
+Tarol.Changes.AspNetCore.EndpointModule.Map.init -> void
 Tarol.Changes.AspNetCore.IListScope<TQuery>
 Tarol.Changes.AspNetCore.IListScope<TQuery>.Scope(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListScope!>
+Tarol.Changes.AspNetCore.ModuleEndpointExtensions
+Tarol.Changes.AspNetCore.OpenApiModule
+Tarol.Changes.AspNetCore.OpenApiModule.<Clone>$() -> Tarol.Changes.AspNetCore.OpenApiModule!
+Tarol.Changes.AspNetCore.OpenApiModule.Configure.get -> System.Action<object!>!
+Tarol.Changes.AspNetCore.OpenApiModule.Configure.init -> void
+Tarol.Changes.AspNetCore.OpenApiModule.Deconstruct(out System.Action<object!>! Configure) -> void
+Tarol.Changes.AspNetCore.OpenApiModule.Equals(Tarol.Changes.AspNetCore.OpenApiModule? other) -> bool
+Tarol.Changes.AspNetCore.OpenApiModule.OpenApiModule(System.Action<object!>! Configure) -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.init -> void
+override Tarol.Changes.AspNetCore.EndpointModule.Equals(object? obj) -> bool
+override Tarol.Changes.AspNetCore.EndpointModule.GetHashCode() -> int
+override Tarol.Changes.AspNetCore.EndpointModule.ToString() -> string!
+override Tarol.Changes.AspNetCore.OpenApiModule.Equals(object? obj) -> bool
+override Tarol.Changes.AspNetCore.OpenApiModule.GetHashCode() -> int
+override Tarol.Changes.AspNetCore.OpenApiModule.ToString() -> string!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<TQuery>(System.IServiceProvider! services, bool required) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(string! text, out System.DateOnly value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryTime(string! text, out System.TimeOnly value) -> bool
+static Tarol.Changes.AspNetCore.EndpointModule.operator !=(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool
+static Tarol.Changes.AspNetCore.EndpointModule.operator ==(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool
+static Tarol.Changes.AspNetCore.ModuleEndpointExtensions.ConfigureOpenApi(this System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules, object! openApiOptions) -> void
+static Tarol.Changes.AspNetCore.ModuleEndpointExtensions.MapModules(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! app, System.Func<Tarol.Persistence.TarolModule!, string?>? names = null) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
+static Tarol.Changes.AspNetCore.OpenApiModule.operator !=(Tarol.Changes.AspNetCore.OpenApiModule? left, Tarol.Changes.AspNetCore.OpenApiModule? right) -> bool
+static Tarol.Changes.AspNetCore.OpenApiModule.operator ==(Tarol.Changes.AspNetCore.OpenApiModule? left, Tarol.Changes.AspNetCore.OpenApiModule? right) -> bool

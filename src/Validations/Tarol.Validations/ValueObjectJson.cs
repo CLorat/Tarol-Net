@@ -39,6 +39,29 @@ public static class ValueObjectJson
         return options;
     }
 
+    /// <summary>
+    /// Options over several source-generated contexts (TN-10: one per assembly of an application): the first context's settings
+    /// (naming, enums, …), then <see cref="Resolver" />, then every context in order, each asked with these options (a context
+    /// answers for any options it is given; a type in several contexts comes from the first). Give the contexts the same
+    /// <c>[JsonSourceGenerationOptions]</c>.
+    /// </summary>
+    /// <param name="resolvers">The contexts (or other resolvers); at least one.</param>
+    /// <returns>New options; cache them.</returns>
+    /// <exception cref="ArgumentException"><paramref name="resolvers" /> is empty.</exception>
+    public static JsonSerializerOptions Options(IReadOnlyList<IJsonTypeInfoResolver> resolvers)
+    {
+        ArgumentNullException.ThrowIfNull(resolvers);
+        if (resolvers.Count == 0)
+            throw new ArgumentException("At least one JSON context is needed.", nameof(resolvers));
+        var options = resolvers[0] is JsonSerializerContext first
+            ? new JsonSerializerOptions(first.Options)
+            : new JsonSerializerOptions(JsonSerializerDefaults.Web) { TypeInfoResolver = resolvers[0] };
+        options.TypeInfoResolverChain.Insert(0, Resolver);
+        for (var i = 1; i < resolvers.Count; i++)
+            options.TypeInfoResolverChain.Add(resolvers[i] ?? throw new ArgumentException("A JSON context is null.", nameof(resolvers)));
+        return options;
+    }
+
     /// <summary>Puts <see cref="Resolver" /> first in the resolver chain of <paramref name="options" /> (before they are used).</summary>
     /// <param name="options">Mutable options, e.g. the event store's or ASP.NET Core's.</param>
     /// <returns><paramref name="options" />.</returns>

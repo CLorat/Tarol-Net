@@ -20,8 +20,16 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `.Time`, `ColumnValues.Time`); list query strings take `yyyy-MM-dd` and `HH:mm[:ss[.fffffff]]` (`ChangeEndpoints.TryDate`,
   `.TryTime`), OpenAPI formats `date` and `time`.
 
+* Modules for applications of several assemblies (TN-8): `[assembly: GenerateTarolModule]` generates `GeneratedModule.Module`
+  (`TarolModule`: JSON contexts, aggregates, reactions, jobs, projections, HTTP entries, OpenAPI); `AddTarol(params
+  TarolModule[])`, `ProjectionsBuilder.AddModules()`, `JobsBuilder.AddModules()`, `SecurityModule`, `app.MapModules()`,
+  `modules.ConfigureOpenApi(o)`. `AddTarol(IReadOnlyList<IJsonTypeInfoResolver>, …)` and
+  `ValueObjectJson.Options(IReadOnlyList<IJsonTypeInfoResolver>)` take several JSON contexts (TN-10).
+
 ### Changed
 
+* The generated OpenAPI operation transformer completes only its own assembly's operations, once (TN-9): with two
+  assemblies no parameter or "Policy" paragraph appears twice.
 * `DateOnly` and `TimeOnly` members of a projection row get a column (they were jsonb-only); `Prepare` adds and fills it
   on an existing read table.
 * Array members of a projection row get a column. `NpgsqlReadModelStore.Prepare` adds the missing columns to an existing

@@ -37,6 +37,16 @@ internal static class Sources
         }
         """;
 
+    /// <summary>TN-8: the module attribute and a JSON context (the System.Text.Json generator does not run here).</summary>
+    public const string Module = """
+        [assembly: Tarol.Changes.GenerateTarolModule("Shop")]
+
+        namespace Shop;
+
+        [System.Text.Json.Serialization.JsonSerializable(typeof(int))]
+        public sealed partial class ShopJson : System.Text.Json.Serialization.JsonSerializerContext;
+        """;
+
     public const string Reactions = GeneratorTestHost.Usings + """
         namespace Shop;
 

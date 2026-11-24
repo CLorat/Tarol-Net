@@ -40,6 +40,9 @@ public sealed class TarolBuilder
     /// <summary>The event codec.</summary>
     public EventCodec Codec { get; }
 
+    /// <summary>The modules the application was registered with (<c>AddTarol(modules)</c>, TN-8); empty without modules.</summary>
+    public IReadOnlyList<TarolModule> Modules { get; init; } = [];
+
     /// <summary>The reactions the store writes outbox rows for, if any (<see cref="WithReactions"/>).</summary>
     public IOutboxReactions? Reactions { get; private set; }
 

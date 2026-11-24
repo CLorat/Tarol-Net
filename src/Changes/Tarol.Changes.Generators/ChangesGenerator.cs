@@ -82,6 +82,9 @@ public sealed class ChangesGenerator : IIncrementalGenerator
             if (!pair.Left.IsEmpty)
                 spc.AddSource("GeneratedJobs.g.cs", JobEmitter.Emit(pair.Left, pair.Right));
         });
+        // TN-8: [assembly: GenerateTarolModule] → GeneratedModule.Module
+        ModuleGenerator.Initialize(context, reactionModels.Select(static (r, _) => !r.IsEmpty), jobModels.Select(static (j, _) => !j.IsEmpty));
+
         var jobSites = jobs.Where(static j => j.Site is not null).Select(static (j, _) => j.Site!).Collect();
         context.RegisterSourceOutput(jobSites, static (spc, all) =>
         {

@@ -11,7 +11,8 @@ public static class SecurityTarolBuilderExtensions
     /// <summary>
     /// ASP.NET Core authorization (core), the role map and <see cref="ChangeAuthorization"/> as the pipeline's
     /// <see cref="IChangeAuthorization"/>. Row rules (<see cref="ChangeHandler{TChange, TAggregate}"/>) are registered by the
-    /// app as singleton <see cref="IAuthorizationHandler"/>s.
+    /// app as singleton <see cref="IAuthorizationHandler"/>s. The <see cref="SecurityModule"/> of every module the application was
+    /// registered with (<c>AddTarol(modules)</c>, TN-8) is applied after <paramref name="roles"/>.
     /// </summary>
     /// <param name="builder">The builder.</param>
     /// <param name="roles">The app's roles onto changes and reads: <c>roles =&gt; roles.Role("seller").May&lt;CloseAuction&gt;()</c>.</param>
@@ -19,7 +20,14 @@ public static class SecurityTarolBuilderExtensions
     public static TarolBuilder AddSecurity(this TarolBuilder builder, Action<ChangeRoles> roles)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddTarolSecurity(roles);
+        ArgumentNullException.ThrowIfNull(roles);
+        var modules = builder.Modules.Select(static m => m.Part<SecurityModule>()).OfType<SecurityModule>().ToArray();
+        builder.Services.AddTarolSecurity(modules.Length == 0 ? roles : map =>
+        {
+            roles(map);
+            foreach (var module in modules)                     // TN-8: each module's role map after the application's
+                module.Map(map);
+        });
         return builder;
     }
 

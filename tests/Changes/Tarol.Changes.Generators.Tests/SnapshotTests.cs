@@ -13,6 +13,15 @@ public sealed class SnapshotTests
         => string.Join("\n", GeneratorTestHost.Diagnose(Sources.Changes).Select(d => d.ToString())).ShouldBeEmpty();
 
     [Fact]
+    public void A_module_lists_the_assemblys_json_aggregates_reactions_and_jobs()
+        => Snapshot.Match("module", GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Reactions, Sources.Jobs, Sources.Module)));
+
+    [Fact]
+    public void An_assembly_without_the_module_attribute_gets_no_module()
+        => GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain, Sources.Reactions)).GetRunResult().GeneratedTrees
+            .ShouldNotContain(t => t.FilePath.EndsWith("GeneratedModule.g.cs", StringComparison.Ordinal));
+
+    [Fact]
     public void An_assembly_without_changes_gets_no_dispatcher()
         => GeneratorTestHost.Run(GeneratorTestHost.Compile(GeneratorTestHost.Domain)).GetRunResult().GeneratedTrees.ShouldBeEmpty();
 

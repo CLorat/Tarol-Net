@@ -1,1 +1,2 @@
 #nullable enable
+static Tarol.Validations.ValueObjectJson.Options(System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! resolvers) -> System.Text.Json.JsonSerializerOptions!

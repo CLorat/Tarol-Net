@@ -33,6 +33,24 @@ public sealed class JobsBuilder
         return this;
     }
 
+    /// <summary>Adds the scheduled change entries of every module <c>AddTarol(modules)</c> registered (TN-8).</summary>
+    /// <returns>The builder.</returns>
+    /// <exception cref="InvalidOperationException">The application was not registered with modules.</exception>
+    public JobsBuilder AddModules()
+        => Add(Tarol.Persistence.TarolModules.In(_services ?? throw new InvalidOperationException("This jobs builder has no services.")));
+
+    /// <summary>Adds the scheduled change entries of the given modules (their <c>GeneratedJobs.Set</c>, TN-8).</summary>
+    /// <param name="modules">The modules.</param>
+    /// <returns>The builder.</returns>
+    public JobsBuilder Add(IEnumerable<Tarol.Persistence.TarolModule> modules)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        foreach (var module in modules)
+            if (module.Part<JobSet>() is { } jobs)
+                _sets.Add(jobs);
+        return this;
+    }
+
     /// <summary>Adds a job class on a 5-field cron schedule.</summary>
     /// <typeparam name="TJob">The job: resolved from a scope per occurrence (registered scoped here unless it is registered).</typeparam>
     /// <param name="cron">The schedule, e.g. <c>"15 2 * * *"</c>; read in <see cref="JobOptions.TimeZone"/>.</param>
