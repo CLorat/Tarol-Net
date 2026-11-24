@@ -700,3 +700,88 @@ on the registered `NpgsqlReadModels` (`tarol-queries-npgsql`).
 The packages and tests are those of 12C (§17.7: 1395 of 1395, 20 AOT apps, packages OK); this PR changes only the sample
 (not in `Tarol.slnx`), documentation and two skills (text only): `eng/verify-packages.sh` OK with the edited skills. `dotnet build samples/Sagas/AppHost` 0 warnings (besides the AppHost's
 existing ASPIRE010 note), `dotnet publish -c Release -r linux-x64` of the API and the worker: 0 IL warnings; the run above.
+
+## 19. TN-6: lists scoped by the caller's rows (2026-11-24)
+
+Feedback from Tatalu ([docs/feedback/tatalu.md](../feedback/tatalu.md#proposed-changes), TN-6): "parents see only their own
+children" (a parent with two children, a substitute assigned to three children for two weeks). Row rules do not run on lists
+and `[FromClaim]` binds one claim value with equality; the set is domain data. This step adds a server-side hook per query
+and set filters.
+
+### 19.1 Public API (all additions)
+
+| Package | API | Role |
+|---|---|---|
+| `Tarol.Queries` | `SetFilter(Column, Values)`, `SetFilter.Of<T>`, `SetFilter.IdColumn` (`"id"`) | `column = ANY(values)`; over an array column the array shares a value (`&&`); `id` is the row id. An empty set matches no row |
+| | `ListQuery.Sets`, `ListQuery.Within(ListScope)` | the set filters of a query; adds a scope's filters to the request's own |
+| | `ListScope` (`All`, `None`, `In<T>`, `Where`, `AndIn<T>`, `AndWhere`, `Filters`, `Sets`, `IsAll`) | what a scope answers; `None` is a set filter on the id with an empty set |
+| | `ProjectionArrayColumn<TRow, TElement>`, `ProjectionColumn<TRow>.IsArray`, `.Matches(row, set)` | array columns (generated for `T[]` and `IReadOnlyList<T>` of Guid, string, short, int, long, an int enum) |
+| | `ListQueryPlan<TRow>.Sets`, `SetFilterPlan<TRow>` | the checked sets: distinct values in stored order, the column (`null` = the id) |
+| | `Cursor.Hash(filters, sets)` | the filter hash with sets; without sets it equals `Cursor.Hash(filters)`, so existing cursors stay valid |
+| `Tarol.Queries.Npgsql` | `NpgsqlReadModelSchema.SqlType<TRow>(column)` | `uuid[]`, `text[] COLLATE "C"`, … for an array column |
+| `Tarol.Changes.AspNetCore` | `IListScope<TQuery>.Scope(ChangeContext, ClaimsPrincipal, CancellationToken)` | the hook, resolved per request from the request's services |
+| | `EndpointAttribute.RequiresScope` | the registration is mandatory: `MapChanges` throws without it (fail closed at startup) |
+| | `TarolEndpointMetadata.Scoped` | a list with a registered scope; OpenAPI `x-tarol-scoped: true` and a "Scope:" paragraph |
+| | `ChangeEndpoints.Scope<TQuery>`, `ChangeEndpoints.HasScope<TQuery>` | the runtime the generated code calls (`EditorBrowsable(Never)`) |
+
+### 19.2 Behaviour changes
+
+* **Array members become columns.** A `Guid[]`, `string[]`, `int[]`, `long[]`, `short[]`, int enum array or
+  `IReadOnlyList<T>` of those member was jsonb-only; it is now an array column with a GIN index. Its read table gains the
+  column: `NpgsqlReadModelStore.Prepare` adds missing columns to an existing table, fills them from the stored rows' `doc`
+  (the row's shape is the version's, so the JSON still reads; batches of 500 in the prepare transaction under its advisory
+  lock), sets `NOT NULL` where the member is not nullable, then creates the indexes. The checkpoint does not move; nothing
+  is rebuilt. A migration tool that runs `NpgsqlReadModelSchema.Script` on an existing table does not get the new column
+  (`CREATE TABLE IF NOT EXISTS`): let `Prepare` run once, or add the column yourself.
+* `[Sort]` on an array member is TQRY004 "an array column takes set filters only" (it was "has no column type").
+* An equality filter (`ColumnFilter`) on an array column throws `ArgumentException`.
+* A filter or set may name the member (`nameof(Row.Children)`) as well as the column (`children`).
+* `RequiresScope = true` on a change or a view is TWEB002.
+* Every generated list delegate calls `ChangeEndpoints.Scope<TQuery>` after the request's filters; without a registered
+  `IListScope<TQuery>` (and without `RequiresScope`) the list answers as before.
+* `PageKey` (`Tarol.Caching`) includes the set filters: two callers of one tenant with different scopes never share a
+  cached page. Without the fix they did: `PageKeyTests.Two_callers_of_one_tenant_with_different_scopes_never_share_a_page`
+  fails on the previous `PageKey` **[verified]**.
+
+### 19.3 Design notes
+
+* **The scope is per query record** (`IListScope<TQuery>`), as the request needs ("z. B. IListScope<TQuery>"): two lists over
+  one row can be scoped differently ("my entries" and "the group's"). It runs after `CheckList` and gets what `CheckList`
+  gets (`ChangeContext` with the tenant, actor and `Now`, and the principal), so a period that ends ("for two weeks") is
+  checked against the same clock as the change pipeline.
+* **An empty set is an empty page.** SQL `= ANY('{}')` and `&& '{}'` are false; the in-memory store matches nothing. A scope
+  that means "the caller sees nothing" returns `ListScope.None` or an empty set; `ListScope.All` means no restriction.
+* **The cursor is bound to the scope**: a cursor read under one scope is a 400 under another (the set changed, e.g. a
+  child was assigned), never a page of other rows. Set order and duplicates do not matter (sorted, distinct).
+* **Array columns travel as text arrays of PostgreSQL array literals** in the batch upsert: `unnest` over an array of
+  arrays would flatten it. Every element is quoted and escaped (`\`, `"`); the test stores `a "quoted", {odd} \ label`.
+* **Search** (`MapTarolSearch`) is not scoped by `IListScope`; it has its own audience (`[SearchAudience]`, step 18D).
+
+### 19.4 Tests **[verified]**
+
+| Project | Tests | Covers |
+|---|---:|---|
+| `Tarol.Queries.Tests` | +9 (`ListScopeTests`) | a parent with two children (uuid column); overlap over a uuid[] column; `None` and empty sets give an empty page with `total` 0 and no `next`; the id; with the request's filters; never another tenant; the cursor bound to the set but not its order or duplicates; the hash without sets is unchanged; programming errors |
+| `Tarol.Queries.Npgsql.IntegrationTests` | +3 (`ListScopeTests`) | seven scopes answer like the in-memory store, with counts; uuid[] and text[] stored as arrays (escaping) with GIN indexes; `Prepare` adds, fills and sets `NOT NULL` on columns a table of 0.1.0-preview.5 lacks, without moving the checkpoint |
+| `Tarol.Changes.AspNetCore.Tests` | +6 (`ListScopeEndpointTests`) | a parent sees two sellers' rows; a substitute sees three within the period and none after it; an empty scope answers an empty page; request filters with the scope, the cursor of another scope is 400, ETags differ; `x-tarol-scoped` and the description in the document; `RequiresScope` without a registration fails at startup |
+| `Tarol.Caching.Tests` | +1 | the page key of each scope differs; order and duplicates do not |
+| `Tarol.Queries.Generators.Tests` | snapshot, TQRY004 | `Guid[]?`, `IReadOnlyList<string>`, an enum array and `int[]` as array columns; `[Sort]` on an array |
+| `Tarol.Changes.AspNetCore.Generators.Tests` | snapshot, +1, TWEB002 | the list snapshot with `RequiresScope`; the skill's scope example compiles; `RequiresScope` on a change |
+| AOT smoke | +2 checks | `Tarol.Queries.Npgsql.AotSmoke`: a set over a text[] column and `ListScope.None` on PostgreSQL; `Tarol.Changes.AspNetCore.AotSmoke`: a scoped list natively (a parent's rows, a stranger's empty page), in memory and with `TAROL_PG` |
+
+### 19.5 Skill evaluation checklist (`tarol-queries`, `tarol-endpoints`, `tarol-caching`)
+
+| Task given to an agent | Expected API | Mistakes to avoid |
+|---|---|---|
+| "parents see only their children's daily logs" | `IListScope<DailyLogs>` returning `ListScope.In(nameof(Row.Child), children)`; `[Endpoint(…, RequiresScope = true)]` | a row per (child, viewer); a hand-written endpoint; a claim with the child ids; a row rule |
+| a group entry naming several children | a `Guid[]` member and `ListScope.In("tagged", children)` | `ColumnFilter` on the array (throws); one row per child |
+| a substitute for two weeks | compare the period with `context.Now` in the scope | `DateTimeOffset.UtcNow`; caching the set across requests |
+| the caller may see nothing | `ListScope.None` or an empty set | `ListScope.All` (every row) |
+
+### 19.6 Suppressions and analyzer configuration
+
+None.
+
+### 19.7 Verification (SDK 11.0.100, 2026-11-24)
+
+See the PR: build, format, the full test suite with Docker, the AOT smoke apps and the package verification.

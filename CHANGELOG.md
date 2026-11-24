@@ -6,6 +6,23 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* List scopes (TN-6, from Tatalu): `IListScope<TQuery>` (`Tarol.Changes.AspNetCore`) restricts a list to the rows the
+  caller may see, from domain data; `[Endpoint(…, RequiresScope = true)]` makes it mandatory (startup fails without it).
+  Set filters (`SetFilter`, `ListScope`, `ListQuery.Sets`, `ListQuery.Within`) in `Tarol.Queries`: `= ANY(…)`, overlap over
+  an array column, or the row id; an empty set is an empty page. They bind the cursor and the page cache key; OpenAPI
+  marks the list `x-tarol-scoped`.
+* Array columns: `T[]` and `IReadOnlyList<T>` members of Guid, string, short, int, long or an int enum
+  (`ProjectionArrayColumn<TRow, TElement>`, PostgreSQL arrays with a GIN index).
+
+### Changed
+
+* Array members of a projection row get a column. `NpgsqlReadModelStore.Prepare` adds the missing columns to an existing
+  read table and fills them from the stored rows (no rebuild). `[Sort]` on an array member reports "takes set filters
+  only" (TQRY004).
+* `Tarol.Caching`'s `PageKey` includes the set filters.
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline

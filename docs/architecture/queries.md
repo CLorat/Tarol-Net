@@ -117,6 +117,10 @@ public enum AuctionSort { EndsAt, [Descending] HighestBid }
 * **Who sees which rows** (QR-6): a list needs the `Read<T>` grant (R-5) and is always tenant-scoped. Row visibility is a
   filter bound to the caller: a member marked `[FromClaim("sub")]` is set from the principal, never from the request.
   Row rules (`ChangeHandler<,>`) authorize one loaded aggregate; they do not run on lists, and the docs say so.
+  A set of visible rows that is domain data, not a claim (TN-6), comes from a server-side `IListScope<TQuery>`: its
+  `ListScope` adds set filters (`column = ANY(…)`, `array && …`, or the row id) after the request's filters; an empty
+  set lists nothing. `[Endpoint(…, RequiresScope = true)]` makes the registration mandatory (startup fails without it).
+  The scope binds the cursor hash and the page cache key, and the OpenAPI operation says `x-tarol-scoped: true`.
 * **Hand-written queries** stay possible behind the app's own port (the projection's table name and the data source
   come from DI); `Page<T>` and the cursor codec are public.
 
