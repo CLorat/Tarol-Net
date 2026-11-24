@@ -96,7 +96,7 @@ internal static class Discovery
             if (Reserved.Contains(column))
                 problem = $"the column name '{column}' is reserved for the key (tenant, id, version, doc); the member stays in the row's jsonb";
             else if (mapped is null)
-                problem = $"{property.Type.ToDisplayString()} has no column type (Guid, string, bool, short, int, long, decimal, double, DateTimeOffset, enum, or an array of Guid, string, short, int, long, enum)";
+                problem = $"{property.Type.ToDisplayString()} has no column type (Guid, string, bool, short, int, long, decimal, double, DateTimeOffset, DateOnly, TimeOnly, enum, or an array of Guid, string, short, int, long, enum)";
             else if (mapped.Value.Array)
                 problem = "an array column takes set filters only; it cannot be a sort";
             else if (mapped.Value.Nullable)
@@ -295,6 +295,10 @@ internal static class Discovery
         var name = type.ToDisplayString();
         if (name == "System.Guid")
             return plain("Uuid", "global::System.Guid");
+        if (name == "System.DateOnly")
+            return plain("Date", "global::System.DateOnly");
+        if (name == "System.TimeOnly")
+            return ("Time", "global::System.TimeOnly" + q, "global::Tarol.Queries.ColumnValues.Time({0})", nullable);
         if (name == "System.DateTimeOffset")
             return ("TimestampTz", "global::System.DateTimeOffset" + q, "global::Tarol.Queries.ColumnValues.Timestamp({0})", nullable);
         return null;

@@ -94,7 +94,7 @@ public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyLis
 
 /// <summary>A query-string parameter of a list entry.</summary>
 /// <param name="Name">Its key (<c>status</c>, <c>sort</c>).</param>
-/// <param name="Kind"><c>"string"</c>, <c>"uuid"</c>, <c>"boolean"</c>, <c>"int32"</c>, <c>"int64"</c>, <c>"number"</c>, <c>"date-time"</c> or <c>"enum"</c>.</param>
+/// <param name="Kind"><c>"string"</c>, <c>"uuid"</c>, <c>"boolean"</c>, <c>"int32"</c>, <c>"int64"</c>, <c>"number"</c>, <c>"date-time"</c>, <c>"date"</c>, <c>"time"</c> or <c>"enum"</c>.</param>
 /// <param name="Values">The allowed values of an enum (its member names).</param>
 /// <param name="Description">What it does.</param>
 public sealed record QueryParameter(string Name, string Kind, IReadOnlyList<string> Values, string Description);

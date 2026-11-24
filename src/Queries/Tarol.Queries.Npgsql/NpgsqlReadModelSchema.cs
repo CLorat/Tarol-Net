@@ -92,6 +92,8 @@ public static partial class NpgsqlReadModelSchema
         ColumnType.Numeric => "numeric",
         ColumnType.Float8 => "double precision",
         ColumnType.TimestampTz => "timestamptz",
+        ColumnType.Date => "date",
+        ColumnType.Time => "time",
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
     };
 

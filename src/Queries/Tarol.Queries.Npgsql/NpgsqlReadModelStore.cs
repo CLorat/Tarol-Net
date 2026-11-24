@@ -479,6 +479,8 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         ColumnType.Numeric => values.Cast<decimal>().ToArray(),
         ColumnType.Float8 => values.Cast<double>().ToArray(),
         ColumnType.TimestampTz => values.Cast<DateTimeOffset>().ToArray(),
+        ColumnType.Date => values.Cast<DateOnly>().ToArray(),
+        ColumnType.Time => values.Cast<TimeOnly>().ToArray(),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
     };
 
@@ -493,6 +495,8 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         ColumnType.Numeric => NpgsqlDbType.Numeric,
         ColumnType.Float8 => NpgsqlDbType.Double,
         ColumnType.TimestampTz => NpgsqlDbType.TimestampTz,
+        ColumnType.Date => NpgsqlDbType.Date,
+        ColumnType.Time => NpgsqlDbType.Time,
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
     };
 

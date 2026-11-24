@@ -23,6 +23,8 @@ partial record OrderRow : global::Tarol.Queries.IProjection<global::Shop.OrderRo
         new global::Tarol.Queries.ProjectionArrayColumn<global::Shop.OrderRow, global::System.Guid>("watchers", "Watchers", global::Tarol.Queries.ColumnType.Uuid, true, static r => r.Watchers),
         new global::Tarol.Queries.ProjectionArrayColumn<global::Shop.OrderRow, string>("labels", "Labels", global::Tarol.Queries.ColumnType.Text, false, static r => r.Labels is null ? null : global::System.Linq.Enumerable.ToArray(r.Labels)),
         new global::Tarol.Queries.ProjectionArrayColumn<global::Shop.OrderRow, int>("history", "History", global::Tarol.Queries.ColumnType.Int4, false, static r => r.History is null ? null : global::System.Linq.Enumerable.ToArray(global::System.Linq.Enumerable.Select(r.History, static v => (int)v))),
+        new global::Tarol.Queries.ProjectionColumn<global::Shop.OrderRow, global::System.DateOnly>("due", "Due", global::Tarol.Queries.ColumnType.Date, false, true, static r => r.Due),
+        new global::Tarol.Queries.ProjectionColumn<global::Shop.OrderRow, global::System.TimeOnly?>("slot", "Slot", global::Tarol.Queries.ColumnType.Time, true, false, static r => global::Tarol.Queries.ColumnValues.Time(r.Slot)),
         new global::Tarol.Queries.ProjectionColumn<global::Shop.OrderRow, string>("url_path", "UrlPath", global::Tarol.Queries.ColumnType.Text, false, true, static r => r.UrlPath),
     ];
 

@@ -1,4 +1,6 @@
 #nullable enable
+Tarol.Queries.ColumnType.Date = 9 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Time = 10 -> Tarol.Queries.ColumnType
 Tarol.Queries.ListQuery.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilter!>!
 Tarol.Queries.ListQuery.Sets.init -> void
 Tarol.Queries.ListQuery.Within(Tarol.Queries.ListScope! scope) -> Tarol.Queries.ListQuery!
@@ -35,6 +37,8 @@ override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.Values(System.Colle
 override Tarol.Queries.SetFilter.Equals(object? obj) -> bool
 override Tarol.Queries.SetFilter.GetHashCode() -> int
 override Tarol.Queries.SetFilter.ToString() -> string!
+static Tarol.Queries.ColumnValues.Time(System.TimeOnly value) -> System.TimeOnly
+static Tarol.Queries.ColumnValues.Time(System.TimeOnly? value) -> System.TimeOnly?
 static Tarol.Queries.Cursor.Hash(System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, object? Value)>! filters, System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, System.Collections.Generic.IReadOnlyList<object!>! Values)>! sets) -> ulong
 static Tarol.Queries.ListScope.All.get -> Tarol.Queries.ListScope!
 static Tarol.Queries.ListScope.In<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.ListScope!

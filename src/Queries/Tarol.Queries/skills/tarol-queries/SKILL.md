@@ -17,9 +17,11 @@ description: >-
    Events no `When` handles leave the row unchanged.
 2. `When` methods are pure: no services, no clock, no I/O, no rules. Take times and ids from the event or `RecordedEvent`
    (`r.StreamId`, `r.RecordedAt`, `r.EventId`).
-3. Every scalar member (`Guid`, `string`, `bool`, `short`, `int`, `long`, `decimal`, `double`, `DateTimeOffset`, enums,
-   nullable ones) is a typed column named in snake case (`EndsAt` → `ends_at`); enums are stored as numbers, times in
-   UTC to the microsecond. Members named `Id`, `Tenant`, `Version`, `Doc` and non-scalars live only in the row's JSON.
+3. Every scalar member (`Guid`, `string`, `bool`, `short`, `int`, `long`, `decimal`, `double`, `DateTimeOffset`,
+   `DateOnly`, `TimeOnly`, enums, nullable ones) is a typed column named in snake case (`EndsAt` → `ends_at`); enums are
+   stored as numbers, times in UTC to the microsecond, `DateOnly` as `date`, `TimeOnly` as `time` (to the microsecond).
+   A calendar day (attendance, a closing day, `ValidUntil`) is a `DateOnly`, never a `DateTimeOffset` at midnight.
+   Query string: `?day=2026-11-24` (`yyyy-MM-dd` only), `?at=08:15` or `08:15:30` (no zone); other forms are `Format`. Members named `Id`, `Tenant`, `Version`, `Doc` and non-scalars live only in the row's JSON.
    `[Sort]` marks a non-nullable column as a sort (an index per sort).
 4. Rows are per stream and keyed (tenant, stream id). For totals across streams write an `ISqlProjection`.
 5. To change a row's shape or logic, raise `Version`: the new version builds from the start of the feed next to the

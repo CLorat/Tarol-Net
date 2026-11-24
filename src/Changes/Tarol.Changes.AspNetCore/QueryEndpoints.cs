@@ -148,6 +148,27 @@ public sealed partial class ChangeEndpoints
         where T : struct, ISpanParsable<T>
         => T.TryParse(text, CultureInfo.InvariantCulture, out value);
 
+    /// <summary>Parses a calendar-day filter value: RFC 3339 <c>full-date</c> only (<c>2026-11-24</c>, OpenAPI format <c>date</c>).</summary>
+    /// <param name="text">The text.</param>
+    /// <param name="value">The day.</param>
+    /// <returns>Whether it parsed.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool TryDate(string text, out DateOnly value)
+        => DateOnly.TryParseExact(text, "yyyy'-'MM'-'dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
+
+    /// <summary>
+    /// Parses a time-of-day filter value: <c>HH:mm</c>, <c>HH:mm:ss</c> or <c>HH:mm:ss.fffffff</c> (OpenAPI format <c>time</c>,
+    /// without a zone: a <see cref="TimeOnly"/> has none).
+    /// </summary>
+    /// <param name="text">The text.</param>
+    /// <param name="value">The time of day.</param>
+    /// <returns>Whether it parsed.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool TryTime(string text, out TimeOnly value)
+        => TimeOnly.TryParseExact(text, TimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
+
+    private static readonly string[] TimeFormats = ["HH':'mm", "HH':'mm':'ss", "HH':'mm':'ss'.'FFFFFFF"];
+
     /// <summary>Parses an enum filter value by name (case-insensitive; numbers are refused).</summary>
     /// <typeparam name="TEnum">The enum.</typeparam>
     /// <param name="text">The text.</param>

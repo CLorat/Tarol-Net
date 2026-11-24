@@ -113,6 +113,30 @@ public sealed partial record LogRow(Guid Id, Guid Child, Guid[] Tagged, IReadOnl
     public static LogRow When(LogEntry.Written e, RecordedEvent r) => new(r.StreamId, e.Child, e.Tagged, e.Labels, e.Text, r.RecordedAt);
 }
 
+/// <summary>An attendance of a child on a calendar day (Tatalu, TN-7).</summary>
+public partial class Attendance : AggregateRoot<Attendance>
+{
+    public Guid Child { get; private set; }
+
+    public static Attendance CheckIn(Guid child, DateOnly day, TimeOnly at, DateOnly? contractEnds, DateTimeOffset now)
+    {
+        var attendance = new Attendance(Id<Attendance>.New(now));
+        attendance.Raise(new CheckedIn(child, day, at, contractEnds));
+        return attendance;
+    }
+
+    public sealed record CheckedIn(Guid Child, DateOnly Day, TimeOnly At, DateOnly? ContractEnds) : Event;
+
+    private void On(CheckedIn e) => Child = e.Child;
+}
+
+/// <summary>The attendance list: date and time columns (TN-7).</summary>
+[Projection("attendance-list")]
+public sealed partial record AttendanceRow(Guid Id, Guid Child, [Sort] DateOnly Day, [Sort] TimeOnly Arrived, DateOnly? ContractEnds)
+{
+    public static AttendanceRow When(Attendance.CheckedIn e, RecordedEvent r) => new(r.StreamId, e.Child, e.Day, e.At, e.ContractEnds);
+}
+
 [System.Text.Json.Serialization.JsonSourceGenerationOptions(PropertyNamingPolicy = System.Text.Json.Serialization.JsonKnownNamingPolicy.CamelCase)]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.Opened))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.BidPlaced))]
@@ -123,4 +147,6 @@ public sealed partial record LogRow(Guid Id, Guid Child, Guid[] Tagged, IReadOnl
 [System.Text.Json.Serialization.JsonSerializable(typeof(AuctionRowV2))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(LogEntry.Written))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(LogRow))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Attendance.CheckedIn))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(AttendanceRow))]
 public sealed partial class TestJson : System.Text.Json.Serialization.JsonSerializerContext;

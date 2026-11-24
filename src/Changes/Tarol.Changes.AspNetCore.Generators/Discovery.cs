@@ -387,7 +387,7 @@ internal static class Discovery
         => type.TypeKind == TypeKind.Enum ? ((INamedTypeSymbol)type).EnumUnderlyingType?.SpecialType != SpecialType.System_UInt64
          : type.SpecialType is SpecialType.System_String or SpecialType.System_Boolean or SpecialType.System_Int16 or SpecialType.System_Int32
              or SpecialType.System_Int64 or SpecialType.System_Decimal or SpecialType.System_Double
-           || type.ToDisplayString() is "System.Guid" or "System.DateTimeOffset";
+           || type.ToDisplayString() is "System.Guid" or "System.DateTimeOffset" or "System.DateOnly" or "System.TimeOnly";
 
     /// <summary>How the binder parses a filter ("string", "enum", "parsable") and its OpenAPI kind.</summary>
     private static (string? Parse, string OpenApi) ParseKind(ITypeSymbol type)
@@ -403,6 +403,8 @@ internal static class Discovery
              {
                  "System.Guid" => ("parsable", "uuid"),
                  "System.DateTimeOffset" => ("parsable", "date-time"),
+                 "System.DateOnly" => ("date", "date"),
+                 "System.TimeOnly" => ("time", "time"),
                  _ => (null, "string"),
              },
          };
@@ -666,6 +668,7 @@ internal static class Discovery
             {
                 "System.Guid" => ("String", "uuid"),
                 "System.DateTimeOffset" or "System.DateTime" => ("String", "date-time"),
+                "System.TimeOnly" => ("String", "time"),
                 "System.DateOnly" => ("String", "date"),
                 _ => (null!, null),
             },

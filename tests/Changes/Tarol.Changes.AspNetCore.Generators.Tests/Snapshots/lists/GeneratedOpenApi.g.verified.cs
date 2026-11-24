@@ -534,7 +534,7 @@ public static class GeneratedOpenApi
             "boolean" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Boolean },
             "int32" or "int64" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = parameter.Kind },
             "number" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Number },
-            "uuid" or "date-time" => Text(format: parameter.Kind),
+            "uuid" or "date-time" or "date" or "time" => Text(format: parameter.Kind),
             _ => Text(),
         };
         if (parameter.Values.Count > 0)

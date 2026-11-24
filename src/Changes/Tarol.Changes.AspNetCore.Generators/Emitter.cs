@@ -190,7 +190,8 @@ internal static class Emitter
             }
             else
             {
-                sb.Append("            if (").Append(Web).Append(f.Parse == "enum" ? ".TryEnum<" : ".TryFilter<").Append(f.Type).Append(">(q_").Append(f.Member).Append(", out var v_").Append(f.Member).Append("))\n");
+                sb.Append("            if (").Append(Web).Append(f.Parse switch { "enum" => ".TryEnum<", "date" => ".TryDate(", "time" => ".TryTime(", _ => ".TryFilter<" })
+                  .Append(f.Parse is "date" or "time" ? "" : f.Type + ">(").Append("q_").Append(f.Member).Append(", out var v_").Append(f.Member).Append("))\n");
                 sb.Append("                filters.Add(new(").Append(Literal(f.Column)).Append(", v_").Append(f.Member).Append("));\n");
                 sb.Append("            else\n                (errors ??= new()).Add(new(\"").Append(f.Member).Append("\", \"Format\"));\n");
             }

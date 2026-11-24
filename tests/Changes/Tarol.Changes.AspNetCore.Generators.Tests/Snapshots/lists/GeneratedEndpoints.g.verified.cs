@@ -55,6 +55,8 @@ public static class GeneratedEndpoints
                     new global::Tarol.Changes.AspNetCore.QueryParameter[]
                     {
                         new(web.Names(("State", null))[0], "enum", new string[] { "Open", "Paid" }, "Equal to the row's state; absent: any"),
+                        new(web.Names(("Day", null))[0], "date", new string[] {  }, "Equal to the row's day; absent: any"),
+                        new(web.Names(("Slot", null))[0], "time", new string[] {  }, "Equal to the row's slot; absent: any"),
                         new("after", "string", global::System.Array.Empty<string>(), "The cursor of the previous page (its next)"),
                         new("limit", "int32", global::System.Array.Empty<string>(), "The page size (default and maximum: the endpoint options)"),
                         new("offset", "int32", global::System.Array.Empty<string>(), "Rows to skip, bounded; page deeper with after"),
@@ -133,8 +135,8 @@ public static class GeneratedEndpoints
         if (tenant is null)
             return;                                                     // 401, 403 or 404 written
         global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;
-        var filters = new global::System.Collections.Generic.List<global::Tarol.Queries.ColumnFilter>(1);
-        var names = names_Shop_MyOrders ??= web.Names(("State", null));
+        var filters = new global::System.Collections.Generic.List<global::Tarol.Queries.ColumnFilter>(3);
+        var names = names_Shop_MyOrders ??= web.Names(("State", null), ("Day", null), ("Slot", null));
         if (!global::Tarol.Changes.AspNetCore.ChangeEndpoints.One(http, names[0], out var q_State))
             (errors ??= new()).Add(new("State", "Multiple"));
         else if (q_State is not null)
@@ -143,6 +145,24 @@ public static class GeneratedEndpoints
                 filters.Add(new("state", v_State));
             else
                 (errors ??= new()).Add(new("State", "Format"));
+        }
+        if (!global::Tarol.Changes.AspNetCore.ChangeEndpoints.One(http, names[1], out var q_Day))
+            (errors ??= new()).Add(new("Day", "Multiple"));
+        else if (q_Day is not null)
+        {
+            if (global::Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(q_Day, out var v_Day))
+                filters.Add(new("day", v_Day));
+            else
+                (errors ??= new()).Add(new("Day", "Format"));
+        }
+        if (!global::Tarol.Changes.AspNetCore.ChangeEndpoints.One(http, names[2], out var q_Slot))
+            (errors ??= new()).Add(new("Slot", "Multiple"));
+        else if (q_Slot is not null)
+        {
+            if (global::Tarol.Changes.AspNetCore.ChangeEndpoints.TryTime(q_Slot, out var v_Slot))
+                filters.Add(new("slot", v_Slot));
+            else
+                (errors ??= new()).Add(new("Slot", "Format"));
         }
         string? sort = null;
         var descending = false;

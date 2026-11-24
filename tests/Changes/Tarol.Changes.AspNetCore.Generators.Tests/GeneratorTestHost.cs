@@ -79,9 +79,10 @@ internal static class GeneratorTestHost
         public enum OrderState { Open, Paid }
 
         [Tarol.Queries.Projection("order-list")]
-        public sealed partial record OrderRow(System.Guid Id, string Customer, [Tarol.Queries.Sort] int Items, OrderState State, System.Guid Owner)
+        public sealed partial record OrderRow(System.Guid Id, string Customer, [Tarol.Queries.Sort] int Items, OrderState State, System.Guid Owner,
+            System.DateOnly Day, System.TimeOnly Slot)
         {
-            public static OrderRow When(Order.Opened e, RecordedEvent r) => new(r.StreamId, "", 0, OrderState.Open, System.Guid.Empty);
+            public static OrderRow When(Order.Opened e, RecordedEvent r) => new(r.StreamId, "", 0, OrderState.Open, System.Guid.Empty, default, default);
             public OrderRow When(Order.Added e) => this with { Items = Items + e.Items };
         }
         """;
@@ -132,7 +133,7 @@ internal static class Sources
         public sealed record OrderSearch(OrderState? State, string? Customer, OrderSort Sort = OrderSort.Items) : IQuery<OrderRow>;
 
         [Endpoint("GET /my/orders", RequiresScope = true)]
-        public sealed record MyOrders(OrderState? State) : IQuery<OrderRow>;
+        public sealed record MyOrders(OrderState? State, System.DateOnly? Day, System.TimeOnly? Slot) : IQuery<OrderRow>;
 
         [Endpoint("GET /customers/{customer}/orders")]
         public sealed record CustomerOrders(string Customer, [FromClaim("owner")] Guid Owner) : IQuery<OrderRow>;

@@ -31,6 +31,12 @@ public enum ColumnType
 
     /// <summary><see cref="DateTimeOffset"/> (<c>timestamptz</c>): stored in UTC, to the microsecond.</summary>
     TimestampTz,
+
+    /// <summary><see cref="DateOnly"/> (<c>date</c>): a calendar day, no time and no zone (TN-7).</summary>
+    Date,
+
+    /// <summary><see cref="TimeOnly"/> (<c>time</c>): a time of day, no zone, to the microsecond (TN-7).</summary>
+    Time,
 }
 
 /// <summary>
@@ -205,13 +211,23 @@ public static class ColumnValues
         return new DateTimeOffset(utc - (utc % 10), TimeSpan.Zero);
     }
 
+    /// <summary>A time of day as a <see cref="ColumnType.Time"/> column stores it: truncated to the microsecond.</summary>
+    /// <param name="value">The time of day.</param>
+    /// <returns>The stored time of day.</returns>
+    public static TimeOnly Time(TimeOnly value) => new(value.Ticks - (value.Ticks % 10));
+
+    /// <summary>A nullable time of day as stored.</summary>
+    /// <param name="value">The time of day, or <see langword="null"/>.</param>
+    /// <returns>The stored time of day.</returns>
+    public static TimeOnly? Time(TimeOnly? value) => value is { } v ? Time(v) : null;
+
     /// <summary>A nullable time as stored.</summary>
     /// <param name="value">The time, or <see langword="null"/>.</param>
     /// <returns>The stored time.</returns>
     public static DateTimeOffset? Timestamp(DateTimeOffset? value) => value is { } v ? Timestamp(v) : null;
 
     /// <summary>
-    /// A filter value converted to the column's stored type: an enum to its number, a time to UTC microseconds, an
+    /// A filter value converted to the column's stored type: an enum to its number, a time (or time of day) to microseconds, an
     /// <c>int</c> to a <c>long</c> for a <see cref="ColumnType.BigInt"/> column. <see langword="null"/> stays <see langword="null"/>.
     /// </summary>
     /// <param name="type">The column's type.</param>
@@ -235,6 +251,8 @@ public static class ColumnValues
                 ColumnType.Numeric => Convert.ToDecimal(value, CultureInfo.InvariantCulture),
                 ColumnType.Float8 => Convert.ToDouble(value, CultureInfo.InvariantCulture),
                 ColumnType.TimestampTz => Timestamp((DateTimeOffset)value),
+                ColumnType.Date => (DateOnly)value,
+                ColumnType.Time => Time((TimeOnly)value),
                 _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
             };
         }
@@ -244,7 +262,10 @@ public static class ColumnValues
         }
     }
 
-    /// <summary>The invariant text of a stored value (the cursor carries it): a time as UTC ticks, a uuid without hyphens.</summary>
+    /// <summary>
+    /// The invariant text of a stored value (the cursor carries it): a time as UTC ticks, a uuid without hyphens, a day as its
+    /// day number, a time of day as its ticks.
+    /// </summary>
     /// <param name="type">The column's type.</param>
     /// <param name="value">The stored value.</param>
     /// <returns>The text; empty for <see langword="null"/>.</returns>
@@ -255,6 +276,8 @@ public static class ColumnValues
         string s => s,
         bool b => b ? "1" : "0",
         DateTimeOffset t => t.UtcTicks.ToString(CultureInfo.InvariantCulture),
+        DateOnly d => d.DayNumber.ToString(CultureInfo.InvariantCulture),
+        TimeOnly t => t.Ticks.ToString(CultureInfo.InvariantCulture),
         IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
         _ => throw new ArgumentException($"A {type} column cannot hold {value.GetType().Name}.", nameof(value)),
     };
@@ -299,6 +322,14 @@ public static class ColumnValues
                                              && t >= DateTimeOffset.MinValue.UtcTicks && t <= DateTimeOffset.MaxValue.UtcTicks:
                 value = new DateTimeOffset(t, TimeSpan.Zero);
                 return true;
+            case ColumnType.Date when int.TryParse(text, NumberStyles.Integer, invariant, out var day)
+                                      && day >= DateOnly.MinValue.DayNumber && day <= DateOnly.MaxValue.DayNumber:
+                value = DateOnly.FromDayNumber(day);
+                return true;
+            case ColumnType.Time when long.TryParse(text, NumberStyles.Integer, invariant, out var ticks)
+                                      && ticks >= TimeOnly.MinValue.Ticks && ticks <= TimeOnly.MaxValue.Ticks:
+                value = new TimeOnly(ticks);
+                return true;
             default:
                 return false;
         }
@@ -324,6 +355,8 @@ public static class ColumnValues
             ColumnType.Numeric => ((decimal)left).CompareTo((decimal)right),
             ColumnType.Float8 => ((double)left).CompareTo((double)right),
             ColumnType.TimestampTz => ((DateTimeOffset)left).UtcTicks.CompareTo(((DateTimeOffset)right).UtcTicks),
+            ColumnType.Date => ((DateOnly)left).CompareTo((DateOnly)right),
+            ColumnType.Time => ((TimeOnly)left).CompareTo((TimeOnly)right),
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
         };
     }

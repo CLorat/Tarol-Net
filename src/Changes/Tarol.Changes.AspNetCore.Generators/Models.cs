@@ -8,7 +8,7 @@ internal enum EntryKind { Change, Creation, View, List }
 /// <summary>An input member: C# name, type, explicit JSON name, route value kind (null = body), optional, default literal.</summary>
 internal sealed record Member(string Name, string Type, string? JsonName, string? RouteName, string? RouteKind, bool Optional, string? DefaultLiteral);
 
-/// <summary>A filter of a list: the member, its non-nullable type, the column, how it is parsed ("enum", "string" or "parsable"),
+/// <summary>A filter of a list: the member, its non-nullable type, the column, how it is parsed ("enum", "string", "date", "time" or "parsable"),
 /// where it comes from ("query", "route", "claim"), the claim type and the OpenAPI kind.</summary>
 internal sealed record FilterModel(string Member, string Type, string Column, string Parse, string Source, string? Claim, string OpenApiKind, EquatableArray<string> Values);
 
