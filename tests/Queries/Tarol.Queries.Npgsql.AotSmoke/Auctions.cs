@@ -41,9 +41,10 @@ public partial class Auction : AggregateRoot<Auction>
 
 [Projection("auction-list")]
 public sealed partial record AuctionRow(Guid Id, string Title, [Sort] DateTimeOffset EndsAt, AuctionStatus Status, [Sort] decimal HighestBid, int Bids,
-    string[] Bidders)
+    string[] Bidders, [Sort] DateOnly EndsOn, TimeOnly EndsAtTime)
 {
-    public static AuctionRow When(Auction.Opened e, RecordedEvent r) => new(r.StreamId, e.Title, e.EndsAt, AuctionStatus.Open, 0m, 0, []);
+    public static AuctionRow When(Auction.Opened e, RecordedEvent r) => new(r.StreamId, e.Title, e.EndsAt, AuctionStatus.Open, 0m, 0, [],
+        DateOnly.FromDateTime(e.EndsAt.UtcDateTime), TimeOnly.FromDateTime(e.EndsAt.UtcDateTime));
 
     public AuctionRow When(Auction.BidPlaced e) => this with { HighestBid = e.Amount, Bids = Bids + 1, Bidders = [.. Bidders, "b" + Bids] };
 

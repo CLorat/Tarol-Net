@@ -93,6 +93,11 @@ else
         Check("a bad cursor is Invalid", (await reads.Search(query with { After = "x" }, default)).IsFailure);
         var scoped = Ok(await reads.Search(new ListQuery(Guid.Empty) { Count = true }.Within(ListScope.In("bidders", ["b1"])), default));
         var none = Ok(await reads.Search(new ListQuery(Guid.Empty) { Count = true }.Within(ListScope.None), default));
+        var firstDay = seen[0].EndsOn;
+        var days = Ok(await reads.Search(new ListQuery(Guid.Empty) { Sort = "ends_on", Descending = true, Filters = [new ColumnFilter("ends_on", firstDay)], Count = true }, default));
+        Check("a DateOnly filter and sort, a TimeOnly column (TN-7)", days.Total > 0 && days.Items.All(r => r.EndsOn == firstDay)
+                                                                   && script.Contains("ends_on date NOT NULL", StringComparison.Ordinal)
+                                                                   && script.Contains("ends_at_time time NOT NULL", StringComparison.Ordinal));
         Check("set filter over a text[] column and an empty scope (TN-6)", scoped.Total > 0 && scoped.Items.All(r => r.Bidders.Contains("b1")) && none.Total == 0);
 
         var titles = new TitleCount(schema);
