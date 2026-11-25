@@ -34,7 +34,7 @@ public sealed class ModuleTests : IAsyncLifetime
         .With(new SecurityModule(roles => roles.Authenticated().May<LayPlot>().May<RenamePlot>().May<Read<Plot>>()));
 
     private static TarolModule KitchenModule => Kitchen.GeneratedModule.Module
-        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<PriceRecipe>().May<FeastRecipe>().May<Read<Recipe>>()));
+        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<PriceRecipe>().May<FeastRecipe>().May<CookRecipe>().May<Read<Recipe>>()));
 
     public async ValueTask InitializeAsync()
     {
@@ -120,7 +120,7 @@ public sealed class ModuleTests : IAsyncLifetime
         var paths = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
 
         var operations = paths.EnumerateObject().SelectMany(p => p.Value.EnumerateObject().Select(o => (Path: p.Name, Verb: o.Name, Operation: o.Value))).ToList();
-        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/feast", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/price", "/recipes/{recipe}/servings"]);
+        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/doneness/{doneness}", "/recipes/{recipe}/feast", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/price", "/recipes/{recipe}/servings"]);
         foreach (var (path, verb, operation) in operations)
         {
             var parameters = operation.TryGetProperty("parameters", out var p) ? p.EnumerateArray().Select(x => $"{x.GetProperty("in").GetString()}:{x.GetProperty("name").GetString()}").ToList() : [];
@@ -234,6 +234,29 @@ public sealed class ModuleTests : IAsyncLifetime
         document.GetProperty("paths").GetProperty("/recipes/{recipe}/feast").GetProperty("put").GetProperty("x-tarol-errors").EnumerateArray()
             .Select(e => e.GetString()).ShouldContain("Recipe.LargeFeast");
         TarolHeaders.Allowed.ShouldContain("Tarol-Confirm");                             // CORS
+    }
+
+    [Fact]
+    public async Task An_enum_route_value_binds_a_name_case_insensitively_and_refuses_numbers_and_unknown_names()
+    {
+        // TN-34 (Tatalu FB-F17.4-5): TWEB003 refused an enum in the route
+        var recipe = await Send(HttpMethod.Post, "/recipes", """{"title":"Steak"}""");
+        var id = JsonElement.Parse(recipe.Body).GetProperty("id").GetString();
+
+        (await Send(HttpMethod.Put, $"/recipes/{id}/doneness/WellDone", null)).Status.ShouldBe(HttpStatusCode.NoContent);
+        (await Send(HttpMethod.Put, $"/recipes/{id}/doneness/rare", null)).Status.ShouldBe(HttpStatusCode.NoContent);
+        foreach (var bad in new[] { "1", "-1", "Raw", "WellDone,Rare" })
+        {
+            var refused = await Send(HttpMethod.Put, $"/recipes/{id}/doneness/{bad}", null);
+            refused.Status.ShouldBe(HttpStatusCode.BadRequest, $"{bad}: {refused.Body}");
+            refused.Body.ShouldContain("Format");
+        }
+
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        var parameter = document.GetProperty("paths").GetProperty("/recipes/{recipe}/doneness/{doneness}").GetProperty("put").GetProperty("parameters")
+            .EnumerateArray().Single(p => p.GetProperty("name").GetString() == "doneness");
+        parameter.GetProperty("in").GetString().ShouldBe("path");
+        parameter.GetProperty("schema").GetProperty("enum").EnumerateArray().Select(v => v.GetString()).ShouldBe(["Rare", "WellDone"]);
     }
 
     [Fact]

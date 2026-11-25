@@ -69,6 +69,13 @@ public sealed partial record FeastRecipe(Id<Recipe> Recipe, int Servings) : ICha
             : recipe.Scale(Servings);
 }
 
+/// <summary>An enum as a route value (TN-34, Tatalu FB-F17.4-5: PUT …/kanaele/{category}).</summary>
+[Endpoint("PUT /recipes/{recipe}/doneness/{doneness}")]
+public sealed partial record CookRecipe(Id<Recipe> Recipe, Doneness Doneness) : IChange<Recipe>
+{
+    public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Doneness == Doneness.WellDone ? 3 : 1);
+}
+
 /// <summary>A step of a plan: a nested input record (Tatalu FB-F02.1-3: a missing DateOnly read as 0001-01-01).</summary>
 public sealed record PlanStep(DateOnly On, Pantry.Shade Shade, string? Note);
 
@@ -111,6 +118,6 @@ public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 public sealed record RecipeSearch(string? Title, int? Servings) : IQuery<RecipeRow>;
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
-[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe)), JsonSerializable(typeof(PriceRecipe)), JsonSerializable(typeof(FeastRecipe)), JsonSerializable(typeof(Doneness))]
+[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe)), JsonSerializable(typeof(PriceRecipe)), JsonSerializable(typeof(FeastRecipe)), JsonSerializable(typeof(CookRecipe)), JsonSerializable(typeof(Doneness))]
 [JsonSerializable(typeof(Recipe.Written)), JsonSerializable(typeof(Recipe.Scaled))]
 public sealed partial class KitchenJson : JsonSerializerContext;

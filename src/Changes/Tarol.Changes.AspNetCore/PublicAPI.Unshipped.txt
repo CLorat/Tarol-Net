@@ -38,6 +38,8 @@ Tarol.Changes.AspNetCore.RequiredMember.Name.init -> void
 Tarol.Changes.AspNetCore.RequiredMember.Optional.get -> bool
 Tarol.Changes.AspNetCore.RequiredMember.Optional.init -> void
 Tarol.Changes.AspNetCore.RequiredMember.RequiredMember(string! Name, string? Json, bool Optional, bool List, Tarol.Changes.AspNetCore.RequiredMember![]? Members) -> void
+Tarol.Changes.AspNetCore.RouteValue.Values.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Tarol.Changes.AspNetCore.RouteValue.Values.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.get -> System.Reflection.Assembly?
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool
@@ -54,6 +56,7 @@ override Tarol.Changes.AspNetCore.RequiredMember.GetHashCode() -> int
 override Tarol.Changes.AspNetCore.RequiredMember.ToString() -> string!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<TQuery>(System.IServiceProvider! services, bool required) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(string! text, out System.DateOnly value) -> bool
+static Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnumName<TEnum>(string? text, out TEnum value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryTime(string! text, out System.TimeOnly value) -> bool
 static Tarol.Changes.AspNetCore.EndpointModule.operator !=(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool
 static Tarol.Changes.AspNetCore.EndpointModule.operator ==(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool

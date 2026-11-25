@@ -92,7 +92,8 @@ internal static class Emitter
         sb.Append("                new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata(\"").Append(kind).Append("\", typeof(").Append(e.FullName).Append("),\n");
         sb.Append("                    new global::Tarol.Changes.AspNetCore.RouteValue[] { ")
           .Append(string.Join(", ", route.Select(m => $"new(\"{m.RouteName}\", \"{m.RouteKind}\", {NameOf(m)})"
-                                                      + (m.RouteKind == "id" ? $" {{ Aggregate = {Literal(IdAggregate(m.Type))} }}" : "")))).Append(" },\n");
+                                                      + (m.RouteKind == "id" ? $" {{ Aggregate = {Literal(IdAggregate(m.Type))} }}"
+                                                         : m.RouteKind == "enum" ? $" {{ Values = global::System.Enum.GetNames<{m.Type}>() }}" : "")))).Append(" },\n");
         sb.Append("                    new string[] { ").Append(string.Join(", ", body.Select(NameOf))).Append(" },\n");
         sb.Append("                    ").Append(e.Policy is null ? "null" : Literal(e.Policy));
         if (e.Query is { } q && e.Kind == EntryKind.List)
@@ -144,6 +145,8 @@ internal static class Emitter
         {
             "id" => $"{m.Type}.TryParse({raw}, null, out var route_{m.Name})",
             "guid" => $"global::System.Guid.TryParse({raw}, out var route_{m.Name})",
+            // a defined name, case-insensitive (the body's names, camelCase too); never a number
+            "enum" => $"global::Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnumName<{m.Type}>({raw}, out var route_{m.Name})",
             "int" => $"int.TryParse({raw}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out var route_{m.Name})",
             _ => $"long.TryParse({raw}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out var route_{m.Name})",
         };

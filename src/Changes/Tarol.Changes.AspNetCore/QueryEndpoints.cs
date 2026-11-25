@@ -183,6 +183,20 @@ public sealed partial class ChangeEndpoints
         return text.Length > 0 && !char.IsDigit(text[0]) && text[0] != '-' && Enum.TryParse(text, ignoreCase: true, out value) && Enum.IsDefined(value);
     }
 
+    /// <summary>A route value naming a member of <typeparamref name="TEnum"/> (TN-34): a defined name, case-insensitive; never a number or a combination.</summary>
+    /// <typeparam name="TEnum">The enum.</typeparam>
+    /// <param name="text">The route value.</param>
+    /// <param name="value">The member.</param>
+    /// <returns>Whether it names one.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool TryEnumName<TEnum>(string? text, out TEnum value)
+        where TEnum : struct, Enum
+    {
+        value = default;
+        return text is { Length: > 0 } && !char.IsAsciiDigit(text[0]) && text[0] is not ('-' or '+') && !text.Contains(',', StringComparison.Ordinal)
+               && Enum.TryParse(text, ignoreCase: true, out value) && Enum.IsDefined(value);
+    }
+
     /// <summary>The field code of a query key a list does not know (BC-14).</summary>
     public const string UnknownKeyCode = "Unknown";
 

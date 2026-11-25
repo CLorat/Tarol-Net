@@ -114,4 +114,7 @@ public sealed record RouteValue(string Name, string Kind, string Property)
     /// <summary>The aggregate of an <c>"id"</c> route value (<c>Id&lt;Auction&gt;</c>: <c>Auction</c>; the OpenAPI document's
     /// <c>x-tarol-id</c>), else <see langword="null"/>.</summary>
     public string? Aggregate { get; init; }
+
+    /// <summary>The names of an <c>"enum"</c> route value (TN-34; matched case-insensitively), else <see langword="null"/>.</summary>
+    public IReadOnlyList<string>? Values { get; init; }
 }

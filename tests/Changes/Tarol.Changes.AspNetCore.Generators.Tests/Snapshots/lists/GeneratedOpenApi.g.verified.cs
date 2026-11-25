@@ -416,6 +416,12 @@ public static class GeneratedOpenApi
                         "int" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int32" },
                         "long" => new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Integer, Format = "int64" },
                         "string" => Text(),
+                        "enum" => new global::Microsoft.OpenApi.OpenApiSchema
+                        {
+                            Type = global::Microsoft.OpenApi.JsonSchemaType.String,
+                            Enum = global::System.Linq.Enumerable.ToList(global::System.Linq.Enumerable.Select(route.Values ?? global::System.Array.Empty<string>(),
+                                static v => (global::System.Text.Json.Nodes.JsonNode)global::System.Text.Json.Nodes.JsonValue.Create(v)!)),
+                        },
                         _ => Text(format: "uuid"),
                     },
                 });

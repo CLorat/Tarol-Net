@@ -108,7 +108,7 @@ internal static class Discovery
                     if (routeKind is null)
                     {
                         diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name,
-                            $"route member '{name}' is a {p.Type.ToDisplayString()}; route members are Id<T>, Guid, string, int or long"));
+                            $"route member '{name}' is a {p.Type.ToDisplayString()}; route members are Id<T>, Guid, string, int, long or an enum"));
                         continue;
                     }
                 }
@@ -440,7 +440,7 @@ internal static class Discovery
             if (placeholder is not null)
             {
                 var routeKind = RouteKind(p.Type);
-                if (routeKind is null or "id")
+                if (routeKind is null or "id" or "enum")
                 {
                     diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name,
                         $"route member '{name}' of a list is a Guid, string, int or long"));
@@ -771,6 +771,7 @@ internal static class Discovery
 
     private static string? RouteKind(ITypeSymbol type)
         => type is INamedTypeSymbol { Name: "Id", TypeArguments.Length: 1 } id && id.ContainingNamespace.ToDisplayString() == "Tarol.StronglyTypedId" ? "id"
+         : type.TypeKind == TypeKind.Enum ? "enum"                           // TN-34 (Tatalu FB-F17.4-5): a name, like in the body
          : type.SpecialType switch
          {
              SpecialType.System_String => "string",

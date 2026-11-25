@@ -11,7 +11,7 @@ description: >-
 ## Rules
 
 1. **An endpoint is an attribute on the change**: `[Endpoint("POST /auctions/{auction}/bids", Policy = "auctions:bid")]`
-   on the `partial record`. Route values bind the members of the same name (`Id<T>`, `Guid`, `string`, `int`, `long`); the
+   on the `partial record`. Route values bind the members of the same name (`Id<T>`, `Guid`, `string`, `int`, `long`, an enum by its name, case-insensitive); the
    others come from the JSON body, every missing (`Required`) or mistyped (`Json`) member reported at once. List the record
    in the app's `JsonSerializerContext`.
 2. **Register once, map once**: `AddTarol(…).UseNpgsqlStore(…).AddSecurity(roles => …).AddEndpoints()`, then
