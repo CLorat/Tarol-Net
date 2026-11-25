@@ -106,6 +106,26 @@ public sealed class PerTenantTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_view_built_for_its_reader_differs_per_reader_with_an_ETag_by_content()
+    {
+        // TN-43 (VA-1, Tatalu FB-E07-3): From(aggregate, ViewContext); ETag "<version>-<hash>"
+        (await _app.Post("/house", """{"name":"Alice's"}""", Alice)).Status.ShouldBe(HttpStatusCode.Created);
+
+        var alice = await _app.Get("/house/greeting", Alice);
+        var bob = await _app.Get("/house/greeting", Bob);
+
+        alice.Status.ShouldBe(HttpStatusCode.OK, alice.Body);
+        JsonElement.Parse(alice.Body).GetProperty("reader").GetString().ShouldBe("alice");
+        JsonElement.Parse(bob.Body).GetProperty("reader").GetString().ShouldBe("bob");
+        alice.ETag.ShouldStartWith("\"1-");
+        alice.ETag.ShouldNotBe(bob.ETag);
+        (await _app.Get("/house/greeting", Alice, h => h.IfNoneMatch.Add(new System.Net.Http.Headers.EntityTagHeaderValue(alice.ETag!)))).Status
+            .ShouldBe(HttpStatusCode.NotModified);
+        (await _app.Get("/house/greeting", Bob, h => h.IfNoneMatch.Add(new System.Net.Http.Headers.EntityTagHeaderValue(alice.ETag!)))).Status
+            .ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task A_second_creation_conflicts_and_a_change_before_the_creation_is_not_found()
     {
         (await Put("/house/name", """{"name":"x"}""", Alice)).Body.ShouldContain("House.NotFound");

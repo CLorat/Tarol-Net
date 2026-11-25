@@ -567,7 +567,22 @@ public sealed partial class ChangeEndpoints
     /// <param name="start">Starts it (<c>T.Start</c>); <see langword="null"/>: 404 when missing.</param>
     /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start)
+    public ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Load(http, id, start, contextual: false);
+
+    /// <summary>
+    /// As <see cref="Load{T}(HttpContext, Id{T}, Func{Id{T}, ChangeContext, T})"/>; with <paramref name="contextual"/> the ETag and
+    /// the 304 wait for <see cref="WriteContextView{TView}"/>, which hashes the written view (TN-43).
+    /// </summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="id">The aggregate's id.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start, bool contextual)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -593,9 +608,15 @@ public sealed partial class ChangeEndpoints
             await Problem(http, denied).ConfigureAwait(false);
             return null;
         }
+        CacheHeaders.Apply(http);                                        // the view's 200 and 304
+        if (contextual)
+        {
+            http.Items[ViewVersionKey] = aggregate.Version - aggregate.UncommittedChanges.Length;
+            http.Items[ViewContextKey] = new ViewContext(context, _time.GetUtcNow());
+            return aggregate;
+        }
         var etag = $"\"{aggregate.Version - aggregate.UncommittedChanges.Length}\"";      // "0" for a started, unstored one
         http.Response.Headers.ETag = etag;
-        CacheHeaders.Apply(http);                                        // the view's 200 and 304
         if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;
@@ -622,7 +643,18 @@ public sealed partial class ChangeEndpoints
     /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
     /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start)
+    public ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => LoadTenant(http, start, contextual: false);
+
+    /// <summary>As <see cref="LoadTenant{T}(HttpContext, Func{Id{T}, ChangeContext, T})"/> for a view built for its reader (TN-43).</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start, bool contextual)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -637,7 +669,48 @@ public sealed partial class ChangeEndpoints
             await Problem(http, Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name)).ConfigureAwait(false);
             return null;
         }
-        return await Load(http, id, start).ConfigureAwait(false);
+        return await Load(http, id, start, contextual).ConfigureAwait(false);
+    }
+
+    private const string ViewVersionKey = "Tarol.ViewVersion";
+    private const string ViewContextKey = "Tarol.ViewContext";
+
+    /// <summary>The reader's <see cref="ViewContext"/> of a contextual load (TN-43).</summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The context.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ViewContext ViewContextOf(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        return http.Items[ViewContextKey] is ViewContext context ? context : throw new InvalidOperationException("No contextual view load ran for this request.");
+    }
+
+    /// <summary>
+    /// Writes a view built for its reader (TN-43, VA-1b): <c>ETag "&lt;version&gt;-&lt;hash&gt;"</c> (the first 8 bytes of SHA-256 of
+    /// the written JSON), 304 for a matching <c>If-None-Match</c>, else 200 with the bytes.
+    /// </summary>
+    /// <typeparam name="TView">The view type.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="view">The view.</param>
+    /// <returns>The write.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async Task WriteContextView<TView>(HttpContext http, TView view)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(view, Json.GetTypeInfo<TView>());
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes).AsSpan(0, 8));
+        var version = http.Items[ViewVersionKey] is long v ? v : 0;
+        var etag = "\"" + version.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + hash + "\"";
+        http.Response.Headers.ETag = etag;
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
+        {
+            http.Response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+        http.Response.StatusCode = StatusCodes.Status200OK;
+        http.Response.ContentType = "application/json";
+        http.Response.ContentLength = bytes.Length;
+        await http.Response.Body.WriteAsync(bytes, http.RequestAborted).ConfigureAwait(false);
     }
 
     /// <summary>Writes a view (200, the application's JSON context).</summary>

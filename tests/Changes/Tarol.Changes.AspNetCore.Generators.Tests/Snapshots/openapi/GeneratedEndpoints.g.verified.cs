@@ -343,4 +343,9 @@ public static class GeneratedEndpoints
         where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>
         where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>
         => TView.From(aggregate);
+
+    private static TView ViewOf<TAggregate, TView>(TAggregate aggregate, global::Tarol.Changes.AspNetCore.ViewContext context)
+        where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>
+        where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>
+        => TView.From(aggregate, context);
 }

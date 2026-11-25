@@ -1,10 +1,13 @@
 #nullable enable
 Tarol.Changes.AspNetCore.ChangeEndpoints.Load<T>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.StronglyTypedId.Id<T!> id, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start) -> System.Threading.Tasks.ValueTask<T?>
+Tarol.Changes.AspNetCore.ChangeEndpoints.Load<T>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.StronglyTypedId.Id<T!> id, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start, bool contextual) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start) -> System.Threading.Tasks.ValueTask<T?>
+Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start, bool contextual) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.Missing(byte[]! bytes, Tarol.Changes.AspNetCore.RequiredMember![]! members, ref System.Collections.Generic.List<Tarol.Results.FieldError!>? errors) -> void
 Tarol.Changes.AspNetCore.ChangeEndpoints.Row<TRow>(Microsoft.AspNetCore.Http.HttpContext! http, System.Guid tenant, System.Guid id, string! notFound) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.ChangeEndpoints.Scope<TQuery>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Queries.ListQuery! query, bool required = false) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListQuery!>
+Tarol.Changes.AspNetCore.ChangeEndpoints.WriteContextView<TView>(Microsoft.AspNetCore.Http.HttpContext! http, TView view) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.get -> bool
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.init -> void
 Tarol.Changes.AspNetCore.EndpointModule
@@ -16,6 +19,7 @@ Tarol.Changes.AspNetCore.EndpointModule.Map.get -> System.Func<Microsoft.AspNetC
 Tarol.Changes.AspNetCore.EndpointModule.Map.init -> void
 Tarol.Changes.AspNetCore.IListScope<TQuery>
 Tarol.Changes.AspNetCore.IListScope<TQuery>.Scope(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListScope!>
+Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>.From(TAggregate! aggregate, Tarol.Changes.AspNetCore.ViewContext context) -> TSelf
 Tarol.Changes.AspNetCore.ModuleEndpointExtensions
 Tarol.Changes.AspNetCore.OpenApiModule
 Tarol.Changes.AspNetCore.OpenApiModule.<Clone>$() -> Tarol.Changes.AspNetCore.OpenApiModule!
@@ -48,6 +52,15 @@ Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.get -> System.Reflection.As
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.init -> void
+Tarol.Changes.AspNetCore.ViewContext
+Tarol.Changes.AspNetCore.ViewContext.Deconstruct(out Tarol.Kernel.OperationContext! Operation, out System.DateTimeOffset Now) -> void
+Tarol.Changes.AspNetCore.ViewContext.Equals(Tarol.Changes.AspNetCore.ViewContext other) -> bool
+Tarol.Changes.AspNetCore.ViewContext.Now.get -> System.DateTimeOffset
+Tarol.Changes.AspNetCore.ViewContext.Now.init -> void
+Tarol.Changes.AspNetCore.ViewContext.Operation.get -> Tarol.Kernel.OperationContext!
+Tarol.Changes.AspNetCore.ViewContext.Operation.init -> void
+Tarol.Changes.AspNetCore.ViewContext.ViewContext() -> void
+Tarol.Changes.AspNetCore.ViewContext.ViewContext(Tarol.Kernel.OperationContext! Operation, System.DateTimeOffset Now) -> void
 const Tarol.Changes.AspNetCore.TarolHeaders.Confirm = "Tarol-Confirm" -> string!
 override Tarol.Changes.AspNetCore.EndpointModule.Equals(object? obj) -> bool
 override Tarol.Changes.AspNetCore.EndpointModule.GetHashCode() -> int
@@ -58,10 +71,14 @@ override Tarol.Changes.AspNetCore.OpenApiModule.ToString() -> string!
 override Tarol.Changes.AspNetCore.RequiredMember.Equals(object? obj) -> bool
 override Tarol.Changes.AspNetCore.RequiredMember.GetHashCode() -> int
 override Tarol.Changes.AspNetCore.RequiredMember.ToString() -> string!
+~override Tarol.Changes.AspNetCore.ViewContext.Equals(object obj) -> bool
+override Tarol.Changes.AspNetCore.ViewContext.GetHashCode() -> int
+~override Tarol.Changes.AspNetCore.ViewContext.ToString() -> string
 static Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<TQuery>(System.IServiceProvider! services, bool required) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(string! text, out System.DateOnly value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnumName<TEnum>(string? text, out TEnum value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryTime(string! text, out System.TimeOnly value) -> bool
+static Tarol.Changes.AspNetCore.ChangeEndpoints.ViewContextOf(Microsoft.AspNetCore.Http.HttpContext! http) -> Tarol.Changes.AspNetCore.ViewContext
 static Tarol.Changes.AspNetCore.EndpointModule.operator !=(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool
 static Tarol.Changes.AspNetCore.EndpointModule.operator ==(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool
 static Tarol.Changes.AspNetCore.ModuleEndpointExtensions.ConfigureOpenApi(this System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules, object! openApiOptions) -> void
@@ -72,3 +89,5 @@ static Tarol.Changes.AspNetCore.OpenApiSchemaNames.Claim(object! openApiOptions)
 static Tarol.Changes.AspNetCore.OpenApiSchemaNames.Name(object! openApiOptions, System.Type! type, string? proposed) -> string?
 static Tarol.Changes.AspNetCore.RequiredMember.operator !=(Tarol.Changes.AspNetCore.RequiredMember? left, Tarol.Changes.AspNetCore.RequiredMember? right) -> bool
 static Tarol.Changes.AspNetCore.RequiredMember.operator ==(Tarol.Changes.AspNetCore.RequiredMember? left, Tarol.Changes.AspNetCore.RequiredMember? right) -> bool
+static Tarol.Changes.AspNetCore.ViewContext.operator !=(Tarol.Changes.AspNetCore.ViewContext left, Tarol.Changes.AspNetCore.ViewContext right) -> bool
+static Tarol.Changes.AspNetCore.ViewContext.operator ==(Tarol.Changes.AspNetCore.ViewContext left, Tarol.Changes.AspNetCore.ViewContext right) -> bool

@@ -42,12 +42,15 @@ internal sealed record EntryModel(string Name, string FullName, EntryKind Kind, 
     /// <summary>A view of an IStartable&lt;T&gt; aggregate (TN-42): a missing stream answers the started state.</summary>
     public bool Startable { get; init; }
 
+    /// <summary>A view built for its reader, <c>From(aggregate, ViewContext)</c> (TN-43): ETag by content.</summary>
+    public bool Contextual { get; init; }
+
     public bool HasBody => Kind is not (EntryKind.View or EntryKind.List) && Members.Count > 0 && System.Linq.Enumerable.Any(Members, m => m.RouteKind is null);
 
     // equality without the location, so a moved declaration regenerates nothing
     public bool Equals(EntryModel? other) => other is not null && Name == other.Name && FullName == other.FullName && Kind == other.Kind
         && Aggregate == other.Aggregate && Verb == other.Verb && Pattern == other.Pattern && Policy == other.Policy && Anonymous == other.Anonymous
-        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable;
+        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable && Contextual == other.Contextual;
 
     public override int GetHashCode() => (FullName, Verb, Pattern).GetHashCode();
 }

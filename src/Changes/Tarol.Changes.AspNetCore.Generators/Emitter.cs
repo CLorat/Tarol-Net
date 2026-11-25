@@ -61,6 +61,10 @@ internal static class Emitter
             sb.Append("        where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>\n");
             sb.Append("        where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>\n");
             sb.Append("        => TView.From(aggregate);\n");
+            sb.Append("\n    private static TView ViewOf<TAggregate, TView>(TAggregate aggregate, global::Tarol.Changes.AspNetCore.ViewContext context)\n");
+            sb.Append("        where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>\n");
+            sb.Append("        where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>\n");
+            sb.Append("        => TView.From(aggregate, context);\n");
         }
         sb.Append("}\n");
         return sb.ToString();
@@ -177,15 +181,20 @@ internal static class Emitter
         sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
         var start = e.Startable ? ", static (id, context) => " + e.Aggregate + ".Start(id, context)" : "";      // TN-42
+        var tail = e.Contextual ? (e.Startable ? "" : ", null") + ", contextual: true" : "";              // TN-43
         if (id is null)                                 // TN-2: a [PerTenant] aggregate, the caller's tenant's one
-            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http").Append(start).Append(");\n");
+            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http").Append(start).Append(tail).Append(");\n");
         else
         {
             Route(sb, id);
-            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(start).Append(");\n");
+            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(start).Append(tail).Append(");\n");
         }
         sb.Append("        if (aggregate is null)\n            return;                                                     // 404, 403, 401 or 304 written\n");
-        sb.Append("        await web.WriteView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName).Append(">(aggregate));\n    }\n");
+        if (e.Contextual)
+            sb.Append("        await web.WriteContextView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName)
+              .Append(">(aggregate, ").Append(Web).Append(".ViewContextOf(http)));\n    }\n");
+        else
+            sb.Append("        await web.WriteView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName).Append(">(aggregate));\n    }\n");
     }
 
     // a list (step 12C): access (tenant, Read<T>), filters from claims, route and query string, sort, paging, then the answer

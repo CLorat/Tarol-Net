@@ -67,11 +67,27 @@ public interface IView<TAggregate, TSelf>
     where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
     where TSelf : IView<TAggregate, TSelf>
 {
-    /// <summary>Builds the view from the loaded (and authorized) aggregate.</summary>
+    /// <summary>Builds the view from the loaded (and authorized) aggregate. Implement this or the overload with a <see cref="ViewContext"/>.</summary>
     /// <param name="aggregate">The aggregate.</param>
     /// <returns>The view.</returns>
-    static abstract TSelf From(TAggregate aggregate);
+    static virtual TSelf From(TAggregate aggregate)
+        => throw new InvalidOperationException($"{typeof(TSelf).Name} implements From(aggregate, ViewContext); the endpoint calls that one.");
+
+    /// <summary>
+    /// Builds the view for the reader (TN-43, owner decision VA-1: the actor and the time, not the roles; Tatalu FB-E07-3 "the
+    /// substitute sees the last 14 days", FB-F01.1-6). Its ETag is <c>"&lt;version&gt;-&lt;hash&gt;"</c> (VA-1b): the view can
+    /// change without a new version (another day, another reader).
+    /// </summary>
+    /// <param name="aggregate">The aggregate.</param>
+    /// <param name="context">Who reads, and when.</param>
+    /// <returns>The view.</returns>
+    static virtual TSelf From(TAggregate aggregate, ViewContext context) => TSelf.From(aggregate);
 }
+
+/// <summary>What a view built for its reader gets (TN-43, VA-1): the operation (actor, tenant) and the request's time.</summary>
+/// <param name="Operation">Who reads, for which tenant.</param>
+/// <param name="Now">The time of the request, read once from the application's <see cref="TimeProvider"/>.</param>
+public readonly record struct ViewContext(Tarol.Kernel.OperationContext Operation, DateTimeOffset Now);
 
 /// <summary>What the generator knows about an entry, as endpoint metadata (read by the generated OpenAPI transformers).</summary>
 /// <param name="Kind">"change", "creation", "view", "list", "search" or "webhook" (the OpenAPI document's <c>x-tarol-kind</c>).</param>

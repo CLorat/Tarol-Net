@@ -158,6 +158,13 @@ public sealed record TenantHouseRow : Tarol.Queries.IRowQuery<HouseRow>;
 [Endpoint("GET /house-rows/{house}")]
 public sealed record HouseRowById(Guid House) : Tarol.Queries.IRowQuery<HouseRow>;
 
+/// <summary>A view for its reader (TN-43, Tatalu FB-E07-3): the content depends on who reads.</summary>
+[Endpoint("GET /house/greeting")]
+public sealed record HouseGreeting(string Name, string Reader) : IView<House, HouseGreeting>
+{
+    public static HouseGreeting From(House house, ViewContext context) => new(house.Name, context.Operation.Actor.Id);
+}
+
 /// <summary>A shelf that starts with its first book (TN-42, Tatalu FB-F02.5-2: HealthLoad.OrStart in every change).</summary>
 public partial class Shelf : AggregateRoot<Shelf>, IStartable<Shelf>
 {
@@ -211,6 +218,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(HouseView))]
 [JsonSerializable(typeof(HouseSeasonView))]
 [JsonSerializable(typeof(HouseRow))]
+[JsonSerializable(typeof(HouseGreeting))]
 [JsonSerializable(typeof(Shelf.Started))]
 [JsonSerializable(typeof(Shelf.Shelved))]
 [JsonSerializable(typeof(ShelveBook))]

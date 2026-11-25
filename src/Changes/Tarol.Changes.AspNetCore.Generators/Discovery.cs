@@ -66,6 +66,10 @@ internal static class Discovery
             return Fail(Diagnostics.NotAnEntry, type.Name, "an entry is a public, non-generic type");
         if ((kind == EntryKind.View) != (verb == "GET"))
             return Fail(Diagnostics.NotAnEntry, type.Name, kind == EntryKind.View ? "a view is read with GET" : "a change is not read with GET; use POST, PUT, PATCH or DELETE");
+        if (kind == EntryKind.View && ViewFroms(type) is var froms && froms.Plain == froms.Contextual)
+            return Fail(Diagnostics.NotAnEntry, type.Name, froms.Plain
+                ? "a view declares one factory: From(aggregate) or From(aggregate, ViewContext), not both"
+                : "a view declares a static From(aggregate) or From(aggregate, ViewContext)");
 
         var members = new List<Member>();
         var valueObjects = new List<ValueObjectModel>();
@@ -141,6 +145,7 @@ internal static class Discovery
             Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct, perTenant),
             // TN-42: a load-or-create (ILoads<T>) or IOrStart<T> change may start its stream: 201 as well as 204
             MayCreate = kind == EntryKind.Change && type.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() is "Tarol.Changes.ILoads<T>" or "Tarol.Changes.IOrStart<T>"),
+            Contextual = kind == EntryKind.View && ViewFroms(type).Contextual,
             Startable = kind == EntryKind.View && aggregateSymbol is not null
                         && aggregateSymbol.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() == "Tarol.Changes.IStartable<T>"),
         };
@@ -526,6 +531,22 @@ internal static class Discovery
 
     /// <summary>The aggregate of a projection row: the root of its When methods' first event (AggregateRoot&lt;T&gt; or Entity&lt;TRoot, _&gt;).</summary>
     private static string? RowAggregate(INamedTypeSymbol row) => RowAggregateSymbol(row)?.ToDisplayString(Fq);
+
+    /// <summary>Which factories a view declares (also explicit implementations of IView's From, TN-77): (aggregate) and (aggregate, ViewContext).</summary>
+    private static (bool Plain, bool Contextual) ViewFroms(INamedTypeSymbol view)
+    {
+        bool plain = false, contextual = false;
+        foreach (var method in view.GetMembers().OfType<IMethodSymbol>())
+        {
+            if (!method.IsStatic || !(method.Name == "From" || method.ExplicitInterfaceImplementations.Any(static i => i.Name == "From")))
+                continue;
+            if (method.Parameters.Length == 1)
+                plain = true;
+            else if (method.Parameters.Length == 2 && method.Parameters[1].Type.ToDisplayString() == "Tarol.Changes.AspNetCore.ViewContext")
+                contextual = true;
+        }
+        return (plain, contextual);
+    }
 
     private static ITypeSymbol? RowAggregateSymbol(INamedTypeSymbol row)
     {

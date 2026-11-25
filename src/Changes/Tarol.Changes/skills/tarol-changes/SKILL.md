@@ -90,13 +90,10 @@ var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Ac
 | `new ChangeOptions(Principal: p)` in a `ChangeTest` without `Authorization` | `InvalidOperationException` (the pipeline would answer 403 `Auth.NotConfigured`) |
 | `Store.Recorded.Where(r => r.StreamId == id)` for a `[PerTenant]` aggregate | events of every singleton of the tenant; use `test.History(id)` |
 | `record Close(Auction Auction)` (the instance as input) | not serializable, not reloadable; take `Id<Auction>` |
-| two `Id<Auction>` members, no explicit `Target` | TCHG001 |
-| `record Close(…) : IChange<…>` not `partial` | TCHG002 |
 | `[Read] string Customer`, or `[Read]` on the own target id | TCHG004 |
 | `[Reads<X>]` of an X that is not `[PerTenant]`, or a hand-written `IHasReads` next to reads | TCHG013 (was CS8646 without a hint) |
 | value-object members but no `IValidatable` | TCHG005: rules do not run before the load |
 | loading or saving inside `Execute` | not possible: `Execute` gets no store; use `ILoads<T>` or `[Read]` |
-| `context.Read<Artwork>()` without a `[Read] Id<Artwork>` member | `InvalidOperationException` ("no [Read] members") |
 | retrying `Stream.VersionConflict` around `Run` without an expected version | the pipeline did that already (3 attempts); with `If-Match` show the conflict instead |
 | an id member in a creation input | the factory chooses ids; send an `IdempotencyKey` to make retries safe |
 | a warning with an input flag (`bool ConfirmQuota`) and the data in `detail` | `if (!context.Confirmed("Absence.QuotaExceeded")) return Error.ConfirmationRequired("Absence.QuotaExceeded", args);` — the client resends with `Tarol-Confirm: Absence.QuotaExceeded` |
