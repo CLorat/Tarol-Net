@@ -85,3 +85,6 @@ internal sealed record EntryResult(EntryModel? Model, EquatableArray<ValueObject
 }
 
 internal sealed record HookResult(HookModel? Model, DiagnosticInfo? Diagnostic);
+
+/// <summary>A <c>[ContractType]</c> type (its fully qualified name) or a <c>[ContractConstant]</c> (name and C# literal) of the assembly (TN-35).</summary>
+internal sealed record ContractModel(string? Type, string? Constant, string? Literal);

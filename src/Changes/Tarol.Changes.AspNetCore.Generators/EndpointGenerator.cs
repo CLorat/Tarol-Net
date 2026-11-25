@@ -40,6 +40,20 @@ public sealed class EndpointGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(hooks.Where(static h => h.Diagnostic is not null), static (spc, h) => spc.ReportDiagnostic(h.Diagnostic!.ToDiagnostic()));
         var hookModels = hooks.Where(static h => h.Model is not null).Select(static (h, _) => h.Model!).Collect();
 
+        // TN-35: [ContractType] and [ContractConstant] of this assembly (x-tarol-types, x-tarol-constants)
+        var contractTypes = context.SyntaxProvider
+            .ForAttributeWithMetadataName("Tarol.Kernel.ContractTypeAttribute", static (node, _) => node is BaseTypeDeclarationSyntax,
+                static (ctx, _) => new ContractModel(((INamedTypeSymbol)ctx.TargetSymbol).ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), null, null));
+        var contractConstants = context.SyntaxProvider
+            .ForAttributeWithMetadataName("Tarol.Kernel.ContractConstantAttribute", static (node, _) => node is VariableDeclaratorSyntax,
+                static (ctx, _) => ctx.TargetSymbol is IFieldSymbol { IsConst: true, DeclaredAccessibility: Accessibility.Public } field && field.HasConstantValue
+                    ? new ContractModel(null, ctx.Attributes[0].ConstructorArguments.Length == 1 && ctx.Attributes[0].ConstructorArguments[0].Value is string pinned ? pinned : field.ContainingType.Name + field.Name,
+                        Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatPrimitive(field.ConstantValue!, quoteStrings: true, useHexadecimalNumbers: false))
+                    : null)
+            .Where(static c => c is not null).Select(static (c, _) => c!);
+        var contracts = contractTypes.Collect().Combine(contractConstants.Collect())
+            .Select(static (pair, _) => pair.Left.AddRange(pair.Right).OrderBy(c => c.Type ?? c.Constant, System.StringComparer.Ordinal).ToImmutableArray());
+
         var assembly = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
         var openApi = context.CompilationProvider.Select(static (c, _) => c.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null);
 
@@ -56,12 +70,12 @@ public sealed class EndpointGenerator : IIncrementalGenerator
             spc.AddSource("GeneratedEndpoints.g.cs", Emitter.Endpoints(ordered, hookList, name));
         });
 
-        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(assembly), static (spc, all) =>
+        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(assembly).Combine(contracts), static (spc, all) =>
         {
-            var ((((entryModels, objects), rules), available), name) = all;
+            var (((((entryModels, objects), rules), available), name), contractList) = all;
             if (!available || entryModels.IsEmpty)
                 return;
-            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name));
+            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name, contractList));
         });
     }
 }

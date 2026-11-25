@@ -61,6 +61,24 @@ public sealed partial record PlanRecipe(Id<Recipe> Recipe, PlanStep First, IRead
     public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Steps.Count + 1);
 }
 
+/// <summary>An enum no operation references (Tatalu FB-F02.6-2): a contract type.</summary>
+[Tarol.Kernel.ContractType]
+public enum Doneness
+{
+    Rare,
+    WellDone,
+}
+
+/// <summary>Constants the client needs (Tatalu FB-F13.5-1).</summary>
+public static class KitchenRules
+{
+    [Tarol.Kernel.ContractConstant]
+    public const int MaxServings = 12;
+
+    [Tarol.Kernel.ContractConstant("RecipeFormat")]
+    public const string Format = "v2";
+}
+
 [Projection("recipe-list")]
 public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 {
@@ -76,6 +94,6 @@ public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 public sealed record RecipeSearch(string? Title, int? Servings) : IQuery<RecipeRow>;
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
-[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe))]
+[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe)), JsonSerializable(typeof(Doneness))]
 [JsonSerializable(typeof(Recipe.Written)), JsonSerializable(typeof(Recipe.Scaled))]
 public sealed partial class KitchenJson : JsonSerializerContext;

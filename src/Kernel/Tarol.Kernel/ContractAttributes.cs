@@ -12,3 +12,24 @@ public sealed class OpenApiSchemaNameAttribute(string name) : Attribute
     /// <summary>The schema name.</summary>
     public string Name { get; } = name;
 }
+
+/// <summary>
+/// A type the client needs although no operation references it (an enum a domain function returns, Tatalu FB-F02.6-2): the
+/// generated <c>AddTarolEndpoints</c> of its assembly puts its schema into the OpenAPI document's components and its name into
+/// <c>x-tarol-types</c>, so <c>tarol-codegen</c> exports it. It must be in the application's JSON contexts.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, AllowMultiple = false, Inherited = false)]
+public sealed class ContractTypeAttribute : Attribute;
+
+/// <summary>
+/// A constant the client needs (the current version of a document, a limit, Tatalu FB-F13.5-1): the generated
+/// <c>AddTarolEndpoints</c> writes it into <c>x-tarol-constants</c> (name → value) and <c>tarol-codegen</c> exports it as
+/// <c>export const Name = value as const</c>. On a public <c>const</c> field of type string, bool or a number.
+/// </summary>
+/// <param name="name">The exported name; <see langword="null"/>: the containing type's name and the field's (<c>PrivacyDocumentsAgreementVersion</c>).</param>
+[AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = false)]
+public sealed class ContractConstantAttribute(string? name = null) : Attribute
+{
+    /// <summary>The exported name, or <see langword="null"/> for the type's and the field's name.</summary>
+    public string? Name { get; } = name;
+}

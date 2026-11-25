@@ -206,6 +206,21 @@ public sealed class ModuleTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Contract_types_and_constants_of_both_assemblies_are_in_the_document()
+    {
+        // TN-35 (Tatalu FB-F02.6-2, FB-F13.5-1): an enum no operation uses and a backend constant reached the client only as a copy
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+
+        document.GetProperty("x-tarol-types").EnumerateArray().Select(t => t.GetString()).ShouldBe(["Doneness"]);
+        document.GetProperty("components").GetProperty("schemas").GetProperty("Doneness").GetProperty("enum").EnumerateArray()
+            .Select(e => e.GetString()).ShouldBe(["Rare", "WellDone"]);
+        var constants = document.GetProperty("x-tarol-constants");
+        constants.GetProperty("KitchenRulesMaxServings").GetInt32().ShouldBe(12);
+        constants.GetProperty("RecipeFormat").GetString().ShouldBe("v2");
+        constants.GetProperty("GardenRulesOrganic").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
     public void Module_names_are_unique_and_a_module_needs_json()
     {
         Should.Throw<ArgumentException>(() => new ServiceCollection().AddTarol(GardenModule, GardenModule)).Message.ShouldContain("Garden");

@@ -60,6 +60,13 @@ public sealed partial record LabelPlot(Id<Plot> Plot, Label Label, Shade Shade) 
     public Result Execute(Plot plot, ChangeContext context) => plot.Rename(Label.Value);
 }
 
+/// <summary>A constant of the other assembly: both land in one x-tarol-constants.</summary>
+public static class GardenRules
+{
+    [Tarol.Kernel.ContractConstant]
+    public const bool Organic = true;
+}
+
 [Projection("plot-list")]
 public sealed partial record PlotRow(Guid Id, string Name)
 {
