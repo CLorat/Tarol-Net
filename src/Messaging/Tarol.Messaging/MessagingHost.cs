@@ -147,6 +147,26 @@ public sealed class MessagingBuilder
         return this;
     }
 
+    /// <summary>
+    /// Runs <typeparamref name="THandler"/> for each commit of <typeparamref name="TEvent"/> when <paramref name="dueAt"/> says
+    /// (TN-63, Tatalu FB-F17.4-3): <c>m.Effect&lt;Notification.Requested, Deliver&gt;("deliver", e =&gt; e.NotBefore)</c>. The due
+    /// time comes from the event (decided in the change); <see langword="null"/> = at the commit.
+    /// </summary>
+    /// <typeparam name="TEvent">The event.</typeparam>
+    /// <typeparam name="THandler">The handler.</typeparam>
+    /// <param name="name">The effect's stable name (stored in the rows).</param>
+    /// <param name="dueAt">When the row is due, from the event.</param>
+    /// <returns>This.</returns>
+    public MessagingBuilder Effect<TEvent, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler>(string name, Func<TEvent, DateTimeOffset?> dueAt)
+        where TEvent : DomainEvent
+        where THandler : class, IEffect<TEvent>
+    {
+        ArgumentNullException.ThrowIfNull(dueAt);
+        Effects = Effects.Add<TEvent>(name, static services => services.GetRequiredService<THandler>(), dueAt);
+        _effectServices.Add(static services => services.TryAddTransient<THandler>());
+        return this;
+    }
+
     /// <summary>Consumes with these consumers (<c>GeneratedConsumers.Set</c>; call once per assembly).</summary>
     /// <param name="consumers">The consumers.</param>
     /// <returns>This.</returns>

@@ -320,6 +320,35 @@ public sealed class PublicationTests
     }
 
     [Fact]
+    public async Task An_effect_with_a_due_time_runs_once_it_is_due_not_at_the_commit()
+    {
+        // TN-63 (Tatalu FB-F17.4-3): quiet hours took Deferred → ReleaseNotification → Queued → the effect
+        var runs = 0;
+        var quietUntil = Start.AddHours(8);
+        var test = MessagingTest.At(Start).System("artflow", ShopJson.Default.Options, o => o.Effects = new EffectSet()
+            .Add<Auction.PaymentRecorded>("deliver", _ => new Effect(_ =>
+            {
+                runs++;
+                return Results.Result.Success();
+            }), e => e.Amount > 5m ? quietUntil : null));
+        var artflow = test["artflow"];
+        var auction = Auction.Open(Start);
+        _ = auction.Settle();
+        artflow.Given(auction);
+        (await artflow.When(new RecordPayment(auction.Id, "inv-1", 10m))).IsSuccess.ShouldBeTrue();
+
+        await test.Drain();
+        runs.ShouldBe(0);                                                                // not before 08:00
+
+        await test.Later(TimeSpan.FromHours(9)).Drain();
+        runs.ShouldBe(1);
+        var set = new EffectSet().Add<Auction.PaymentRecorded>("deliver", _ => new Effect(_ => Results.Result.Success()), e => e.Amount > 5m ? quietUntil : null);
+        set.IsScheduled("effect:deliver").ShouldBeTrue();
+        set.DueAt(new Auction.PaymentRecorded("x", 1m), "effect:deliver").ShouldBeNull();      // null: at the commit
+        new EffectSet().Add<Auction.PaymentRecorded>("now", _ => new Effect(_ => Results.Result.Success())).IsScheduled("effect:now").ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task Given_history_is_neither_published_nor_reacted_to()
     {
         var test = Systems();

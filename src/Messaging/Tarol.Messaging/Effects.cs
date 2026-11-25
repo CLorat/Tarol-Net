@@ -51,7 +51,7 @@ public sealed record EffectContext(string Name, RecordedEvent Recorded, string I
 /// <summary>
 /// The effects of an application: the store's table of <c>effect:&lt;name&gt;</c> rows and their runner. Each handler is
 /// resolved from a fresh service scope per row. Built by <c>AddMessaging(…).Effect&lt;TEvent, THandler&gt;(name)</c>, or by
-/// hand with <see cref="Add{TEvent}"/> (tests).
+/// hand with <see cref="Add{TEvent}(string, Func{IServiceProvider, IEffect{TEvent}})"/> (tests).
 /// </summary>
 public sealed class EffectSet : IOutboxRowHandler
 {
@@ -59,7 +59,7 @@ public sealed class EffectSet : IOutboxRowHandler
     private readonly IServiceProvider _services;
     private readonly ConcurrentDictionary<Type, string[]> _rows;
 
-    /// <summary>Creates a set without effects; <see cref="Add{TEvent}"/> returns sets with them.</summary>
+    /// <summary>Creates a set without effects; <see cref="Add{TEvent}(string, Func{IServiceProvider, IEffect{TEvent}})"/> returns sets with them.</summary>
     /// <param name="services">Where the handlers come from (a scope per row); <see langword="null"/> = no services.</param>
     public EffectSet(IServiceProvider? services = null)
         : this([], services ?? NoServices.Instance)
@@ -97,6 +97,21 @@ public sealed class EffectSet : IOutboxRowHandler
     /// <exception cref="ArgumentException">The name is not valid, or taken.</exception>
     public EffectSet Add<TEvent>(string name, Func<IServiceProvider, IEffect<TEvent>> handler)
         where TEvent : DomainEvent
+        => Add(name, handler, null);
+
+    /// <summary>
+    /// A set with one more effect that runs when <paramref name="dueAt"/> says (TN-63, Tatalu FB-F17.4-3: deliver after the
+    /// recipient's quiet hours): the due time is read from the committed event, so it is decided in the change and replayed the
+    /// same way; <see langword="null"/> or a time before the commit = at the commit. A due effect is ordered by its due time.
+    /// </summary>
+    /// <typeparam name="TEvent">The event it runs for (and every event derived from it).</typeparam>
+    /// <param name="name">Its stable name (see <see cref="Add{TEvent}(string, Func{IServiceProvider, IEffect{TEvent}})"/>).</param>
+    /// <param name="handler">Creates the handler from the row's service scope.</param>
+    /// <param name="dueAt">When the row is due, from the event (e.g. <c>e =&gt; e.NotBefore</c>); <see langword="null"/>: at the commit.</param>
+    /// <returns>The new set.</returns>
+    /// <exception cref="ArgumentException">The name is not valid, or taken.</exception>
+    public EffectSet Add<TEvent>(string name, Func<IServiceProvider, IEffect<TEvent>> handler, Func<TEvent, DateTimeOffset?>? dueAt)
+        where TEvent : DomainEvent
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(handler);
@@ -105,7 +120,7 @@ public sealed class EffectSet : IOutboxRowHandler
         var row = RowOf(name);
         if (_entries.Any(e => e.Row == row))
             throw new ArgumentException($"The effect '{name}' is declared twice.", nameof(name));
-        return new([.. _entries, new Entry<TEvent>(name, row, handler)], _services);
+        return new([.. _entries, new Entry<TEvent>(name, row, handler, dueAt)], _services);
     }
 
     /// <summary>The same effects, with handlers from <paramref name="services"/>.</summary>
@@ -128,11 +143,18 @@ public sealed class EffectSet : IOutboxRowHandler
     }
 
     /// <inheritdoc />
-    /// <remarks>Effects run at the commit.</remarks>
-    public DateTimeOffset? DueAt(DomainEvent domainEvent, string reaction) => null;
+    /// <remarks>An effect runs at the commit unless it was added with a due time (TN-63).</remarks>
+    public DateTimeOffset? DueAt(DomainEvent domainEvent, string reaction)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        foreach (var entry in _entries)
+            if (entry.Row == reaction)
+                return entry.DueAt(domainEvent);
+        return null;
+    }
 
     /// <inheritdoc />
-    public bool IsScheduled(string reaction) => false;
+    public bool IsScheduled(string reaction) => _entries.Any(e => e.Row == reaction && e.Scheduled);
 
     /// <inheritdoc />
     public string ActivityName(string reaction)
@@ -173,13 +195,22 @@ public sealed class EffectSet : IOutboxRowHandler
 
         public abstract bool Matches(DomainEvent domainEvent);
 
+        public abstract bool Scheduled { get; }
+
+        public abstract DateTimeOffset? DueAt(DomainEvent domainEvent);
+
         public abstract ValueTask<Result> Run(IServiceProvider services, RecordedEvent recorded, EffectContext context, CancellationToken cancellationToken);
     }
 
-    private sealed class Entry<TEvent>(string name, string row, Func<IServiceProvider, IEffect<TEvent>> create) : Entry(name, row)
+    private sealed class Entry<TEvent>(string name, string row, Func<IServiceProvider, IEffect<TEvent>> create, Func<TEvent, DateTimeOffset?>? due)
+        : Entry(name, row)
         where TEvent : DomainEvent
     {
         public override bool Matches(DomainEvent domainEvent) => domainEvent is TEvent;
+
+        public override bool Scheduled => due is not null;
+
+        public override DateTimeOffset? DueAt(DomainEvent domainEvent) => due is not null && domainEvent is TEvent e ? due(e) : null;
 
         public override ValueTask<Result> Run(IServiceProvider services, RecordedEvent recorded, EffectContext context, CancellationToken cancellationToken)
             => recorded.Event.Event is TEvent e
