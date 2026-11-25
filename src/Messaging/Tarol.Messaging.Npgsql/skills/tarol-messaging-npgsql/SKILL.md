@@ -12,7 +12,8 @@ description: >-
 
 ## Rules
 
-1. **Register the bus as the transport**: `AddMessaging("<app>", m => m.….UseNpgsqlBus(connectionString, options))` or
+1. **Register the bus as the transport**: `UseNpgsqlBus(options)` on the registered `NpgsqlDataSource` (the store's: one
+   pool), `UseNpgsqlBus(connectionString, options)` for a separate bus database (a pool of its own), or
    `UseNpgsqlBus(provider => dataSource, options)`. Every system points at the same database and `Schema` (default `bus`).
 2. **Dead letters** go to the consumer's database: `UseNpgsqlDeadLetters()` uses the `NpgsqlDataSource` registered by
    `UseNpgsqlStore(connectionString)` and schema `tarol`; pass `schema`/`dataSource` otherwise. It works with any transport.

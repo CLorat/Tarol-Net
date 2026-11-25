@@ -30,8 +30,9 @@ description: >-
    `WaitFor` (`Tarol-Read-After`) wakes on the notification instead of polling every 5 ms. `Tarol.Caching` needs it.
    `IsListening` tells a health check whether the connection is up.
 7. **One runner per projection version** (step 15, on by default, `NpgsqlReadModelOptions.SingleRunner`): every host
-   asks `NpgsqlProjectionGate` (a session `pg_try_advisory_lock` on its own connection); the others wait (`IsRunner`
-   false) and take over within a second when the runner's session ends. Scale workers freely; the checkpoint guard stays.
+   asks `NpgsqlProjectionGate` (a session `pg_try_advisory_lock`; all locks of a process share one connection); the others
+   wait (`IsRunner` false) and take over within a second when the runner's session ends. Scale workers freely; the
+   checkpoint guard stays. A process needs its pool plus about five listener/gate sessions (README "Connections").
 8. **`DropVersion`** has a `lock_timeout` (`DropLockTimeout` 200 ms, `DropAttempts` 5) and throws `TimeoutException` while
    another session still reads the table; drop only after no pod of the old version runs (else readers fail with `42P01`).
 9. **Lag**: the snapshot signal `tarol.projections.lag` (seconds, tag `tarol.projection`) and the meter `"Tarol.Queries"`
