@@ -14,6 +14,13 @@ public static partial class NpgsqlReadModelSchema
     /// <summary>The default schema (the store's: <c>tarol</c>).</summary>
     public const string DefaultSchema = "tarol";
 
+    /// <summary>
+    /// A column name as a quoted identifier: a member named <c>From</c> or <c>Order</c> gives a reserved word
+    /// (<c>from</c>, <c>order</c>) that PostgreSQL refuses unquoted (Tatalu FB-F05.8-3). Column names are snake case of a
+    /// C# identifier, so they never contain a double quote.
+    /// </summary>
+    internal static string Quote(string column) => "\"" + column + "\"";
+
     /// <summary>The checkpoint table: one row per projection version.</summary>
     /// <param name="schema">The schema.</param>
     /// <returns>The SQL (idempotent).</returns>
@@ -55,7 +62,7 @@ public static partial class NpgsqlReadModelSchema
         sb.Append(CultureInfo.InvariantCulture, $"CREATE TABLE IF NOT EXISTS {table} (\n");
         sb.Append("    tenant      uuid        NOT NULL,\n    id          uuid        NOT NULL,\n    version     bigint      NOT NULL,\n");
         foreach (var column in TRow.Columns)
-            sb.Append(CultureInfo.InvariantCulture, $"    {column.Name} {SqlType(column)}{(column.Nullable ? "" : " NOT NULL")},\n");
+            sb.Append(CultureInfo.InvariantCulture, $"    {Quote(column.Name)} {SqlType(column)}{(column.Nullable ? "" : " NOT NULL")},\n");
         sb.Append("    doc         jsonb       NOT NULL,\n    PRIMARY KEY (tenant, id));\n");
         return sb.ToString();
     }
@@ -71,9 +78,9 @@ public static partial class NpgsqlReadModelSchema
         {
             i++;
             if (column.Sortable)
-                sb.Append(CultureInfo.InvariantCulture, $"CREATE INDEX IF NOT EXISTS {Projections.TableOf<TRow>()}_s{i} ON {table} (tenant, {column.Name}, id);\n");
+                sb.Append(CultureInfo.InvariantCulture, $"CREATE INDEX IF NOT EXISTS {Projections.TableOf<TRow>()}_s{i} ON {table} (tenant, {Quote(column.Name)}, id);\n");
             if (column.IsArray)
-                sb.Append(CultureInfo.InvariantCulture, $"CREATE INDEX IF NOT EXISTS {Projections.TableOf<TRow>()}_a{i} ON {table} USING gin ({column.Name});\n");
+                sb.Append(CultureInfo.InvariantCulture, $"CREATE INDEX IF NOT EXISTS {Projections.TableOf<TRow>()}_a{i} ON {table} USING gin ({Quote(column.Name)});\n");
         }
         return sb.ToString();
     }

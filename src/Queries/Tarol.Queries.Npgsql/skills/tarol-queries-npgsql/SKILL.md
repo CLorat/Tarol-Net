@@ -90,6 +90,8 @@ public sealed class SellerTotals(string schema) : ISqlProjection
 | an `ISqlProjection` that opens its own connection | its writes commit apart from the checkpoint: no longer exactly once |
 | `SingleRunner = false` with several workers | every host runs, the guard refuses all but one batch (75 % wasted with 4) |
 | `DropVersion` while old pods still run | `TimeoutException` (they read it), or later `42P01` in those pods |
+| your own SQL against a read table with a member `From`, `Order`, `Limit` | the host quotes every column (`"from"`); unquoted in your SQL it is `42601` — quote it too |
+| a projection that stays building in a test or on start | `host.LastFailure` / `ProjectionHosts.Failing` name the cause (log 12004 when the table cannot be created) |
 | `DateTimeOffset` parameters with an offset in your own SQL | Npgsql refuses them for `timestamptz`: pass `ToUniversalTime()` |
 
 ## AOT
