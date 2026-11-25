@@ -20,6 +20,15 @@ it; everything else in this round was built without waiting. Ids are the design 
 arguments), CR-1 **(a)** (`[Reads<T>]`), SV-off-1 **(a)** (framework subpaths; device id from the app, SV-off-2 (b)). All
 other questions below are open; their items stay open with the recommendation as the proposed next step.
 
+**Decided by the owner (2026-11-26): every remaining question takes its recommendation** (the bold option in each "Recommendation"
+column below), and the three design questions of round 3b take the recommendations listed here:
+
+| # | Question | Decision |
+|---|---|---|
+| TN-46 | Commit and refuse (`Result` that keeps its events): what does a replay of the idempotency key answer? | The refusal is stored with the key (type, code, detail, reasons), so a replay answers the same refusal; committing without the key was rejected (a retry would count an attempt twice). |
+| TN-48 | The event id in an `On` handler | Not as an `On` parameter: an `On` also runs at `Raise`, before the store assigns ids. Entity ids reach ancestors' handlers through the event (`Deleted` with the entity id) and projections and reactions through `RecordedEvent`; a stable id for an entry inside the state is derived from the event's data (`Id<T>.Derive`, TN-42). |
+| TN-54 rest | Rows per entity, rows from the stored state, a read endpoint for a projection over several aggregate types | (a) `[Projection(PerEntity = typeof(TEntity))]`: the row key is the entity id. (b) Rows from the stored state: not built; a row folds events (one fold, shared by the aggregate and the row, is the documented way). (c) The join for billing: an `ISqlProjection` with an `IRowQuery`/`IQuery`-like read endpoint over its own table is the next design step, after per-entity rows. |
+
 ### Change reads ([change-reads.md](../architecture/change-reads.md); TN-40 … TN-42, TN-49)
 
 | # | Question | Options | Recommendation |
