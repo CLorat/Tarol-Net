@@ -52,6 +52,22 @@ public sealed class NpgsqlReadModelTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task Replace_And_Remove_On_A_Table_No_Host_Prepared_Do_Nothing()
+    {
+        // TN-25 (Tatalu FB-F17.5-4): an erasure on a fresh database re-folded into a read table that did not exist yet
+        // (42P01) and EraseSubject ended with ErasureIncomplete; no host has read the feed into it, so there is nothing to do
+        var setup = await postgres.Create();
+        var store = setup.ReadModels.Store<AuctionRow>();
+        var key = new RowKey(TenantA.Value, Guid.CreateVersion7());
+
+        await store.Replace([new Versioned<AuctionRow>(key, 1, new AuctionRow(key.Id, "Lot", "ada", DateTimeOffset.UnixEpoch, AuctionStatus.Open, 0m, 0, null))], Ct);
+        (await store.Remove([key], Ct)).ShouldBe(0);
+
+        await store.Prepare(Ct);
+        (await store.Find(key, Ct)).ShouldBeNull();
+    }
+
+    [Fact]
     public async Task One_row_per_auction_equal_to_the_aggregates_other_stream_types_ignored_tenants_isolated()
     {
         var setup = await postgres.Create();

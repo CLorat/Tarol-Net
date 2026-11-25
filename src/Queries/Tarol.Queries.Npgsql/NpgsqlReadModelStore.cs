@@ -282,7 +282,15 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             return;
         await using var command = _db.CreateCommand(_replace);
         AddRows(command.Parameters, rows);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            // TN-25: no host prepared the table yet, so none has read the feed into it; it is built later from the
+            // erased streams (an erasure on a fresh database failed here with ErasureIncomplete, Tatalu FB-F17.5-4)
+        }
     }
 
     /// <inheritdoc />
@@ -294,7 +302,14 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         await using var command = _db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.id = k.id");
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Tenant).ToArray() });
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Id).ToArray() });
-        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            return 0;                                                             // TN-25: no table, no rows
+        }
     }
 
     /// <inheritdoc />
