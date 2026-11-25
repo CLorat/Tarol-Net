@@ -55,7 +55,8 @@ internal static class Emitter
         foreach (var w in model.Creators)
             sb.Append(b).Append("    (null, ").Append(w.Event).Append(" e) => When(e").Append(w.WithRecorded ? ", recorded" : "").Append("),\n");
         foreach (var w in model.Updaters)
-            sb.Append(b).Append("    ({ } r, ").Append(w.Event).Append(" e) => r.When(e").Append(w.WithRecorded ? ", recorded" : "").Append("),\n");
+            sb.Append(b).Append(model.HasEmpty ? "    (_, " : "    ({ } r, ").Append(w.Event).Append(model.HasEmpty ? " e) => (row ?? Empty(recorded)).When(e" : " e) => r.When(e")
+                .Append(w.WithRecorded ? ", recorded" : "").Append("),\n");
         sb.Append(b).Append("    _ => row,\n");
         sb.Append(b).Append("};\n");
 

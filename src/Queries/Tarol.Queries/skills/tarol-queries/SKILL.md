@@ -15,7 +15,8 @@ description: >-
    `When(TEvent e, RecordedEvent r)` (or `When(TEvent e)`) creates the stream's row; **instance** `When(TEvent e)` (or
    `When(TEvent e, RecordedEvent r)`) methods return the next row (`this with { … }`). An entity's event names its entity in
    `r.Event.EntityId` and its parent in `r.Event.ParentId` (`r.StreamId` is the root's). All events come from **one** aggregate (entity events count as their root's).
-   Events no `When` handles leave the row unchanged.
+   Events no `When` handles leave the row unchanged. When the first event varies, `public static TRow Empty(RecordedEvent r)`
+   starts the row for every instance `When` (no static `When` needed; TN-54).
 2. `When` methods are pure: no services, no clock, no I/O, no rules. Take times and ids from the event or `RecordedEvent`
    (`r.StreamId`, `r.RecordedAt`, `r.EventId`).
 3. Every scalar member (`Guid`, `string`, `bool`, `short`, `int`, `long`, `decimal`, `double`, `DateTimeOffset`,

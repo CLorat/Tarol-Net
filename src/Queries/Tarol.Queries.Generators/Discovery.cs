@@ -76,9 +76,22 @@ internal static class Discovery
                 foreach (var duplicate in group.Skip(1))
                     diagnostics.Add(DiagnosticInfo.Create(Diagnostics.Creation, duplicate.Location, type.Name,
                         $"two {(list == creators ? "static" : "instance")} When methods for {Simple(group.Key)}; keep one"));
-        if (creators.Count == 0 && diagnostics.Count == 0)
+        // TN-54 (Tatalu FB-F01.2-2): a start row for a stream whose first event varies
+        var hasEmpty = false;
+        foreach (var empty in type.GetMembers("Empty").OfType<IMethodSymbol>().Where(static m => m.MethodKind == MethodKind.Ordinary))
+        {
+            if (empty.IsStatic && !empty.IsGenericMethod && SymbolEqualityComparer.Default.Equals(empty.ReturnType, type)
+                && empty.Parameters.Length == 1 && empty.Parameters[0].RefKind == RefKind.None && empty.Parameters[0].Type.ToDisplayString() == RecordedName)
+                hasEmpty = true;
+            else
+                diagnostics.Add(DiagnosticInfo.Create(Diagnostics.When, LocationInfo.From(empty.Locations.FirstOrDefault() ?? Location.None), type.Name,
+                    string.Join(", ", empty.Parameters.Select(p => p.Type.Name)), $"the start row is 'public static {type.Name} Empty(RecordedEvent r)'"));
+        }
+        if (creators.Count == 0 && !hasEmpty && diagnostics.Count == 0)
             diagnostics.Add(DiagnosticInfo.Create(Diagnostics.Creation, location, type.Name,
-                $"no static When creates the row; add 'public static {type.Name} When(<event> e, RecordedEvent r)' for the stream's first event"));
+                $"no static When creates the row; add 'public static {type.Name} When(<event> e, RecordedEvent r)' for the stream's first event, or 'public static {type.Name} Empty(RecordedEvent r)' to start every instance When"));
+        if (aggregate is null && diagnostics.Count == 0)
+            diagnostics.Add(DiagnosticInfo.Create(Diagnostics.Creation, location, type.Name, "no When names an event, so the stream is unknown"));
 
         // the columns
         var columns = new List<ColumnModel>();
@@ -125,7 +138,7 @@ internal static class Discovery
             aggregate!,
             new EquatableArray<WhenModel>(creators.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
             new EquatableArray<WhenModel>(updaters.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
-            new EquatableArray<ColumnModel>(columns.ToImmutableArray()));
+            new EquatableArray<ColumnModel>(columns.ToImmutableArray())) { HasEmpty = hasEmpty };
         return new Discovered(model, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
     }
 
