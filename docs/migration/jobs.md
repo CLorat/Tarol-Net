@@ -792,3 +792,7 @@ and no two workers run one occurrence together. A run cancelled this way writes 
 
 Tests: `HostTests.A_failed_lease_extension_is_tried_again_and_the_run_keeps_its_claim` and
 `A_run_whose_lease_cannot_be_extended_before_it_runs_out_is_cancelled` (both fail without the fix).
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).

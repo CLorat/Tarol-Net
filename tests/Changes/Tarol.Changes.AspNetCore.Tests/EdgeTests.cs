@@ -102,7 +102,7 @@ public sealed class EdgeTests
         // (a) every problem response names the TarolProblem schema
         var problem = schemas.GetProperty("TarolProblem");
         problem.GetProperty("required").EnumerateArray().Select(r => r.GetString()).ShouldBe(["type", "status", "title"], ignoreOrder: true);
-        problem.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["type", "status", "title", "code", "detail", "reasons", "traceId", "errors", "errorDetails"], ignoreOrder: true);
+        problem.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["type", "status", "title", "code", "detail", "reasons", "confirm", "traceId", "errors", "errorDetails"], ignoreOrder: true);
         foreach (var operation in new[] { bids, create, view, list, search })
             foreach (var response in operation.GetProperty("responses").EnumerateObject().Where(r => r.Name[0] is '4' or '5' && r.Name != "401"))
                 response.Value.GetProperty("content").GetProperty("application/problem+json").GetProperty("schema").GetProperty("$ref").GetString()

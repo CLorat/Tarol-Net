@@ -49,11 +49,25 @@ internal static class Emitter
             var i = 0;
             foreach (var read in model.Reads)
             {
-                sb.Append(body).Append("    if (!(await reader.Load(this.").Append(read.Member).Append(", context, cancellationToken)).TryGetValue(out ")
-                    .Append(read.Aggregate).Append("? __read").Append(i).Append("))\n");
-                sb.Append(body).Append("        return global::Tarol.Results.Error.UnprocessableEntity(\"").Append(read.AggregateName).Append(".NotFound\", \"")
-                    .Append(read.Member).Append("\");\n");
-                sb.Append(body).Append("    loaded[\"").Append(read.Member).Append("\"] = __read").Append(i).Append(";\n");
+                var n = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var missing = read.Optional ? "{ }"
+                    : "return global::Tarol.Results.Error.UnprocessableEntity(\"" + read.AggregateName + ".NotFound\", \"" + read.Key + "\");";
+                if (read.IdExpression is null)
+                {
+                    // [Reads<T>] of a [PerTenant] aggregate (TN-40): the caller's tenant's one
+                    sb.Append(body).Append("    if (!global::Tarol.Changes.TenantAggregates.TryIdOf<").Append(read.Aggregate).Append(">(context, out var __id").Append(n).Append("))\n");
+                    sb.Append(body).Append("        ").Append(read.Optional ? "{ }" : missing).Append('\n');
+                    sb.Append(body).Append("    else if (!(await reader.Load(__id").Append(n).Append(", context, cancellationToken)).TryGetValue(out ")
+                        .Append(read.Aggregate).Append("? __read").Append(n).Append("))\n");
+                }
+                else
+                {
+                    sb.Append(body).Append("    if (!(await reader.Load(").Append(read.IdExpression).Append(", context, cancellationToken)).TryGetValue(out ")
+                        .Append(read.Aggregate).Append("? __read").Append(n).Append("))\n");
+                }
+                sb.Append(body).Append("        ").Append(missing).Append('\n');
+                sb.Append(body).Append("    else\n");
+                sb.Append(body).Append("        loaded[\"").Append(read.Key).Append("\"] = __read").Append(n).Append(";\n");
                 i++;
             }
             sb.Append(body).Append("    return new global::Tarol.Changes.Reads(loaded);\n");

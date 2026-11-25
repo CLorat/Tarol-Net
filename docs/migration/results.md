@@ -674,3 +674,7 @@ No behaviour change. `ResultJsonConverter` read each member name with `GetString
 the UTF-8 bytes now (`ValueTextEquals`), as the Kernel and id converters do. `new Invalid(params ReadOnlySpan<FieldError>)` copied
 its errors twice (the span's `ToArray()`, then the list constructor's copy), and so did `Combine`; both now hand their array to a
 private constructor that keeps it. The checks and their exceptions are the same. The unit suite passes (1543).
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).

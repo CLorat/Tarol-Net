@@ -11,7 +11,39 @@ namespace Tarol.Changes;
 /// (422: the input refers to something that does not exist). It is never written; a rule across two aggregates is a saga.
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property, Inherited = false)]
-public sealed class ReadAttribute : Attribute;
+public sealed class ReadAttribute : Attribute
+{
+    /// <summary>
+    /// A miss is no 422: the read is left out, <c>context.TryRead&lt;T&gt;(out var t)</c> answers <see langword="false"/>
+    /// (TN-40, Tatalu FB-F03.3-2).
+    /// </summary>
+    public bool Optional { get; init; }
+}
+
+/// <summary>
+/// On a change: load <typeparamref name="T"/> before <c>Execute</c> without an <c>Id&lt;T&gt;</c> member of the input (TN-40,
+/// owner decision CR-1; Tatalu FB-F01.1-2, FB-F03.4-1, FB-F05.7-1): the caller's tenant's one when <typeparamref name="T"/> is
+/// <c>[PerTenant]</c>, or the aggregate under the same Guid as <see cref="SameIdAs"/>. Read it with
+/// <c>context.Read&lt;T&gt;()</c>; nothing is sent by the client. A miss is 422 <c>T.NotFound</c> unless <see cref="Optional"/>.
+/// </summary>
+/// <typeparam name="T">The aggregate to read.</typeparam>
+/// <example>
+/// <code>
+/// [Reads&lt;ChildDayCare&gt;]                                   // [PerTenant]
+/// [Reads&lt;Child&gt;(SameIdAs = nameof(CareFile))]             // Id&lt;CareFile&gt; and Id&lt;Child&gt; share the child's Guid
+/// [Reads&lt;Occupancy&gt;(SameIdAs = nameof(CareFile), Optional = true)]
+/// public sealed partial record ConfirmContract(Id&lt;CareFile&gt; CareFile) : IChange&lt;CareFile&gt; { … }
+/// </code>
+/// </example>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
+public sealed class ReadsAttribute<T> : Attribute
+{
+    /// <summary>The input member (an <c>Id&lt;X&gt;</c> or a <see cref="Guid"/>) whose Guid is the read aggregate's id; <see langword="null"/>: <typeparamref name="T"/> is <c>[PerTenant]</c>.</summary>
+    public string? SameIdAs { get; init; }
+
+    /// <summary>A miss is no 422; <c>context.TryRead&lt;T&gt;(out var t)</c> answers <see langword="false"/>.</summary>
+    public bool Optional { get; init; }
+}
 
 /// <summary>The read-only aggregates loaded for a change's <c>[Read]</c> members, by member name.</summary>
 public sealed class Reads

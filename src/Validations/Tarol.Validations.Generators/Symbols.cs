@@ -26,6 +26,7 @@ internal static class Symbols
             "EmailAttribute" => "Email",
             "NotEmptyAttribute" => "NotEmpty",
             "CountAttribute" => "Count",
+            "ScaleAttribute" => "Scale",
             _ => null
         };
     }

@@ -1097,3 +1097,7 @@ with an own authorizer); `PublicationGeneratorTests.The_stream_is_the_root_of_an
 | the browser client should know the push topics and their payload types | nothing beyond `PushToUi` + `AddOpenApi(o => o.AddTarolEndpoints())`; read `x-tarol-topics` | a hand-written document transformer; a second list of topic names |
 | a forwarded topic has no `schema` in the document | give the `[Publishes<T>]` set to `WithOutboxRows` or `Publish` in the web app | duplicating the contract record in the web app |
 
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).

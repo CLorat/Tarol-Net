@@ -58,7 +58,7 @@ internal sealed record ValueObjectModel(string FullName, string JsonType, string
 }
 
 /// <summary>One validation rule as the client checks it (BC-4): the attribute, the code it reports, its bounds or pattern.</summary>
-internal sealed record RuleModel(string Rule, string Code, string? Min, string? Max, string? Pattern, string? Flags);
+internal sealed record RuleModel(string Rule, string Code, string? Min, string? Max, string? Pattern, string? Flags, string? Step = null);
 
 /// <summary>The rules of one member (a constructor parameter) of an input, a multi-field or class value object (BC-4).</summary>
 internal sealed record MemberRulesModel(string Type, string Member, string? JsonName, EquatableArray<RuleModel> Rules);

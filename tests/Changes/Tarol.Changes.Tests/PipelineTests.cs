@@ -460,13 +460,14 @@ public sealed class PipelineTests
         var auction = NewAuction();
         var test = Test().Given(auction);
 
-        var change = await test.When(new CloseAuction(auction.Id), Actor.User("seller"), new ChangeOptions(Principal: Principal("seller")));
-        var creation = await test.When(new CreateAuction("L-2", new Title("Irises"), new Amount(10), Start.AddDays(7)), Actor.User("seller"),
-            new ChangeOptions(Principal: Principal("seller")));
+        // the pipeline itself (ChangeTest refuses this set-up with an exception, round 3 FB-F06.3-4)
+        var change = await test.Pipeline.Run(new CloseAuction(auction.Id), test.Context(Actor.User("seller")), new ChangeOptions(Principal: Principal("seller")), TestContext.Current.CancellationToken);
+        var creation = await test.Pipeline.Run(new CreateAuction("L-2", new Title("Irises"), new Amount(10), Start.AddDays(7)), test.Context(Actor.User("seller")),
+            new ChangeOptions(Principal: Principal("seller")), TestContext.Current.CancellationToken);
 
-        Failure(change.Result).ShouldBeOfType<Error>().ShouldSatisfyAllConditions(
+        Failure(change).ShouldBeOfType<Error>().ShouldSatisfyAllConditions(
             e => e.Type.ShouldBe(ErrorType.Forbidden), e => e.Code.ShouldBe(ChangePipeline.NotConfiguredCode));
-        Failure(creation.Result).ShouldBeOfType<Error>().Code.ShouldBe(ChangePipeline.NotConfiguredCode);
+        Failure(creation).ShouldBeOfType<Error>().Code.ShouldBe(ChangePipeline.NotConfiguredCode);
         test.Store.Recorded.Count.ShouldBe(1);                                         // only the given auction
     }
 

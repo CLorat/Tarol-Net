@@ -2,7 +2,7 @@
 name: tarol-validations
 description: >-
   Use when writing input validation or value objects with Tarol.Validations: declaring a rule once on a
-  readonly partial record struct ([Range], [Length], [Pattern], [Email], [NotEmpty], [Count], a custom static Validate),
+  readonly partial record struct ([Range], [Length], [Pattern], [Email], [NotEmpty], [Count], [Scale], a custom static Validate),
   validating commands/queries with IValidatable and Validated(), reading Invalid/FieldError paths, Option/Id/collection
   members, JSON of value objects (ValueObjectJson), and fixing TVAL001-TVAL010. Do not hand-write validators per DTO,
   use DataAnnotations or FluentValidation on Tarol inputs, validate in constructors, or decompile/web-search: the old
@@ -28,8 +28,12 @@ description: >-
    `0` and reports its own rule.
 7. **Rules**: `[Range(1, 100)]`, `[Range("0.01", "9999.99")]` (decimal), `[Range(Min = 0)]`; `[Length(3, 80)]`,
    `[Length(Max = 100)]`; `[Pattern(@"^\d{5}$")]` (100 ms timeout, timeout = `Pattern` error); `[Email]`; `[NotEmpty]`
-   (blank, `Guid.Empty`, `Id.Empty`); `[Count(1, 50)]` on arrays/`IReadOnlyList<T>`. Codes: `ValidationCodes`. One error
-   per value: the first failing rule.
+   (blank, `Guid.Empty`, `Id.Empty`); `[Count(1, 50)]` on arrays/`IReadOnlyList<T>`; `[Scale(2)]` on a `decimal` (at most two
+   digits after the point, code `Scale`, detail `2`; schema `multipleOf: 0.01`). Codes: `ValidationCodes`. One error per
+   value: the first failing rule.
+   **Money:** a value object per currency, `readonly partial record struct Euro([Range(Min = 0), Scale(2)] decimal Value)`;
+   it stays a JSON number. Round computed amounts yourself before `Create` (`decimal.Round(v, 2, MidpointRounding.AwayFromZero)`),
+   never in the client.
 8. **Custom rule**: `private static void Validate(string value, ref ValidationErrors errors) { if (…) errors.Add("Iban.Checksum"); }`
    inside the value object; it runs after the attribute rules passed. Parameter type: the field (one field) or the value object.
 9. **Arithmetic** works on the field (implicit conversion): `int sum = a + b;` gives an `int`; back into the domain only

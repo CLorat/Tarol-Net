@@ -276,6 +276,28 @@ public sealed class NpgsqlBusTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task UseNpgsqlBus_without_a_connection_string_shares_the_registered_data_source()
+    {
+        // Tatalu FB-INT3-3: a pool of the bus's own next to the store's pool helped exhaust max_connections
+        var schema = Postgres.NewSchema();
+        var name = $"shared-{Guid.NewGuid():N}";
+        await using var shared = new NpgsqlSlimDataSourceBuilder(postgres.ConnectionString + $";Application Name={name}").Build();
+        var services = new ServiceCollection().AddSingleton(shared);
+        services.AddTarol(ContractJson.Default, codec => codec.Add<Auction>().Add<Invoice>().Add<Ledger>().Add<NoteLog>())
+            .AddMessaging("billing", m => m.UseNpgsqlBus(new NpgsqlBusOptions { Schema = schema }));
+        await using (var provider = services.BuildServiceProvider())
+        {
+            var bus = (NpgsqlBus)provider.GetRequiredService<IMessageTransport>();
+            await bus.EnsureSchema(Ct);
+            await bus.Publish(Raw("t.shared"), Ct);
+
+            (await postgres.Scalar($"SELECT count(*) FROM {schema}.messages")).ShouldBe(1L);
+            (await postgres.Scalar($"SELECT count(*) FROM pg_stat_activity WHERE application_name = '{name}'")).ShouldBeOfType<long>().ShouldBeGreaterThan(0L);
+        }
+        await using var after = await shared.OpenConnectionAsync(Ct);                         // the bus did not dispose it
+    }
+
+    [Fact]
     public async Task Dead_letters_keep_headers_and_bytes_and_are_taken_once()
     {
         var schema = Postgres.NewSchema();

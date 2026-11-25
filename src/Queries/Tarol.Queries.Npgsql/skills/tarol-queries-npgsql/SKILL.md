@@ -30,8 +30,9 @@ description: >-
    `WaitFor` (`Tarol-Read-After`) wakes on the notification instead of polling every 5 ms. `Tarol.Caching` needs it.
    `IsListening` tells a health check whether the connection is up.
 7. **One runner per projection version** (step 15, on by default, `NpgsqlReadModelOptions.SingleRunner`): every host
-   asks `NpgsqlProjectionGate` (a session `pg_try_advisory_lock` on its own connection); the others wait (`IsRunner`
-   false) and take over within a second when the runner's session ends. Scale workers freely; the checkpoint guard stays.
+   asks `NpgsqlProjectionGate` (a session `pg_try_advisory_lock`; all locks of a process share one connection); the others
+   wait (`IsRunner` false) and take over within a second when the runner's session ends. Scale workers freely; the
+   checkpoint guard stays. A process needs its pool plus about five listener/gate sessions (README "Connections").
 8. **`DropVersion`** has a `lock_timeout` (`DropLockTimeout` 200 ms, `DropAttempts` 5) and throws `TimeoutException` while
    another session still reads the table; drop only after no pod of the old version runs (else readers fail with `42P01`).
 9. **Lag**: the snapshot signal `tarol.projections.lag` (seconds, tag `tarol.projection`) and the meter `"Tarol.Queries"`
@@ -90,6 +91,8 @@ public sealed class SellerTotals(string schema) : ISqlProjection
 | an `ISqlProjection` that opens its own connection | its writes commit apart from the checkpoint: no longer exactly once |
 | `SingleRunner = false` with several workers | every host runs, the guard refuses all but one batch (75 % wasted with 4) |
 | `DropVersion` while old pods still run | `TimeoutException` (they read it), or later `42P01` in those pods |
+| your own SQL against a read table with a member `From`, `Order`, `Limit` | the host quotes every column (`"from"`); unquoted in your SQL it is `42601` — quote it too |
+| a projection that stays building in a test or on start | `host.LastFailure` / `ProjectionHosts.Failing` name the cause (log 12004 when the table cannot be created) |
 | `DateTimeOffset` parameters with an offset in your own SQL | Npgsql refuses them for `timestamptz`: pass `ToUniversalTime()` |
 
 ## AOT

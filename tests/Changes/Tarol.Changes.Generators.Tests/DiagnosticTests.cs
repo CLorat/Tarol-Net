@@ -88,11 +88,42 @@ public sealed class DiagnosticTests
             """, "TCHG004").ShouldBe("[Read] on 'Customer' of 'Close': it is not an Id<X> of an aggregate");
 
     [Fact]
-    public void TCHG004_read_of_the_own_target()
-        => Message("""
+    public void TCHG004_read_of_the_own_target_only_when_no_other_member_is_the_target()
+    {
+        // TN-40 (Tatalu FB-F02.1-7): a read of another Order next to the target is fine
+        GeneratorTestHost.Diagnose("""
             public sealed partial record Close(Id<Order> Order, [Read] Id<Order> Other) : IChange<Order>
             { public Result Execute(Order o, ChangeContext c) => o.Close(); }
+            """).Ids().ShouldNotContain("TCHG004");
+        Message("""
+            public sealed partial record Close([Read] Id<Order> Other) : IChange<Order>
+            { public Result Execute(Order o, ChangeContext c) => o.Close(); }
             """, "TCHG004").ShouldContain("is the change's own target");
+    }
+
+    [Theory]
+    [InlineData("[Reads<Customer>]", "Customer is not [PerTenant]")]
+    [InlineData("[Reads<Customer>(SameIdAs = \"Missing\")]", "'Missing' is not a member of Close")]
+    [InlineData("[Reads<Customer>(SameIdAs = nameof(Count))]", "'Count' is neither an Id<X> nor a Guid")]
+    [InlineData("[Reads<Order>(SameIdAs = nameof(Order))]", "Order is the change's own target")]
+    public void TCHG013_reads_that_cannot_be_loaded(string attribute, string reason)
+        => Message($$"""
+            {{attribute}}
+            public sealed partial record Close(Id<Order> Order, int Count) : IChange<Order>
+            { public Result Execute(Order o, ChangeContext c) => o.Close(); }
+            """, "TCHG013").ShouldContain(reason);
+
+    [Fact]
+    public void TCHG013_a_hand_written_IHasReads_next_to_generated_reads()
+        => Message("""
+            [Reads<Customer>(SameIdAs = nameof(Order))]
+            public sealed partial record Close(Id<Order> Order) : IChange<Order>
+            {
+                public Result Execute(Order o, ChangeContext c) => o.Close();
+                ValueTask<Result<Reads>> IHasReads.LoadReads(IAggregateReader reader, Tarol.Kernel.OperationContext context, CancellationToken cancellationToken)
+                    => throw new System.NotSupportedException();
+            }
+            """, "TCHG013").ShouldContain("implements IHasReads by hand");
 
     [Fact]
     public void TCHG004_read_of_a_type_that_is_no_aggregate()
@@ -188,6 +219,32 @@ public sealed class DiagnosticTests
                 {{ReactionBody}}
             }
             """, "TCHG007").ShouldBe("The reaction 'Close' is declared more than once (CloseA on Registered, CloseB on Opened); reaction names are stored in outbox rows and idempotency keys and must be unique");
+
+    [Fact]
+    public void TCHG012_a_reaction_name_of_two_assemblies_is_reported_where_both_are_referenced()
+    {
+        // Tatalu FB-INT3-1: Planung and Kommunikation each had a reaction NotifyReminder; ReactionSet.Combine refused at start
+        static string Context(string ns, string reaction, string? job = null) => $$"""
+            {{GeneratorTestHost.Usings}}
+            namespace {{ns}};
+            public sealed partial record {{reaction}}(Id<Order> Order) : IChange<Order>
+            {
+                [OnEvent<Customer.Registered>]
+                public static {{reaction}} From(Customer.Registered e) => new(Id<Order>.Empty);
+                public Result Execute(Order o, ChangeContext c) => o.Close();
+            }
+            """;
+
+        var both = GeneratorTestHost.DiagnoseHost("namespace Shop.Host; public static class Program;",
+            ("Shop.Planung", Context("Shop.Planung", "NotifyReminder")), ("Shop.Kommunikation", Context("Shop.Kommunikation", "NotifyReminder")),
+            ("Shop.Eltern", Context("Shop.Eltern", "NotifyParent")));
+
+        both.Select(d => (d.Id, d.Severity, d.GetMessage(System.Globalization.CultureInfo.InvariantCulture))).ShouldBe([("TCHG012", Microsoft.CodeAnalysis.DiagnosticSeverity.Error,
+            "The reaction 'NotifyReminder' is declared in 'Shop.Kommunikation', 'Shop.Planung'; names are stored in outbox and job rows, so ReactionSet.Combine/JobSet.Combine refuse to start. Give one of them a unique Name ([OnEvent<T>(Name = …)] or [Scheduled(Name = …)]) before it is deployed.")]);
+        GeneratorTestHost.DiagnoseHost("namespace Shop.Host; public static class Program;",
+            ("Shop.Planung", Context("Shop.Planung", "NotifyReminder")), ("Shop.Kommunikation", Context("Shop.Kommunikation", "NotifyMessageReminder")))
+            .ShouldBeEmpty();
+    }
 
     [Fact]
     public void TCHG007_one_change_two_factories_for_one_event()

@@ -98,6 +98,33 @@ internal static class GeneratorTestHost
         return [.. generatorDiagnostics, .. compiler];
     }
 
+    /// <summary>
+    /// Builds <paramref name="contexts"/> as separate assemblies (name, source; both generators applied, emitted to metadata),
+    /// then runs the changes generator on <paramref name="host"/> referencing all of them (TCHG012, Tatalu FB-INT3-1).
+    /// </summary>
+    public static ImmutableArray<Diagnostic> DiagnoseHost(string host, params (string Name, string Source)[] contexts)
+    {
+        var references = new List<MetadataReference>(References);
+        foreach (var (name, source) in contexts)
+        {
+            var compilation = CSharpCompilation.Create(name, [CSharpSyntaxTree.ParseText(Domain, Parse), CSharpSyntaxTree.ParseText(source, Parse)], References,
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            _ = CSharpGeneratorDriver
+                .Create([new AggregateGenerator().AsSourceGenerator(), new ChangesGenerator().AsSourceGenerator()], parseOptions: Parse)
+                .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+            using var image = new MemoryStream();
+            var emitted = output.Emit(image);
+            if (!emitted.Success)
+                throw new InvalidOperationException(string.Join("\n", emitted.Diagnostics.Where(static d => d.Severity == DiagnosticSeverity.Error)));
+            references.Add(MetadataReference.CreateFromImage(image.ToArray()));
+        }
+        var hostCompilation = CSharpCompilation.Create("Shop.Host", [CSharpSyntaxTree.ParseText(host, Parse)], references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        _ = CSharpGeneratorDriver.Create([new ChangesGenerator().AsSourceGenerator()], parseOptions: Parse)
+            .RunGeneratorsAndUpdateCompilation(hostCompilation, out _, out var diagnostics);
+        return diagnostics;
+    }
+
     public static string[] Ids(this ImmutableArray<Diagnostic> diagnostics)
         => [.. diagnostics.Select(static d => d.Id).Order(StringComparer.Ordinal)];
 }

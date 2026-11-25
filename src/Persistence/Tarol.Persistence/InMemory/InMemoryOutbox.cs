@@ -65,7 +65,7 @@ internal sealed class InMemoryOutbox(TimeProvider time, IOutboxReactions reactio
                 var domainEvent = positioned.Event.Event.Event;
                 foreach (var reaction in reactions.ReactionsTo(domainEvent))
                 {
-                    var due = reactions.DueAt(domainEvent, reaction) is { } at && at > positioned.Event.RecordedAt ? at : positioned.Event.RecordedAt;
+                    var due = reactions.DueAt(domainEvent, reaction) is { } at && at > positioned.Event.RecordedAt ? at.ToUniversalTime() : positioned.Event.RecordedAt;   // UTC like Npgsql
                     _rows.Add(new Row
                     {
                         Id = ++_next,

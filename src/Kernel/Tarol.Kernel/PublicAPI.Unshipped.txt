@@ -7,3 +7,6 @@ Tarol.Kernel.ContractTypeAttribute.ContractTypeAttribute() -> void
 Tarol.Kernel.OpenApiSchemaNameAttribute
 Tarol.Kernel.OpenApiSchemaNameAttribute.Name.get -> string!
 Tarol.Kernel.OpenApiSchemaNameAttribute.OpenApiSchemaNameAttribute(string! name) -> void
+Tarol.Kernel.TimeZones
+static Tarol.Kernel.TimeZones.Find(string! id) -> System.TimeZoneInfo!
+static Tarol.Kernel.TimeZones.TryFind(string! id, out System.TimeZoneInfo? zone) -> bool

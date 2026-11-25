@@ -64,10 +64,12 @@ public class DiagnosticTests
             "public readonly partial record struct A([Length(1, 2)] int Value);",
             "public readonly partial record struct B([Range(1, 2)] string Value);",
             "public readonly partial record struct C([Email] System.Guid Value);",
+            "public readonly partial record struct S([Scale(2)] double Value);",
             "public readonly partial record struct Q([Range(1, 2)] int Value); public sealed partial record Cmd([Range(1, 2)] Q Q, [Length(1, 2)] List<string> Tags) : IValidatable;");
 
-        found.Length.ShouldBe(5);
+        found.Length.ShouldBe(6);
         found.ShouldAllBe(d => d.Severity == DiagnosticSeverity.Error);
+        found.Select(Message).ShouldContain(m => m.Contains("[Scale] applies to decimal", StringComparison.Ordinal));   // TN-53
         found.Select(Message).ShouldContain(m => m.Contains("'Q' is a value object", StringComparison.Ordinal));
     }
 

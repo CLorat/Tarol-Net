@@ -34,7 +34,7 @@ public sealed class ModuleTests : IAsyncLifetime
         .With(new SecurityModule(roles => roles.Authenticated().May<LayPlot>().May<RenamePlot>().May<Read<Plot>>()));
 
     private static TarolModule KitchenModule => Kitchen.GeneratedModule.Module
-        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<Read<Recipe>>()));
+        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<PriceRecipe>().May<FeastRecipe>().May<Read<Recipe>>()));
 
     public async ValueTask InitializeAsync()
     {
@@ -66,9 +66,11 @@ public sealed class ModuleTests : IAsyncLifetime
     }
 
     private async Task<(HttpStatusCode Status, string Body, string? Position)> Send(HttpMethod method, string path, string? body, string roles = "cook",
-        string? readAfter = null)
+        string? readAfter = null, string? confirm = null)
     {
         using var request = new HttpRequestMessage(method, path);
+        if (confirm is not null)
+            request.Headers.Add("Tarol-Confirm", confirm);
         if (body is not null)
             request.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
         request.Headers.Add("X-User", "kim");
@@ -118,7 +120,7 @@ public sealed class ModuleTests : IAsyncLifetime
         var paths = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
 
         var operations = paths.EnumerateObject().SelectMany(p => p.Value.EnumerateObject().Select(o => (Path: p.Name, Verb: o.Name, Operation: o.Value))).ToList();
-        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/servings"]);
+        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/feast", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/price", "/recipes/{recipe}/servings"]);
         foreach (var (path, verb, operation) in operations)
         {
             var parameters = operation.TryGetProperty("parameters", out var p) ? p.EnumerateArray().Select(x => $"{x.GetProperty("in").GetString()}:{x.GetProperty("name").GetString()}").ToList() : [];
@@ -177,6 +179,61 @@ public sealed class ModuleTests : IAsyncLifetime
         var note = body.GetProperty("note");
         note.GetProperty("oneOf")[0].GetProperty("type").GetString().ShouldBe("null");
         note.GetProperty("oneOf")[1].GetProperty("$ref").GetString().ShouldBe("#/components/schemas/PantryLabel");
+    }
+
+    [Fact]
+    public async Task Scale_is_multipleOf_in_the_schema_and_a_400_with_code_Scale()
+    {
+        // TN-53 (Tatalu E08–E10): decimal stays a JSON number; [Scale(2)] gives multipleOf 0.01 and the rule with its step
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        var schemas = document.GetProperty("components").GetProperty("schemas");
+        JsonElement Resolve(JsonElement schema)
+            => schema.TryGetProperty("$ref", out var r) ? schemas.GetProperty(r.GetString()!["#/components/schemas/".Length..]) : schema;
+        var body = Resolve(document.GetProperty("paths").GetProperty("/recipes/{recipe}/price").GetProperty("put").GetProperty("requestBody")
+            .GetProperty("content").GetProperty("application/json").GetProperty("schema")).GetProperty("properties");
+
+        var price = Resolve(body.GetProperty("price"));
+        price.GetProperty("multipleOf").GetDecimal().ShouldBe(0.01m);
+        price.GetProperty("minimum").GetDecimal().ShouldBe(0m);
+        price.GetProperty("x-tarol-rules").EnumerateArray().Single(r => r.GetProperty("rule").GetString() == "Scale").GetProperty("step").GetDecimal().ShouldBe(0.01m);
+        body.GetProperty("weight").GetProperty("multipleOf").GetDecimal().ShouldBe(0.1m);
+
+        var recipe = await Send(HttpMethod.Post, "/recipes", """{"title":"Soup"}""");
+        var id = JsonElement.Parse(recipe.Body).GetProperty("id").GetString();
+        var refused = await Send(HttpMethod.Put, $"/recipes/{id}/price", """{"price":12.505,"weight":1.25}""");
+        var priced = await Send(HttpMethod.Put, $"/recipes/{id}/price", """{"price":12.50,"weight":1.2}""");
+
+        refused.Status.ShouldBe(HttpStatusCode.BadRequest, refused.Body);
+        var errors = JsonElement.Parse(refused.Body).GetProperty("errors");
+        errors.GetProperty("price").EnumerateArray().Single().GetString().ShouldStartWith("Scale");
+        errors.GetProperty("weight").EnumerateArray().Single().GetString().ShouldStartWith("Scale");
+        priced.Status.ShouldBe(HttpStatusCode.NoContent, priced.Body);
+    }
+
+    [Fact]
+    public async Task A_warning_is_409_with_confirm_and_passes_when_the_request_confirms_its_code()
+    {
+        var recipe = await Send(HttpMethod.Post, "/recipes", """{"title":"Soup"}""");
+        var id = JsonElement.Parse(recipe.Body).GetProperty("id").GetString();
+
+        var warned = await Send(HttpMethod.Put, $"/recipes/{id}/feast", """{"servings":20}""");
+        var other = await Send(HttpMethod.Put, $"/recipes/{id}/feast", """{"servings":20}""", confirm: "Recipe.Other");
+        var confirmed = await Send(HttpMethod.Put, $"/recipes/{id}/feast", """{"servings":20}""", confirm: "Recipe.Other, Recipe.LargeFeast");
+
+        warned.Status.ShouldBe(HttpStatusCode.Conflict, warned.Body);
+        var problem = JsonElement.Parse(warned.Body);
+        problem.GetProperty("code").GetString().ShouldBe("Recipe.LargeFeast");
+        var confirm = problem.GetProperty("confirm");
+        confirm.GetProperty("code").GetString().ShouldBe("Recipe.LargeFeast");
+        confirm.GetProperty("args").GetProperty("servings").GetString().ShouldBe("20");
+        confirm.GetProperty("args").GetProperty("limit").GetString().ShouldBe("12");
+        other.Status.ShouldBe(HttpStatusCode.Conflict);
+        confirmed.Status.ShouldBe(HttpStatusCode.NoContent, confirmed.Body);
+
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        document.GetProperty("paths").GetProperty("/recipes/{recipe}/feast").GetProperty("put").GetProperty("x-tarol-errors").EnumerateArray()
+            .Select(e => e.GetString()).ShouldContain("Recipe.LargeFeast");
+        TarolHeaders.Allowed.ShouldContain("Tarol-Confirm");                             // CORS
     }
 
     [Fact]
@@ -287,6 +344,40 @@ public sealed class ModuleTests : IAsyncLifetime
         {
             var names = paths.GetProperty(path).GetProperty(verb).GetProperty("parameters").EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToList();
             names.Distinct().Count().ShouldBe(names.Count, $"{verb} {path}: {string.Join(", ", names)}");
+        }
+    }
+
+    [Fact]
+    public async Task With_three_assemblies_a_list_answer_is_one_page_not_a_page_of_pages()
+    {
+        // Tatalu FB-F06.3-1 (preview.5): each assembly's transformer wrapped every list answer again; nine contexts, nine levels
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddTarol([GardenJson.Default, KitchenJson.Default], c => c.Add<Plot>().Add<Recipe>()).UseInMemoryStore().AddSecurity(_ => { }).AddEndpoints();
+        builder.Services.AddAuthentication("test").AddScheme<AuthenticationSchemeOptions, TestApp.HeaderScheme>("test", null);
+        builder.Services.AddAuthorization();
+        builder.Services.AddOpenApi(o =>
+        {
+            Garden.GeneratedOpenApi.AddTarolEndpoints(o);
+            Kitchen.GeneratedOpenApi.AddTarolEndpoints(o);
+            o.AddTarolEndpoints();                                                       // a third assembly (this one's)
+        });
+        await using var app = builder.Build();
+        app.MapOpenApi();
+        Garden.GeneratedEndpoints.MapChanges(app, "Garden");
+        Kitchen.GeneratedEndpoints.MapChanges(app, "Kitchen");
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var paths = JsonElement.Parse(await app.GetTestClient().GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
+
+        foreach (var path in new[] { "/plots", "/recipes" })
+        {
+            var page = paths.GetProperty(path).GetProperty("get").GetProperty("responses").GetProperty("200").GetProperty("content")
+                .GetProperty("application/json").GetProperty("schema");
+            page.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["items", "next", "total"], ignoreOrder: true);
+            var row = page.GetProperty("properties").GetProperty("items").GetProperty("items");
+            row.TryGetProperty("$ref", out _).ShouldBeTrue($"{path}: the items are rows, not pages: {row}");
         }
     }
 }

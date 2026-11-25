@@ -27,7 +27,7 @@ public sealed class NpgsqlReadModelTests(Postgres postgres)
         (await postgres.Scalar($"SELECT collation_name FROM information_schema.columns WHERE table_schema = '{setup.Schema}' AND table_name = 'rm_auction_list_v1' AND column_name = 'seller'"))
             .ShouldBe("C");
         (await setup.ReadModels.Store<AuctionRow>().Checkpoint(Ct)).ShouldBe(new ProjectionCheckpoint(GlobalPosition.Start, ProjectionState.Building));
-        NpgsqlReadModelSchema.Script<AuctionRow>("x").ShouldContain("CREATE INDEX IF NOT EXISTS rm_auction_list_v1_s3 ON x.rm_auction_list_v1 (tenant, ends_at, id);");
+        NpgsqlReadModelSchema.Script<AuctionRow>("x").ShouldContain("CREATE INDEX IF NOT EXISTS rm_auction_list_v1_s3 ON x.rm_auction_list_v1 (tenant, \"ends_at\", id);");   // quoted (TN-69)
     }
 
     [Fact]

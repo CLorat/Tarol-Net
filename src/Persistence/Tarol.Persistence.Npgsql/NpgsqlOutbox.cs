@@ -304,7 +304,7 @@ public sealed class NpgsqlOutbox : IOutbox, IDeadLetterSource, IDeadLetterRetent
         if (!_notify)
             return Task.Delay(timeout, _time, cancellationToken);
         lock (_gate)
-            _listener ??= Task.Run(Listen, CancellationToken.None);
+            _listener ??= Detached.Run(Listen);
         return Task.WhenAny(Volatile.Read(ref _written).Task, Task.Delay(timeout, _time, cancellationToken));
     }
 

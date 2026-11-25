@@ -122,3 +122,50 @@ round-2 branch (PR links follow the PRs).
 | TN-66 | P2 | `Tarol.Messaging.WebPush` | FB-F17.4-1 | designed ([web-push.md](../architecture/web-push.md)), open |
 | TN-67 | P2 | Test helpers: `Given(factory).And`, `ChangeTest.History`, camelCase paths, several JSON contexts | FB-F17.3-7 (= TN-13), FB-F01.1-7, FB-F01.1-8, FB-F13.3-7 | open |
 | TN-68 | P2 | Skills | FB-F01.2-1/3/5, FB-F03.4-4, FB-F04.4-2, FB-F15.1-7, FB-F13.2-5 | built `28db79b`, `b6c3a07` |
+
+## Round 3
+
+Round 3 (2026-11-25): wave 3 of Tatalu (contexts Dokumentation E05, Planung E06, Kommunikation E07, the Aspire AppHost and
+Windows development; Tatalu `docs/implementierung/framework-befunde.md` on `main`, sections E05, F06.*, E07, FB-ASPIRE,
+FB-WIN, FB-INT3, and the "Nachtrag aus Welle 3" of `docs/implementierung/tarol-prompt-runde-2.md`). Every item below was
+first reproduced with a failing test here, or closed with a reason (*Checked: …*). Owner decisions, changes, tests and what
+Tatalu removes are in [docs/migration/tatalu-round-3.md](../migration/tatalu-round-3.md). Confirmations of round-2 items are
+listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `CLorat/Tarol-Svelte` `docs/feedback/tatalu.md`.
+
+| # | Pri | Change | Tatalu | Status |
+|---|---|---|---|---|
+| TN-69 | P0 | A projection column named like a reserved word (`From`, `Until`) never became current on PostgreSQL; the error was a warning only: columns quoted, `ProjectionHost.LastFailure`, `ProjectionHosts.Failing`, readiness text, log 12004 | FB-F05.8-3 | built `51a36e0` |
+| TN-70 | P0 | `[OnEvent<T>(DueAt = …)]` with an offset ≠ 0 ran in memory and threw on Npgsql: both stores store the UTC instant | FB-F06.4-5 | built `0058e37` |
+| TN-71 | P0 | Lazily started listeners (`NpgsqlProjectionPositions`, feed signal, outbox, key store) joined the first request's trace forever: started without the caller's `ExecutionContext` | FB-ASPIRE-1 (FB-ASPIRE-2: confirmation only) | built `a127cbf` |
+| TN-72 | P0 | "too many clients": one gate connection per projection and a pool of the bus's own: all gate locks on one session, `UseNpgsqlBus(options)` on the registered `NpgsqlDataSource`, connection budget in the README | FB-INT3-3 | built `6d4e15d` |
+| TN-73 | P0 | List answers wrapped once per context assembly | FB-F06.3-1 | *Checked: fixed by TN-9 (`bf5b435`, #120)*; regression test with three assemblies `1a9a7f0` |
+| TN-74 | P0 | A reaction (or job) name declared in two assemblies failed only at start: TCHG012 at build time in the assembly that references both | FB-INT3-1 | built `6e46ed6` |
+| TN-75 | P0 | IANA ids failed on Windows with `InvariantGlobalization`: `Tarol.Kernel.TimeZones.Find` (IANA ↔ Windows without ICU), used by jobs; skills `tarol-jobs`, `tarol-kernel` | FB-WIN-1, FB-INT3-2 | built `9385433` (Windows itself *[unverified]*: simulated, and the jobs AOT smoke app runs invariant on Linux) |
+| TN-76 | P0 | `ChangeTest` did not seal, ran no reactions, answered a principal without authorization with a bare 403, had no history per aggregate type: `ChangeTestOptions` (`Codec`, `Lookups`, `Reactions`, `RunReactions`, `Authorization`), `History<T>(id)`, `StoredStateMatchesReplay<T>(id)` | FB-F05.3-1, FB-F06.2-4, FB-F06.3-4, FB-F06.3-2, FB-F01.1-7 (= TN-15) | built `23ee484` |
+| TN-77 | P1 | A view could not have a member `From` (CS0102 with the factory): endpoints call the factory through `IView`, a view implements it explicitly | FB-F06.4-1 | built `0aab7f4` |
+| TN-78 | P1 | TPRM013 on `with` copies of state, of list entries and in comparisons | FB-F05.1-2, FB-E07-5, FB-F06.6-2 | *Checked: fixed by TN-21*; regression cases `1556559` |
+| TN-79 | P2 | A computed property of a record in an event is stored and in the schema | FB-F06.6-3 | *Checked:* TPRM034 reports computed properties next to `[PersonalData]` only, by design (a leak); a computed member without personal data is required in the schema since TN-27, so the client type is right; `[JsonIgnore]` stays the way to keep it out of the payload |
+| TN-80 | P2 | Two personal fields of one subject: allowed in rows, not in events | FB-F06.4-2, FB-F05.3-1 | *Checked: fixed by TN-19* (any number of personal members per subject, events and state); TN-76 makes `ChangeTest` seal, so such errors surface in unit tests |
+| TN-81 | P2 | No promise that an added event member with a default needs no upcaster | FB-E07-1 | built `75553d3` (skill `tarol-persistence`, test) |
+| TN-82 | P2 | Enum name collision in the document | FB-F06.2-1 | *Checked: fixed by TN-22* (the document fails naming both types) |
+| TN-83 | P1 | One live topic fed by several events of one contract (TMSG005) | FB-E07-7 | open: part of TN-47 (needs a `[Publishes<A, B>]` shape) |
+
+**Round-2 items built or confirmed in round 3**
+
+| # | Round 3 | Status |
+|---|---|---|
+| TN-37 | `Error.ConfirmationRequired(code, args)`, header `Tarol-Confirm`, `ChangeContext.Confirmed`; also FB-F06.2-2 | built `61dfc8b` (owner decision TN-37a/b (a)); client TS-33 |
+| TN-40 | `[Reads<T>]` (`[PerTenant]`, `SameIdAs`, `Optional`), `[Read(Optional = true)]`, TCHG004 only for the target, TCHG013 (hand-written `IHasReads` next to reads, was CS8646); also FB-F05.7-1, FB-F06.4-4 (the `IHasReads` part) | built `d1a2057` (owner decision CR-1 (a)) |
+| TN-53 | `[Scale(n)]` (code `Scale`), `multipleOf` and the rule's `step` in the schema; `Money` as a documented value object per currency | built `e147531` (owner decision SV-dec (b): JSON number) |
+| TN-15 | `ChangeTest` with the app's lookups | built with TN-76 |
+| TN-67 | `ChangeTest.History`, several singletons with one stream id (FB-F06.3-2) | part built with TN-76; `Given(factory).And`, camelCase paths, several JSON contexts open |
+| TN-41 | `ILoads<T, TData>`; again FB-F05.1-1, FB-F06.3-3, FB-F06.4-4 | open: next step CR-C (owner decision CR-2 pending, recommendation (a)) |
+| TN-42 | load or start, 201, `IView.Empty`, `Id<T>.Derive` | open: CR-D/CR-E (decisions CR-4a/b pending) |
+| TN-43, TN-44 | views with context and rights per view; list rules with the query and range filters; again FB-E07-3, FB-F06.1-1, FB-E07-4 | open: decisions VA-1 … VA-4 pending |
+| TN-47 | reactions: fan-out, skip, all events of an aggregate, the triggering event; again FB-F06.3-5, FB-F06.3-6, FB-F06.6-4, FB-F06.5-3, FB-F06.2-3, FB-E07-2, FB-INT3-5, new FB-F06.4-3, FB-E07-7 (TN-83) | open: needs a design note (no owner decision listed yet) |
+| TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | open: next for E08/E10 |
+| TN-58 | data protection; new FB-E07-8 (erasure with exceptions, retention from a domain date) | open: decisions DP2-1 … DP2-6 pending |
+| TN-62 | Zitadel; new FB-F06.5-2 (time-limited grants), FB-F05.2-2 (row rule over several children) | open: decisions TM-1 … TM-6 pending |
+| TN-63 | effects; new FB-F06.5-4 (reads in effects), FB-E07-6 (correlation delivery → cause), FB-F05.8-1 (recurring domain dates) | open: `dueAt` can be built without a decision; digest decision pending |
+| TN-65 | `Tarol.Files`; FB-F05.2-1 gives the concrete API need (`IMediaStore`, `tatalu_media`) | open: decisions FI-1 … FI-5 pending; next for E12 |
+| TN-34, TN-46, TN-48, TN-49, TN-50, TN-51, TN-55, TN-56, TN-57, TN-59, TN-60, TN-64, TN-66 | as in round 2 | open (not reached in round 3; see the note's "Open" section) |

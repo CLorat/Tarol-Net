@@ -134,6 +134,13 @@ public sealed record HouseView(Guid Id, string Name) : IView<House, HouseView>
     public static HouseView From(House h) => new(h.Id.Value, h.Name);
 }
 
+/// <summary>A view with members From and Until (Tatalu FB-F06.4-1): its factory is implemented explicitly.</summary>
+[Endpoint("GET /house/season")]
+public sealed record HouseSeasonView(string Name, DateOnly From, DateOnly Until) : IView<House, HouseSeasonView>
+{
+    static HouseSeasonView IView<House, HouseSeasonView>.From(House h) => new(h.Name, new DateOnly(2026, 4, 1), new DateOnly(2026, 10, 31));
+}
+
 /// <summary>The payment provider's own contract (anti-corruption: its names stay here).</summary>
 public sealed record PaymentSucceededV2(string PaymentId, Guid Reference, decimal Amount, string Currency);
 public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
@@ -152,6 +159,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(AuctionRow)), JsonSerializable(typeof(Memo.Written)), JsonSerializable(typeof(BidPlacedV1))]
 [JsonSerializable(typeof(House.Founded)), JsonSerializable(typeof(House.Retitled)), JsonSerializable(typeof(OpenHouse)), JsonSerializable(typeof(RenameHouse))]
 [JsonSerializable(typeof(HouseView))]
+[JsonSerializable(typeof(HouseSeasonView))]
 public sealed partial class AppJson : JsonSerializerContext;
 
 /// <summary>A note visible to its owner only (step 18D: the audience of a search hit).</summary>

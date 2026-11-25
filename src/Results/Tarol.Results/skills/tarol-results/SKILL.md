@@ -70,7 +70,9 @@ app.MapPut("/users/{id:guid}", async (Guid id, RenameRequest body, RenameUser ha
 
 Factories: `Error.NotFound(code)`, `Error.NotFound<TEntity, TId>(id)` (code `"{TEntity}.NotFound"`, no boxing),
 `Error.Conflict`, `Error.Forbidden()`, `Error.Unauthorized()`, `Error.Gone`, `Error.UnprocessableEntity` (broken business rule),
-`Error.TooManyRequests`, `Error.Unavailable`, `Error.Timeout`, `Error.Internal`; `Invalid.Field(field, code)`,
+`Error.TooManyRequests`, `Error.Unavailable`, `Error.Timeout`, `Error.Internal`, `Error.Conflict(code, reasons)` (several
+reasons), `Error.ConfirmationRequired(code, args)` (a warning the caller confirms: 409 with `confirm: {code, args}`; args are
+strings for the message, not parsed detail); `Invalid.Field(field, code)`,
 `new Invalid(params FieldError[])`, `invalid.Combine(other)`. Results: `Result.Success()`, `Result.Success(value)`,
 `Result<T>.Failure(violation)`. Combinators: `Map`, `Bind`, `Ensure`, `Tap`, `TapFailure`, `Match`,
 `GetValueOrDefault`, `ToResult()`, `MapAsync`/`BindAsync`/`EnsureAsync`/`TapAsync`, plus `Map`/`Bind`/`BindAsync`/`Ensure`/

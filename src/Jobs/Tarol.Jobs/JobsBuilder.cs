@@ -234,11 +234,11 @@ internal sealed class JobRegistry
         TimeZoneInfo zone;
         try
         {
-            zone = options.TimeZone is "UTC" or "Etc/UTC" ? TimeZoneInfo.Utc : TimeZoneInfo.FindSystemTimeZoneById(options.TimeZone);
+            zone = Tarol.Kernel.TimeZones.Find(options.TimeZone);                                  // IANA or Windows id (FB-WIN-1)
         }
         catch (TimeZoneNotFoundException e)
         {
-            throw new InvalidOperationException($"The time zone '{options.TimeZone}' of the job '{name}' is unknown (an IANA id such as Europe/Vienna; the image needs tzdata).", e);
+            throw new InvalidOperationException($"The time zone '{options.TimeZone}' of the job '{name}' is unknown: {e.Message}", e);
         }
         return new Job(name, schedule, zone, options, body);
     }

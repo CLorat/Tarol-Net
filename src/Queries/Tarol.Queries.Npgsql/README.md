@@ -55,8 +55,13 @@ with `DropVersion` once no running code reads it. Never `ALTER` or `TRUNCATE` a 
 ## Operations (step 15)
 
 * **One runner per projection version** (`SingleRunner`, on by default): `NpgsqlProjectionGate` holds a session
-  `pg_try_advisory_lock` per version on a connection of its own; the other hosts wait and take over within a second when
-  the runner's session ends. Without it 4 runners wasted 75 % of their batches. The checkpoint guard stays.
+  `pg_try_advisory_lock` per version, all of a process's locks on **one** connection (round 3: one per projection before,
+  42 connections for 42 projections); the other hosts wait and take over within a second when the runner's session ends.
+  Without it 4 runners wasted 75 % of their batches. The checkpoint guard stays.
+* **Connections per process**: the store's pool (`Maximum Pool Size`, default 100) plus at most one session each for the
+  gate, `PushCheckpoints` (positions), `Listen` (feed signal), the outbox's `Notify` and the key store's listener; the bus
+  on the same `NpgsqlDataSource` (`UseNpgsqlBus()`) adds its `Notify` listener only. Size `max_connections` for
+  processes × (pool + 5) plus other clients (Zitadel, tools).
 * **`DropVersion`** tries with `lock_timeout` (`DropLockTimeout` 200 ms, `DropAttempts` 5) and throws `TimeoutException`
   while a session reads the old table, so readers never queue behind it.
 * **Lag**: the snapshot signal `tarol.projections.lag` (seconds, per projection), for `Tarol.Operations`.

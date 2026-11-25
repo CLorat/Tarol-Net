@@ -1,4 +1,9 @@
 #nullable enable
+Tarol.Results.Error.Arguments.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
+Tarol.Results.Error.Arguments.init -> void
+Tarol.Results.Error.Confirmable.get -> bool
+Tarol.Results.Error.Confirmable.init -> void
 Tarol.Results.Error.Reasons.get -> System.Collections.Generic.IReadOnlyList<string!>?
 Tarol.Results.Error.Reasons.init -> void
+static Tarol.Results.Error.ConfirmationRequired(string! code, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? arguments = null, string? detail = null) -> Tarol.Results.Error!
 static Tarol.Results.Error.Conflict(string! code, System.Collections.Generic.IReadOnlyList<string!>! reasons, string? detail = null) -> Tarol.Results.Error!

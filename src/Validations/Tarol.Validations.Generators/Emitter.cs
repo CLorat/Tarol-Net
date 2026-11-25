@@ -446,6 +446,15 @@ internal sealed class Emitter
                     }
 
                     break;
+                case "Scale" when numeric == "decimal":
+                    if (rule.ConstructorArguments.Length == 1 && rule.ConstructorArguments[0].Value is int digits && digits is >= 0 and <= 28)
+                    {
+                        var text = digits.ToString(CultureInfo.InvariantCulture);
+                        chain.Add(new RuleCheck("!" + RulesType + ".Scale(" + value + ", " + text + ")", "Scale", text));
+                    }
+                    else
+                        Report("TVAL005", Where(rule), "Scale", member, "digits must be 0 to 28");
+                    break;
                 case "Email" when isString:
                     chain.Add(new RuleCheck("!" + RulesType + ".Email(" + value + ")", "Email", ""));
                     break;
@@ -795,6 +804,7 @@ internal sealed class Emitter
     private static string Applicability(string rule) => rule switch
     {
         "Range" => "[Range] applies to numbers",
+        "Scale" => "[Scale] applies to decimal",
         "Length" or "Pattern" or "Email" => $"[{rule}] applies to strings",
         "NotEmpty" => "[NotEmpty] applies to strings, Guid and ids",
         "Count" => "[Count] applies to arrays and IReadOnlyList<T>",

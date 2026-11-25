@@ -62,12 +62,12 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         foreach (var column in _columns)
         {
             p++;
-            names.Append(", ").Append(column.Name);
+            names.Append(", ").Append(NpgsqlReadModelSchema.Quote(column.Name));
             // an array column travels as text[] of PostgreSQL array literals: unnest would flatten an array of arrays
             arrays.Append(CultureInfo.InvariantCulture, $", ${p}::{(column.IsArray ? "text[]" : NpgsqlReadModelSchema.ArrayType(column.Type))}");
             aliases.Append(CultureInfo.InvariantCulture, $", c{p}");
             select.Append(column.IsArray ? $", c{p}::{NpgsqlReadModelSchema.CastArrayType(column.Type)}" : $", c{p}");
-            updates.Append(CultureInfo.InvariantCulture, $", {column.Name} = excluded.{column.Name}");
+            updates.Append(CultureInfo.InvariantCulture, $", {NpgsqlReadModelSchema.Quote(column.Name)} = excluded.{NpgsqlReadModelSchema.Quote(column.Name)}");
         }
         names.Append(", doc");
         p++;
@@ -151,10 +151,10 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             return;
         foreach (var column in missing)
         {
-            await using var add = new NpgsqlCommand($"ALTER TABLE {Table} ADD COLUMN {column.Name} {NpgsqlReadModelSchema.SqlType(column)}", connection, transaction);
+            await using var add = new NpgsqlCommand($"ALTER TABLE {Table} ADD COLUMN {NpgsqlReadModelSchema.Quote(column.Name)} {NpgsqlReadModelSchema.SqlType(column)}", connection, transaction);
             await add.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
-        var set = string.Join(", ", missing.Select((c, i) => $"{c.Name} = u.c{i + 3}"));
+        var set = string.Join(", ", missing.Select((c, i) => $"{NpgsqlReadModelSchema.Quote(c.Name)} = u.c{i + 3}"));
         var arrays = string.Join(", ", missing.Select((c, i) => $"${i + 3}::" + (c.IsArray ? "text[]" : NpgsqlReadModelSchema.ArrayType(c.Type))));
         var aliases = string.Join(", ", missing.Select((c, i) => $"c{i + 3}"));
         var update = $"UPDATE {Table} t SET {set} FROM (SELECT c1, c2, "
@@ -198,7 +198,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         }
         foreach (var column in missing.Where(static c => !c.Nullable))
         {
-            await using var required = new NpgsqlCommand($"ALTER TABLE {Table} ALTER COLUMN {column.Name} SET NOT NULL", connection, transaction);
+            await using var required = new NpgsqlCommand($"ALTER TABLE {Table} ALTER COLUMN {NpgsqlReadModelSchema.Quote(column.Name)} SET NOT NULL", connection, transaction);
             await required.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
     }
@@ -348,7 +348,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                 if (plan.Sort is { } sorted)
                 {
                     rows.Parameters.Add(new NpgsqlParameter { Value = plan.CursorValue ?? DBNull.Value });
-                    sql.Append(CultureInfo.InvariantCulture, $" AND ({sorted.Name}, id) {op} (${rows.Parameters.Count}, ${idParameter})");
+                    sql.Append(CultureInfo.InvariantCulture, $" AND ({NpgsqlReadModelSchema.Quote(sorted.Name)}, id) {op} (${rows.Parameters.Count}, ${idParameter})");
                 }
                 else
                 {
@@ -357,7 +357,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             }
             sql.Append(" ORDER BY ");
             if (plan.Sort is { } sort)
-                sql.Append(sort.Name).Append(direction).Append(", ");
+                sql.Append(NpgsqlReadModelSchema.Quote(sort.Name)).Append(direction).Append(", ");
             sql.Append("id").Append(direction);
             sql.Append(CultureInfo.InvariantCulture, $" LIMIT {plan.Limit + 1}");
             if (plan.Offset > 0)
@@ -411,19 +411,19 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         {
             if (value is null)
             {
-                where.Append(CultureInfo.InvariantCulture, $" AND {column.Name} IS NULL");
+                where.Append(CultureInfo.InvariantCulture, $" AND {NpgsqlReadModelSchema.Quote(column.Name)} IS NULL");
                 continue;
             }
             parameters.Add(new NpgsqlParameter { Value = value });
-            where.Append(CultureInfo.InvariantCulture, $" AND {column.Name} = ${parameters.Count}");
+            where.Append(CultureInfo.InvariantCulture, $" AND {NpgsqlReadModelSchema.Quote(column.Name)} = ${parameters.Count}");
         }
         foreach (var set in plan.Sets)
         {
             // an empty array matches nothing: = ANY('{}') and && '{}' are false, so a scope without rows lists no row
             parameters.Add(new NpgsqlParameter { Value = TypedArray(set.Type, set.Values), NpgsqlDbType = NpgsqlDbType.Array | DbType(set.Type) });
             where.Append(set.Column is { IsArray: true }
-                ? $" AND {set.Name} && ${parameters.Count}"
-                : $" AND {set.Name} = ANY(${parameters.Count})");
+                ? $" AND {NpgsqlReadModelSchema.Quote(set.Name)} && ${parameters.Count}"
+                : $" AND {NpgsqlReadModelSchema.Quote(set.Name)} = ANY(${parameters.Count})");
         }
         return where.ToString();
     }

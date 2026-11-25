@@ -137,6 +137,30 @@ public sealed partial record AttendanceRow(Guid Id, Guid Child, [Sort] DateOnly 
     public static AttendanceRow When(Attendance.CheckedIn e, RecordedEvent r) => new(r.StreamId, e.Child, e.Day, e.At, e.ContractEnds);
 }
 
+/// <summary>A medication order (Tatalu FB-F05.8-3): members named like SQL reserved words.</summary>
+public partial class MedicationOrder : AggregateRoot<MedicationOrder>
+{
+    public Guid Child { get; private set; }
+
+    public static MedicationOrder Place(Guid child, DateOnly from, DateOnly? until, string order, int limit, DateTimeOffset now)
+    {
+        var placed = new MedicationOrder(Id<MedicationOrder>.New(now));
+        placed.Raise(new Ordered(child, from, until, order, limit));
+        return placed;
+    }
+
+    public sealed record Ordered(Guid Child, DateOnly From, DateOnly? Until, string Order, int Limit) : Event;
+
+    private void On(Ordered e) => Child = e.Child;
+}
+
+/// <summary>Columns <c>from</c>, <c>until</c>, <c>order</c>, <c>limit</c>: reserved words in PostgreSQL unless quoted.</summary>
+[Projection("medication-orders")]
+public sealed partial record MedicationOrderRow(Guid Id, Guid Child, [Sort] DateOnly From, DateOnly? Until, string Order, [Sort] int Limit)
+{
+    public static MedicationOrderRow When(MedicationOrder.Ordered e, RecordedEvent r) => new(r.StreamId, e.Child, e.From, e.Until, e.Order, e.Limit);
+}
+
 [System.Text.Json.Serialization.JsonSourceGenerationOptions(PropertyNamingPolicy = System.Text.Json.Serialization.JsonKnownNamingPolicy.CamelCase)]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.Opened))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.BidPlaced))]
@@ -149,4 +173,6 @@ public sealed partial record AttendanceRow(Guid Id, Guid Child, [Sort] DateOnly 
 [System.Text.Json.Serialization.JsonSerializable(typeof(LogRow))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Attendance.CheckedIn))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(AttendanceRow))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(MedicationOrder.Ordered))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(MedicationOrderRow))]
 public sealed partial class TestJson : System.Text.Json.Serialization.JsonSerializerContext;

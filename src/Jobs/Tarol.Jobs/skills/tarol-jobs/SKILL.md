@@ -30,7 +30,9 @@ description: >-
 4. **Cron** is 5-field Unix (Vixie): `min hour day-of-month month day-of-week`, lists, ranges, steps, `JAN`/`MON`, weekday
    7 = Sunday; day-of-month and day-of-week both restricted = **either**. No seconds, no `L W # ?`. Intervals:
    `Schedule.Every(TimeSpan.FromMinutes(15))` (aligned to the epoch). DST: a skipped time runs at the end of the gap, a
-   repeated time once (its first instant). Default zone UTC; IANA ids.
+   repeated time once (its first instant). Default zone UTC; IANA or Windows ids, resolved by `Tarol.Kernel.TimeZones.Find`
+   (also under `InvariantGlobalization`, where .NET alone knows only the system's own kind of id). Use it in your code too
+   instead of `TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin")`, which throws on Windows without ICU.
 5. **Missed runs** (downtime): `Missed.Latest` (default: the newest once), `Missed.All` (each, `MaxCatchUp` 100 per claim),
    `Missed.Skip` (none unless within `Grace`, 1 min). The cursor then sits at the next future occurrence.
 6. **Failures** as reactions: `Conflict`, `NotFound`, 422, unavailable, an exception → the same occurrence again after
@@ -89,6 +91,7 @@ Pass a `ReactionSet` to drain the reactions the jobs cause (`test.Reactions`). J
 | a `BackgroundService` with `Task.Delay(TimeSpan.FromDays(1))` | runs in every process, drifts, no catch-up, no key; use `[Scheduled]` |
 | `DateTime.Now` / `DateTimeOffset.UtcNow` in a job | TKRN001; use `run.Occurrence.At` or `context.Now` |
 | `o.At.Day` for "yesterday in Vienna" | `At` is UTC: use `o.Local` |
+| `TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin")` in an AOT app | `TimeZoneNotFoundException` on Windows (no ICU): `TimeZones.Find("Europe/Berlin")` |
 | one tenant-less job looping over tenants with one key | one failing tenant blocks all; use `PerTenant` + `ITenantDirectory` |
 | returning `Error.Conflict("Nothing.ToDo")` | retried, then a dead job; return `Result.Success()` |
 | sending mail or calling HTTP in `Run` | repeated after a crash or a lost lease; raise an event, publish it |

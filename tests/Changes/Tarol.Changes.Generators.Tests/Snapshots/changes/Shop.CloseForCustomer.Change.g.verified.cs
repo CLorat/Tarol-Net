@@ -13,7 +13,8 @@ partial record CloseForCustomer : global::Tarol.Changes.IHasReads
         var loaded = new global::System.Collections.Generic.Dictionary<string, object>(1);
         if (!(await reader.Load(this.Customer, context, cancellationToken)).TryGetValue(out global::Shop.Customer? __read0))
             return global::Tarol.Results.Error.UnprocessableEntity("Customer.NotFound", "Customer");
-        loaded["Customer"] = __read0;
+        else
+            loaded["Customer"] = __read0;
         return new global::Tarol.Changes.Reads(loaded);
     }
 }

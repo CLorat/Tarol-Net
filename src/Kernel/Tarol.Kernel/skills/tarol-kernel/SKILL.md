@@ -23,7 +23,8 @@ description: >-
    context, never from a command payload.
 4. Ids are `Id<ITenant>`, `Id<ICorrelation>`, `Id<ICausation>` (`Tarol.StronglyTypedId`); they cannot be mixed up.
 5. Time: no Tarol clock. Inject `TimeProvider`; aggregates take `DateTimeOffset now` as a parameter; tests use
-   `FakeTimeProvider`. `DateTime.Now/UtcNow/Today` and `DateTimeOffset.Now/UtcNow` are TKRN001.
+   `FakeTimeProvider`. `DateTime.Now/UtcNow/Today` and `DateTimeOffset.Now/UtcNow` are TKRN001. A zone by id:
+   `TimeZones.Find("Europe/Berlin")` (IANA or Windows id, also with `InvariantGlobalization` on Windows).
 6. JSON needs nothing: `Actor` and `OperationContext` carry converters with a fixed camelCase contract. Use
    `KernelJsonContext.Default.OperationContext` to serialize a context on its own.
 

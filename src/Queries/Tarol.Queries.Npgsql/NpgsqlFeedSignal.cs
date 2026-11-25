@@ -39,7 +39,7 @@ public sealed class NpgsqlFeedSignal : IFeedSignal, IAsyncDisposable
         Task notified;
         lock (_gate)
         {
-            _listener ??= Task.Run(Listen, CancellationToken.None);
+            _listener ??= Detached.Run(Listen);
             notified = _notified.Task;
         }
         await Task.WhenAny(notified, Task.Delay(max, _time, cancellationToken)).ConfigureAwait(false);

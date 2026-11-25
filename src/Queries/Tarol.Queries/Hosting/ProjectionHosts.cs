@@ -24,6 +24,14 @@ public sealed class ProjectionHosts
     public IReadOnlyList<string> Building
         => [.. All.Where(static h => h.State != ProjectionState.Current).Select(static h => string.Create(CultureInfo.InvariantCulture, $"{h.Name} v{h.Version}"))];
 
+    /// <summary>
+    /// The projections whose loop keeps failing, as <c>name vN: Type: message (N attempts)</c> (empty when none fails):
+    /// a read table that cannot be created, a database that refuses the batch (<see cref="ProjectionHost.LastFailure"/>).
+    /// </summary>
+    public IReadOnlyList<string> Failing
+        => [.. All.Select(static h => (Host: h, Failure: h.LastFailure)).Where(static x => x.Failure is not null)
+            .Select(static x => string.Create(CultureInfo.InvariantCulture, $"{x.Host.Name} v{x.Host.Version}: {x.Failure!.Message} ({x.Failure.Failures} attempts)"))];
+
     /// <summary>Waits until every host of this process is current, up to <paramref name="timeout"/> in all.</summary>
     /// <param name="timeout">The longest wait.</param>
     /// <param name="cancellationToken">Cancels the wait.</param>

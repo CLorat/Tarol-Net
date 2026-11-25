@@ -6,6 +6,35 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Tatalu feedback, round 3 (TN-69 … TN-83; [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md))
+
+#### Fixed
+
+* Projection columns named like reserved words (`from`, `order`) are quoted; a projection whose storage cannot be prepared
+  logs 12004 and names its failure (TN-69).
+* A reaction's due time with an offset is stored as its UTC instant in both stores (TN-70).
+* Lazily started Npgsql listeners no longer inherit the first request's trace (TN-71).
+* All projection-gate locks of a process share one connection (was one per projection) (TN-72).
+
+#### Added
+
+* `ProjectionHost.LastFailure`, `ProjectionFailure`, `ProjectionHosts.Failing` (TN-69); `NpgsqlProjectionGate.Locks`,
+  `UseNpgsqlBus(options)` on the registered data source (TN-72).
+* TCHG012: a reaction or job name declared in two assemblies; `DeclaredNamesAttribute` (TN-74).
+* `Tarol.Kernel.TimeZones.Find/TryFind` (IANA and Windows ids without ICU); jobs resolve zones with it (TN-75).
+* `ChangeTestOptions` (codec, lookups, reactions, `RunReactions`), `ChangeTest.History`, `ChangeTest.StoredStateMatchesReplay`,
+  `ReactionRun`, `ChangeTestOutcome.Reactions` (TN-76, TN-15).
+* `Error.ConfirmationRequired`, `Error.Confirmable`, `Error.Arguments`, `ChangeContext.Confirmed`, `ChangeOptions.Confirmed`,
+  header `Tarol-Confirm`, problem `confirm` (TN-37).
+* `[Reads<T>]` (`SameIdAs`, `Optional`), `[Read(Optional = true)]`, TCHG013 (TN-40).
+* `[Scale(n)]`, `ValidationCodes.Scale`, `Rules.Scale`, OpenAPI `multipleOf` (TN-53).
+
+#### Changed
+
+* TCHG004 allows a `[Read]` of the target's type next to the target member (TN-40).
+* `ChangeTest.When` with a principal but no authorization throws instead of answering `Auth.NotConfigured` (TN-76).
+* A view's factory is called through `IView`, so it may be implemented explicitly (TN-77).
+
 ### Tatalu feedback, round 2 (TN-19 … TN-68; [docs/migration/tatalu-round-2.md](docs/migration/tatalu-round-2.md))
 
 #### Fixed

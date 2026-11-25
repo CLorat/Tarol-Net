@@ -26,7 +26,10 @@ description: >-
    id (`Id<T>.New(now)`). No load. `ChangeOutcome.StreamId` is the new id.
 4. **Special changes**: another key or load-or-create → `ILoads<T>` with `Load(IAggregateReader reader, ChangeContext
    context, CancellationToken ct)`. Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
-   `context.Read<X>()` (missing → 422 `X.NotFound`). A rule that must *change* two aggregates is a saga, not a change.
+   `context.Read<X>()` (missing → 422 `X.NotFound`; `[Read(Optional = true)]` + `context.TryRead(out X? x)`). Without an
+   input member: `[Reads<X>]` on the change for a `[PerTenant]` X, `[Reads<X>(SameIdAs = nameof(Member))]` for the X under
+   the same Guid (`Optional = true` allowed). Never implement `IHasReads` yourself (TCHG013). A `[Read]` of the target's
+   type is fine next to the target member (a sibling). A rule that must *change* two aggregates is a saga, not a change.
 5. **Time and actor come from the context**: `context.Now` (read once from the pipeline's `TimeProvider`),
    `context.Operation.Actor`. Never `DateTimeOffset.UtcNow` (TKRN001).
 6. **Inputs are `IValidatable`**, so value rules run before any read and return every field as `Invalid` (TCHG005 warns).
@@ -44,7 +47,8 @@ description: >-
    schedule and the runner; `ReactionSet.Combine(a, b)` for several assemblies. A reaction runs as
    `Actor.System("Reactions." + name)` on behalf of the user, caused by the event, keyed (reaction, event id): a
    redelivery replays. Its **name** is the change's type name, stored in outbox rows and keys: pin
-   `[OnEvent<T>(Name = "OldName")]` before renaming (TCHG007 for duplicates). A timeout: `DueAt = nameof(Ns.Event.Member)`
+   `[OnEvent<T>(Name = "OldName")]` before renaming (TCHG007 for duplicates; TCHG012 in the host when two context
+   assemblies declare one name: give one a unique `Name` before it ships). A timeout: `DueAt = nameof(Ns.Event.Member)`
    (a `DateTimeOffset` of the event, TCHG008). Answer late, repeated or stale events with `Result.Success()`, never a
    Conflict: workers retry every Conflict and then dead-letter it.
 10. **A recurring change is a scheduled factory**: `[Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")] public static X
@@ -82,6 +86,9 @@ then.Events.ShouldBe([new Auction.Closed(start)]);
 then.Recorded[0].Context.Actor.ShouldBe(Actor.User("seller"));
 var twice = await test.When(new CloseAuction(auction.Id));
 twice.Result.TryGetValue(out Violation? conflict).ShouldBeTrue();      // Error.Conflict("AuctionStatus.NotAllowed", …)
+// like the app's store: sealed personal data (codec), the app's lookups, the reactions a change causes
+var app = ChangeTest.At(start, new ChangeTestOptions { Codec = codec, Lookups = lookups, Reactions = GeneratedReactions.Set, RunReactions = true });
+(await app.When(change)).Reactions;   app.History(id);   app.StoredStateMatchesReplay(id, json.Options);
 
 // an internal run by hand (a scheduled job uses [Scheduled] or JobRun.Change of skill tarol-jobs, which key it)
 var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.AuctionSettlement"), tenant, time), cancellationToken: ct);
@@ -105,10 +112,14 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 
 | Mistake | Result |
 |---|---|
+| `ChangeTest.At(now)` for an aggregate with `[PersonalData]` | nothing is sealed: a sealing error shows up in the host only; pass `ChangeTestOptions.Codec` |
+| `new ChangeOptions(Principal: p)` in a `ChangeTest` without `Authorization` | `InvalidOperationException` (the pipeline would answer 403 `Auth.NotConfigured`) |
+| `Store.Recorded.Where(r => r.StreamId == id)` for a `[PerTenant]` aggregate | events of every singleton of the tenant; use `test.History(id)` |
 | `record Close(Auction Auction)` (the instance as input) | not serializable, not reloadable; take `Id<Auction>` |
 | two `Id<Auction>` members, no explicit `Target` | TCHG001 |
 | `record Close(…) : IChange<…>` not `partial` | TCHG002 |
 | `[Read] string Customer`, or `[Read]` on the own target id | TCHG004 |
+| `[Reads<X>]` of an X that is not `[PerTenant]`, or a hand-written `IHasReads` next to reads | TCHG013 (was CS8646 without a hint) |
 | value-object members but no `IValidatable` | TCHG005: rules do not run before the load |
 | loading or saving inside `Execute` | not possible: `Execute` gets no store; use `ILoads<T>` or `[Read]` |
 | `context.Read<Artwork>()` without a `[Read] Id<Artwork>` member | `InvalidOperationException` ("no [Read] members") |
@@ -119,6 +130,7 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 | renaming a reaction's change without pinning `Name` | its waiting rows and keys use the old name: dead letters |
 | two changes with one reaction name, two factories of one change for one event | TCHG007 |
 | `DueAt = nameof(Settlement.DeadlineSet.DueAt)` in a change with a member `Settlement` | CS1061 (binds to the member): qualify the type |
+| a warning with an input flag (`bool ConfirmQuota`) and the data in `detail` | `if (!context.Confirmed("Absence.QuotaExceeded")) return Error.ConfirmationRequired("Absence.QuotaExceeded", args);` — the client resends with `Tarol-Confirm: Absence.QuotaExceeded` |
 | `Error.Conflict` for an event that arrives late or twice | retried, then a dead letter; return `Result.Success()` |
 | `[Scheduled]` factory with no or another parameter than `JobOccurrence` | TCHG009 |
 | `[Scheduled("0 0 2 * * *")]` (seconds), `L`, `W`, `#`, `?` | TCHG010 |

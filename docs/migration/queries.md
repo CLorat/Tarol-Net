@@ -850,3 +850,7 @@ None.
 (timing, while other builds ran on the machine); the project then ran three times, 31 of 31 each. `dotnet pack` +
 `eng/verify-packages.sh`: OK. `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings, all checks passed (the new
 `DateOnly`/`TimeOnly` check of `Tarol.Queries.Npgsql.AotSmoke` among them).
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).

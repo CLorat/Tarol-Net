@@ -22,6 +22,10 @@ var fall = Cron.Parse("0 * * * *").After(new DateTimeOffset(2026, 10, 25, 2, 0, 
 Check("cron: a repeated hour runs once", fall == new DateTimeOffset(2026, 10, 25, 3, 0, 0, TimeSpan.FromHours(1)));
 Check("cron: day-of-month or day-of-week", Cron.Parse("0 2 13 * 5").After(new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero), TimeZoneInfo.Utc).Day == 6);
 Check("cron: invalid expressions are refused", !Cron.TryParse("0 0 2 * * *", out _, out _));
+// FB-WIN-1: InvariantGlobalization (this app) has no ICU to convert ids; a Windows id still resolves on Linux and vice versa
+Check("zones: a Windows id and an IANA id resolve without ICU",
+    Tarol.Kernel.TimeZones.Find("W. Europe Standard Time").GetUtcOffset(new DateTime(2026, 7, 1)) == TimeSpan.FromHours(2)
+    && Tarol.Kernel.TimeZones.Find("Europe/Vienna").GetUtcOffset(new DateTime(2026, 1, 1)) == TimeSpan.FromHours(1));
 
 var test = JobTest.At(new DateTimeOffset(2026, 11, 16, 0, 0, 0, TimeSpan.Zero), GeneratedJobs.Set, stateOptions: SmokeJson.Default.Options);
 var counter = new BookCounter();

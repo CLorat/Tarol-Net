@@ -72,6 +72,7 @@ internal static class Discovery
         var readAttribute = compilation.GetTypeByMetadataName(ReadName);
         var reads = new List<ReadModel>();
         var idOfAggregate = new List<IPropertySymbol>();
+        var readsOfTarget = new List<IPropertySymbol>();
         foreach (var member in members)
         {
             var isRead = readAttribute is not null && HasAttribute(member, type, readAttribute);
@@ -80,17 +81,66 @@ internal static class Discovery
             {
                 var reason = id is null ? "it is not an Id<X> of an aggregate"
                     : !IsAggregate(id) ? $"{id.Name} is not an aggregate root"
-                    : kind != ChangeKind.Creation && SymbolEqualityComparer.Default.Equals(id, aggregate) ? $"{id.Name} is the change's own target, which the pipeline loads anyway"
                     : null;
                 if (reason is not null)
                     diagnostics.Add(DiagnosticInfo.Create(Diagnostics.ReadMisuse, LocationInfo.From(member.Locations.FirstOrDefault() ?? Location.None) ?? location, member.Name, type.Name, reason));
                 else
-                    reads.Add(new ReadModel(member.Name, id!.ToDisplayString(Qualified), id.Name));
+                {
+                    if (kind != ChangeKind.Creation && SymbolEqualityComparer.Default.Equals(id, aggregate))
+                        readsOfTarget.Add(member);                              // TN-40: allowed when another member is the target
+                    reads.Add(new ReadModel(member.Name, id!.ToDisplayString(Qualified), id.Name, "this." + member.Name, ReadOptional(member, type, readAttribute!)));
+                }
                 continue;
             }
             if (id is not null && SymbolEqualityComparer.Default.Equals(id, aggregate))
                 idOfAggregate.Add(member);
         }
+        // TCHG004 only for the target (TN-40, Tatalu FB-F02.1-7): a [Read] Id<Child> Sibling next to the target Id<Child> Child
+        if (readsOfTarget.Count > 0 && idOfAggregate.Count == 0 && kind == ChangeKind.Change)
+            foreach (var member in readsOfTarget)
+                diagnostics.Add(DiagnosticInfo.Create(Diagnostics.ReadMisuse, LocationInfo.From(member.Locations.FirstOrDefault() ?? Location.None) ?? location,
+                    member.Name, type.Name, $"{aggregate.Name} is the change's own target, which the pipeline loads anyway (a read of another {aggregate.Name} needs a target member next to it)"));
+        // [Reads<T>] on the change type (TN-40, owner decision CR-1)
+        foreach (var attribute in type.GetAttributes())
+        {
+            if (attribute.AttributeClass is not { IsGenericType: true } readsClass || readsClass.OriginalDefinition.ToDisplayString() != "Tarol.Changes.ReadsAttribute<T>")
+                continue;
+            var read = (INamedTypeSymbol)readsClass.TypeArguments[0];
+            var at = LocationInfo.From(attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? Location.None) ?? location;
+            var sameIdAs = attribute.NamedArguments.FirstOrDefault(static n => n.Key == "SameIdAs").Value.Value as string;
+            var optional = attribute.NamedArguments.FirstOrDefault(static n => n.Key == "Optional").Value.Value is true;
+            string? why = !IsAggregate(read) ? $"{read.Name} is not an aggregate root" : null;
+            string? expression = null;
+            if (why is null && sameIdAs is null)
+            {
+                if (!read.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute"))
+                    why = $"{read.Name} is not [PerTenant]: name the member with its Guid (SameIdAs = nameof(…))";
+            }
+            else if (why is null)
+            {
+                var source = members.FirstOrDefault(m => m.Name == sameIdAs);
+                if (source is null)
+                    why = $"'{sameIdAs}' is not a member of {type.Name}";
+                else if (IdArgument(source.Type) is not null)
+                    expression = "(global::Tarol.StronglyTypedId.Id<" + read.ToDisplayString(Qualified) + ">)this." + source.Name + ".Value";
+                else if (source.Type.ToDisplayString() == "System.Guid")
+                    expression = "(global::Tarol.StronglyTypedId.Id<" + read.ToDisplayString(Qualified) + ">)this." + source.Name;
+                else
+                    why = $"'{sameIdAs}' is neither an Id<X> nor a Guid";
+            }
+            if (why is null && reads.Any(r => r.Key == read.Name))
+                why = $"{read.Name} is read twice";
+            if (why is null && kind != ChangeKind.Creation && SymbolEqualityComparer.Default.Equals(read, aggregate))
+                why = $"{read.Name} is the change's own target, which the pipeline loads anyway";
+            if (why is not null)
+                diagnostics.Add(DiagnosticInfo.Create(Diagnostics.ReadsMisuse, at, read.Name, type.Name, why));
+            else
+                reads.Add(new ReadModel(read.Name, read.ToDisplayString(Qualified), read.Name, expression, optional));
+        }
+        // FB-F05.7-1: CS8646 "explicitly implemented more than once" did not say why
+        if (reads.Count > 0 && type.GetMembers().OfType<IMethodSymbol>().Any(static m => m.ExplicitInterfaceImplementations.Any(static i => i.ContainingType.ToDisplayString() == "Tarol.Changes.IHasReads")))
+            diagnostics.Add(DiagnosticInfo.Create(Diagnostics.ReadsMisuse, location, "…", type.Name,
+                "it implements IHasReads by hand next to [Read]/[Reads<T>], which the generator implements; move the hand-written loads into [Reads<T>] declarations"));
 
         string? target = null;
         if (kind == ChangeKind.Change)
@@ -154,6 +204,17 @@ internal static class Discovery
                 if (!property.IsStatic && !property.IsIndexer && property.DeclaredAccessibility == Accessibility.Public
                     && property.ExplicitInterfaceImplementations.IsEmpty && property.Name != "EqualityContract" && seen.Add(property.Name))
                     yield return property;
+    }
+
+    private static bool ReadOptional(IPropertySymbol member, INamedTypeSymbol type, INamedTypeSymbol readAttribute)
+    {
+        var attributes = member.GetAttributes().AsEnumerable();
+        foreach (var constructor in type.InstanceConstructors)
+            foreach (var parameter in constructor.Parameters)
+                if (parameter.Name == member.Name)
+                    attributes = attributes.Concat(parameter.GetAttributes());
+        return attributes.Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, readAttribute)
+                                   && a.NamedArguments.Any(static n => n.Key == "Optional" && n.Value.Value is true));
     }
 
     private static bool HasAttribute(IPropertySymbol property, INamedTypeSymbol type, INamedTypeSymbol attribute)

@@ -37,6 +37,7 @@ public abstract partial class ProjectionHost : BackgroundService
     private bool _loaded;
     private bool _prepared;
     private long _conflicts;
+    private ProjectionFailure? _failure;
 
     /// <summary>Creates a host. A host outside Tarol.Queries (search, step 18) derives from this class and implements
     /// <see cref="Prepare"/>, <see cref="LoadCheckpoint"/> and <see cref="Write"/>; the loop, gate, meters and waits are the same.</summary>
@@ -115,6 +116,14 @@ public abstract partial class ProjectionHost : BackgroundService
 
     /// <summary>How many batches the checkpoint guard refused because another runner moved it.</summary>
     public long Conflicts => Interlocked.Read(ref _conflicts);
+
+    /// <summary>
+    /// The last failure of the running loop while it keeps failing (it retries with backoff), <see langword="null"/> after a
+    /// batch succeeds (Tatalu FB-F05.8-3: a read table that cannot be created kept the projection building, seen only as a
+    /// warning). <see cref="ProjectionHosts.Failing"/> and the readiness check of
+    /// <see cref="ProjectionsBuilder.ReadyWhenCurrent"/> name it.
+    /// </summary>
+    public ProjectionFailure? LastFailure => Volatile.Read(ref _failure);
 
     /// <summary>Reads and writes one batch.</summary>
     /// <param name="cancellationToken">Cancels the batch (nothing is written).</param>
@@ -309,6 +318,7 @@ public abstract partial class ProjectionHost : BackgroundService
                 }
                 var read = await RunOnce(stoppingToken).ConfigureAwait(false);
                 failures = 0;
+                Volatile.Write(ref _failure, null);
                 if (read >= _options.Batch)
                     continue;
                 if (read > 0)
@@ -327,7 +337,11 @@ public abstract partial class ProjectionHost : BackgroundService
                 _loaded = false;
                 failures++;
                 var wait = TimeSpan.FromTicks(Math.Min(_options.MaxBackoff.Ticks, _options.Backoff.Ticks * (1L << Math.Min(failures - 1, 20))));
-                BatchFailed(_log, e, Name, Version, failures, wait);
+                Volatile.Write(ref _failure, new ProjectionFailure(Describe(e), failures, _time.GetUtcNow(), Prepared: _prepared));
+                if (!_prepared)
+                    PrepareFailed(_log, e, Name, Version, failures, wait);
+                else
+                    BatchFailed(_log, e, Name, Version, failures, wait);
                 try
                 {
                     await Task.Delay(wait, _time, stoppingToken).ConfigureAwait(false);
@@ -369,6 +383,15 @@ public abstract partial class ProjectionHost : BackgroundService
     [LoggerMessage(EventId = 12011, Level = LogLevel.Warning, Message = "Projection {Projection} v{Version}: the runner's gate was lost; asking again")]
     private static partial void GateLost(ILogger logger, string projection, int version);
 
+    private static string Describe(Exception e)
+    {
+        var inner = e is AggregateException { InnerException: { } first } ? first : e;
+        return inner.GetType().Name + ": " + inner.Message;
+    }
+
+    [LoggerMessage(EventId = 12004, Level = LogLevel.Error, Message = "Projection {Projection} v{Version}: its storage cannot be prepared (attempt {Failures}); it stays building and tries again in {Wait}")]
+    private static partial void PrepareFailed(ILogger logger, Exception exception, string projection, int version, int failures, TimeSpan wait);
+
     [LoggerMessage(EventId = 12001, Level = LogLevel.Warning, Message = "Projection {Projection} v{Version}: batch {Failures} failed; trying again in {Wait}")]
     private static partial void BatchFailed(ILogger logger, Exception exception, string projection, int version, int failures, TimeSpan wait);
 
@@ -378,3 +401,10 @@ public abstract partial class ProjectionHost : BackgroundService
     [LoggerMessage(EventId = 12003, Level = LogLevel.Information, Message = "Projection {Projection} v{Version} is current at {Transaction}.{Position}")]
     private static partial void BecameCurrent(ILogger logger, string projection, int version, ulong transaction, long position);
 }
+
+/// <summary>Why a projection's loop failed (<see cref="ProjectionHost.LastFailure"/>).</summary>
+/// <param name="Message">The exception's type and message (no values of rows: database errors name columns and SQL states).</param>
+/// <param name="Failures">How many attempts in a row failed.</param>
+/// <param name="At">When the last attempt failed.</param>
+/// <param name="Prepared">Whether the storage was prepared; <see langword="false"/>: creating the read table failed.</param>
+public sealed record ProjectionFailure(string Message, int Failures, DateTimeOffset At, bool Prepared);

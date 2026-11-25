@@ -188,7 +188,7 @@ public sealed partial class ChangePipeline
         var (missing, loadedReads) = await LoadReads(change, context, cancellationToken);
         if (missing is not null)
             return missing;
-        var changeContext = new ChangeContext(context, _time.GetUtcNow(), loadedReads);
+        var changeContext = new ChangeContext(context, _time.GetUtcNow(), loadedReads) { Confirmations = options.Confirmed };
 
         T? aggregate;
         if (change is ILoads<T> loads)
@@ -252,7 +252,7 @@ public sealed partial class ChangePipeline
         if (missing is not null)
             return missing;
 
-        var changeContext = new ChangeContext(context, _time.GetUtcNow(), loadedReads);
+        var changeContext = new ChangeContext(context, _time.GetUtcNow(), loadedReads) { Confirmations = options.Confirmed };
         var created = creation.Execute(changeContext);
         if (created.TryGetValue(out Violation? refused))
             return refused;

@@ -16,6 +16,14 @@ public sealed class EventCodecTests
         => codec.Decode("subscription", new EventType(alias, version), Encoding.UTF8.GetBytes(json));
 
     [Fact]
+    public void An_added_member_with_a_default_reads_old_payloads_without_a_new_version()
+    {
+        // Tatalu FB-E07-1: the promise behind "additive, optional members need no upcaster"
+        Decode(Codec(), "subscription.started", 1, "{\"plan\":\"basic\"}").ShouldBe(new Subscription.Started("basic", "EUR", Trial: false));
+        Decode(Codec(), "subscription.started", 1, "{\"plan\":\"basic\",\"currency\":\"CHF\",\"trial\":true}").ShouldBe(new Subscription.Started("basic", "CHF", Trial: true));
+    }
+
+    [Fact]
     public void An_event_round_trips_with_its_alias_and_version()
     {
         var codec = Codec();

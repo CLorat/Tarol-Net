@@ -203,10 +203,30 @@ public sealed record Error : Violation
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? Reasons { get; init; }
 
+    /// <summary>
+    /// Whether the caller may run the change again confirming <see cref="Code"/> (TN-37, Tatalu FB-F04.2-2, FB-F06.2-2: a
+    /// warning that must be acknowledged). Set by <see cref="ConfirmationRequired"/>; problem details carry
+    /// <c>confirm: { code, args }</c>, and the client sends the code back in the <c>Tarol-Confirm</c> header.
+    /// </summary>
+    [JsonPropertyName("confirm")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Confirmable { get; init; }
+
+    /// <summary>
+    /// Values for the message of the code (<c>{ "office": "Jugendamt Mitte", "days": "3" }</c>), or <see langword="null"/>:
+    /// what a translation interpolates, so the client does not parse <see cref="Detail"/>. Problem details carry them as
+    /// <c>args</c>. Never personal data the caller may not see.
+    /// </summary>
+    [JsonPropertyName("args")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, string>? Arguments { get; init; }
+
     /// <inheritdoc />
     public bool Equals(Error? other)
-        => other is not null && Type == other.Type && Code == other.Code && Detail == other.Detail
-           && (ReferenceEquals(Reasons, other.Reasons) || (Reasons is not null && other.Reasons is not null && Reasons.SequenceEqual(other.Reasons)));
+        => other is not null && Type == other.Type && Code == other.Code && Detail == other.Detail && Confirmable == other.Confirmable
+           && (ReferenceEquals(Reasons, other.Reasons) || (Reasons is not null && other.Reasons is not null && Reasons.SequenceEqual(other.Reasons)))
+           && (ReferenceEquals(Arguments, other.Arguments) || (Arguments is not null && other.Arguments is not null && Arguments.Count == other.Arguments.Count
+               && Arguments.All(a => other.Arguments.TryGetValue(a.Key, out var v) && v == a.Value)));
 
     /// <inheritdoc />
     public override int GetHashCode() => HashCode.Combine(Type, Code, Detail, Reasons?.Count ?? -1);
@@ -254,6 +274,22 @@ public sealed record Error : Violation
         ArgumentNullException.ThrowIfNull(reasons);
         return new(ErrorType.Conflict, code, detail) { Reasons = [.. reasons] };
     }
+
+    /// <summary>
+    /// A warning the caller must confirm (TN-37): an <see cref="ErrorType.Conflict"/> (409) that the same request passes once
+    /// it carries <paramref name="code"/> in the <c>Tarol-Confirm</c> header. In the change:
+    /// <c>if (over &amp;&amp; !context.Confirmed("Absence.QuotaExceeded")) return Error.ConfirmationRequired("Absence.QuotaExceeded", new Dictionary&lt;string, string&gt; { ["days"] = "3" });</c>
+    /// </summary>
+    /// <param name="code">The code, for example <c>"Absence.QuotaExceeded"</c>; also what the client confirms.</param>
+    /// <param name="arguments">Values for the message (<see cref="Arguments"/>), or <see langword="null"/>.</param>
+    /// <param name="detail">An optional explanation.</param>
+    /// <returns>The error.</returns>
+    public static Error ConfirmationRequired(string code, IReadOnlyDictionary<string, string>? arguments = null, string? detail = null)
+        => new(ErrorType.Conflict, code, detail)
+        {
+            Confirmable = true,
+            Arguments = arguments is null ? null : new Dictionary<string, string>(arguments, StringComparer.Ordinal),
+        };
 
     /// <summary>Creates an <see cref="ErrorType.Forbidden"/> error.</summary>
     /// <param name="code">The code; defaults to <c>"Auth.Forbidden"</c>.</param>

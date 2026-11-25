@@ -84,8 +84,17 @@ public sealed class ProjectionsBuilder
     {
         Services.TryAddSingleton(static provider => new ProjectionHosts(provider.GetServices<ProjectionHost>()));
         Services.AddSingleton(new ReadinessCheck("projections", static provider =>
-            provider.GetRequiredService<ProjectionHosts>().Building is { Count: > 0 } building ? "building: " + string.Join(", ", building) : null));
+            Readiness(provider.GetRequiredService<ProjectionHosts>())));
         return this;
+    }
+
+    private static string? Readiness(ProjectionHosts hosts)
+    {
+        var building = hosts.Building;
+        if (building.Count == 0)
+            return null;
+        var failing = hosts.Failing;
+        return "building: " + string.Join(", ", building) + (failing.Count > 0 ? "; failing: " + string.Join("; ", failing) : "");
     }
 
     private readonly HashSet<(string, int)> _added = [];

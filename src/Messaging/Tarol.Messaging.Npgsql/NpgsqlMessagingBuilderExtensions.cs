@@ -11,8 +11,22 @@ namespace Tarol.Messaging.Npgsql;
 public static class NpgsqlMessagingBuilderExtensions
 {
     /// <summary>
+    /// Uses the in-database bus on the application's registered <see cref="NpgsqlDataSource"/> (the store's: what
+    /// <c>UseNpgsqlStore</c> registers, or Aspire's), so the bus shares its pool instead of opening a second one (Tatalu
+    /// FB-INT3-3: separate pools of the store, the bus and other components exhausted <c>max_connections</c>). Use this when the
+    /// bus lives in the store's database; a separate bus database takes the connection string overload.
+    /// </summary>
+    /// <param name="messaging">The messaging builder.</param>
+    /// <param name="options">Schema, NOTIFY, poll interval, roles; <see langword="null"/> = defaults.</param>
+    /// <returns>The builder.</returns>
+    public static MessagingBuilder UseNpgsqlBus(this MessagingBuilder messaging, NpgsqlBusOptions? options = null)
+        => UseNpgsqlBus(messaging, static provider => provider.GetRequiredService<NpgsqlDataSource>(), options);
+
+    /// <summary>
     /// Uses the in-database bus on its own data source built from <paramref name="connectionString"/> (the bus database every
-    /// system reaches; it may be the store's database). The data source is disposed with the bus.
+    /// system reaches; it may be the store's database). The data source is disposed with the bus. It is a pool of its own
+    /// (up to <c>Maximum Pool Size</c>, default 100, plus the LISTEN connection); for the store's database prefer
+    /// <see cref="UseNpgsqlBus(MessagingBuilder, NpgsqlBusOptions?)"/>.
     /// </summary>
     /// <param name="messaging">The messaging builder.</param>
     /// <param name="connectionString">The bus database, connected as this system's role.</param>

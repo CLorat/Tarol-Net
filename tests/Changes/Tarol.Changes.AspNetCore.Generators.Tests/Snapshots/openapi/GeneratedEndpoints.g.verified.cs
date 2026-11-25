@@ -175,7 +175,7 @@ public static class GeneratedEndpoints
         var aggregate = await web.Load<global::Shop.Order>(http, route_Id);
         if (aggregate is null)
             return;                                                     // 404, 403, 401 or 304 written
-        await web.WriteView(http, global::Shop.OrderView.From(aggregate));
+        await web.WriteView(http, ViewOf<global::Shop.Order, global::Shop.OrderView>(aggregate));
     }
 
     private static async global::System.Threading.Tasks.Task Run_Shop_AddItems(global::Microsoft.AspNetCore.Http.HttpContext http)
@@ -338,4 +338,9 @@ public static class GeneratedEndpoints
         }
         await global::Tarol.Changes.AspNetCore.Webhooks.Answer(http, result);
     }
+
+    private static TView ViewOf<TAggregate, TView>(TAggregate aggregate)
+        where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>
+        where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>
+        => TView.From(aggregate);
 }

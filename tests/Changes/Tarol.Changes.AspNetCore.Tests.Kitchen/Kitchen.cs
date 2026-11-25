@@ -52,6 +52,23 @@ public sealed partial record LabelRecipe(Id<Recipe> Recipe, Pantry.Label Label, 
     public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Math.Max(1, Label.Value.Length));
 }
 
+/// <summary>A price with cents and a weight to one decimal (TN-53: [Scale] on a value object and on an input member).</summary>
+[Endpoint("PUT /recipes/{recipe}/price")]
+public sealed partial record PriceRecipe(Id<Recipe> Recipe, Pantry.Euro Price, [Tarol.Validations.Scale(1)] decimal Weight) : IChange<Recipe>, Tarol.Validations.IValidatable
+{
+    public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(2);
+}
+
+/// <summary>More than twelve servings is a warning the cook confirms (TN-37, Tatalu FB-F04.2-2, FB-F06.2-2).</summary>
+[Endpoint("PUT /recipes/{recipe}/feast")]
+public sealed partial record FeastRecipe(Id<Recipe> Recipe, int Servings) : IChange<Recipe>
+{
+    public Result Execute(Recipe recipe, ChangeContext context)
+        => Servings > 12 && !context.Confirmed("Recipe.LargeFeast")
+            ? Error.ConfirmationRequired("Recipe.LargeFeast", new Dictionary<string, string> { ["servings"] = Servings.ToString(System.Globalization.CultureInfo.InvariantCulture), ["limit"] = "12" })
+            : recipe.Scale(Servings);
+}
+
 /// <summary>A step of a plan: a nested input record (Tatalu FB-F02.1-3: a missing DateOnly read as 0001-01-01).</summary>
 public sealed record PlanStep(DateOnly On, Pantry.Shade Shade, string? Note);
 
@@ -94,6 +111,6 @@ public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 public sealed record RecipeSearch(string? Title, int? Servings) : IQuery<RecipeRow>;
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
-[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe)), JsonSerializable(typeof(Doneness))]
+[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe)), JsonSerializable(typeof(PriceRecipe)), JsonSerializable(typeof(FeastRecipe)), JsonSerializable(typeof(Doneness))]
 [JsonSerializable(typeof(Recipe.Written)), JsonSerializable(typeof(Recipe.Scaled))]
 public sealed partial class KitchenJson : JsonSerializerContext;
