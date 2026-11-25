@@ -1,5 +1,7 @@
 #nullable enable
+Tarol.Changes.AspNetCore.ChangeEndpoints.Load<T>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.StronglyTypedId.Id<T!> id, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<T?>
+Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.Missing(byte[]! bytes, Tarol.Changes.AspNetCore.RequiredMember![]! members, ref System.Collections.Generic.List<Tarol.Results.FieldError!>? errors) -> void
 Tarol.Changes.AspNetCore.ChangeEndpoints.Row<TRow>(Microsoft.AspNetCore.Http.HttpContext! http, System.Guid tenant, System.Guid id, string! notFound) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.ChangeEndpoints.Scope<TQuery>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Queries.ListQuery! query, bool required = false) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListQuery!>
@@ -40,6 +42,8 @@ Tarol.Changes.AspNetCore.RequiredMember.Optional.init -> void
 Tarol.Changes.AspNetCore.RequiredMember.RequiredMember(string! Name, string? Json, bool Optional, bool List, Tarol.Changes.AspNetCore.RequiredMember![]? Members) -> void
 Tarol.Changes.AspNetCore.RouteValue.Values.get -> System.Collections.Generic.IReadOnlyList<string!>?
 Tarol.Changes.AspNetCore.RouteValue.Values.init -> void
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.MayCreate.get -> bool
+Tarol.Changes.AspNetCore.TarolEndpointMetadata.MayCreate.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.get -> System.Reflection.Assembly?
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool

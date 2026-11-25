@@ -113,6 +113,8 @@ internal static class Emitter
         }
         sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n");
         sb.Append("                    Owner = typeof(GeneratedEndpoints).Assembly,\n");
+        if (e.MayCreate)
+            sb.Append("                    MayCreate = true,\n");
         if (e.Query is { } scoped && e.Kind == EntryKind.List)
             sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
               .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");
@@ -174,12 +176,13 @@ internal static class Emitter
         var id = e.Members.FirstOrDefault();
         sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
+        var start = e.Startable ? ", static (id, context) => " + e.Aggregate + ".Start(id, context)" : "";      // TN-42
         if (id is null)                                 // TN-2: a [PerTenant] aggregate, the caller's tenant's one
-            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http);\n");
+            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http").Append(start).Append(");\n");
         else
         {
             Route(sb, id);
-            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
+            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(start).Append(");\n");
         }
         sb.Append("        if (aggregate is null)\n            return;                                                     // 404, 403, 401 or 304 written\n");
         sb.Append("        await web.WriteView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName).Append(">(aggregate));\n    }\n");

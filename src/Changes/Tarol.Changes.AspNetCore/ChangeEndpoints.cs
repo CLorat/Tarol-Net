@@ -383,13 +383,15 @@ public sealed partial class ChangeEndpoints
             http.Response.Headers[Positions.PositionHeader] = Positions.Format(outcome.Position);
         if (outcome.Replayed)
             http.Response.Headers[TarolHeaders.IdempotentReplayed] = "true";
-        if (!created)
+        if (!created && !outcome.Created)
         {
             http.Response.StatusCode = StatusCodes.Status204NoContent;
             return;
         }
+        // TN-42 (owner decision CR-4a): every change that started its stream answers 201 {id, version}; Location for creations
         http.Response.StatusCode = outcome.Replayed ? StatusCodes.Status200OK : StatusCodes.Status201Created;
-        http.Response.Headers.Location = $"{http.Request.PathBase}{http.Request.Path.Value?.TrimEnd('/')}/{outcome.StreamId}";
+        if (created)
+            http.Response.Headers.Location = $"{http.Request.PathBase}{http.Request.Path.Value?.TrimEnd('/')}/{outcome.StreamId}";
         http.Response.ContentType = "application/json";
         var writer = new Utf8JsonWriter(http.Response.Body);
         await using (writer.ConfigureAwait(false))
@@ -550,7 +552,22 @@ public sealed partial class ChangeEndpoints
     /// <param name="http">The request.</param>
     /// <param name="id">The id from the route.</param>
     /// <returns>The aggregate to build the view from, or <see langword="null"/>.</returns>
-    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id)
+    public ValueTask<T?> Load<T>(HttpContext http, Id<T> id)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Load(http, id, null);
+
+    /// <summary>
+    /// GET of an <c>IStartable&lt;T&gt;</c> aggregate's view (TN-42, Tatalu FB-F13.4-2): as <see cref="Load{T}(HttpContext, Id{T})"/>,
+    /// but a stream without events answers the view of <paramref name="start"/>'s aggregate (uncommitted, <c>ETag "0"</c>)
+    /// instead of 404.
+    /// </summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="id">The aggregate's id.</param>
+    /// <param name="start">Starts it (<c>T.Start</c>); <see langword="null"/>: 404 when missing.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -562,8 +579,12 @@ public sealed partial class ChangeEndpoints
         }
         if (!(await Reader.Load(id, context, http.RequestAborted).ConfigureAwait(false)).TryGetValue(out T? aggregate))
         {
-            await Problem(http, Error.NotFound($"{typeof(T).Name}.NotFound", id.ToString())).ConfigureAwait(false);
-            return null;
+            if (start is null)
+            {
+                await Problem(http, Error.NotFound($"{typeof(T).Name}.NotFound", id.ToString())).ConfigureAwait(false);
+                return null;
+            }
+            aggregate = start(id, new ChangeContext(context, _time.GetUtcNow()));               // not stored: the view's default
         }
         var allowed = await _authorization.Check(Read<T>.Instance, aggregate, new ChangeContext(context, _time.GetUtcNow()),
             options.Principal ?? NoOne, http.RequestAborted).ConfigureAwait(false);
@@ -572,7 +593,7 @@ public sealed partial class ChangeEndpoints
             await Problem(http, denied).ConfigureAwait(false);
             return null;
         }
-        var etag = $"\"{aggregate.Version}\"";
+        var etag = $"\"{aggregate.Version - aggregate.UncommittedChanges.Length}\"";      // "0" for a started, unstored one
         http.Response.Headers.ETag = etag;
         CacheHeaders.Apply(http);                                        // the view's 200 and 304
         if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
@@ -585,13 +606,23 @@ public sealed partial class ChangeEndpoints
 
     /// <summary>
     /// GET of a <see cref="PerTenantAttribute"/> aggregate's view (TN-2): the caller's tenant's one, by the tenant's id; then as
-    /// <see cref="Load{T}"/>. Without a tenant: 403 <see cref="TenantAggregates.TenantRequiredCode"/>.
+    /// <see cref="Load{T}(HttpContext, Id{T})"/>. Without a tenant: 403 <see cref="TenantAggregates.TenantRequiredCode"/>.
     /// </summary>
     /// <typeparam name="T">The aggregate.</typeparam>
     /// <param name="http">The request.</param>
     /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<T?> LoadTenant<T>(HttpContext http)
+    public ValueTask<T?> LoadTenant<T>(HttpContext http)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => LoadTenant<T>(http, null);
+
+    /// <summary>GET of a <c>[PerTenant]</c>, <c>IStartable&lt;T&gt;</c> aggregate's view (TN-2, TN-42): as <see cref="Load{T}(HttpContext, Id{T}, Func{Id{T}, ChangeContext, T})"/>.</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -606,7 +637,7 @@ public sealed partial class ChangeEndpoints
             await Problem(http, Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name)).ConfigureAwait(false);
             return null;
         }
-        return await Load(http, id).ConfigureAwait(false);
+        return await Load(http, id, start).ConfigureAwait(false);
     }
 
     /// <summary>Writes a view (200, the application's JSON context).</summary>

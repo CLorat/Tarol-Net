@@ -19,6 +19,24 @@ public readonly record struct ChangeContext(OperationContext Operation, DateTime
     /// <returns><see langword="true"/> when confirmed.</returns>
     public bool Confirmed(string code) => Confirmations is { } codes && codes.Contains(code, StringComparer.Ordinal);
 
+    /// <summary>
+    /// <see cref="Now"/> in <paramref name="zone"/> (TN-49 part, CR-5; Tatalu FB-F01.9-1: "today" in Europe/Berlin for rest
+    /// periods). The zone is data (a <c>[PerTenant]</c> settings aggregate read with <c>[Reads&lt;T&gt;]</c>), resolved once with
+    /// <c>TimeZones.Find</c>.
+    /// </summary>
+    /// <param name="zone">The tenant's zone.</param>
+    /// <returns>The local time with its offset.</returns>
+    public DateTimeOffset LocalNow(TimeZoneInfo zone)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        return TimeZoneInfo.ConvertTime(Now, zone);
+    }
+
+    /// <summary>The calendar day of <see cref="Now"/> in <paramref name="zone"/>.</summary>
+    /// <param name="zone">The tenant's zone.</param>
+    /// <returns>The day.</returns>
+    public DateOnly Today(TimeZoneInfo zone) => DateOnly.FromDateTime(LocalNow(zone).DateTime);
+
     /// <summary>The single read-only aggregate of type <typeparamref name="T"/> loaded for a <c>[Read]</c> member.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
     /// <returns>The aggregate.</returns>

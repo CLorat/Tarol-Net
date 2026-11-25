@@ -253,13 +253,13 @@ public sealed class DiagnosticTests
         => Diagnose("""[Endpoint("POST /orders/{order}/a")] public sealed partial record A(Id<Order> Order)""" + Close).ShouldBeEmpty();
 }
 
-/// <summary>The list scope example of skills/tarol-queries/SKILL.md (TN-6), read from the file: every API name compiles.</summary>
+/// <summary>The list scope example of skills/tarol-list-endpoints/SKILL.md (TN-6), read from the file: every API name compiles.</summary>
 public sealed class ListScopeSkillExampleTests
 {
     [Fact]
     public void The_scope_example_compiles_with_the_generators()
     {
-        var skill = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../src/Queries/Tarol.Queries/skills/tarol-queries/SKILL.md"));
+        var skill = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../src/Changes/Tarol.Changes.AspNetCore/skills/tarol-list-endpoints/SKILL.md"));
         var start = skill.IndexOf("[Endpoint(\"GET /logs\"", StringComparison.Ordinal);
         var example = skill[start..skill.IndexOf("```", start, StringComparison.Ordinal)];
         var source = GeneratorTestHost.Usings + """

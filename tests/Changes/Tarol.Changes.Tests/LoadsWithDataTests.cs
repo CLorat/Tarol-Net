@@ -95,4 +95,16 @@ public sealed class LoadsWithDataTests
     private static Result ExecuteDirectly<T>(IChange<T> change, T aggregate)
         where T : AggregateRoot<T>, IAggregateRoot<T>
         => change.Execute(aggregate, default);
+
+    [Fact]
+    public void LocalNow_and_Today_in_the_tenants_zone()
+    {
+        // CR-5 (Tatalu FB-F01.9-1): 23:30 UTC on 30 Nov is already 1 Dec in Berlin
+        var context = new ChangeContext(OperationContext.Start(Actor.Anonymous, Tarol.Options.Option.None, TimeProvider.System), new DateTimeOffset(2026, 11, 30, 23, 30, 0, TimeSpan.Zero));
+        var berlin = TimeZones.Find("Europe/Berlin");
+
+        context.Today(berlin).ShouldBe(new DateOnly(2026, 12, 1));
+        context.LocalNow(berlin).Offset.ShouldBe(TimeSpan.FromHours(1));
+        context.Today(TimeZoneInfo.Utc).ShouldBe(new DateOnly(2026, 11, 30));
+    }
 }

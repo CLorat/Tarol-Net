@@ -88,6 +88,9 @@ public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyLis
     /// aggregate methods it calls. Codes built at run time are not listed.</summary>
     public IReadOnlyList<string> Errors { get; init; } = [];
 
+    /// <summary>A change that may start its stream (load-or-create, <c>IOrStart&lt;T&gt;</c>): 201 with <c>{id, version}</c> then (TN-42).</summary>
+    public bool MayCreate { get; init; }
+
     /// <summary>
     /// The assembly whose generated <c>MapChanges</c> mapped the entry; its generated OpenAPI transformer completes the operation
     /// (TN-9). <see langword="null"/> for Tarol's own entries (<c>GET /me</c>, search): the first transformer completes them.

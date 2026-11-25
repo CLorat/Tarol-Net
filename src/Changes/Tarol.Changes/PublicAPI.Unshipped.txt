@@ -2,9 +2,13 @@
 Tarol.Changes.ChangeContext.Confirmations.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
 Tarol.Changes.ChangeContext.Confirmations.init -> void
 Tarol.Changes.ChangeContext.Confirmed(string! code) -> bool
+Tarol.Changes.ChangeContext.LocalNow(System.TimeZoneInfo! zone) -> System.DateTimeOffset
+Tarol.Changes.ChangeContext.Today(System.TimeZoneInfo! zone) -> System.DateOnly
 Tarol.Changes.ChangeContext.TryRead<T>(out T? aggregate) -> bool
 Tarol.Changes.ChangeOptions.Confirmed.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
 Tarol.Changes.ChangeOptions.Confirmed.init -> void
+Tarol.Changes.ChangeOutcome.Created.get -> bool
+Tarol.Changes.ChangeOutcome.Created.init -> void
 Tarol.Changes.ChangeTest.History<T>(Tarol.StronglyTypedId.Id<T!> id) -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>!
 Tarol.Changes.ChangeTest.StoredStateMatchesReplay<T>(Tarol.StronglyTypedId.Id<T!> id, System.Text.Json.JsonSerializerOptions! options) -> T!
 Tarol.Changes.ChangeTestOptions
@@ -57,6 +61,11 @@ Tarol.Changes.ILoads<T, TData>.Load(Tarol.Persistence.IAggregateReader! reader, 
 Tarol.Changes.ILoadsWithData<T>
 Tarol.Changes.ILoadsWithData<T>.ExecuteWithData(T! aggregate, object? data, Tarol.Changes.ChangeContext context) -> Tarol.Results.Result
 Tarol.Changes.ILoadsWithData<T>.LoadWithData(Tarol.Persistence.IAggregateReader! reader, Tarol.Changes.ChangeContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.Loaded<T!, object?>>>
+Tarol.Changes.IOrStart<T>
+Tarol.Changes.IStartable<T>
+Tarol.Changes.IStartable<T>.Start(Tarol.StronglyTypedId.Id<T!> id, Tarol.Changes.ChangeContext context) -> T!
+Tarol.Changes.IStartsTarget<T>
+Tarol.Changes.IStartsTarget<T>.StartTarget(Tarol.StronglyTypedId.Id<T!> id, Tarol.Changes.ChangeContext context) -> T!
 Tarol.Changes.Loaded<T, TData>
 Tarol.Changes.Loaded<T, TData>.Aggregate.get -> T
 Tarol.Changes.Loaded<T, TData>.Aggregate.init -> void

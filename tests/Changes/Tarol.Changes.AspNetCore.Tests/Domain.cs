@@ -158,6 +158,39 @@ public sealed record TenantHouseRow : Tarol.Queries.IRowQuery<HouseRow>;
 [Endpoint("GET /house-rows/{house}")]
 public sealed record HouseRowById(Guid House) : Tarol.Queries.IRowQuery<HouseRow>;
 
+/// <summary>A shelf that starts with its first book (TN-42, Tatalu FB-F02.5-2: HealthLoad.OrStart in every change).</summary>
+public partial class Shelf : AggregateRoot<Shelf>, IStartable<Shelf>
+{
+    public int Books { get; private set; }
+
+    public static Shelf Start(Id<Shelf> id, ChangeContext context)
+    {
+        var shelf = new Shelf(id);
+        shelf.Raise(new Started());
+        return shelf;
+    }
+
+    public Result Shelve(string title) => string.IsNullOrWhiteSpace(title) ? Error.Conflict("Shelf.Title") : Raise(new Shelved(title));
+
+    public sealed record Started : Event;
+    public sealed record Shelved(string Title) : Event;
+
+    private void On(Started e) => Books = 0;
+    private void On(Shelved e) => Books++;
+}
+
+[Endpoint("PUT /shelves/{shelf}/books")]
+public sealed partial record ShelveBook(Id<Shelf> Shelf, string Title) : IChange<Shelf>, IOrStart<Shelf>
+{
+    public Result Execute(Shelf shelf, ChangeContext context) => shelf.Shelve(Title);
+}
+
+[Endpoint("GET /shelves/{shelf}")]
+public sealed record ShelfView(Guid Id, int Books) : IView<Shelf, ShelfView>
+{
+    public static ShelfView From(Shelf s) => new(s.Id.Value, s.Books);
+}
+
 /// <summary>The payment provider's own contract (anti-corruption: its names stay here).</summary>
 public sealed record PaymentSucceededV2(string PaymentId, Guid Reference, decimal Amount, string Currency);
 public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
@@ -178,6 +211,10 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(HouseView))]
 [JsonSerializable(typeof(HouseSeasonView))]
 [JsonSerializable(typeof(HouseRow))]
+[JsonSerializable(typeof(Shelf.Started))]
+[JsonSerializable(typeof(Shelf.Shelved))]
+[JsonSerializable(typeof(ShelveBook))]
+[JsonSerializable(typeof(ShelfView))]
 public sealed partial class AppJson : JsonSerializerContext;
 
 /// <summary>A note visible to its owner only (step 18D: the audience of a search hit).</summary>

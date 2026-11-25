@@ -14,7 +14,14 @@ namespace Tarol.Changes;
 /// (<c>Tarol-Position</c> on HTTP). <see cref="GlobalPosition.Start"/> when nothing was committed or the outcome is replayed
 /// (the idempotency key stores no position).
 /// </param>
-public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Events, bool Replayed = false, GlobalPosition Position = default);
+public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Events, bool Replayed = false, GlobalPosition Position = default)
+{
+    /// <summary>
+    /// Whether this commit started the stream (a creation, a load-or-create, an <see cref="IOrStart{T}"/> change; TN-42): HTTP
+    /// answers 201 with <c>{id, version}</c> for every such change (owner decision CR-4a), not only for creations.
+    /// </summary>
+    public bool Created { get; init; }
+}
 
 /// <summary>What a channel passes along with a change.</summary>
 /// <param name="Key">An idempotency key: a redelivery with it returns the first outcome (C-8).</param>

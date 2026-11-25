@@ -453,11 +453,14 @@ public static class GeneratedOpenApi
             operation.Responses.Remove("200");
             if (metadata.Kind == "change")
                 operation.Responses["204"] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "Committed", Headers = written };
-            else
+            if (metadata.Kind == "creation" || metadata.MayCreate)
                 operation.Responses["201"] = new global::Microsoft.OpenApi.OpenApiResponse
                 {
-                    Description = "Created (200 for a replayed Idempotency-Key); Location is the new aggregate",
-                    Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>(written) { ["Location"] = Header("The new aggregate") },
+                    Description = metadata.Kind == "creation" ? "Created (200 for a replayed Idempotency-Key); Location is the new aggregate"
+                        : "Committed, and the change started the aggregate (TN-42)",
+                    Headers = metadata.Kind == "creation"
+                        ? new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>(written) { ["Location"] = Header("The new aggregate") }
+                        : written,
                     Content = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiMediaType>
                     {
                         ["application/json"] = new global::Microsoft.OpenApi.OpenApiMediaType

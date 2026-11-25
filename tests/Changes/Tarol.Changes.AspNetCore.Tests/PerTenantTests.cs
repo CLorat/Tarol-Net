@@ -77,6 +77,35 @@ public sealed class PerTenantTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_change_starts_a_missing_target_answers_201_and_a_view_shows_the_started_state()
+    {
+        // TN-42 (Tatalu FB-F02.5-2, FB-F15.5-2, FB-F13.4-2): load-or-start per change, 204 without an id, 404 before the first event
+        var shelf = Guid.CreateVersion7();
+        var empty = await _app.Get($"/shelves/{shelf}", Alice);
+        empty.Status.ShouldBe(HttpStatusCode.OK, empty.Body);
+        JsonElement.Parse(empty.Body).GetProperty("books").GetInt32().ShouldBe(0);
+        empty.ETag.ShouldBe("\"0\"");
+
+        var first = await Put($"/shelves/{shelf}/books", """{"title":"Dune"}""", Alice);
+        var second = await Put($"/shelves/{shelf}/books", """{"title":"Emma"}""", Alice);
+
+        first.Status.ShouldBe(HttpStatusCode.Created, first.Body);
+        JsonElement.Parse(first.Body).GetProperty("id").GetGuid().ShouldBe(shelf);
+        JsonElement.Parse(first.Body).GetProperty("version").GetInt64().ShouldBe(2);
+        first.Response.Headers.Location.ShouldBeNull();                                      // not a creation entry
+        second.Status.ShouldBe(HttpStatusCode.NoContent, second.Body);
+        var view = await _app.Get($"/shelves/{shelf}", Alice);
+        JsonElement.Parse(view.Body).GetProperty("books").GetInt32().ShouldBe(2);
+        view.ETag.ShouldBe("\"3\"");
+        (await _app.Get($"/shelves/{shelf}", Carol)).Status.ShouldBe(HttpStatusCode.OK);    // another tenant: its own (unstarted) shelf
+
+        var document = JsonElement.Parse((await _app.Get("/openapi/v1.json", Alice)).Body);
+        var responses = document.GetProperty("paths").GetProperty("/shelves/{shelf}/books").GetProperty("put").GetProperty("responses");
+        responses.TryGetProperty("201", out _).ShouldBeTrue();
+        responses.TryGetProperty("204", out _).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task A_second_creation_conflicts_and_a_change_before_the_creation_is_not_found()
     {
         (await Put("/house/name", """{"name":"x"}""", Alice)).Body.ShouldContain("House.NotFound");

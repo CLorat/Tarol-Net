@@ -36,12 +36,18 @@ internal sealed record EntryModel(string Name, string FullName, EntryKind Kind, 
     /// <summary>The problem codes known at compile time (BC-3: <c>x-tarol-errors</c>), sorted.</summary>
     public EquatableArray<string> Errors { get; init; }
 
+    /// <summary>A change that may start its stream (TN-42): the document lists 201 next to 204.</summary>
+    public bool MayCreate { get; init; }
+
+    /// <summary>A view of an IStartable&lt;T&gt; aggregate (TN-42): a missing stream answers the started state.</summary>
+    public bool Startable { get; init; }
+
     public bool HasBody => Kind is not (EntryKind.View or EntryKind.List) && Members.Count > 0 && System.Linq.Enumerable.Any(Members, m => m.RouteKind is null);
 
     // equality without the location, so a moved declaration regenerates nothing
     public bool Equals(EntryModel? other) => other is not null && Name == other.Name && FullName == other.FullName && Kind == other.Kind
         && Aggregate == other.Aggregate && Verb == other.Verb && Pattern == other.Pattern && Policy == other.Policy && Anonymous == other.Anonymous
-        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors);
+        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable;
 
     public override int GetHashCode() => (FullName, Verb, Pattern).GetHashCode();
 }

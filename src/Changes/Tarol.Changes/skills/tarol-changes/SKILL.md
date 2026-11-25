@@ -24,13 +24,16 @@ description: >-
    id (`Id<T>.New(now)`). No load. `ChangeOutcome.StreamId` is the new id.
 4. **Special changes**: another key or load-or-create → `ILoads<T>` with `Load(IAggregateReader reader, ChangeContext
    context, CancellationToken ct)`; data for the decision (the actor's role, facts) → `ILoads<T, TData>`: `Load` returns
-   `new Loaded<T, TData>(aggregate, data)`, `Execute(T aggregate, TData data, ChangeContext context)` (never a field). Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
+   `new Loaded<T, TData>(aggregate, data)`, `Execute(T aggregate, TData data, ChangeContext context)` (never a field).
+   Load or start → the aggregate implements `IStartable<T>` (`static T Start(Id<T> id, ChangeContext c)`), the change
+   `IOrStart<T>`: a missing target is started, the answer is 201 `{id, version}` (`ChangeOutcome.Created`), and its view before
+   the first event shows the started state (ETag `"0"`). Ids from business keys: `Id<T>.Derive("scope", parts…)`. Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
    `context.Read<X>()` (missing → 422 `X.NotFound`; `[Read(Optional = true)]` + `context.TryRead(out X? x)`). Without an
    input member: `[Reads<X>]` on the change for a `[PerTenant]` X, `[Reads<X>(SameIdAs = nameof(Member))]` for the X under
    the same Guid (`Optional = true` allowed). Never implement `IHasReads` yourself (TCHG013). A `[Read]` of the target's
    type is fine next to the target member (a sibling). A rule that must *change* two aggregates is a saga, not a change.
 5. **Time and actor come from the context**: `context.Now` (read once from the pipeline's `TimeProvider`),
-   `context.Operation.Actor`. Never `DateTimeOffset.UtcNow` (TKRN001).
+   `context.Operation.Actor`; the tenant's day: `context.Today(zone)` / `LocalNow(zone)` (zone from `TimeZones.Find`). Never `DateTimeOffset.UtcNow` (TKRN001).
 6. **Inputs are `IValidatable`**, so value rules run before any read and return every field as `Invalid` (TCHG005 warns).
 7. **Run** with an explicit context: `await pipeline.Run(change, OperationContext.Start(actor, tenant, time), options, ct)`.
    `ChangeOptions(Key: new IdempotencyKey(tenant, scope, key))` for redeliverable work. `ExpectedVersion:` for If-Match.

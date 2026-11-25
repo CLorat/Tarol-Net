@@ -47,6 +47,7 @@ internal static class Discovery
         string? aggregate = null;
         var kind = EntryKind.Change;
         var perTenant = false;
+        ITypeSymbol? aggregateSymbol = null;
         foreach (var i in type.AllInterfaces)
         {
             var definition = i.OriginalDefinition.ToDisplayString();
@@ -55,6 +56,7 @@ internal static class Discovery
             (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq),
                 definition.Contains("IView") ? EntryKind.View : definition.Contains("ICreation") ? EntryKind.Creation : EntryKind.Change);
             perTenant = i.TypeArguments[0].GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute");
+            aggregateSymbol = i.TypeArguments[0];
         }
         if (aggregate is null)
             return Fail(Diagnostics.NotAnEntry, type.Name, IsAggregate(type)
@@ -137,6 +139,10 @@ internal static class Discovery
             new EquatableArray<Member>(members.ToImmutableArray()), location)
         {
             Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct, perTenant),
+            // TN-42: a load-or-create (ILoads<T>) or IOrStart<T> change may start its stream: 201 as well as 204
+            MayCreate = kind == EntryKind.Change && type.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() is "Tarol.Changes.ILoads<T>" or "Tarol.Changes.IOrStart<T>"),
+            Startable = kind == EntryKind.View && aggregateSymbol is not null
+                        && aggregateSymbol.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() == "Tarol.Changes.IStartable<T>"),
         };
         warnings.AddRange(diagnostics);                                         // a view's warnings (an entry with errors returned earlier)
         return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), new EquatableArray<DiagnosticInfo>(warnings.ToImmutableArray()))

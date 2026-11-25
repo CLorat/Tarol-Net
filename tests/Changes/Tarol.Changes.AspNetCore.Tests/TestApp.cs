@@ -37,7 +37,7 @@ internal sealed class TestApp : IAsyncDisposable
         builder.WebHost.UseTestServer();
         if (searchIndex is not null)
             builder.Services.AddSingleton(searchIndex);
-        var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>().Add<House>())
+        var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>().Add<House>().Add<Shelf>())
             .WithReactions(GeneratedReactions.Set)
             .Store(store)
             .AddSecurity(roles =>
@@ -47,7 +47,7 @@ internal sealed class TestApp : IAsyncDisposable
                 roles.Role("reader").May<Read<Auction>>();
                 roles.Role("admin").May<CloseAuction>().May<Read<Auction>>();
                 roles.Authenticated().May<WatchAuction>();
-                roles.Role("seller").May<OpenHouse>().May<RenameHouse>().May<Read<House>>();
+                roles.Role("seller").May<OpenHouse>().May<RenameHouse>().May<Read<House>>().May<ShelveBook>().May<Read<Shelf>>();
             })
             .AddEndpoints(endpoints)
             .Projections(projections);

@@ -145,3 +145,44 @@ public interface ILoadsWithData<T>
     /// <returns>Success or the refusal.</returns>
     Result ExecuteWithData(T aggregate, object? data, ChangeContext context);
 }
+
+/// <summary>
+/// An aggregate that a change may start when it does not exist yet (TN-42, Tatalu FB-F02.5-2, FB-F15.5-2: "load or start"
+/// repeated in every change): the first change of an <see cref="IOrStart{T}"/> kind starts it with <see cref="Start"/>, and a
+/// view of it before its first event shows the started state.
+/// </summary>
+/// <typeparam name="T">The aggregate itself.</typeparam>
+public interface IStartable<T>
+    where T : AggregateRoot<T>, IAggregateRoot<T>, IStartable<T>
+{
+    /// <summary>Starts the aggregate under <paramref name="id"/> (raises its first event; pure like a factory).</summary>
+    /// <param name="id">The id the change targets (for a <c>[PerTenant]</c> aggregate the tenant's).</param>
+    /// <param name="context">The operation and time.</param>
+    /// <returns>The new aggregate with its uncommitted first event.</returns>
+    static abstract T Start(Id<T> id, ChangeContext context);
+}
+
+/// <summary>
+/// On a change: when its target does not exist, the pipeline starts it with <see cref="IStartable{T}.Start"/> instead of
+/// answering <c>T.NotFound</c>, then runs the change on it (TN-42). The outcome is <see cref="ChangeOutcome.Created"/>, HTTP 201.
+/// A concurrent start is a version conflict, which the pipeline retries.
+/// </summary>
+/// <typeparam name="T">The startable target.</typeparam>
+public interface IOrStart<T> : IStartsTarget<T>
+    where T : AggregateRoot<T>, IAggregateRoot<T>, IStartable<T>
+{
+    T IStartsTarget<T>.StartTarget(Id<T> id, ChangeContext context) => T.Start(id, context);
+}
+
+/// <summary>The pipeline's view of an <see cref="IOrStart{T}"/> (implemented by that interface).</summary>
+/// <typeparam name="T">The target.</typeparam>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+public interface IStartsTarget<T>
+    where T : AggregateRoot<T>, IAggregateRoot<T>
+{
+    /// <summary>Starts the target.</summary>
+    /// <param name="id">Its id.</param>
+    /// <param name="context">The context.</param>
+    /// <returns>The started aggregate.</returns>
+    T StartTarget(Id<T> id, ChangeContext context);
+}
