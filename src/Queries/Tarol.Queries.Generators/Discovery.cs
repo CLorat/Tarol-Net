@@ -138,7 +138,8 @@ internal static class Discovery
             aggregate!,
             new EquatableArray<WhenModel>(creators.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
             new EquatableArray<WhenModel>(updaters.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
-            new EquatableArray<ColumnModel>(columns.ToImmutableArray())) { HasEmpty = hasEmpty };
+            new EquatableArray<ColumnModel>(columns.ToImmutableArray()))
+        { HasEmpty = hasEmpty };
         return new Discovered(model, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
     }
 
