@@ -110,6 +110,31 @@ public sealed class DataProtectionCodecTests
     }
 
     [Fact]
+    public async Task Two_Members_With_The_Same_Subject_Seal_For_That_Subject()
+    {
+        // Tatalu FB-F13.3-2: the second member of the same subject compared the subject's value, not its name, and failed
+        // with "The subject member 'customer' of a personal field is missing or empty".
+        var codec = Codec();
+        var store = InMemoryKeyStore.Create();
+        var customer = Guid.CreateVersion7();
+        var order = Guid.CreateVersion7();
+        var e = new Order.Readdressed(customer, "1 Main St", "ring twice");
+
+        codec.SubjectsOf<Order>(e, order).ShouldBe([customer]);
+        var keys = await Keys(store, customer);
+        var (type, _, sealedPayload) = Seal<Order>(codec, e, order, keys);
+
+        var json = Encoding.UTF8.GetString(sealedPayload);
+        json.ShouldNotContain("1 Main St");
+        json.ShouldNotContain("ring twice");
+        var subjects = new List<Guid>();
+        EventCodec.SealedSubjects(sealedPayload, subjects);
+        subjects.ShouldBe([customer]);
+        var opening = await store.Keys(Tenant, [customer], create: false, TestContext.Current.CancellationToken);
+        codec.Decode("order", type, sealedPayload, opening).ShouldBe(e);
+    }
+
+    [Fact]
     public async Task An_Envelope_Relabelled_To_Another_Subject_Does_Not_Open()
     {
         var codec = Codec();
