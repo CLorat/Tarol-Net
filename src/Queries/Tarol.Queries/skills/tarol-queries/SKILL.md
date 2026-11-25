@@ -12,8 +12,9 @@ description: >-
 ## Rules
 
 1. A projection is a `sealed partial record` under `[Projection("kebab-name", Version = n)]`. A **static**
-   `When(TEvent e, RecordedEvent r)` (or `When(TEvent e)`) creates the stream's row; **instance** `When(TEvent e)` methods
-   return the next row (`this with { … }`). All events come from **one** aggregate (entity events count as their root's).
+   `When(TEvent e, RecordedEvent r)` (or `When(TEvent e)`) creates the stream's row; **instance** `When(TEvent e)` (or
+   `When(TEvent e, RecordedEvent r)`) methods return the next row (`this with { … }`). An entity's event names its entity in
+   `r.Event.EntityId` and its parent in `r.Event.ParentId` (`r.StreamId` is the root's). All events come from **one** aggregate (entity events count as their root's).
    Events no `When` handles leave the row unchanged.
 2. `When` methods are pure: no services, no clock, no I/O, no rules. Take times and ids from the event or `RecordedEvent`
    (`r.StreamId`, `r.RecordedAt`, `r.EventId`).

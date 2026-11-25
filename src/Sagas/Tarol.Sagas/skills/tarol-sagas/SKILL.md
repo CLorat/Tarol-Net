@@ -34,6 +34,16 @@ description: >-
    reactions run by due time only and never block other rows. Time comes from `context.Now`, never `DateTimeOffset.UtcNow`.
 8. **Test with `ReactionTest`**: `Given` (history, no reactions), `When`, `Drain()` (runs due rows and what they cause),
    `Later(span)` (timeouts and retries become due), `DeadLetters()`.
+9. **The entity of an event**: a factory `From(TEvent e, RecordedEvent r)` reads `r.Event.EntityId` (and `ParentId`) for an
+   entity's event; `r.StreamId` is the root's id. A reaction runs shortly after the commit: a change whose precondition
+   is a reaction's result can still see the old state for a moment; send it after the reaction (tests: `Drain()`).
+10. **A limit over all aggregates of a type** (places, capacity) is a **reservation**: one counter aggregate per scope
+   (`Occupancy`, id = the tenant's) whose `Reserve` refuses when full; the change that needs a place reserves first (a
+   reaction or the saga's first step), then confirms or releases. Two concurrent reservations race on the counter's
+   version (the pipeline loads and decides again, TN-45), so the limit holds; a projection read in a decision does not.
+11. **Rules with versioned parameters** (legal ages, deadlines): keep them in an aggregate (`RuleProfile`, one per tenant or
+   global), read it with `[Read]`, and store the parameter value used **on the event** (`DueOn`), so a later profile does
+   not change an old decision.
 
 ## Example
 

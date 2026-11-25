@@ -156,6 +156,10 @@ public partial class Order : AggregateRoot<Order>
 }
 ```
 
+**JSON contexts:** events are often named alike (`Child.Registered`, `Guardian.Registered`, an entity's `Added`). List them
+in your `JsonSerializerContext` with a unique name each, or System.Text.Json's generator fails with SYSLIB1031:
+`[JsonSerializable(typeof(Guardian.Registered), TypeInfoPropertyName = "GuardianRegistered")]`.
+
 ## Common mistakes
 
 | Mistake | Result |
