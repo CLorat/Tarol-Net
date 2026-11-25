@@ -42,8 +42,6 @@ public sealed class EndpointGenerator : IIncrementalGenerator
 
         var assembly = context.CompilationProvider.Select(static (c, _) => c.AssemblyName);
         var openApi = context.CompilationProvider.Select(static (c, _) => c.GetTypeByMetadataName("Microsoft.AspNetCore.OpenApi.OpenApiOptions") is not null);
-        // BC-25: with Tarol.Messaging.SignalR referenced, the document also lists the UI push's topics (x-tarol-topics)
-        var pushTopics = context.CompilationProvider.Select(static (c, _) => c.GetTypeByMetadataName("Tarol.Messaging.SignalR.UiPushTopics") is not null);
 
         context.RegisterSourceOutput(models.Combine(hookModels).Combine(assembly), static (spc, all) =>
         {
@@ -58,12 +56,12 @@ public sealed class EndpointGenerator : IIncrementalGenerator
             spc.AddSource("GeneratedEndpoints.g.cs", Emitter.Endpoints(ordered, hookList, name));
         });
 
-        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(pushTopics).Combine(assembly), static (spc, all) =>
+        context.RegisterSourceOutput(models.Combine(valueObjects).Combine(memberRules).Combine(openApi).Combine(assembly), static (spc, all) =>
         {
-            var (((((entryModels, objects), rules), available), topics), name) = all;
+            var ((((entryModels, objects), rules), available), name) = all;
             if (!available || entryModels.IsEmpty)
                 return;
-            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name, topics));
+            spc.AddSource("GeneratedOpenApi.g.cs", OpenApiEmitter.Emit(entryModels, objects, rules, name));
         });
     }
 }

@@ -15,7 +15,7 @@ namespace Tarol.Changes.AspNetCore.Tests;
 /// <summary>BC-25: the UI push's topics are in the OpenAPI document as x-tarol-topics, with the contract record's schema.</summary>
 public sealed class OpenApiTopicsTests
 {
-    private static async Task<JsonElement> Document(Action<UiPushOptions> push, bool ownAuthorizer = false)
+    private static async Task<JsonElement> Document(Action<UiPushOptions> push, bool ownAuthorizer = false, bool onlyAnAssemblyWithoutSignalR = false)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
@@ -31,7 +31,13 @@ public sealed class OpenApiTopicsTests
         builder.Services.AddAuthentication("test").AddScheme<AuthenticationSchemeOptions, TestApp.HeaderScheme>("test", null);
         builder.Services.AddAuthorization();
         builder.Services.AddSingleton<IListScope<FamilyAuctions>, FamilyScope>();
-        builder.Services.AddOpenApi(o => o.AddTarolEndpoints());
+        builder.Services.AddOpenApi(o =>
+        {
+            if (onlyAnAssemblyWithoutSignalR)
+                Garden.GeneratedOpenApi.AddTarolEndpoints(o);          // the garden fixture does not reference Tarol.Messaging.SignalR
+            else
+                o.AddTarolEndpoints();
+        });
         await using var app = builder.Build();
         app.MapOpenApi();
         app.MapChanges();
@@ -71,6 +77,16 @@ public sealed class OpenApiTopicsTests
 
         Compact(document.GetProperty("x-tarol-topics").GetProperty("shop.bid-placed"))
             .ShouldBe("""{"version":1,"stream":"Auction","schema":{"$ref":"#/components/schemas/BidPlacedV1"}}""");
+    }
+
+    [Fact]
+    public async Task The_topics_are_written_when_only_the_host_references_SignalR()
+    {
+        // TN-24 (Tatalu FB-F17.3-2): the transformer was generated only into an assembly that references SignalR itself, so the
+        // topics were missing when the contexts did not and only the host did
+        var document = await Document(push => push.Forward("shop.bid-placed").Rules.Subscribe("shop.bid-placed"), onlyAnAssemblyWithoutSignalR: true);
+
+        Compact(document.GetProperty("x-tarol-topics").GetProperty("shop.bid-placed")).ShouldContain("\"stream\":\"Auction\"");
     }
 
     [Fact]

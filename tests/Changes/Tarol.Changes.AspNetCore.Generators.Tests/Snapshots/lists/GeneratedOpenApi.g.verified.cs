@@ -38,6 +38,7 @@ public static class GeneratedOpenApi
             return global::System.Threading.Tasks.Task.CompletedTask;
         });
         options.AddSchemaTransformer(static (schema, context, cancellationToken) => Schema(schema, context, cancellationToken));
+        options.AddDocumentTransformer(static (document, context, cancellationToken) => Topics(document, context, cancellationToken));
         return options;
     }
 
@@ -626,6 +627,44 @@ public static class GeneratedOpenApi
         return schema;
     }
 
+
+    /// <summary>x-tarol-topics (BC-25): the UI push's topics, their contract version, stream, record schema and rules.</summary>
+    private static async global::System.Threading.Tasks.Task Topics(global::Microsoft.OpenApi.OpenApiDocument document,
+        global::Microsoft.AspNetCore.OpenApi.OpenApiDocumentTransformerContext context, global::System.Threading.CancellationToken cancellationToken)
+    {
+        var services = context.ApplicationServices;
+        if (global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<global::Tarol.Changes.IContractTopics>(services) is not { } push
+            || push.ContractTopics.Count == 0)
+            return;
+        var json = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+            .GetRequiredService<global::Microsoft.Extensions.Options.IOptions<global::Microsoft.AspNetCore.Http.Json.JsonOptions>>(services).Value.SerializerOptions;
+        var openApi = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+            .GetRequiredService<global::Microsoft.Extensions.Options.IOptionsMonitor<global::Microsoft.AspNetCore.OpenApi.OpenApiOptions>>(services).Get(context.DocumentName);
+        var all = new global::System.Text.Json.Nodes.JsonObject();
+        foreach (var topic in push.ContractTopics)
+        {
+            var item = new global::System.Text.Json.Nodes.JsonObject();
+            if (topic.Version is { } version)
+                item["version"] = version;
+            if (topic.Stream is { } stream)
+                item["stream"] = stream;
+            if (topic.ContractType is { } contract)
+            {
+                var id = openApi.CreateSchemaReferenceId(json.GetTypeInfo(contract)) ?? contract.Name;   // a record is always a component
+                document.Components ??= new global::Microsoft.OpenApi.OpenApiComponents();
+                document.Components.Schemas ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>();
+                if (!document.Components.Schemas.ContainsKey(id))
+                    document.Components.Schemas[id] = await context.GetOrCreateSchemaAsync(contract, null, cancellationToken);
+                item["schema"] = new global::System.Text.Json.Nodes.JsonObject { ["$ref"] = "#/components/schemas/" + id };
+            }
+            if (topic.Subscribe is { } subscribe)
+                item["subscribe"] = subscribe;
+            if (topic.Publish is { } publish)
+                item["publish"] = publish;
+            all[topic.Name] = item;
+        }
+        Extension(document.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>(), "x-tarol-topics", all);
+    }
     private static async global::System.Threading.Tasks.Task Schema(global::Microsoft.OpenApi.OpenApiSchema schema,
         global::Microsoft.AspNetCore.OpenApi.OpenApiSchemaTransformerContext context, global::System.Threading.CancellationToken cancellationToken)
     {

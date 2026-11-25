@@ -232,6 +232,7 @@ public static class UiPushExtensions
         services.TryAddSingleton(provider => new UiPushTopics(provider.GetRequiredService<UiPushOptions>(),
             tarol.OutboxRows.OfType<PublicationSet>().SelectMany(static set => set.Publications),
             ReferenceEquals(provider.GetService<ITopicAuthorizer>(), options.Rules)));
+        services.TryAddSingleton<Tarol.Changes.IContractTopics>(static provider => provider.GetRequiredService<UiPushTopics>());   // TN-24
         services.TryAddSingleton<HubConnections>();
         services.AddSignalR().AddJsonProtocol(static o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, SignalRJson.Default));
         if (options.Topics.Count > 0)

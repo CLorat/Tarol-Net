@@ -633,15 +633,15 @@ public static class GeneratedOpenApi
         global::Microsoft.AspNetCore.OpenApi.OpenApiDocumentTransformerContext context, global::System.Threading.CancellationToken cancellationToken)
     {
         var services = context.ApplicationServices;
-        if (global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<global::Tarol.Messaging.SignalR.UiPushTopics>(services) is not { } push
-            || push.Topics.Count == 0)
+        if (global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<global::Tarol.Changes.IContractTopics>(services) is not { } push
+            || push.ContractTopics.Count == 0)
             return;
         var json = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
             .GetRequiredService<global::Microsoft.Extensions.Options.IOptions<global::Microsoft.AspNetCore.Http.Json.JsonOptions>>(services).Value.SerializerOptions;
         var openApi = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
             .GetRequiredService<global::Microsoft.Extensions.Options.IOptionsMonitor<global::Microsoft.AspNetCore.OpenApi.OpenApiOptions>>(services).Get(context.DocumentName);
         var all = new global::System.Text.Json.Nodes.JsonObject();
-        foreach (var topic in push.Topics)
+        foreach (var topic in push.ContractTopics)
         {
             var item = new global::System.Text.Json.Nodes.JsonObject();
             if (topic.Version is { } version)
