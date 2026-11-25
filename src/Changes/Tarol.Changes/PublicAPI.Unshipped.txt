@@ -17,6 +17,10 @@ Tarol.Changes.ContractTopic.Subscribe.get -> bool?
 Tarol.Changes.ContractTopic.Subscribe.init -> void
 Tarol.Changes.ContractTopic.Version.get -> int?
 Tarol.Changes.ContractTopic.Version.init -> void
+Tarol.Changes.DeclaredNamesAttribute
+Tarol.Changes.DeclaredNamesAttribute.DeclaredNamesAttribute(string! kind, params string![]! names) -> void
+Tarol.Changes.DeclaredNamesAttribute.Kind.get -> string!
+Tarol.Changes.DeclaredNamesAttribute.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Tarol.Changes.GenerateTarolModuleAttribute
 Tarol.Changes.GenerateTarolModuleAttribute.GenerateTarolModuleAttribute(string? name = null) -> void
 Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?

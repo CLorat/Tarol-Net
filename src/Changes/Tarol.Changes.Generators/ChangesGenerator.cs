@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -84,6 +86,17 @@ public sealed class ChangesGenerator : IIncrementalGenerator
         });
         // TN-8: [assembly: GenerateTarolModule] → GeneratedModule.Module
         ModuleGenerator.Initialize(context, reactionModels.Select(static (r, _) => !r.IsEmpty), jobModels.Select(static (j, _) => !j.IsEmpty));
+
+        // TCHG012 (Tatalu FB-INT3-1): a reaction or job name declared in two assemblies this one sees
+        var referencedNames = context.CompilationProvider.Select(static (Compilation c, System.Threading.CancellationToken ct) => DeclaredNames.Referenced(c, ct));
+        var ownNames = reactionModels.Combine(jobModels).Combine(assembly).Select(static (((ImmutableArray<ReactionModel> Left, ImmutableArray<JobModel> Right) Left, string? Right) pair, System.Threading.CancellationToken _) => new EquatableArray<Declared>(
+            pair.Left.Left.Select(r => new Declared("reaction", r.Name, pair.Right ?? ""))
+                .Concat(pair.Left.Right.Select(j => new Declared("job", j.Name, pair.Right ?? ""))).ToImmutableArray()));
+        context.RegisterSourceOutput(referencedNames.Combine(ownNames), static (spc, pair) =>
+        {
+            foreach (var diagnostic in DeclaredNames.Collisions(pair.Left.Concat(pair.Right)))
+                spc.ReportDiagnostic(diagnostic.ToDiagnostic());
+        });
 
         var jobSites = jobs.Where(static j => j.Site is not null).Select(static (j, _) => j.Site!).Collect();
         context.RegisterSourceOutput(jobSites, static (spc, all) =>

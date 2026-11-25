@@ -44,7 +44,8 @@ description: >-
    schedule and the runner; `ReactionSet.Combine(a, b)` for several assemblies. A reaction runs as
    `Actor.System("Reactions." + name)` on behalf of the user, caused by the event, keyed (reaction, event id): a
    redelivery replays. Its **name** is the change's type name, stored in outbox rows and keys: pin
-   `[OnEvent<T>(Name = "OldName")]` before renaming (TCHG007 for duplicates). A timeout: `DueAt = nameof(Ns.Event.Member)`
+   `[OnEvent<T>(Name = "OldName")]` before renaming (TCHG007 for duplicates; TCHG012 in the host when two context
+   assemblies declare one name: give one a unique `Name` before it ships). A timeout: `DueAt = nameof(Ns.Event.Member)`
    (a `DateTimeOffset` of the event, TCHG008). Answer late, repeated or stale events with `Result.Success()`, never a
    Conflict: workers retry every Conflict and then dead-letter it.
 10. **A recurring change is a scheduled factory**: `[Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")] public static X

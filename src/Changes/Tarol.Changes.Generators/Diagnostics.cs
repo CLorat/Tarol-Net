@@ -83,8 +83,15 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "A job's name is the change's type name, or the Name of its [Scheduled]. Two changes cannot share a name.");
 
+    public static readonly DiagnosticDescriptor NameAcrossAssemblies = new(
+        "TCHG012", "Reaction or job name in two assemblies",
+        "The {0} '{1}' is declared in '{2}'; names are stored in outbox and job rows, so ReactionSet.Combine/JobSet.Combine refuse to start. Give one of them a unique Name ([OnEvent<T>(Name = …)] or [Scheduled(Name = …)]) before it is deployed.",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "Reported by every assembly that references two or more assemblies declaring the same reaction or job name (typically the host). Renaming after a deployment breaks rows in flight; pin the old name with Name instead.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
+        "TCHG012" => NameAcrossAssemblies,
         "TCHG009" => JobShape,
         "TCHG010" => JobCron,
         "TCHG011" => JobName,
