@@ -486,6 +486,14 @@ was red before (a new API's test did not compile before), and the Tatalu file wh
 * **Tatalu:** `Capture` in the inputs of `AddProbeNote`/`SetProbeValue` (`backend/src/Tatalu.Shared/Sync.cs`); the client-only
   device end (`DeviceSession`, heartbeat `PUT /ich/geraete/{id}`). Tarol-Svelte: the outbox's `captureHeaders` may default to on.
 
+### Verification (3c)
+
+2026-11-25 **[verified]** at `ed9434c`: build 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker 2306 of 2306; `dotnet pack -c Release` + `eng/verify-packages.sh` exit 0 (the new skills are in their
+packages); `eng/aot-smoke.sh` exit 0 (221 checks, 0 IL warnings). Tarol-Svelte `pnpm verify` exit 0 with TS-40 (`533dc67`).
+Suppressions: `CA1859` on one test helper (`LoadsWithDataTests`, justified); `TVAL006` file-level in `CommitAndRefuseTests` as in
+the other pipeline tests.
+
 ## Open after round 3
 
 Not built yet (each with its owner decision taken, 2026-11-26): TN-47 with TN-83 (reactions: needs a design note), TN-49 /
