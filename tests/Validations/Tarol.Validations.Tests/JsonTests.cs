@@ -34,6 +34,19 @@ public class JsonTests
     }
 
     [Fact]
+    public void DateOnly_And_TimeOnly_Value_Objects_Write_The_Bare_Value()
+    {
+        // Tatalu FB-F02.1-3: a DateOnly value object had no converter and was {"value":"…"} (an input answered 400 Json)
+        var born = new ChildBorn(BirthDate.Create(new DateOnly(2020, 1, 2)).GetValueOrThrow(), Opening.Create(new TimeOnly(7, 30)).GetValueOrThrow());
+
+        var json = JsonSerializer.Serialize(born, Info<ChildBorn>());
+
+        json.ShouldBe("""{"on":"2020-01-02","opens":"07:30:00"}""");
+        JsonSerializer.Deserialize(json, Info<ChildBorn>()).ShouldBe(born);
+        BirthDate.Create(new DateOnly(1800, 1, 1)).IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
     public void None_Is_Null_And_Null_Reads_As_None()
     {
         var placed = new OrderPlaced(Id<Order>.New(), Title.Create("Lamp").GetValueOrThrow(), Quantity.Create(1).GetValueOrThrow(),
