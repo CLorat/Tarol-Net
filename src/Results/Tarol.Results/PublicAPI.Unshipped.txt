@@ -1,1 +1,4 @@
 #nullable enable
+Tarol.Results.Error.Reasons.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Tarol.Results.Error.Reasons.init -> void
+static Tarol.Results.Error.Conflict(string! code, System.Collections.Generic.IReadOnlyList<string!>! reasons, string? detail = null) -> Tarol.Results.Error!

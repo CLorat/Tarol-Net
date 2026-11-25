@@ -143,6 +143,12 @@ public static class GeneratedOpenApi
             ["title"] = Text("The code, or \"One or more fields are invalid.\""),
             ["code"] = Text("The error's code (e.g. Auction.NotOpen); absent for invalid input"),
             ["detail"] = Text(),
+            ["reasons"] = new global::Microsoft.OpenApi.OpenApiSchema
+            {
+                Type = global::Microsoft.OpenApi.JsonSchemaType.Array,
+                Description = "The codes of several reasons behind one refusal (e.g. every missing prerequisite)",
+                Items = Text(),
+            },
             ["traceId"] = Text("The request's id, also its Tarol-Request-Id header: quote it when reporting the problem"),
             ["errors"] = new global::Microsoft.OpenApi.OpenApiSchema
             {

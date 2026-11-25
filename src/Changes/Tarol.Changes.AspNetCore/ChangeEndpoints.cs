@@ -419,7 +419,11 @@ public sealed partial class ChangeEndpoints
             problem.Status = status;
             problem.Extensions["traceId"] = requestId;                         // the header's id, not ASP.NET's W3C traceparent
             if (violation is Error error)
+            {
                 problem.Extensions["code"] = error.Code;
+                if (error.Reasons is { } reasons)
+                    problem.Extensions["reasons"] = reasons;                // TN-36
+            }
             if (await service.TryWriteAsync(new ProblemDetailsContext { HttpContext = http, ProblemDetails = problem }).ConfigureAwait(false))
                 return;
         }
@@ -451,6 +455,13 @@ public sealed partial class ChangeEndpoints
                 writer.WriteString("code", error.Code);
                 if (error.Detail is { } detail)
                     writer.WriteString("detail", detail);
+                if (error.Reasons is { } reasons)
+                {
+                    writer.WriteStartArray("reasons");                         // TN-36 (Tatalu FB-F03.4-5)
+                    foreach (var reason in reasons)
+                        writer.WriteStringValue(reason);
+                    writer.WriteEndArray();
+                }
             }
             writer.WriteString("traceId", requestId);
             writer.WriteEndObject();

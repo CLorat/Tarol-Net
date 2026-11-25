@@ -9,6 +9,7 @@ using Tarol.Changes.AspNetCore.Tests.Garden;
 using Tarol.Changes.AspNetCore.Tests.Kitchen;
 using Tarol.Persistence;
 using Tarol.Queries;
+using Tarol.Results;
 using Tarol.Security;
 using Tarol.Validations;
 
@@ -218,6 +219,24 @@ public sealed class ModuleTests : IAsyncLifetime
         constants.GetProperty("KitchenRulesMaxServings").GetInt32().ShouldBe(12);
         constants.GetProperty("RecipeFormat").GetString().ShouldBe("v2");
         constants.GetProperty("GardenRulesOrganic").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task A_refusal_with_several_reasons_lists_them_in_the_problem()
+    {
+        // TN-36 (Tatalu FB-F03.4-5): every missing prerequisite at once; Tatalu put "License,Measles" into detail and split it
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext { RequestServices = _app.Services };
+        using var body = new MemoryStream();
+        http.Response.Body = body;
+
+        await _app.Services.GetRequiredService<ChangeEndpoints>().Problem(http, Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense", "Contract.NoMeasles"]));
+
+        var problem = JsonElement.Parse(body.ToArray());
+        http.Response.StatusCode.ShouldBe(409);
+        problem.GetProperty("code").GetString().ShouldBe("Contract.Prerequisites");
+        problem.GetProperty("reasons").EnumerateArray().Select(r => r.GetString()).ShouldBe(["Contract.NoLicense", "Contract.NoMeasles"]);
+        Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense"]).ShouldBe(Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense"]));
+        Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense"]).ShouldNotBe(Error.Conflict("Contract.Prerequisites"));
     }
 
     [Fact]
