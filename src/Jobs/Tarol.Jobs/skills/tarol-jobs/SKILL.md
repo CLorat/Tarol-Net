@@ -77,7 +77,8 @@ var runs = await test.Advance(TimeSpan.FromHours(2));      // CloseDay at 01:00Z
 var missed = await test.Down(TimeSpan.FromDays(1)).Advance(TimeSpan.Zero);   // down a day: Ticks 24 (All), CloseDay 1 (Latest)
 ```
 
-`JobTest` uses an in-memory store and job rows on a standing clock. `Advance` stops at every due time up to the target
+`JobTest` uses an in-memory store and job rows on a standing clock. A job whose targets come from a projection gets one over the test's store:
+`var rows = ProjectionTest<CareFileRow>.Over(test.Store); test.Add(new RemindRenewals(rows.ReadModels), "0 6 * * *").BeforeEachRun(rows.CatchUp);`. `Advance` stops at every due time up to the target
 (cursors, retry backoffs) and returns all its runs as `IReadOnlyList<JobAttempt>` (`Job`, `Tenant`, `Occurrence` a UTC
 `DateTimeOffset`, `Attempt`, `Verdict` (`Done`/`Retry`/`Bury`), `Reason`, `Redrive`); `Runs` holds all of them. `Down` moves
 the clock with the workers stopped; `Store.Recorded`, `Load<T>(id, tenant)`, `DeadJobs()`, `Redrive(id)`, `WithTenants(…)`,

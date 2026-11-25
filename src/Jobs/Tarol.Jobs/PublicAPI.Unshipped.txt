@@ -1,3 +1,4 @@
 #nullable enable
+Tarol.Jobs.JobTest.BeforeEachRun(System.Func<System.Threading.Tasks.Task!>! step) -> Tarol.Jobs.JobTest!
 Tarol.Jobs.JobsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Jobs.JobsBuilder!
 Tarol.Jobs.JobsBuilder.AddModules() -> Tarol.Jobs.JobsBuilder!

@@ -33,6 +33,7 @@ namespace Tarol.Jobs;
 /// </remarks>
 public sealed class JobTest
 {
+    private readonly List<Func<Task>> _before = [];
     private const int MaxSteps = 1_000_000;
     private readonly TestClock _clock;
     private readonly JobsBuilder _declared = new(null);
@@ -89,6 +90,20 @@ public sealed class JobTest
         var test = new JobTest(now, jobs, reactions, stateOptions);
         configure?.Invoke(test._declared);
         return test;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="step"/> before every claim of due rows (TN-57, Tatalu FB-F03.4-6): a job that finds its targets in a
+    /// projection reads one built over this test's store, caught up first:
+    /// <c>var files = ProjectionTest&lt;CareFileRow&gt;.Over(test.Store); test.Add(new RemindRenewals(files.ReadModels), "0 6 * * *").BeforeEachRun(files.CatchUp);</c>
+    /// </summary>
+    /// <param name="step">The step, e.g. a projection's catch-up.</param>
+    /// <returns>The test.</returns>
+    public JobTest BeforeEachRun(Func<Task> step)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        _before.Add(step);
+        return this;
     }
 
     /// <summary>Adds a job instance on a cron schedule (before the first <see cref="Advance"/>).</summary>
@@ -239,6 +254,8 @@ public sealed class JobTest
         {
             if (claims > MaxSteps)
                 throw new InvalidOperationException("A job row is claimable again at once forever: a job that never leaves its occurrence?");
+            foreach (var step in _before)
+                await step().ConfigureAwait(false);
             if (!(await _worker!.RunOnce(CancellationToken.None).ConfigureAwait(false)).TryGetValue(out IReadOnlyList<JobAttempt>? attempts))
                 return;
             _runs.AddRange(attempts);
