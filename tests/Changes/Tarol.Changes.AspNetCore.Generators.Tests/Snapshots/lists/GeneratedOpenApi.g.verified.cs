@@ -45,7 +45,7 @@ public static class GeneratedOpenApi
     private const string ProblemSchemaId = "TarolProblem";
 
     /// <summary>A validation rule as the client checks it (BC-4): the attribute, the code it reports, its bounds, its pattern and flags.</summary>
-    private readonly record struct Rule(string Name, string Code, string? Min, string? Max, string? Pattern, string? Flags);
+    private readonly record struct Rule(string Name, string Code, string? Min, string? Max, string? Pattern, string? Flags, string? Step = null);
 
     /// <summary>Tarol.Validations' [Email] (Rules.Email), for clients that check it the same way.</summary>
     private const string EmailRule = "one @ with 1 to 64 characters before it; a domain of at most 253 characters that contains a dot, does not start or end with one and has no empty label; no white space; at most 254 characters";
@@ -79,6 +79,8 @@ public static class GeneratedOpenApi
                 item["pattern"] = rule.Pattern;
             if (rule.Flags is not null)
                 item["flags"] = rule.Flags;
+            if (rule.Step is not null)
+                item["step"] = Bound(rule.Step);
             list.Add((global::System.Text.Json.Nodes.JsonNode)item);
             if (rule.Name == "Email")
                 Extension(schema.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>(), "x-tarol-email",
@@ -104,6 +106,9 @@ public static class GeneratedOpenApi
                     break;
                 case "Pattern":
                     schema.Pattern = rule.Pattern;
+                    break;
+                case "Scale":
+                    schema.MultipleOf = rule.Step is { } step ? decimal.Parse(step, global::System.Globalization.CultureInfo.InvariantCulture) : schema.MultipleOf;
                     break;
                 case "Email":
                     schema.Format = "email";
@@ -148,6 +153,17 @@ public static class GeneratedOpenApi
                 Type = global::Microsoft.OpenApi.JsonSchemaType.Array,
                 Description = "The codes of several reasons behind one refusal (e.g. every missing prerequisite)",
                 Items = Text(),
+            },
+            ["confirm"] = new global::Microsoft.OpenApi.OpenApiSchema
+            {
+                Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                Description = "A warning to confirm (TN-37): send the request again with the header Tarol-Confirm: <code>",
+                Required = new global::System.Collections.Generic.HashSet<string> { "code", "args" },
+                Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+                {
+                    ["code"] = Text("The code to confirm"),
+                    ["args"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Object, Description = "Values for the message", AdditionalProperties = Text() },
+                },
             },
             ["traceId"] = Text("The request's id, also its Tarol-Request-Id header: quote it when reporting the problem"),
             ["errors"] = new global::Microsoft.OpenApi.OpenApiSchema
@@ -229,6 +245,7 @@ public static class GeneratedOpenApi
         schema.MaxLength = value.MaxLength;
         schema.Minimum = value.Minimum;
         schema.Maximum = value.Maximum;
+        schema.MultipleOf = value.MultipleOf;
         schema.Items = value.Items;
         schema.Properties = value.Properties;
         schema.Required = value.Required;
@@ -247,6 +264,7 @@ public static class GeneratedOpenApi
         schema.MaxLength = null;
         schema.Minimum = null;
         schema.Maximum = null;
+        schema.MultipleOf = null;
         schema.Items = null;
         schema.Properties = null;
         schema.Required = null;

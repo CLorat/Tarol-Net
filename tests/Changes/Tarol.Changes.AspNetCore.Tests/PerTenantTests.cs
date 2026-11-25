@@ -33,6 +33,19 @@ public sealed class PerTenantTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_view_may_have_a_member_named_From_when_it_implements_the_factory_explicitly()
+    {
+        // Tatalu FB-F06.4-1: CS0102 with the factory From; ChildAbsenceView used FirstDay/LastDay
+        (await _app.Post("/house", """{"name":"Alice's"}""", Alice)).Status.ShouldBe(HttpStatusCode.Created);
+
+        var season = await _app.Get("/house/season", Alice);
+
+        season.Status.ShouldBe(HttpStatusCode.OK, season.Body);
+        JsonElement.Parse(season.Body).GetProperty("from").GetString().ShouldBe("2026-04-01");
+        JsonElement.Parse(season.Body).GetProperty("until").GetString().ShouldBe("2026-10-31");
+    }
+
+    [Fact]
     public async Task A_second_creation_conflicts_and_a_change_before_the_creation_is_not_found()
     {
         (await Put("/house/name", """{"name":"x"}""", Alice)).Body.ShouldContain("House.NotFound");

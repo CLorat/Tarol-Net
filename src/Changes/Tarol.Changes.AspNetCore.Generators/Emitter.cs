@@ -52,6 +52,14 @@ internal static class Emitter
         }
         foreach (var group in hooks.GroupBy(h => h.Sender).OrderBy(g => g.Key, System.StringComparer.Ordinal))
             Webhook(sb, group.Key, group.OrderBy(h => h.Type, System.StringComparer.Ordinal).ThenBy(h => h.Version ?? "", System.StringComparer.Ordinal).ToArray());
+        if (entries.Any(static e => e.Kind == EntryKind.View))
+        {
+            // through the interface: a view may implement From explicitly and have a member named From (Tatalu FB-F06.4-1)
+            sb.Append("\n    private static TView ViewOf<TAggregate, TView>(TAggregate aggregate)\n");
+            sb.Append("        where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>\n");
+            sb.Append("        where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>\n");
+            sb.Append("        => TView.From(aggregate);\n");
+        }
         sb.Append("}\n");
         return sb.ToString();
     }
@@ -154,7 +162,7 @@ internal static class Emitter
             sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
         }
         sb.Append("        if (aggregate is null)\n            return;                                                     // 404, 403, 401 or 304 written\n");
-        sb.Append("        await web.WriteView(http, ").Append(e.FullName).Append(".From(aggregate));\n    }\n");
+        sb.Append("        await web.WriteView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName).Append(">(aggregate));\n    }\n");
     }
 
     // a list (step 12C): access (tenant, Read<T>), filters from claims, route and query string, sort, paging, then the answer
