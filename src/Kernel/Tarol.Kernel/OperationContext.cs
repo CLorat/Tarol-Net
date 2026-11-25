@@ -28,6 +28,12 @@ public sealed record OperationContext(
     /// <summary>The actor; not <see langword="null"/>.</summary>
     public Actor Actor { get; init => field = value ?? throw new ArgumentNullException(nameof(Actor)); } = Actor ?? throw new ArgumentNullException(nameof(Actor));
 
+    /// <summary>
+    /// Where and when the operation was captured, when a device recorded it before sending (TN-60, Tatalu FB-F17.3-6): an
+    /// offline outbox sends <c>Tarol-Device</c> and <c>Tarol-Captured-At</c>. <see langword="null"/> for a direct request.
+    /// </summary>
+    public Capture? Capture { get; init; }
+
     /// <summary>Starts a conversation: a new UUIDv7 correlation id read from <paramref name="clock"/>, no causation.</summary>
     /// <param name="actor">Who acts.</param>
     /// <param name="tenant">The tenant, or <see cref="Option.None"/>.</param>
@@ -63,3 +69,8 @@ public sealed record OperationContext(
         return this with { Actor = Actor.System(component, onBehalfOf) };
     }
 }
+
+/// <summary>The device and the time of an operation captured before it was sent (TN-60): from an offline outbox.</summary>
+/// <param name="Device">The app's opaque id of the device (<c>Tarol-Device</c>), or <see langword="null"/>.</param>
+/// <param name="At">When the device captured it (<c>Tarol-Captured-At</c>), checked against the server's clock, or <see langword="null"/>.</param>
+public sealed record Capture(string? Device, DateTimeOffset? At);

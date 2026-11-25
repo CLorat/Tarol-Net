@@ -62,6 +62,7 @@ internal sealed class TestApp : IAsyncDisposable
             }));
         foreach (var rule in new IAuthorizationHandler[] { new CloseAuctionRule(), new CreateAuctionRule(), new ReadOwnAuction() })
             builder.Services.AddSingleton(rule);
+        builder.Services.AddSingleton<IDeviceGate, EndedDevices>();
         builder.Services.AddSingleton<AccessRecorder>().AddSingleton<Tarol.Security.IAccessObserver>(s => s.GetRequiredService<AccessRecorder>());
         if (scopes)
             builder.Services.AddSingleton<FamilyScope>().AddSingleton<IListScope<FamilyAuctions>>(s => s.GetRequiredService<FamilyScope>());
@@ -85,6 +86,7 @@ internal sealed class TestApp : IAsyncDisposable
         if (corsOrigin is not null)
             app.UseCors("browser");
         app.UseAuthentication();
+        app.UseDeviceGate();                                                                   // TN-60
         app.UseAuthorization();
         app.MapOpenApi();
         app.MapChanges();
@@ -213,4 +215,11 @@ public sealed class AccessRecorder : Tarol.Security.IAccessObserver
         Seen.Enqueue(access);
         return ValueTask.CompletedTask;
     }
+}
+
+/// <summary>The device registry of the tests (TN-60): "lost-1" was ended.</summary>
+public sealed class EndedDevices : IDeviceGate
+{
+    public ValueTask<bool> IsActive(string device, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken)
+        => ValueTask.FromResult(device != "lost-1");
 }

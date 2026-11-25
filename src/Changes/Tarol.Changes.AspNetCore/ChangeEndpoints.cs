@@ -156,7 +156,50 @@ public sealed partial class ChangeEndpoints
                 return (context, default, Invalid.Field("Tarol-Confirm", "Length"));
             confirmed = codes;
         }
+        if (Capture(http, out var refusedCapture) is { } capture)
+            context = context with { Capture = capture };
+        else if (refusedCapture is not null)
+            return (context, default, refusedCapture);
         return (context, new ChangeOptions(key, ifMatch, user) { Confirmed = confirmed }, null);
+    }
+
+    // TN-60: Tarol-Device and Tarol-Captured-At of an offline outbox; the time must lie within the skew and the age the options allow
+    private Capture? Capture(HttpContext http, out Violation? refused)
+    {
+        refused = null;
+        var device = http.Request.Headers[TarolHeaders.Device].ToString();
+        var at = http.Request.Headers[TarolHeaders.CapturedAt].ToString();
+        if (device.Length == 0 && at.Length == 0)
+            return null;
+        if (device.Length > 128 || device.Any(static ch => ch is < '!' or > '~'))
+        {
+            refused = Invalid.Field(TarolHeaders.Device, "Format");
+            return null;
+        }
+        DateTimeOffset? captured = null;
+        if (at.Length > 0)
+        {
+            if (!at.Contains('T', StringComparison.Ordinal) || !DateTimeOffset.TryParse(at, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)
+                || !(at.EndsWith('Z') || at.EndsWith('z') || at.LastIndexOfAny(['+', '-']) > at.IndexOf('T', StringComparison.Ordinal)))
+            {
+                refused = Invalid.Field(TarolHeaders.CapturedAt, "Format");                    // RFC 3339 with an offset
+                return null;
+            }
+            var now = _time.GetUtcNow();
+            if (parsed > now + Options.CaptureSkew)
+            {
+                refused = Invalid.Field(TarolHeaders.CapturedAt, "Future", $"more than {Options.CaptureSkew} ahead of the server's clock");
+                return null;
+            }
+            if (parsed < now - Options.CaptureMaxAge)
+            {
+                refused = Invalid.Field(TarolHeaders.CapturedAt, "TooOld", $"older than {Options.CaptureMaxAge}");
+                return null;
+            }
+            captured = parsed.ToUniversalTime();
+        }
+        return new Capture(device.Length == 0 ? null : device, captured);
     }
 
     private Actor ActorOf(ClaimsPrincipal user)

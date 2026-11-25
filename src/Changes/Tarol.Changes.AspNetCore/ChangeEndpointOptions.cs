@@ -35,6 +35,12 @@ public sealed class ChangeEndpointOptions
     /// <summary>The largest body read (bytes); larger requests get 413. Default 64 KiB.</summary>
     public int MaxBody { get; set; } = 64 * 1024;
 
+    /// <summary>How far <c>Tarol-Captured-At</c> may lie ahead of the server's clock (default 5 minutes; a device's clock drifts; TN-60).</summary>
+    public TimeSpan CaptureSkew { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>How old <c>Tarol-Captured-At</c> may be (default 30 days: an outbox that waited longer is refused with 400 <c>TooOld</c>).</summary>
+    public TimeSpan CaptureMaxAge { get; set; } = TimeSpan.FromDays(30);
+
     /// <summary>Write problem details through the application's <c>IProblemDetailsService</c> (<c>AddProblemDetails</c>)
     /// when one is registered; else (or when <see langword="false"/>) they are written directly.</summary>
     public bool UseProblemDetailsService { get; set; } = true;
