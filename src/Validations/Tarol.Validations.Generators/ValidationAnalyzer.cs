@@ -61,7 +61,10 @@ public sealed class ValidationAnalyzer : DiagnosticAnalyzer
         if (!serializesDirectly)
             return;
 
-        var valueObject = reach.GetOrAdd(jsonContext, c => FindValueObject(c, context.Compilation.Assembly));
+        // MyJson.Default.Event: only that type matters, not everything the context knows (Tatalu FB-F15.1-6)
+        var valueObject = parent is IPropertyReferenceOperation { Property.Type: INamedTypeSymbol { Name: "JsonTypeInfo", TypeArguments.Length: 1 } typeInfo }
+            ? Walk(typeInfo.TypeArguments[0], context.Compilation.Assembly, new System.Collections.Generic.HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0)
+            : reach.GetOrAdd(jsonContext, c => FindValueObject(c, context.Compilation.Assembly));
         if (valueObject is null)
             return;
 
