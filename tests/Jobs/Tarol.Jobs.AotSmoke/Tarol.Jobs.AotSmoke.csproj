@@ -8,6 +8,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>   <!-- as Tatalu's apps: no ICU (FB-WIN-1) -->
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
