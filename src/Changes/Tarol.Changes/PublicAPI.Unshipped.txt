@@ -100,6 +100,8 @@ Tarol.Changes.ReadScope.ReadScope() -> void
 Tarol.Changes.ReadScope.ReadScope(System.Type! View, bool Restricted) -> void
 Tarol.Changes.ReadScope.Restricted.get -> bool
 Tarol.Changes.ReadScope.Restricted.init -> void
+Tarol.Changes.ReadScope.Sensitive.get -> bool
+Tarol.Changes.ReadScope.Sensitive.init -> void
 Tarol.Changes.ReadScope.View.get -> System.Type!
 Tarol.Changes.ReadScope.View.init -> void
 Tarol.Changes.Reads.Find<T>() -> T?

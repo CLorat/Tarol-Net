@@ -82,4 +82,11 @@ public interface IChangeAuthorization
 /// </summary>
 /// <param name="View">The view or query record type.</param>
 /// <param name="Restricted">Whether it needs its own grant (<c>[Endpoint(…, Restricted = true)]</c>).</param>
-public readonly record struct ReadScope(Type View, bool Restricted);
+public readonly record struct ReadScope(Type View, bool Restricted)
+{
+    /// <summary>
+    /// A sensitive read (TN-59, VA-4): every granted read is reported to the access observers, a 304 included (the person saw
+    /// the data again), not only the denials. <c>[Endpoint(…, Sensitive = true)]</c> sets it.
+    /// </summary>
+    public bool Sensitive { get; init; }
+}

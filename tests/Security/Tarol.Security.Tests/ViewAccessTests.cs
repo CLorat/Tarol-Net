@@ -98,3 +98,63 @@ public sealed class GrantCoverageTests
         => new ChangeAuthorization(new ServiceCollection().AddAuthorizationCore().AddLogging().BuildServiceProvider().GetRequiredService<IAuthorizationService>())
             .MayBeGranted(typeof(TouchAuction), null).ShouldBeNull();
 }
+
+/// <summary>TN-59 (VA-4): denials and sensitive reads reach the access observers; an observer never changes the answer.</summary>
+public sealed class AccessObserverTests
+{
+    private sealed class Recorder : IAccessObserver
+    {
+        public List<AccessRecord> Seen { get; } = [];
+
+        public ValueTask Observed(AccessRecord access, CancellationToken cancellationToken)
+        {
+            Seen.Add(access);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class Broken : IAccessObserver
+    {
+        public ValueTask Observed(AccessRecord access, CancellationToken cancellationToken) => throw new InvalidOperationException("disk full");
+    }
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+    private static readonly DateTimeOffset Now = new(2026, 11, 26, 10, 0, 0, TimeSpan.Zero);
+
+    private static ClaimsPrincipal User(string subject, params string[] roles)
+        => new(new ClaimsIdentity([new Claim("sub", subject), .. roles.Select(r => new Claim("role", r))], "test", "sub", "role"));
+
+    private static ChangeContext Context(ClaimsPrincipal user) => new(OperationContext.Start(Actor.User(user.FindFirst("sub")!.Value), Option.None, TimeProvider.System), Now);
+
+    [Fact]
+    public async Task Denials_and_granted_sensitive_reads_are_observed_other_grants_are_not()
+    {
+        var recorder = new Recorder();
+        var services = new ServiceCollection();
+        services.AddTarol(ShopJson.Default, codec => codec.Add<Auction>()).UseInMemoryStore().AddSecurity(roles => roles.Role("reader").May<Read<Auction>>());
+        services.AddSingleton<IAccessObserver, Broken>();
+        services.AddSingleton<IAccessObserver>(recorder);
+        await using var provider = services.BuildServiceProvider();
+        var authorization = provider.GetRequiredService<IChangeAuthorization>();
+        var auction = Auction.Create("alice", 100, Now);
+        var reader = User("rita", "reader");
+        var stranger = User("sam");
+        var sensitive = new ReadScope(typeof(AuctionAccounts), false) { Sensitive = true };
+
+        (await authorization.Check(Read<Auction>.Instance, auction, Context(reader), reader, new ReadScope(typeof(AuctionCard), false), Ct)).IsSuccess.ShouldBeTrue();
+        (await authorization.Check(Read<Auction>.Instance, auction, Context(reader), reader, sensitive, Ct)).IsSuccess.ShouldBeTrue();
+        (await authorization.Check(Read<Auction>.Instance, auction, Context(stranger), stranger, sensitive, Ct)).IsSuccess.ShouldBeFalse();
+        (await authorization.CheckList<Auction>(Context(stranger), stranger, new ReadScope(typeof(AuctionCard), false), Ct)).IsSuccess.ShouldBeFalse();
+        (await authorization.Check(new CloseAuction(auction.Id), auction, Context(stranger), stranger, Ct)).IsSuccess.ShouldBeFalse();
+
+        recorder.Seen.Select(a => (a.Decision, a.Intent, a.View, a.Code, a.Actor.Id)).ShouldBe([
+            (AccessDecision.Allowed, "Read<Auction>", "AuctionAccounts", null, "rita"),
+            (AccessDecision.Denied, "Read<Auction>", "AuctionAccounts", "Auth.Forbidden", "sam"),
+            (AccessDecision.Denied, "List<Auction>", "AuctionCard", "Auth.Forbidden", "sam"),
+            (AccessDecision.Denied, "CloseAuction", null, "Auth.Forbidden", "sam"),
+        ]);
+        recorder.Seen[0].Id.ShouldBe(auction.Id.Value);
+        recorder.Seen[2].Id.ShouldBeNull();
+        recorder.Seen.ShouldAllBe(a => a.At == Now && a.Aggregate == "Auction");
+    }
+}

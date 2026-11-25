@@ -408,7 +408,7 @@ internal static class Emitter
 
     /// <summary>The read's scope (TN-43, VA-2): the view or query record, and whether it needs its own grant.</summary>
     private static string Scope(EntryModel e)
-        => "new global::Tarol.Changes.ReadScope(typeof(" + e.FullName + "), " + (e.Restricted ? "true" : "false") + ")";
+        => "new global::Tarol.Changes.ReadScope(typeof(" + e.FullName + "), " + (e.Restricted ? "true" : "false") + ")" + (e.Sensitive ? " { Sensitive = true }" : "");
 
     private static string Method(EntryModel e) => (e.Kind switch { EntryKind.View => "View_", EntryKind.List => "List_", EntryKind.Row => "Row_", _ => "Run_" }) + Key(e);
 

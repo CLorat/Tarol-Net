@@ -1,5 +1,35 @@
 #nullable enable
-Tarol.Security.ChangeAuthorization.ChangeAuthorization(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorization, Tarol.Security.ChangeRoles! roles, System.Collections.Generic.IEnumerable<Microsoft.AspNetCore.Authorization.IAuthorizationHandler!>! handlers, Microsoft.Extensions.Logging.ILogger<Tarol.Security.ChangeAuthorization!>? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
+Tarol.Security.AccessDecision
+Tarol.Security.AccessDecision.Allowed = 0 -> Tarol.Security.AccessDecision
+Tarol.Security.AccessDecision.Denied = 1 -> Tarol.Security.AccessDecision
+Tarol.Security.AccessObservers
+Tarol.Security.AccessObservers.AccessObservers(System.Collections.Generic.IEnumerable<Tarol.Security.IAccessObserver!>! observers, Microsoft.Extensions.Logging.ILogger<Tarol.Security.AccessObservers!>? logger = null) -> void
+Tarol.Security.AccessObservers.Any.get -> bool
+Tarol.Security.AccessObservers.Report(Tarol.Security.AccessRecord! access, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Security.AccessRecord
+Tarol.Security.AccessRecord.<Clone>$() -> Tarol.Security.AccessRecord!
+Tarol.Security.AccessRecord.AccessRecord(Tarol.Kernel.Actor! Actor, Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, string! Intent, string! Aggregate, System.Guid? Id, string? View, Tarol.Security.AccessDecision Decision, string? Code, System.DateTimeOffset At) -> void
+Tarol.Security.AccessRecord.Actor.get -> Tarol.Kernel.Actor!
+Tarol.Security.AccessRecord.Actor.init -> void
+Tarol.Security.AccessRecord.Aggregate.get -> string!
+Tarol.Security.AccessRecord.Aggregate.init -> void
+Tarol.Security.AccessRecord.At.get -> System.DateTimeOffset
+Tarol.Security.AccessRecord.At.init -> void
+Tarol.Security.AccessRecord.Code.get -> string?
+Tarol.Security.AccessRecord.Code.init -> void
+Tarol.Security.AccessRecord.Decision.get -> Tarol.Security.AccessDecision
+Tarol.Security.AccessRecord.Decision.init -> void
+Tarol.Security.AccessRecord.Deconstruct(out Tarol.Kernel.Actor! Actor, out Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> Tenant, out string! Intent, out string! Aggregate, out System.Guid? Id, out string? View, out Tarol.Security.AccessDecision Decision, out string? Code, out System.DateTimeOffset At) -> void
+Tarol.Security.AccessRecord.Equals(Tarol.Security.AccessRecord? other) -> bool
+Tarol.Security.AccessRecord.Id.get -> System.Guid?
+Tarol.Security.AccessRecord.Id.init -> void
+Tarol.Security.AccessRecord.Intent.get -> string!
+Tarol.Security.AccessRecord.Intent.init -> void
+Tarol.Security.AccessRecord.Tenant.get -> Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>>
+Tarol.Security.AccessRecord.Tenant.init -> void
+Tarol.Security.AccessRecord.View.get -> string?
+Tarol.Security.AccessRecord.View.init -> void
+Tarol.Security.ChangeAuthorization.ChangeAuthorization(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorization, Tarol.Security.ChangeRoles! roles, System.Collections.Generic.IEnumerable<Microsoft.AspNetCore.Authorization.IAuthorizationHandler!>! handlers, Tarol.Security.AccessObservers! observers, Microsoft.Extensions.Logging.ILogger<Tarol.Security.ChangeAuthorization!>? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
 Tarol.Security.ChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
 Tarol.Security.ChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
 Tarol.Security.ChangeAuthorization.MayBeGranted(System.Type! intent, Tarol.Changes.ReadScope? scope) -> bool?
@@ -7,6 +37,8 @@ Tarol.Security.ChangeRequirement.View.get -> Tarol.Changes.ReadScope?
 Tarol.Security.ChangeRequirement.View.init -> void
 Tarol.Security.ChangeRoles.Grants(System.Security.Claims.ClaimsPrincipal! user, object! read, Tarol.Changes.ReadScope scope) -> bool
 Tarol.Security.ChangeRoles.GrantsAnyone(System.Type! intent, Tarol.Changes.ReadScope? scope) -> bool
+Tarol.Security.IAccessObserver
+Tarol.Security.IAccessObserver.Observed(Tarol.Security.AccessRecord! access, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Security.RoleGrants.MayRead<TAggregate, TView>() -> Tarol.Security.RoleGrants
 Tarol.Security.SecurityModule
 Tarol.Security.SecurityModule.<Clone>$() -> Tarol.Security.SecurityModule!
@@ -18,9 +50,14 @@ Tarol.Security.SecurityModule.SecurityModule(System.Action<Tarol.Security.Change
 Tarol.Security.ViewHandler<TView, TAggregate>
 Tarol.Security.ViewHandler<TView, TAggregate>.ViewHandler() -> void
 abstract Tarol.Security.ViewHandler<TView, TAggregate>.HandleView(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext! context, Tarol.Security.ChangeRequirement! requirement, TAggregate! aggregate) -> System.Threading.Tasks.Task!
+override Tarol.Security.AccessRecord.Equals(object? obj) -> bool
+override Tarol.Security.AccessRecord.GetHashCode() -> int
+override Tarol.Security.AccessRecord.ToString() -> string!
 override Tarol.Security.SecurityModule.Equals(object? obj) -> bool
 override Tarol.Security.SecurityModule.GetHashCode() -> int
 override Tarol.Security.SecurityModule.ToString() -> string!
 override sealed Tarol.Security.ViewHandler<TView, TAggregate>.Handle(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext! context, Tarol.Security.ChangeRequirement! requirement, Tarol.Security.Read<TAggregate!>! change, TAggregate! aggregate) -> System.Threading.Tasks.Task!
+static Tarol.Security.AccessRecord.operator !=(Tarol.Security.AccessRecord? left, Tarol.Security.AccessRecord? right) -> bool
+static Tarol.Security.AccessRecord.operator ==(Tarol.Security.AccessRecord? left, Tarol.Security.AccessRecord? right) -> bool
 static Tarol.Security.SecurityModule.operator !=(Tarol.Security.SecurityModule? left, Tarol.Security.SecurityModule? right) -> bool
 static Tarol.Security.SecurityModule.operator ==(Tarol.Security.SecurityModule? left, Tarol.Security.SecurityModule? right) -> bool

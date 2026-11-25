@@ -26,6 +26,8 @@ internal sealed class TestApp : IAsyncDisposable
 
     public WebApplication App { get; }
     public HttpClient Client { get; }
+    public AccessRecorder Access => App.Services.GetRequiredService<AccessRecorder>();
+
     public InMemoryAggregateStore Store => App.Services.GetRequiredService<InMemoryAggregateStore>();
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
@@ -60,6 +62,7 @@ internal sealed class TestApp : IAsyncDisposable
             }));
         foreach (var rule in new IAuthorizationHandler[] { new CloseAuctionRule(), new CreateAuctionRule(), new ReadOwnAuction() })
             builder.Services.AddSingleton(rule);
+        builder.Services.AddSingleton<AccessRecorder>().AddSingleton<Tarol.Security.IAccessObserver>(s => s.GetRequiredService<AccessRecorder>());
         if (scopes)
             builder.Services.AddSingleton<FamilyScope>().AddSingleton<IListScope<FamilyAuctions>>(s => s.GetRequiredService<FamilyScope>());
         if (problemDetailsService)
@@ -198,4 +201,16 @@ internal sealed record Answer(HttpResponseMessage Response, string Body)
     public System.Net.HttpStatusCode Status => Response.StatusCode;
     public string? ETag => Response.Headers.ETag?.Tag;
     public override string ToString() => $"{(int)Status} {Body}";
+}
+
+/// <summary>Records what the access observers see (TN-59).</summary>
+public sealed class AccessRecorder : Tarol.Security.IAccessObserver
+{
+    public System.Collections.Concurrent.ConcurrentQueue<Tarol.Security.AccessRecord> Seen { get; } = new();
+
+    public ValueTask Observed(Tarol.Security.AccessRecord access, CancellationToken cancellationToken)
+    {
+        Seen.Enqueue(access);
+        return ValueTask.CompletedTask;
+    }
 }

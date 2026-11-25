@@ -24,6 +24,9 @@ description: >-
 5. **Who** is a permission (here); **what state allows** is a guard in the aggregate (409). Never read roles in an aggregate.
 6. Another tenant's aggregate is never loaded (404), so rules never see it.
 7. Register rules as **singleton** `IAuthorizationHandler`s; `requirement.Context` has `Now`, `Operation` and `Read<T>()`.
+8. Access log (TN-59): a singleton `IAccessObserver` gets an `AccessRecord` (actor, tenant, intent, aggregate, id, view,
+   `AccessDecision`, code, time) for every denial, and for every granted read of `[Endpoint("GET …", Sensitive = true)]`, a
+   304 included. Ids and codes only; a failing observer is logged (1004) and never changes the answer.
 
 ## Example
 

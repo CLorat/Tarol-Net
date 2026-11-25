@@ -144,6 +144,7 @@ internal static class Discovery
         {
             Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct, perTenant),
             Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
+            Sensitive = attribute.NamedArguments.Any(static n => n.Key == "Sensitive" && n.Value.Value is true),
             // TN-42: a load-or-create (ILoads<T>) or IOrStart<T> change may start its stream: 201 as well as 204
             MayCreate = kind == EntryKind.Change && type.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() is "Tarol.Changes.ILoads<T>" or "Tarol.Changes.IOrStart<T>"),
             Contextual = kind == EntryKind.View && ViewFroms(type).Contextual,
@@ -351,6 +352,7 @@ internal static class Discovery
         {
             Errors = Codes(EntryKind.Row, aggregate, placeholders.Contains("tenant"), type, null, ct),
             Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
+            Sensitive = attribute.NamedArguments.Any(static n => n.Key == "Sensitive" && n.Value.Value is true),
         };
         return new(model, default, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
     }
@@ -498,6 +500,7 @@ internal static class Discovery
         {
             Errors = Codes(EntryKind.List, aggregate, placeholders.Contains("tenant"), type, null, ct),
             Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
+            Sensitive = attribute.NamedArguments.Any(static n => n.Key == "Sensitive" && n.Value.Value is true),
         };
         return new(model, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
     }

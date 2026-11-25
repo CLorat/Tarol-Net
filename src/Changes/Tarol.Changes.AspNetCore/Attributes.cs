@@ -32,6 +32,13 @@ public sealed class EndpointAttribute(string route) : Attribute
     /// <c>Read&lt;TAggregate&gt;</c> alone does not grant it (TN-43, owner decision VA-2a: opt-in). Row rules still run.
     /// </summary>
     public bool Restricted { get; init; }
+
+    /// <summary>
+    /// For a view, list or row query: every granted read is reported to the registered <c>Tarol.Security.IAccessObserver</c>s
+    /// (TN-59, VA-4: a 304 counts, the person saw the data again); denials are reported for every endpoint. Ids, codes and
+    /// types only, never the view's data.
+    /// </summary>
+    public bool Sensitive { get; init; }
 }
 
 /// <summary>

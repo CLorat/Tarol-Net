@@ -105,6 +105,13 @@ public sealed record AuctionSummary(Guid Id, string Title, string Seller, Auctio
         a.PaymentId is { } payment ? payment : Tarol.Options.Option.None);
 }
 
+/// <summary>A sensitive view (TN-59): every granted read, a 304 included, reaches the access observers.</summary>
+[Endpoint("GET /auctions/{auction}/dossier", Sensitive = true)]
+public sealed record AuctionDossier(Guid Id, string Seller, decimal Reserve) : IView<Auction, AuctionDossier>
+{
+    public static AuctionDossier From(Auction a) => new(a.Id.Value, a.Seller, a.Reserve);
+}
+
 /// <summary>The auction house's settings: one per tenant (TN-2), its id is the tenant's.</summary>
 [PerTenant]
 public partial class House : AggregateRoot<House>
@@ -216,7 +223,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(CreateAuction)), JsonSerializable(typeof(PlaceBid)), JsonSerializable(typeof(CloseAuction))]
 [JsonSerializable(typeof(WatchAuction)), JsonSerializable(typeof(TouchAuction)), JsonSerializable(typeof(RenameAuction)), JsonSerializable(typeof(MakeOffer))]
-[JsonSerializable(typeof(PaymentSucceededV2)), JsonSerializable(typeof(PaymentSucceededV1)), JsonSerializable(typeof(AuctionSummary))]
+[JsonSerializable(typeof(PaymentSucceededV2)), JsonSerializable(typeof(PaymentSucceededV1)), JsonSerializable(typeof(AuctionSummary)), JsonSerializable(typeof(AuctionDossier))]
 [JsonSerializable(typeof(decimal)), JsonSerializable(typeof(string)), JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]
 [JsonSerializable(typeof(Auction.Watched)), JsonSerializable(typeof(Bid.Placed)), JsonSerializable(typeof(Payout.Due))]
