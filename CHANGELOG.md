@@ -6,6 +6,42 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Tatalu feedback, round 2 (TN-19 … TN-68; [docs/migration/tatalu-round-2.md](docs/migration/tatalu-round-2.md))
+
+#### Fixed
+
+* Several `[PersonalData(Subject = …)]` members with one subject no longer fail on `Append` (TN-19).
+* TPRM013 no longer reports `with` expressions and object initializers; TPRM022/023 count deconstructing assignments, and
+  TPRM013 reports them in behaviour methods (TN-21, TN-14).
+* Two different types with one OpenAPI schema name fail the document instead of overwriting each other (TN-22).
+* A member missing in a nested input record is `Required`; `DateOnly`/`TimeOnly` value objects write the bare value (TN-23).
+* `x-tarol-topics` is written when only the host references `Tarol.Messaging.SignalR` (TN-24).
+* An erasure no longer fails while projections build (TN-25).
+* TCHG006 names a type that does not resolve (TN-28); TVAL009 checks the type used, not the whole context (TN-29).
+* `x-tarol-errors`: `[Read]` targets' `NotFound`, `Invalid.Field` codes; no unreachable `AlreadyExists` or `ILoads`
+  `NotFound` (TN-30, TN-38).
+* Enums are described by name when the entries write names, also BCL enums; the HTTP JSON options ask the application's
+  contexts first (TN-33, TN-11).
+
+#### Added
+
+* TPRM034 (computed property next to personal data) and `InMemoryAggregateStore.AssertNoPlaintext` (TN-20).
+* `[OpenApiSchemaName]`, `[ContractType]` (`x-tarol-types`), `[ContractConstant]` (`x-tarol-constants`) in `Tarol.Kernel`
+  (TN-22, TN-35).
+* `Option<T>` is written in place as `oneOf [null, $ref T]` (no `OptionOfX` components); value objects of referenced
+  assemblies get type and rules; computed non-nullable members are required (TN-31, TN-32, TN-27).
+* `ProjectionHosts.WaitUntilCurrent`, `ProjectionHost.WaitUntilCurrent`, `ProjectionsBuilder.ReadyWhenCurrent`,
+  `ProjectionOptions.ErasureWait` (TN-26, TN-25).
+* `Error.Reasons`, `Error.Conflict(code, reasons, detail)`, problem `reasons` (TN-36).
+* `ChangeContext.TryRead`, `Reads.Find` (TN-40); `TopicRules.Subscribe/Publish(topic, params roles)` (TN-61);
+  `IContractTopics`, `ContractTopic` (TN-24).
+* Design notes: view-access, change-reads, audit, files, web-push, tenant-membership, data-protection-round-2.
+
+#### Changed
+
+* A change without an expected version is loaded and decided again when it loses a race, up to 3 times
+  (`ChangePipeline.ConflictAttempts`, TN-45). Before, the conflict was always returned.
+
 ### Documentation
 
 * README: consuming the packages from GitHub Packages with `<auditSources>` (nuget.org) against NU1900 (TN-18); the
