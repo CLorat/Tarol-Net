@@ -293,6 +293,15 @@ The skill `tarol-changes` is 12 KB, over the 8 KB guide: split it (reactions int
 | a view with a period | `static V IView<A, V>.From(A a)`, members `From`/`Until` | renaming the members |
 | an event member added later | `bool AlwaysEmail = false` (no new version) | a version and an upcaster for an optional member |
 
+## Verification
+
+SDK 11.0.100, 2026-11-25 **[verified]**: `dotnet build Tarol.slnx` 0 warnings; `dotnet format Tarol.slnx --verify-no-changes`
+clean; `dotnet test --solution Tarol.slnx` with Docker: 2258 of 2259, the one failure (`NpgsqlReadModelTests.The_script_creates_the_table_with_typed_columns_the_key_and_an_index_per_sort`)
+pinned the unquoted DDL and was updated with TN-69 (`f3a889b`; the project then 48 of 48); `dotnet pack -c Release` +
+`eng/verify-packages.sh`: exit 0; `eng/aot-smoke.sh`: exit 0, 221 checks, 0 IL warnings (the jobs smoke app now runs with
+`InvariantGlobalization`). Suppressions: none. New diagnostics: TCHG012, TCHG013 (`AnalyzerReleases.Unshipped.md`). Public API
+files regenerated with `eng/public-api.py update`.
+
 ## Release notes 0.1.0-preview.6 (round 3, for Tatalu)
 
 These add to the round-2 notes ([tatalu-round-2.md](tatalu-round-2.md#release-notes-010-preview6-for-tatalu)); both ship in
