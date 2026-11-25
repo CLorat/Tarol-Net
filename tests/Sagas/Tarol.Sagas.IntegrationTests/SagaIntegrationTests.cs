@@ -103,6 +103,25 @@ public sealed class SagaIntegrationTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task A_due_time_with_an_offset_is_stored_as_its_instant()
+    {
+        // Tatalu FB-F06.4-5: DueAt in Europe/Berlin (+01:00) ran in memory, Npgsql refused it ("only offset 0 (UTC)")
+        var store = await postgres.Store(TimeProvider.System);
+        var pipeline = new ChangePipeline(store, TimeProvider.System);
+        var alice = Alice;
+        var settlement = Settlement.For(Guid.CreateVersion7());
+        settlement.Begin("bob", 120, TimeProvider.System.GetUtcNow()).IsSuccess.ShouldBeTrue();
+        (await store.Append(settlement, 0, alice, Option.None, Ct)).IsSuccess.ShouldBeTrue();
+        var berlin = new DateTimeOffset(2031, 1, 15, 12, 0, 0, TimeSpan.FromHours(1));
+
+        var rescheduled = await pipeline.Run(new RescheduleSettlement(settlement.Id, berlin), alice, cancellationToken: Ct);
+
+        rescheduled.IsSuccess.ShouldBeTrue(rescheduled.ToString());
+        await using var command = postgres.DataSource.CreateCommand($"SELECT max(due_at) FROM {store.Schema}.outbox WHERE reaction = 'ExpireSettlement'");
+        ((DateTime)(await command.ExecuteScalarAsync(Ct))!).ShouldBe(new DateTime(2031, 1, 15, 11, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
     public async Task With_Notify_a_reaction_runs_long_before_the_poll_interval()
     {
         var store = await postgres.Store(TimeProvider.System, notify: true);

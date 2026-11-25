@@ -971,7 +971,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                 reactions.Add(reaction);
                 versions.Add(changes[i].Version);
                 events.Add(eventIds[i]);
-                due.Add(table.DueAt(changes[i].Event, reaction) is { } dueAt && dueAt > at ? dueAt : at);
+                // the instant, in UTC: a due time with an offset (Europe/Berlin) is the same instant (Tatalu FB-F06.4-5)
+                due.Add(table.DueAt(changes[i].Event, reaction) is { } dueAt && dueAt > at ? dueAt.ToUniversalTime() : at);
                 scheduled.Add(table.IsScheduled(reaction));
             }
         }
