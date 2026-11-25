@@ -64,6 +64,16 @@ public interface IChangeAuthorization
     ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, ReadScope scope, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
         => CheckList<T>(context, principal, cancellationToken);
+
+    /// <summary>
+    /// Whether anything could grant <paramref name="intent"/> (TN-43, VA-3): a role (or "authenticated") of the role map, or a row
+    /// rule that may succeed it. Asked once per endpoint at startup; a <see langword="false"/> is an endpoint nobody may call
+    /// (an error in Development, warning 1003 otherwise). <see langword="null"/> (the default): this authorization cannot tell.
+    /// </summary>
+    /// <param name="intent">The change input type, or <c>Read&lt;T&gt;</c> for a view, list or row query.</param>
+    /// <param name="scope">The view or query record of a read; <see langword="null"/> for a change.</param>
+    /// <returns>Whether it may be granted, or <see langword="null"/> when unknown.</returns>
+    bool? MayBeGranted(Type intent, ReadScope? scope) => null;
 }
 
 /// <summary>

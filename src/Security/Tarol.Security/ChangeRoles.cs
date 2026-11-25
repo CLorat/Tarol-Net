@@ -56,6 +56,24 @@ public sealed class ChangeRoles
         return !scope.Restricted && Grants(user, read);
     }
 
+    /// <summary>Whether any role (or "authenticated") of the map grants <paramref name="intent"/> (VA-3; no caller involved).</summary>
+    /// <param name="intent">The change input type, or <c>Read&lt;T&gt;</c>.</param>
+    /// <param name="scope">The view of a read, or <see langword="null"/>.</param>
+    /// <returns>Whether some role grants it.</returns>
+    public bool GrantsAnyone(Type intent, ReadScope? scope)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        if (scope is { } read)
+        {
+            var key = (intent, read.View);
+            if (_authenticatedViews.Contains(key) || _views.Values.Any(v => v.Contains(key)))
+                return true;
+            if (read.Restricted)
+                return false;
+        }
+        return _authenticated.Contains(intent) || _grants.Values.Any(g => g.Contains(intent));
+    }
+
     /// <summary>Whether the map grants <paramref name="change"/> to <paramref name="user"/>.</summary>
     /// <param name="user">The caller.</param>
     /// <param name="change">The change input (or a <see cref="Read{TAggregate}"/> intent).</param>

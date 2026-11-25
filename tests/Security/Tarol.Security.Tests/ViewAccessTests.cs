@@ -65,3 +65,36 @@ public sealed class ViewAccessTests
         (await Read(authorization, reader, typeof(AuctionCard), restricted: false, Sunday)).IsSuccess.ShouldBeTrue();   // another view
     }
 }
+
+/// <summary>TN-43 (VA-3): whether anything could grant an intent, asked once per endpoint at startup.</summary>
+public sealed class GrantCoverageTests
+{
+    [Fact]
+    public async Task The_role_map_and_the_row_rules_cover_intents_and_nothing_else_does()
+    {
+        var services = new ServiceCollection();
+        services.AddTarol(ShopJson.Default, codec => codec.Add<Auction>()).UseInMemoryStore().AddSecurity(roles =>
+        {
+            roles.Role("seller").May<CreateAuction>();
+            roles.Role("accountant").MayRead<Auction, AuctionAccounts>();
+            roles.Authenticated().May<WatchAuction>();
+        });
+        services.AddSingleton<IAuthorizationHandler, CloseAuctionRule>();
+        services.AddSingleton<IAuthorizationHandler, AccountsOnWeekdays>();
+        await using var provider = services.BuildServiceProvider();
+        var authorization = provider.GetRequiredService<IChangeAuthorization>();
+
+        authorization.MayBeGranted(typeof(CreateAuction), null).ShouldBe(true);           // a role
+        authorization.MayBeGranted(typeof(WatchAuction), null).ShouldBe(true);            // authenticated
+        authorization.MayBeGranted(typeof(CloseAuction), null).ShouldBe(true);            // a row rule
+        authorization.MayBeGranted(typeof(TouchAuction), null).ShouldBe(false);           // nobody
+        authorization.MayBeGranted(typeof(Read<Auction>), new ReadScope(typeof(AuctionAccounts), true)).ShouldBe(true);
+        authorization.MayBeGranted(typeof(Read<Auction>), new ReadScope(typeof(AuctionCard), false)).ShouldBe(false);   // no Read<Auction>
+        authorization.MayBeGranted(typeof(Read<Auction>), new ReadScope(typeof(AuctionCard), true)).ShouldBe(false);
+    }
+
+    [Fact]
+    public void An_authorization_without_the_role_map_cannot_tell()
+        => new ChangeAuthorization(new ServiceCollection().AddAuthorizationCore().AddLogging().BuildServiceProvider().GetRequiredService<IAuthorizationService>())
+            .MayBeGranted(typeof(TouchAuction), null).ShouldBeNull();
+}

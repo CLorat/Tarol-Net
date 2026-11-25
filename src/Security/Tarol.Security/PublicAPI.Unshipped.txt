@@ -1,9 +1,12 @@
 #nullable enable
+Tarol.Security.ChangeAuthorization.ChangeAuthorization(Microsoft.AspNetCore.Authorization.IAuthorizationService! authorization, Tarol.Security.ChangeRoles! roles, System.Collections.Generic.IEnumerable<Microsoft.AspNetCore.Authorization.IAuthorizationHandler!>! handlers, Microsoft.Extensions.Logging.ILogger<Tarol.Security.ChangeAuthorization!>? logger = null, System.Diagnostics.Metrics.IMeterFactory? meters = null) -> void
 Tarol.Security.ChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
 Tarol.Security.ChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Security.ChangeAuthorization.MayBeGranted(System.Type! intent, Tarol.Changes.ReadScope? scope) -> bool?
 Tarol.Security.ChangeRequirement.View.get -> Tarol.Changes.ReadScope?
 Tarol.Security.ChangeRequirement.View.init -> void
 Tarol.Security.ChangeRoles.Grants(System.Security.Claims.ClaimsPrincipal! user, object! read, Tarol.Changes.ReadScope scope) -> bool
+Tarol.Security.ChangeRoles.GrantsAnyone(System.Type! intent, Tarol.Changes.ReadScope? scope) -> bool
 Tarol.Security.RoleGrants.MayRead<TAggregate, TView>() -> Tarol.Security.RoleGrants
 Tarol.Security.SecurityModule
 Tarol.Security.SecurityModule.<Clone>$() -> Tarol.Security.SecurityModule!

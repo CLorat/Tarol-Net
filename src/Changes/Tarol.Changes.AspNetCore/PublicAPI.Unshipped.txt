@@ -79,6 +79,7 @@ override Tarol.Changes.AspNetCore.RequiredMember.ToString() -> string!
 ~override Tarol.Changes.AspNetCore.ViewContext.Equals(object obj) -> bool
 override Tarol.Changes.AspNetCore.ViewContext.GetHashCode() -> int
 ~override Tarol.Changes.AspNetCore.ViewContext.ToString() -> string
+static Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(System.IServiceProvider! services, System.Type! intent, Tarol.Changes.ReadScope? scope, string! entry) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<TQuery>(System.IServiceProvider! services, bool required) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(string! text, out System.DateOnly value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnumName<TEnum>(string? text, out TEnum value) -> bool

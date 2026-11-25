@@ -66,6 +66,7 @@ public sealed class CloseAuctionRule : ChangeHandler<CloseAuction, Auction>
 | Mistake | What happens |
 |---|---|
 | a change no role grants (and no rule succeeds) | 403 `Auth.Forbidden`: fail closed |
+| an `[Endpoint]` that no role and no `ChangeHandler`/`ViewHandler` covers | `MapChanges` throws `InvalidOperationException` "The change X needs X; no role and no row rule grants it" in Development, warning 1003 elsewhere (VA-3) |
 | a rule that only calls `Succeed` for the seller, expecting it to restrict | the seller role still grants others; use `Deny` to restrict |
 | `context.Fail()` without a reason | 403 `Auth.Forbidden` (no code); use `Deny(context, code)` |
 | a principal on a pipeline without `AddSecurity` | 403 `Auth.NotConfigured` |

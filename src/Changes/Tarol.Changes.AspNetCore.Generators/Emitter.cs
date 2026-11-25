@@ -124,6 +124,14 @@ internal static class Emitter
             sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
               .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");
         sb.Append("                });\n");
+        if (!e.Anonymous)
+        {
+            var read = e.Kind is EntryKind.View or EntryKind.List or EntryKind.Row;
+            var what = e.Kind switch { EntryKind.View => "view", EntryKind.List => "list", EntryKind.Row => "row query", EntryKind.Creation => "creation", _ => "change" };
+            sb.Append("            ").Append(Web).Append(".Granted(app.ServiceProvider, typeof(")
+              .Append(read ? "global::Tarol.Security.Read<" + e.Aggregate + ">" : e.FullName).Append("), ")
+              .Append(read ? Scope(e) : "null").Append(", ").Append(Literal(what + " " + e.Name)).Append(");   // nobody granted: an error in Development (VA-3)\n");
+        }
         sb.Append("            ").Append(Builder).Append(".AuthorizationEndpointConventionBuilderExtensions.")
           .Append(e.Anonymous ? "AllowAnonymous(endpoint)" : e.Policy is null ? "RequireAuthorization(endpoint)" : $"RequireAuthorization(endpoint, {Literal(e.Policy)})")
           .Append(';').Append(e.Anonymous || e.Policy is not null ? "" : "                   // no Policy: the default policy (fail closed, C-11)").Append('\n');

@@ -36,6 +36,8 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
 
     private readonly IAuthorizationService _authorization;
     private readonly ILogger _log;
+    private readonly ChangeRoles? _roles;
+    private readonly IAuthorizationHandler[] _handlers = [];
 
     /// <summary>Creates the authorization.</summary>
     /// <param name="authorization">ASP.NET Core's authorization service (<c>AddAuthorizationCore</c>).</param>
@@ -47,6 +49,41 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
         _authorization = authorization;
         _log = (ILogger?)logger ?? NullLogger.Instance;
         _denied = (meters?.Create(MeterName) ?? SharedMeter).CreateCounter<long>("tarol.authorization.denied", "{request}", "Changes and reads refused by authorization.");
+    }
+
+    /// <summary>Creates the authorization that also answers <see cref="MayBeGranted"/> from the role map and the row rules (VA-3).</summary>
+    /// <param name="authorization">ASP.NET Core's authorization service (<c>AddAuthorizationCore</c>).</param>
+    /// <param name="roles">The role map.</param>
+    /// <param name="handlers">The registered authorization handlers (the <see cref="ChangeHandler{TChange, TAggregate}"/> row rules among them).</param>
+    /// <param name="logger">The denial log.</param>
+    /// <param name="meters">Creates the meter <see cref="MeterName"/>; <see langword="null"/> = a shared meter.</param>
+    public ChangeAuthorization(IAuthorizationService authorization, ChangeRoles roles, IEnumerable<IAuthorizationHandler> handlers,
+        ILogger<ChangeAuthorization>? logger = null, IMeterFactory? meters = null)
+        : this(authorization, logger, meters)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        ArgumentNullException.ThrowIfNull(handlers);
+        _roles = roles;
+        _handlers = [.. handlers];
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A role of the map, or a <see cref="ChangeHandler{TChange, TAggregate}"/> / <see cref="ViewHandler{TView, TAggregate}"/> for the
+    /// intent (a rule that only denies counts too: the check cannot see inside it). Lists are granted by the role map only (row
+    /// rules do not run on lists), so a rule does not cover a list. <see langword="null"/> when built without the role map.
+    /// </remarks>
+    public bool? MayBeGranted(Type intent, ReadScope? scope)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        if (_roles is null)
+            return null;
+        if (_roles.GrantsAnyone(intent, scope))
+            return true;
+        foreach (var handler in _handlers)
+            if (handler is IChangeRule rule && rule.Covers(intent, scope))
+                return true;
+        return false;
     }
 
     /// <inheritdoc />

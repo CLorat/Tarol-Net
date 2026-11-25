@@ -55,6 +55,7 @@ Tarol.Changes.GenerateTarolModuleAttribute.GenerateTarolModuleAttribute(string? 
 Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?
 Tarol.Changes.IChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
 Tarol.Changes.IChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Changes.IChangeAuthorization.MayBeGranted(System.Type! intent, Tarol.Changes.ReadScope? scope) -> bool?
 Tarol.Changes.IContractTopics
 Tarol.Changes.IContractTopics.ContractTopics.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.ContractTopic!>!
 Tarol.Changes.ILoads<T, TData>

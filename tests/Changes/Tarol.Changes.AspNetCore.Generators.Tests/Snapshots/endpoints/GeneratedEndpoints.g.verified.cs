@@ -36,6 +36,7 @@ public static class GeneratedEndpoints
                     Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Stream.VersionConflict" },
                     Owner = typeof(GeneratedEndpoints).Assembly,
                 });
+            global::Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(app.ServiceProvider, typeof(global::Shop.OpenOrder), null, "creation OpenOrder");   // nobody granted: an error in Development (VA-3)
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:write");
         }
         {
@@ -52,6 +53,7 @@ public static class GeneratedEndpoints
                     Errors = new string[] { "Auth.Forbidden", "Order.NotFound" },
                     Owner = typeof(GeneratedEndpoints).Assembly,
                 });
+            global::Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(app.ServiceProvider, typeof(global::Tarol.Security.Read<global::Shop.Order>), new global::Tarol.Changes.ReadScope(typeof(global::Shop.OrderView), false), "view OrderView");   // nobody granted: an error in Development (VA-3)
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
         {
@@ -69,6 +71,7 @@ public static class GeneratedEndpoints
                     Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.NotFound", "Stream.VersionConflict" },
                     Owner = typeof(GeneratedEndpoints).Assembly,
                 });
+            global::Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(app.ServiceProvider, typeof(global::Shop.AddItems), null, "change AddItems");   // nobody granted: an error in Development (VA-3)
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
         {
