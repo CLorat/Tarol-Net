@@ -336,6 +336,26 @@ Tatalu file whose workaround goes.
 Tarol.slnx` with Docker 2265 of 2265; `eng/verify-packages.sh` exit 0; `eng/aot-smoke.sh` exit 0 (221 checks, 0 IL warnings).
 Tarol-Svelte `pnpm verify` exit 0 with TS-39.
 
+### Skills split (owner request 2026-11-26)
+
+`tarol-changes` (12.1 KB) and `tarol-queries` (12.0 KB) were over the 8 KB guide. New skills, shipped in their packages (the
+package check finds every `skills/*/SKILL.md`):
+
+* `tarol-reactions` (`Tarol.Changes`): `[OnEvent<T>]` and `[Scheduled]` factories, `ReactionSet`, TCHG006–TCHG012. `tarol-changes`
+  keeps changes, reads, confirmations and `ChangeTest` (8.3 KB). `tarol-sagas` and `tarol-jobs` now point to `tarol-reactions`.
+* `tarol-list-endpoints` (`Tarol.Changes.AspNetCore`): `IQuery<TRow>`, `IRowQuery<TRow>`, filters, `IListScope`, paging and
+  read-your-writes over HTTP. `tarol-queries` keeps projections, hosts, `ProjectionTest` and personal data (7.4 KB).
+
+Still over 8 KB, not split in this round: `tarol-primitives` (13.9 KB), `tarol-persistence` (11.7 KB), `tarol-persistence-npgsql`
+(10.7 KB), `tarol-messaging` (10.4 KB), `tarol-jobs` (9.5 KB).
+
+| Task | Expected skill and API | Mistakes to avoid |
+|---|---|---|
+| run a change when an event commits | `tarol-reactions`: `[OnEvent<T>] public static X From(T e, RecordedEvent r)` | an event handler class; a Conflict for a late event |
+| a timeout of a saga | `tarol-reactions`: `[OnEvent<T>(DueAt = nameof(Ns.T.Member))]` | a polling job |
+| a list for parents of their children only | `tarol-list-endpoints`: `IListScope<TQuery>`, `RequiresScope = true` | a `?parent=` parameter |
+| the tenant's one history row over HTTP | `tarol-list-endpoints`: `IRowQuery<TRow>` without members | a one-row list |
+
 ### Not built in 3b, and why
 
 * **TN-46 commit and refuse:** a refusal that commits would store the idempotency key, and a replay would answer success. It

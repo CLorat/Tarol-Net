@@ -11,7 +11,7 @@ description: >-
 
 ## Rules
 
-1. **A reaction is a change with an `[OnEvent<T>]` factory** (skill `tarol-changes`). The store writes one outbox row
+1. **A reaction is a change with an `[OnEvent<T>]` factory** (skill `tarol-reactions`). The store writes one outbox row
    per (event, reaction) in the event's commit; the worker runs it through the pipeline as the system on behalf of the
    user, caused by the event, keyed (reaction, event id): a redelivery commits nothing twice.
 2. **Run the worker**: register the store's outbox and the pipeline, then `services.AddTarolReactions(GeneratedReactions.Set)`

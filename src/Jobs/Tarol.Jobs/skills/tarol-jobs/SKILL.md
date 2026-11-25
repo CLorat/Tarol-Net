@@ -12,7 +12,7 @@ description: >-
 
 ## Rules
 
-1. **One change per occurrence = a scheduled factory** on the change (skill `tarol-changes`):
+1. **One change per occurrence = a scheduled factory** on the change (skill `tarol-reactions`):
    `[Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")] public static CloseDay From(JobOccurrence o) => new(…);`
    The generator puts it in `GeneratedJobs.Set`. `o.At` is UTC whole seconds; `o.Local` gives the zone's day and time.
 2. **Many changes per occurrence (a fan-out, a report) = an `IJob` class** with DI:
