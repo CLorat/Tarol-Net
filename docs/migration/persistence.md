@@ -724,3 +724,7 @@ while the test counted (it failed once in a full run).
 loses the parts). `Tarol.Messaging.SignalR`'s `PushToUi` reads the `PublicationSet`s among them to describe its topics in the
 OpenAPI document (`x-tarol-topics`, [client-contract.md §24](client-contract.md)). No behaviour change. Suppressions: none.
 
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).

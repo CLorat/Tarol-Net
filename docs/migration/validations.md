@@ -653,3 +653,7 @@ already did when the interface was named again. A derived record without paramet
 
 Tests: `DiagnosticTests.TVAL002_Generic_File_Local_And_Derived_Inputs_Are_Unsupported` (a new case; fails without the fix) and
 `A_Derived_Input_Without_Parameters_Of_Its_Own_Inherits_The_Bases_Validate`.
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).

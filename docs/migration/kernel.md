@@ -464,3 +464,7 @@ Status: checklist written; **not yet run** (needs a model-evaluation harness out
 
 Tests: `KernelJsonTests.Invalid_Actor_Should_BeAJsonException` (4 new cases, 3 of them accepted before) and
 `OperationContextTests.NullArguments_Should_Throw` (the `with` case; fails without the fix).
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).

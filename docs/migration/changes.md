@@ -692,3 +692,7 @@ None.
 `dotnet build` 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution Tarol.slnx` with Docker:
 **2173 of 2173**; `dotnet pack` + `eng/verify-packages.sh`: OK; `eng/aot-smoke.sh` with `TAROL_PG`: 28 apps, 0 IL warnings
 (`T.PerTenant` is a static virtual member: no reflection).
+
+## Tatalu round 3
+
+Public API and behaviour changes of this family in round 3 are listed item by item in [tatalu-round-3.md](tatalu-round-3.md).
