@@ -141,7 +141,7 @@ public sealed partial class NpgsqlProjectionPositions : IProjectionPositions, IA
         if (_listener is not null || Volatile.Read(ref _disposed) == 1)
             return;
         lock (_gate)
-            _listener ??= Task.Run(Listen, CancellationToken.None);
+            _listener ??= Detached.Run(Listen);
     }
 
     private async ValueTask<ProjectionCheckpoint> Read(string name, int version, CancellationToken cancellationToken)

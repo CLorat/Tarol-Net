@@ -102,7 +102,7 @@ public sealed partial class NpgsqlKeyStore : IKeyStore, IAsyncDisposable
     public Task StartListening(CancellationToken cancellationToken)
     {
         lock (_listenGate)
-            _listener ??= Task.Run(() => Listen(_stop.Token), CancellationToken.None);
+            _listener ??= Detached.Run(() => Listen(_stop.Token));
         return _listening.Task.WaitAsync(cancellationToken);
     }
 
