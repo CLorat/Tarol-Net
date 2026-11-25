@@ -6,6 +6,27 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Tatalu feedback, round 3c (owner decisions 2026-11-26)
+
+#### Added
+
+* `ILoads<T, TData>` and `Loaded<T, TData>`: data from `Load` to `Execute` (TN-41).
+* `Id<T>.Derive(scope, parts)`, `IStartable<T>`/`IOrStart<T>` (load or start), `ChangeContext.LocalNow`/`Today` (TN-42).
+* `ViewContext` and `From(aggregate, ViewContext)`; `Restricted` views with `MayRead<T, TView>()` and `ViewHandler<TView, T>`;
+  `IChangeAuthorization.MayBeGranted` and the startup grant check; `IAccessObserver` and `Sensitive` entries (TN-43, TN-59).
+* Range filters: `RangeFilter`, `ListQuery.Ranges`, `[AtLeast]`/`[AtMost]` list members (TN-44).
+* `Result.Rejected`: a refusal that commits its events, stored with the idempotency key (TN-46).
+* `IStreamIds` and `UseStoreTenants<T>()` (TN-56).
+* `OperationContext.Capture` from `Tarol-Device`/`Tarol-Captured-At`, `IDeviceGate` and `UseDeviceGate()` (TN-60).
+* Skills `tarol-reactions` and `tarol-list-endpoints` (split from `tarol-changes` and `tarol-queries`).
+
+#### Changed
+
+* A change whose commit started its stream answers 201 (an `ILoads` load-or-create answered 204) (TN-42).
+* An endpoint nobody may call stops the host in Development, warning 1003 elsewhere (TN-43).
+* PostgreSQL store schema version 5: `idempotency_keys.refusal` (additive) (TN-46).
+* The violation JSON writes `reasons` (TN-46).
+
 ### Tatalu feedback, round 3b
 
 #### Added

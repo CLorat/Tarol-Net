@@ -94,12 +94,12 @@ round-2 branch (PR links follow the PRs).
 | TN-38 | P0 | `x-tarol-errors` complete: `Invalid.Field` codes; `Lookup.Taken` per lookup; row-rule codes | FB-F01.1-9, FB-F02.1-6, FB-F15.1-8 | `Invalid.Field` built `8a2baa4`; lookup and row-rule codes open (proposal in the note) |
 | TN-39 | P0 | Generate the `[JsonSerializable]` list | FB-F01.2-1, FB-F02.2-3 | *Checked: a generator cannot feed the System.Text.Json generator*; skill documents `TypeInfoPropertyName` |
 | TN-40 | P1 | Reads in changes: `[Read(FromTenant)]`, `Read<T>(id)`, `TryRead`, `Optional`, TCHG004 for the target only | FB-F01.1-2, FB-F03.4-1, FB-F13.4-3, FB-F17.7-1, FB-F03.3-2, FB-F02.1-7 | `TryRead` built `bbfc048`; rest designed ([change-reads.md](../architecture/change-reads.md)), open |
-| TN-41 | P1 | `ILoads<T, TData>`; the actor's roles | FB-F13.3-6, FB-F15.1-5, FB-F17.4-4, FB-F04.7-1 | designed (change-reads.md), open |
-| TN-42 | P1 | Load or create, 201 for `ILoads`, `IView.Empty`, `Id<T>.Derive` | FB-F02.5-2, FB-F15.5-2, FB-F13.4-2, FB-F04.1-3 | designed (change-reads.md), open |
-| TN-43 | P1 | Views with context (`Now`, actor) and read rights per view/projection; "list X needs Read<Y>" | FB-F01.1-6, FB-F02.1-2, FB-F02.2-1, FB-F15.2-2, FB-F17.2-2, FB-F04.8-2, FB-F17.4-6 | designed ([view-access.md](../architecture/view-access.md)), owner decisions, open |
-| TN-44 | P1 | List rules with the query; range filters `>=`/`<=` | FB-F04.1-1, FB-F13.3-1 | open: TN-6 (`IListScope<TQuery>`) covers "rows of the caller" but not refusing on the query's filters or ranges |
+| TN-41 | P1 | `ILoads<T, TData>`; the actor's roles | FB-F13.3-6, FB-F15.1-5, FB-F17.4-4, FB-F04.7-1 | built `003a5b2` (round 3c) |
+| TN-42 | P1 | Load or create, 201 for `ILoads`, `IView.Empty`, `Id<T>.Derive` | FB-F02.5-2, FB-F15.5-2, FB-F13.4-2, FB-F04.1-3 | built `c7e973c`, `63e950a` (round 3c) |
+| TN-43 | P1 | Views with context (`Now`, actor) and read rights per view/projection; "list X needs Read<Y>" | FB-F01.1-6, FB-F02.1-2, FB-F02.2-1, FB-F15.2-2, FB-F17.2-2, FB-F04.8-2, FB-F17.4-6 | built `fc3f572`, `d2ff1a4`, `0c17fe9`, `3baa514` (round 3c; the Development `requires` member and the policy-failure decorator open) |
+| TN-44 | P1 | List rules with the query; range filters `>=`/`<=` | FB-F04.1-1, FB-F13.3-1 | range filters built `553e1bc` (round 3c); refusing a list on its filters open |
 | TN-45 | P1 | A change without `If-Match` retries a version conflict | FB-F17.3-10, FB-F02.2-2 | built `f5225c7` (client: TS-32) |
-| TN-46 | P1 | Commit and refuse (`Result.Rejected` after `Raise`) | FB-F15.1-4 | open |
+| TN-46 | P1 | Commit and refuse (`Result.Rejected` after `Raise`) | FB-F15.1-4 | built `b6d3716` (round 3c) |
 | TN-47 | P1 | Reactions: fan-out, skip, all events of an aggregate | FB-F15.2-1, FB-F15.9-2, FB-F17.4-2, FB-F13.3-7 | open (audit part in [audit.md](../architecture/audit.md)) |
 | TN-48 | P1 | Entity id and path in child events; event id in `On` | FB-F02.3-1, FB-F15.9-1, FB-F01.2-3, FB-F04.4-1 | documentation part built `28db79b`; the rest open |
 | TN-49 | P1 | Ports in changes (`Prepare`), versioned parameters, `LocalNow(zone)` | FB-F17.2-1, FB-F02.6-1, FB-F01.9-1 | pattern in `tarol-sagas` built `28db79b`; ports designed (change-reads.md), open |
@@ -109,11 +109,11 @@ round-2 branch (PR links follow the PRs).
 | TN-53 | P1 | `Money` / `[Scale(2)]` | FB-F03.6-1 | open |
 | TN-54 | P1 | Projections: per entity, from the stored state, generic start, single view, SQL read endpoint | FB-F03.4-4, FB-F04.1-4, FB-F01.2-2, FB-F01.2-4, FB-F04.3-1, FB-F04.5-1 | open |
 | TN-55 | P1 | Value equality for collections in events and views | FB-F04.8-1 | open |
-| TN-56 | P1 | `UseStoreTenants()`; global master data | FB-F03.4-3, FB-F17.7-2 | designed ([tenant-membership.md](../architecture/tenant-membership.md)), open |
+| TN-56 | P1 | `UseStoreTenants()`; global master data | FB-F03.4-3, FB-F17.7-2 | `UseStoreTenants<T>()` built `e5db48c` (round 3c); global master data and TN-62 open |
 | TN-57 | P1 | `JobTest.WithProjection<TRow>()` | FB-F03.4-6 | open |
 | TN-58 | P1 | DataProtection: keys per category, `ExportTenant`, erasure journal, Art. 15 options, `[PersonalSubject]` | FB-F02.5-1, FB-F17.5-1, FB-F17.5-2, FB-F13.6-2, FB-F04.2-3 | designed ([data-protection-round-2.md](../architecture/data-protection-round-2.md)), open |
-| TN-59 | P1 | `IAccessObserver`, `[Endpoint(…, Sensitive = true)]` | FB-F13.3-4, FB-F02.2-4 | designed (view-access.md), open |
-| TN-60 | P1 | `Tarol-Device`/`Tarol-Captured-At` → `OperationContext.Capture`, `IDeviceGate` | FB-F17.3-6, FB-F13.2-4, FB-F04.6-1 | open (the client outbox TS-26 waits for it) |
+| TN-59 | P1 | `IAccessObserver`, `[Endpoint(…, Sensitive = true)]` | FB-F13.3-4, FB-F02.2-4 | built `3baa514` (round 3c; hub refusals open) |
+| TN-60 | P1 | `Tarol-Device`/`Tarol-Captured-At` → `OperationContext.Capture`, `IDeviceGate` | FB-F17.3-6, FB-F13.2-4, FB-F04.6-1 | built `be7af43` (round 3c); the capture in the PostgreSQL event columns (TN-60b) and `SeenVersion` open |
 | TN-61 | P1 | `TopicRules.Subscribe(topic, params roles)` | FB-F17.3-9 | built `c4cd608` |
 | TN-62 | P1 | Zitadel: `RequireSecondFactor`, `EndAll`, organisation ↔ tenant, accounts in several tenants | FB-F13.2-1, FB-F13.2-2, FB-F15.1-3 | designed (tenant-membership.md), owner decisions, open |
 | TN-63 | P1 | Effects with `dueAt`, `Digest<TKey>`; `AddEffects()` without transport | FB-F15.8-1, FB-F17.4-3, FB-F13.2-5 | designed ([web-push.md](../architecture/web-push.md)), open; skill note built `28db79b` |
@@ -159,8 +159,8 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-53 | `[Scale(n)]` (code `Scale`), `multipleOf` and the rule's `step` in the schema; `Money` as a documented value object per currency | built `e147531` (owner decision SV-dec (b): JSON number) |
 | TN-15 | `ChangeTest` with the app's lookups | built with TN-76 |
 | TN-67 | `ChangeTest.History`, several singletons with one stream id (FB-F06.3-2) | part built with TN-76; `Given(factory).And`, camelCase paths, several JSON contexts open |
-| TN-41 | `ILoads<T, TData>`; again FB-F05.1-1, FB-F06.3-3, FB-F06.4-4 | open: next step CR-C (owner decision CR-2 pending, recommendation (a)) |
-| TN-42 | load or start, 201, `IView.Empty`, `Id<T>.Derive` | open: CR-D/CR-E (decisions CR-4a/b pending) |
+| TN-41 | `ILoads<T, TData>`; again FB-F05.1-1, FB-F06.3-3, FB-F06.4-4 | built `003a5b2` (round 3c) |
+| TN-42 | load or start, 201, `IView.Empty`, `Id<T>.Derive` | built `c7e973c`, `63e950a` (round 3c) |
 | TN-43, TN-44 | views with context and rights per view; list rules with the query and range filters; again FB-E07-3, FB-F06.1-1, FB-E07-4 | open: decisions VA-1 … VA-4 pending |
 | TN-47 | reactions: fan-out, skip, all events of an aggregate, the triggering event; again FB-F06.3-5, FB-F06.3-6, FB-F06.6-4, FB-F06.5-3, FB-F06.2-3, FB-E07-2, FB-INT3-5, new FB-F06.4-3, FB-E07-7 (TN-83) | open: needs a design note (no owner decision listed yet) |
 | TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | generic start `Empty(RecordedEvent)` built `3133118` (FB-F01.2-2); one row `IRowQuery<TRow>` built `c6ca39e` (FB-F01.2-4); per entity, from the state and the SQL read endpoint (join over two aggregate types) open: need a design note (row key per entity; a read endpoint for `ISqlProjection`) |
@@ -170,6 +170,7 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-65 | `Tarol.Files`; FB-F05.2-1 gives the concrete API need (`IMediaStore`, `tatalu_media`) | open: decisions FI-1 … FI-5 pending; next for E12 |
 | TN-34 | enums as route values (FB-F17.4-5) | built `2ab0222` |
 | TN-57 | `JobTest` with a projection (FB-F03.4-6) | built `ee5f861` as `JobTest.BeforeEachRun` (no Tarol.Queries dependency in Tarol.Jobs) |
-| TN-46 | commit and refuse (FB-F15.1-4) | open: needs a design note: a committed refusal stores the idempotency key, so a replay would answer success; options: store the refusal with the key, or commit without the key |
+| TN-46 | commit and refuse (FB-F15.1-4) | built `b6d3716` (round 3c) |
 | TN-48 | event id in `On`, entity id in `Deleted` (FB-F04.4-1, FB-F02.3-1) | open: an `On` also runs at `Raise`, before the store assigns the event id; needs a design note |
-| TN-49, TN-50, TN-51, TN-55, TN-56, TN-59, TN-60, TN-64, TN-66 | as in round 2 | open (decisions or design notes pending; see the round-3 note) |
+| TN-56, TN-59, TN-60 | as in round 2 | built in round 3c (see the rows above and the round-3 note) |
+| TN-49, TN-50, TN-51, TN-55, TN-64, TN-66 | as in round 2 | open: decided 2026-11-26 (recommendations), not built yet; see the round-3 note |
