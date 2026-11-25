@@ -114,7 +114,11 @@ internal static class Discovery
                 var jsonName = JsonName(p.GetAttributes()) ?? (property is null ? null : JsonName(property.GetAttributes()));
                 var optional = p.HasExplicitDefaultValue || p.NullableAnnotation == NullableAnnotation.Annotated
                                || p.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
-                members.Add(new Member(name, memberType, jsonName, placeholder, routeKind, optional, Default(p)));
+                members.Add(new Member(name, memberType, jsonName, placeholder, routeKind, optional, Default(p))
+                {
+                    Nested = placeholder is null ? NestedOf(p.Type, 0) : default,
+                    NestedList = IsList(p.Type),
+                });
                 if (placeholder is null)
                     Reach(type, p, name, jsonName, valueObjects, memberRules, reached, 0);
                 if (IsOptionWithDefault(p))
@@ -173,6 +177,45 @@ internal static class Discovery
             Reach(record, inner, name, JsonName(inner.GetAttributes()) ?? (property is null ? null : JsonName(property.GetAttributes())), valueObjects, memberRules,
                 reached, depth + 1);
         }
+    }
+
+    /// <summary>
+    /// TN-23 (Tatalu FB-F02.1-3, FB-F03.9-1): the constructor members of the record <paramref name="type"/> holds (through
+    /// <c>Option&lt;T&gt;</c>, <c>T?</c> or a list), to a depth of four, so the binder reports a missing one as <c>Required</c>
+    /// instead of reading a <c>DateOnly</c> as 0001-01-01 or an enum as its first value. Value objects and BCL types end it.
+    /// </summary>
+    private static EquatableArray<RequiredModel> NestedOf(ITypeSymbol type, int depth)
+    {
+        if (depth >= 4 || ValueObject(Unwrap(type)) is not null)
+            return default;
+        if (Unwrap(type) is not INamedTypeSymbol { IsRecord: true, TypeKind: TypeKind.Class or TypeKind.Struct } record
+            || record.ContainingNamespace?.ToDisplayString().StartsWith("System", StringComparison.Ordinal) == true)
+            return default;
+        var ctor = record.InstanceConstructors.Where(c => c.DeclaredAccessibility == Accessibility.Public
+                && !(c.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, record)))
+            .OrderByDescending(c => c.Parameters.Length).FirstOrDefault();
+        if (ctor is null || ctor.Parameters.Length == 0)
+            return default;
+        var nested = new List<RequiredModel>();
+        foreach (var inner in ctor.Parameters)
+        {
+            var name = char.ToUpperInvariant(inner.Name[0]) + inner.Name.Substring(1);
+            var property = record.GetMembers(name).OfType<IPropertySymbol>().FirstOrDefault();
+            var optional = inner.HasExplicitDefaultValue || inner.NullableAnnotation == NullableAnnotation.Annotated
+                           || inner.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
+            nested.Add(new RequiredModel(name, JsonName(inner.GetAttributes()) ?? (property is null ? null : JsonName(property.GetAttributes())), optional,
+                IsList(inner.Type), NestedOf(inner.Type, depth + 1)));
+        }
+        return new EquatableArray<RequiredModel>(nested.ToImmutableArray());
+    }
+
+    private static bool IsList(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { TypeArguments.Length: 1 } generic && generic.OriginalDefinition.ToDisplayString() == "Tarol.Options.Option<T>")
+            type = generic.TypeArguments[0];
+        return type is IArrayTypeSymbol || (type is INamedTypeSymbol { TypeArguments.Length: 1 } list && list.OriginalDefinition.ToDisplayString() is
+            "System.Collections.Generic.IReadOnlyList<T>" or "System.Collections.Generic.List<T>" or "System.Collections.Generic.IList<T>"
+            or "System.Collections.Generic.IReadOnlyCollection<T>" or "System.Collections.Generic.IEnumerable<T>");
     }
 
     /// <summary>The value type behind <c>Option&lt;T&gt;</c>, <c>T?</c>, <c>IReadOnlyList&lt;T&gt;</c> and <c>T[]</c>.</summary>

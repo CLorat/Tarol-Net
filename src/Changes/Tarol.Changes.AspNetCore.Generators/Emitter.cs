@@ -258,7 +258,10 @@ internal static class Emitter
     private static void Binder(StringBuilder sb, EntryModel e)
     {
         var body = e.Members.Where(m => m.RouteKind is null).ToArray();
-        sb.Append("\n    private static string[]? names_").Append(Key(e)).Append(";\n\n");
+        sb.Append("\n    private static string[]? names_").Append(Key(e)).Append(";\n");
+        if (body.Any(m => m.Nested.Count > 0))
+            sb.Append("\n    private static global::Tarol.Changes.AspNetCore.RequiredMember[]? nested_").Append(Key(e)).Append(";\n");
+        sb.Append('\n');
         sb.Append("    private static global::Tarol.Results.Invalid? Bind_").Append(Key(e)).Append('(').Append(Web).Append(" web, byte[] bytes");
         foreach (var m in e.Members.Where(m => m.RouteKind is not null))
             sb.Append(", ").Append(m.RouteKind switch { "guid" => "global::System.Guid", "string" => "string", "int" => "int", "long" => "long", _ => m.Type }).Append(" route_").Append(m.Name);
@@ -296,6 +299,15 @@ internal static class Emitter
             sb.Append("        if (!has_").Append(m.Name).Append(" && errors?.Exists(static f => f.Field == \"").Append(Field(m)).Append("\") != true)\n");
             sb.Append("            (errors ??= new()).Add(new(\"").Append(Field(m)).Append("\", \"Required\"));\n");
         }
+        var nested = body.Where(m => m.Nested.Count > 0).ToArray();
+        if (nested.Length > 0)
+        {
+            // TN-23: a member missing in a nested record is Required too (System.Text.Json would read its default)
+            sb.Append("        web.Missing(bytes, nested_").Append(Key(e)).Append(" ??= new global::Tarol.Changes.AspNetCore.RequiredMember[]\n        {\n");
+            foreach (var m in nested)
+                sb.Append("            ").Append(Required(m.Name, m.JsonName, m.Optional, m.NestedList, m.Nested)).Append(",\n");
+            sb.Append("        }, ref errors);\n");
+        }
         sb.Append("        if (errors is not null)\n            return new global::Tarol.Results.Invalid(errors);\n");
         sb.Append("        input = new ").Append(e.FullName).Append('(').Append(string.Join(", ", e.Members.Select(m => (m.RouteKind is not null ? "route_" : "v_") + m.Name))).Append(");\n");
         sb.Append("        return null;\n    }\n");
@@ -327,6 +339,10 @@ internal static class Emitter
         sb.Append("            default:\n                http.Response.StatusCode = 202;                              // a type this application does not handle\n                return;\n        }\n");
         sb.Append("        await global::Tarol.Changes.AspNetCore.Webhooks.Answer(http, result);\n    }\n");
     }
+
+    private static string Required(string name, string? json, bool optional, bool list, EquatableArray<RequiredModel> members)
+        => "new(" + Literal(name) + ", " + (json is null ? "null" : Literal(json)) + ", " + (optional ? "true" : "false") + ", " + (list ? "true" : "false") + ", "
+           + (members.Count == 0 ? "null" : "new global::Tarol.Changes.AspNetCore.RequiredMember[] { " + string.Join(", ", members.Select(m => Required(m.Name, m.JsonName, m.Optional, m.List, m.Members))) + " }") + ")";
 
     /// <summary>The error path of a body member: its C# name (converted by the naming policy), or its own JSON name.</summary>
     private static string Field(Member m) => m.JsonName ?? m.Name;

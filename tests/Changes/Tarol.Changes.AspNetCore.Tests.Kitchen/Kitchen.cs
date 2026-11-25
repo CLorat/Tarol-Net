@@ -52,6 +52,15 @@ public sealed partial record LabelRecipe(Id<Recipe> Recipe, Pantry.Label Label, 
     public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Math.Max(1, Label.Value.Length));
 }
 
+/// <summary>A step of a plan: a nested input record (Tatalu FB-F02.1-3: a missing DateOnly read as 0001-01-01).</summary>
+public sealed record PlanStep(DateOnly On, Pantry.Shade Shade, string? Note);
+
+[Endpoint("PUT /recipes/{recipe}/plan")]
+public sealed partial record PlanRecipe(Id<Recipe> Recipe, PlanStep First, IReadOnlyList<PlanStep> Steps) : IChange<Recipe>
+{
+    public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Steps.Count + 1);
+}
+
 [Projection("recipe-list")]
 public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 {
@@ -67,6 +76,6 @@ public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 public sealed record RecipeSearch(string? Title, int? Servings) : IQuery<RecipeRow>;
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
-[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe))]
+[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe))]
 [JsonSerializable(typeof(Recipe.Written)), JsonSerializable(typeof(Recipe.Scaled))]
 public sealed partial class KitchenJson : JsonSerializerContext;

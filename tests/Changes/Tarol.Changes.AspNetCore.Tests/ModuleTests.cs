@@ -33,7 +33,7 @@ public sealed class ModuleTests : IAsyncLifetime
         .With(new SecurityModule(roles => roles.Authenticated().May<LayPlot>().May<RenamePlot>().May<Read<Plot>>()));
 
     private static TarolModule KitchenModule => Kitchen.GeneratedModule.Module
-        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<Read<Recipe>>()));
+        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<Read<Recipe>>()));
 
     public async ValueTask InitializeAsync()
     {
@@ -117,7 +117,7 @@ public sealed class ModuleTests : IAsyncLifetime
         var paths = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
 
         var operations = paths.EnumerateObject().SelectMany(p => p.Value.EnumerateObject().Select(o => (Path: p.Name, Verb: o.Name, Operation: o.Value))).ToList();
-        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/servings"]);
+        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/servings"]);
         foreach (var (path, verb, operation) in operations)
         {
             var parameters = operation.TryGetProperty("parameters", out var p) ? p.EnumerateArray().Select(x => $"{x.GetProperty("in").GetString()}:{x.GetProperty("name").GetString()}").ToList() : [];
@@ -185,6 +185,24 @@ public sealed class ModuleTests : IAsyncLifetime
         var schemas = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken))
             .GetProperty("components").GetProperty("schemas");
         schemas.GetProperty("RecipeRow").GetProperty("required").EnumerateArray().Select(e => e.GetString()).ShouldContain("scaled");
+    }
+
+    [Fact]
+    public async Task A_member_missing_in_a_nested_record_is_required()
+    {
+        // TN-23 (Tatalu FB-F02.1-3, FB-F03.9-1): only top-level members were Required; a nested DateOnly arrived as 0001-01-01,
+        // a nested enum as its first value
+        var recipe = await Send(HttpMethod.Post, "/recipes", """{"title":"Soup"}""");
+        var id = JsonElement.Parse(recipe.Body).GetProperty("id").GetString();
+
+        var missing = await Send(HttpMethod.Put, $"/recipes/{id}/plan", """{"first":{"note":null},"steps":[{"on":"2026-11-25","shade":"Dark"},{"shade":"Light"}]}""");
+        var complete = await Send(HttpMethod.Put, $"/recipes/{id}/plan", """{"first":{"on":"2026-11-25","shade":"Dark"},"steps":[]}""");
+
+        missing.Status.ShouldBe(HttpStatusCode.BadRequest, missing.Body);
+        var errors = JsonElement.Parse(missing.Body).GetProperty("errors");
+        errors.EnumerateObject().Select(e => $"{e.Name}:{e.Value[0].GetString()}").Order(StringComparer.Ordinal)
+            .ShouldBe(["first.on:Required", "first.shade:Required", "steps[1].on:Required"]);
+        complete.Status.ShouldBe(HttpStatusCode.NoContent, complete.Body);           // a missing nullable member is fine
     }
 
     [Fact]
