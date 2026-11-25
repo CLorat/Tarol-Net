@@ -321,6 +321,17 @@ internal static class OpenApiEmitter
                         Description = "The codes of several reasons behind one refusal (e.g. every missing prerequisite)",
                         Items = Text(),
                     },
+                    ["confirm"] = new global::Microsoft.OpenApi.OpenApiSchema
+                    {
+                        Type = global::Microsoft.OpenApi.JsonSchemaType.Object,
+                        Description = "A warning to confirm (TN-37): send the request again with the header Tarol-Confirm: <code>",
+                        Required = new global::System.Collections.Generic.HashSet<string> { "code", "args" },
+                        Properties = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiSchema>
+                        {
+                            ["code"] = Text("The code to confirm"),
+                            ["args"] = new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Object, Description = "Values for the message", AdditionalProperties = Text() },
+                        },
+                    },
                     ["traceId"] = Text("The request's id, also its Tarol-Request-Id header: quote it when reporting the problem"),
                     ["errors"] = new global::Microsoft.OpenApi.OpenApiSchema
                     {

@@ -8,6 +8,17 @@ namespace Tarol.Changes;
 /// <param name="Reads">The read-only aggregates of the change's <c>[Read]</c> members, if it has any.</param>
 public readonly record struct ChangeContext(OperationContext Operation, DateTimeOffset Now, Reads? Reads = null)
 {
+    /// <summary>The codes the caller confirmed (<see cref="ChangeOptions.Confirmed"/>, HTTP <c>Tarol-Confirm</c>; TN-37).</summary>
+    public IReadOnlyCollection<string>? Confirmations { get; init; }
+
+    /// <summary>
+    /// Whether the caller confirmed the warning <paramref name="code"/>: answer <c>Error.ConfirmationRequired(code, …)</c>
+    /// when it did not (TN-37). A reaction or job confirms nothing unless its runner passes the codes.
+    /// </summary>
+    /// <param name="code">The warning's code.</param>
+    /// <returns><see langword="true"/> when confirmed.</returns>
+    public bool Confirmed(string code) => Confirmations is { } codes && codes.Contains(code, StringComparer.Ordinal);
+
     /// <summary>The single read-only aggregate of type <typeparamref name="T"/> loaded for a <c>[Read]</c> member.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
     /// <returns>The aggregate.</returns>

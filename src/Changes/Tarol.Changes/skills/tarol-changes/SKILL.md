@@ -126,6 +126,7 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 | renaming a reaction's change without pinning `Name` | its waiting rows and keys use the old name: dead letters |
 | two changes with one reaction name, two factories of one change for one event | TCHG007 |
 | `DueAt = nameof(Settlement.DeadlineSet.DueAt)` in a change with a member `Settlement` | CS1061 (binds to the member): qualify the type |
+| a warning with an input flag (`bool ConfirmQuota`) and the data in `detail` | `if (!context.Confirmed("Absence.QuotaExceeded")) return Error.ConfirmationRequired("Absence.QuotaExceeded", args);` — the client resends with `Tarol-Confirm: Absence.QuotaExceeded` |
 | `Error.Conflict` for an event that arrives late or twice | retried, then a dead letter; return `Result.Success()` |
 | `[Scheduled]` factory with no or another parameter than `JobOccurrence` | TCHG009 |
 | `[Scheduled("0 0 2 * * *")]` (seconds), `L`, `W`, `#`, `?` | TCHG010 |

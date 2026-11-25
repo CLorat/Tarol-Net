@@ -148,7 +148,15 @@ public sealed partial class ChangeEndpoints
                 return (context, default, Invalid.Field("If-Match", "Format"));
             ifMatch = version;
         }
-        return (context, new ChangeOptions(key, ifMatch, user), null);
+        IReadOnlyCollection<string>? confirmed = null;
+        if (http.Request.Headers[TarolHeaders.Confirm].ToString() is { Length: > 0 } c)
+        {
+            var codes = c.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (c.Length > 1024 || codes.Length > 16)
+                return (context, default, Invalid.Field("Tarol-Confirm", "Length"));
+            confirmed = codes;
+        }
+        return (context, new ChangeOptions(key, ifMatch, user) { Confirmed = confirmed }, null);
     }
 
     private Actor ActorOf(ClaimsPrincipal user)
@@ -423,6 +431,8 @@ public sealed partial class ChangeEndpoints
                 problem.Extensions["code"] = error.Code;
                 if (error.Reasons is { } reasons)
                     problem.Extensions["reasons"] = reasons;                // TN-36
+                if (error.Confirmable)
+                    problem.Extensions["confirm"] = new Dictionary<string, object?> { ["code"] = error.Code, ["args"] = error.Arguments ?? new Dictionary<string, string>() };   // TN-37
             }
             if (await service.TryWriteAsync(new ProblemDetailsContext { HttpContext = http, ProblemDetails = problem }).ConfigureAwait(false))
                 return;
@@ -461,6 +471,17 @@ public sealed partial class ChangeEndpoints
                     foreach (var reason in reasons)
                         writer.WriteStringValue(reason);
                     writer.WriteEndArray();
+                }
+                if (error.Confirmable)
+                {
+                    writer.WriteStartObject("confirm");                        // TN-37: send the code back in Tarol-Confirm
+                    writer.WriteString("code", error.Code);
+                    writer.WriteStartObject("args");
+                    if (error.Arguments is { } arguments)
+                        foreach (var (name, value) in arguments.OrderBy(static a => a.Key, StringComparer.Ordinal))
+                            writer.WriteString(name, value);
+                    writer.WriteEndObject();
+                    writer.WriteEndObject();
                 }
             }
             writer.WriteString("traceId", requestId);

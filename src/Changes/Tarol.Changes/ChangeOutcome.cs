@@ -24,4 +24,8 @@ public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Eve
 public readonly record struct ChangeOptions(
     Option<IdempotencyKey> Key = default,
     Option<long> ExpectedVersion = default,
-    ClaimsPrincipal? Principal = null);
+    ClaimsPrincipal? Principal = null)
+{
+    /// <summary>The warnings the caller confirmed (TN-37: <see cref="ChangeContext.Confirmed"/>); HTTP: the <c>Tarol-Confirm</c> header.</summary>
+    public IReadOnlyCollection<string>? Confirmed { get; init; }
+}

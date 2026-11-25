@@ -41,6 +41,7 @@ Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.get -> System.Reflection.As
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.init -> void
+const Tarol.Changes.AspNetCore.TarolHeaders.Confirm = "Tarol-Confirm" -> string!
 override Tarol.Changes.AspNetCore.EndpointModule.Equals(object? obj) -> bool
 override Tarol.Changes.AspNetCore.EndpointModule.GetHashCode() -> int
 override Tarol.Changes.AspNetCore.EndpointModule.ToString() -> string!

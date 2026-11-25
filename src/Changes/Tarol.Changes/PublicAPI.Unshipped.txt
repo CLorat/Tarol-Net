@@ -1,5 +1,10 @@
 #nullable enable
+Tarol.Changes.ChangeContext.Confirmations.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Changes.ChangeContext.Confirmations.init -> void
+Tarol.Changes.ChangeContext.Confirmed(string! code) -> bool
 Tarol.Changes.ChangeContext.TryRead<T>(out T? aggregate) -> bool
+Tarol.Changes.ChangeOptions.Confirmed.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Changes.ChangeOptions.Confirmed.init -> void
 Tarol.Changes.ChangeTest.History<T>(Tarol.StronglyTypedId.Id<T!> id) -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>!
 Tarol.Changes.ChangeTest.StoredStateMatchesReplay<T>(Tarol.StronglyTypedId.Id<T!> id, System.Text.Json.JsonSerializerOptions! options) -> T!
 Tarol.Changes.ChangeTestOptions

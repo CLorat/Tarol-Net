@@ -34,7 +34,7 @@ public sealed class ModuleTests : IAsyncLifetime
         .With(new SecurityModule(roles => roles.Authenticated().May<LayPlot>().May<RenamePlot>().May<Read<Plot>>()));
 
     private static TarolModule KitchenModule => Kitchen.GeneratedModule.Module
-        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<PriceRecipe>().May<Read<Recipe>>()));
+        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<PriceRecipe>().May<FeastRecipe>().May<Read<Recipe>>()));
 
     public async ValueTask InitializeAsync()
     {
@@ -66,9 +66,11 @@ public sealed class ModuleTests : IAsyncLifetime
     }
 
     private async Task<(HttpStatusCode Status, string Body, string? Position)> Send(HttpMethod method, string path, string? body, string roles = "cook",
-        string? readAfter = null)
+        string? readAfter = null, string? confirm = null)
     {
         using var request = new HttpRequestMessage(method, path);
+        if (confirm is not null)
+            request.Headers.Add("Tarol-Confirm", confirm);
         if (body is not null)
             request.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
         request.Headers.Add("X-User", "kim");
@@ -118,7 +120,7 @@ public sealed class ModuleTests : IAsyncLifetime
         var paths = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
 
         var operations = paths.EnumerateObject().SelectMany(p => p.Value.EnumerateObject().Select(o => (Path: p.Name, Verb: o.Name, Operation: o.Value))).ToList();
-        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/price", "/recipes/{recipe}/servings"]);
+        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/feast", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/price", "/recipes/{recipe}/servings"]);
         foreach (var (path, verb, operation) in operations)
         {
             var parameters = operation.TryGetProperty("parameters", out var p) ? p.EnumerateArray().Select(x => $"{x.GetProperty("in").GetString()}:{x.GetProperty("name").GetString()}").ToList() : [];
@@ -206,6 +208,32 @@ public sealed class ModuleTests : IAsyncLifetime
         errors.GetProperty("price").EnumerateArray().Single().GetString().ShouldStartWith("Scale");
         errors.GetProperty("weight").EnumerateArray().Single().GetString().ShouldStartWith("Scale");
         priced.Status.ShouldBe(HttpStatusCode.NoContent, priced.Body);
+    }
+
+    [Fact]
+    public async Task A_warning_is_409_with_confirm_and_passes_when_the_request_confirms_its_code()
+    {
+        var recipe = await Send(HttpMethod.Post, "/recipes", """{"title":"Soup"}""");
+        var id = JsonElement.Parse(recipe.Body).GetProperty("id").GetString();
+
+        var warned = await Send(HttpMethod.Put, $"/recipes/{id}/feast", """{"servings":20}""");
+        var other = await Send(HttpMethod.Put, $"/recipes/{id}/feast", """{"servings":20}""", confirm: "Recipe.Other");
+        var confirmed = await Send(HttpMethod.Put, $"/recipes/{id}/feast", """{"servings":20}""", confirm: "Recipe.Other, Recipe.LargeFeast");
+
+        warned.Status.ShouldBe(HttpStatusCode.Conflict, warned.Body);
+        var problem = JsonElement.Parse(warned.Body);
+        problem.GetProperty("code").GetString().ShouldBe("Recipe.LargeFeast");
+        var confirm = problem.GetProperty("confirm");
+        confirm.GetProperty("code").GetString().ShouldBe("Recipe.LargeFeast");
+        confirm.GetProperty("args").GetProperty("servings").GetString().ShouldBe("20");
+        confirm.GetProperty("args").GetProperty("limit").GetString().ShouldBe("12");
+        other.Status.ShouldBe(HttpStatusCode.Conflict);
+        confirmed.Status.ShouldBe(HttpStatusCode.NoContent, confirmed.Body);
+
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        document.GetProperty("paths").GetProperty("/recipes/{recipe}/feast").GetProperty("put").GetProperty("x-tarol-errors").EnumerateArray()
+            .Select(e => e.GetString()).ShouldContain("Recipe.LargeFeast");
+        TarolHeaders.Allowed.ShouldContain("Tarol-Confirm");                             // CORS
     }
 
     [Fact]
