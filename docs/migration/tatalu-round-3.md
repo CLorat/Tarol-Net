@@ -321,6 +321,12 @@ Tatalu file whose workaround goes.
 * **Tatalu:** the port `ICareFiles` with a fixed list in `backend/tests/Tatalu.Vertraege.Tests/ContractRulesTests.cs` may become
   `ProjectionTest<CareFileRow>.Over(test.Store)` with `BeforeEachRun(rows.CatchUp)`; `ReadModelCareFiles` (`backend/src/Tatalu.Vertraege/Daily.cs`) may go.
 
+### Verification (3b)
+
+2026-11-25 **[verified]**: build 0 warnings; `dotnet format --verify-no-changes` clean (after `251b3ce`); `dotnet test --solution
+Tarol.slnx` with Docker 2265 of 2265; `eng/verify-packages.sh` exit 0; `eng/aot-smoke.sh` exit 0 (221 checks, 0 IL warnings).
+Tarol-Svelte `pnpm verify` exit 0 with TS-39.
+
 ### Not built in 3b, and why
 
 * **TN-46 commit and refuse:** a refusal that commits would store the idempotency key, and a replay would answer success. It
