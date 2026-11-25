@@ -24,7 +24,9 @@ argument is a phantom marker (any class, record, struct or interface); it only e
    `id.IsEmpty` or `id.ThrowIfEmpty()` (throws `ArgumentException` naming the argument).
 5. Do **not** add `[JsonConverter]`, a `JsonConverterFactory`, a `TypeConverter` attribute or a registration
    call for ids. JSON uses the built-in `IdJsonConverter<T>`; `TypeDescriptor` registrations are generated.
-6. Deterministic ids in tests: `Id<T>.New(DateTimeOffset)` or `Id<T>.New(TimeProvider)`.
+6. Deterministic ids in tests: `Id<T>.New(DateTimeOffset)` or `Id<T>.New(TimeProvider)`. An id from a business key (a stream per
+   child and month): `Id<T>.Derive("attendance-month", child, 2026, 11)` (UUIDv8, stable forever; parts `Guid`, `string`, `int`,
+   `long`, `DateOnly`). Pick the scope once per kind of stream and never change it.
 
 ## Minimal correct example
 
