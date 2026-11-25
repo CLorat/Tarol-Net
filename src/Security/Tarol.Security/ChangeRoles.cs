@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Tarol.Changes;
 using Microsoft.AspNetCore.Authorization;
 
 namespace Tarol.Security;
@@ -12,6 +13,8 @@ public sealed class ChangeRoles
 {
     private readonly Dictionary<string, HashSet<Type>> _grants = new(StringComparer.Ordinal);
     private readonly HashSet<Type> _authenticated = [];
+    private readonly Dictionary<string, HashSet<(Type Read, Type View)>> _views = new(StringComparer.Ordinal);
+    private readonly HashSet<(Type Read, Type View)> _authenticatedViews = [];
 
     /// <summary>The changes and reads <paramref name="role"/> may run.</summary>
     /// <param name="role">The application's role name.</param>
@@ -21,12 +24,37 @@ public sealed class ChangeRoles
         ArgumentException.ThrowIfNullOrWhiteSpace(role);
         if (!_grants.TryGetValue(role, out var set))
             _grants[role] = set = [];
-        return new RoleGrants(set);
+        if (!_views.TryGetValue(role, out var views))
+            _views[role] = views = [];
+        return new RoleGrants(set, views);
     }
 
     /// <summary>The changes and reads any authenticated caller may run (row rules still apply).</summary>
     /// <returns>The grants, to add to.</returns>
-    public RoleGrants Authenticated() => new(_authenticated);
+    public RoleGrants Authenticated() => new(_authenticated, _authenticatedViews);
+
+    /// <summary>
+    /// Whether the role map grants the read <paramref name="read"/> (a <c>Read&lt;T&gt;</c>) of <paramref name="scope"/>'s view (TN-43,
+    /// VA-2): its own grant (<c>MayRead&lt;T, TView&gt;</c>), or <c>Read&lt;T&gt;</c> when the view is not restricted.
+    /// </summary>
+    /// <param name="user">The caller.</param>
+    /// <param name="read">The read intent.</param>
+    /// <param name="scope">The view.</param>
+    /// <returns>Whether a role grants it.</returns>
+    public bool Grants(ClaimsPrincipal user, object read, ReadScope scope)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        ArgumentNullException.ThrowIfNull(read);
+        if (user.Identity?.IsAuthenticated != true)
+            return false;
+        var key = (read.GetType(), scope.View);
+        if (_authenticatedViews.Contains(key))
+            return true;
+        foreach (var (role, views) in _views)
+            if (views.Contains(key) && user.IsInRole(role))
+                return true;
+        return !scope.Restricted && Grants(user, read);
+    }
 
     /// <summary>Whether the map grants <paramref name="change"/> to <paramref name="user"/>.</summary>
     /// <param name="user">The caller.</param>
@@ -53,7 +81,26 @@ public readonly struct RoleGrants : IEquatable<RoleGrants>
 {
     private readonly HashSet<Type> _set;
 
-    internal RoleGrants(HashSet<Type> set) => _set = set;
+    private readonly HashSet<(Type Read, Type View)> _views;
+
+    internal RoleGrants(HashSet<Type> set, HashSet<(Type Read, Type View)> views)
+    {
+        _set = set;
+        _views = views;
+    }
+
+    /// <summary>
+    /// Grants one view, list or row query of <typeparamref name="TAggregate"/> (TN-43, owner decision VA-2b): needed for a
+    /// <c>Restricted</c> one, and enough without <c>Read&lt;TAggregate&gt;</c> for an unrestricted one. Row rules still run.
+    /// </summary>
+    /// <typeparam name="TAggregate">The aggregate.</typeparam>
+    /// <typeparam name="TView">The view or query record.</typeparam>
+    /// <returns>These grants.</returns>
+    public RoleGrants MayRead<TAggregate, TView>()
+    {
+        _views.Add((typeof(Read<TAggregate>), typeof(TView)));
+        return this;
+    }
 
     /// <summary>The role may run <typeparamref name="TChange"/> (a change record, or <c>Read&lt;TAggregate&gt;</c>).</summary>
     /// <typeparam name="TChange">The change or read intent.</typeparam>
@@ -91,7 +138,7 @@ internal sealed class RoleGrantHandler(ChangeRoles roles) : AuthorizationHandler
 {
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, ChangeRequirement requirement)
     {
-        if (roles.Grants(context.User, requirement.Change))
+        if (requirement.View is { } scope ? roles.Grants(context.User, requirement.Change, scope) : roles.Grants(context.User, requirement.Change))
             context.Succeed(requirement);
         return Task.CompletedTask;
     }

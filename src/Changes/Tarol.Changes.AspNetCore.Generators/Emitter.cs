@@ -169,7 +169,7 @@ internal static class Emitter
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
         if (id is not null)
             Route(sb, id);
-        sb.Append("        if (await web.ListAccess<").Append(e.Aggregate).Append(">(http) is not { } tenant)\n            return;\n");
+        sb.Append("        if (await web.ListAccess<").Append(e.Aggregate).Append(">(http, ").Append(Scope(e)).Append(") is not { } tenant)\n            return;\n");
         var key = id is null ? "tenant" : id.RouteKind == "id" ? "route_" + id.Name + ".Value" : "route_" + id.Name;
         sb.Append("        await web.Row<").Append(e.Query!.Row).Append(">(http, tenant, ").Append(key).Append(", ")
           .Append(Literal(e.Aggregate.Substring(e.Aggregate.LastIndexOf('.') + 1) + ".NotFound")).Append(");\n    }\n");
@@ -181,7 +181,7 @@ internal static class Emitter
         sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
         var start = e.Startable ? ", static (id, context) => " + e.Aggregate + ".Start(id, context)" : "";      // TN-42
-        var tail = e.Contextual ? (e.Startable ? "" : ", null") + ", contextual: true" : "";              // TN-43
+        var tail = (e.Startable ? "" : ", null") + (e.Contextual ? ", true" : ", false") + ", " + Scope(e);    // TN-43
         if (id is null)                                 // TN-2: a [PerTenant] aggregate, the caller's tenant's one
             sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http").Append(start).Append(tail).Append(");\n");
         else
@@ -208,7 +208,7 @@ internal static class Emitter
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
         foreach (var m in e.Members)
             Route(sb, m);
-        sb.Append("        var tenant = await web.ListAccess<").Append(e.Aggregate).Append(">(http);\n");
+        sb.Append("        var tenant = await web.ListAccess<").Append(e.Aggregate).Append(">(http, ").Append(Scope(e)).Append(");\n");
         sb.Append("        if (tenant is null)\n            return;                                                     // 401, 403 or 404 written\n");
         sb.Append("        global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;\n");
         sb.Append("        var filters = new global::System.Collections.Generic.List<global::Tarol.Queries.ColumnFilter>(").Append(q.Filters.Count).Append(");\n");
@@ -386,6 +386,10 @@ internal static class Emitter
 
     /// <summary>The error path of a body member: its C# name (converted by the naming policy), or its own JSON name.</summary>
     private static string Field(Member m) => m.JsonName ?? m.Name;
+
+    /// <summary>The read's scope (TN-43, VA-2): the view or query record, and whether it needs its own grant.</summary>
+    private static string Scope(EntryModel e)
+        => "new global::Tarol.Changes.ReadScope(typeof(" + e.FullName + "), " + (e.Restricted ? "true" : "false") + ")";
 
     private static string Method(EntryModel e) => (e.Kind switch { EntryKind.View => "View_", EntryKind.List => "List_", EntryKind.Row => "Row_", _ => "Run_" }) + Key(e);
 

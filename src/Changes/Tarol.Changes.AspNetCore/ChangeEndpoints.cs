@@ -582,7 +582,20 @@ public sealed partial class ChangeEndpoints
     /// <param name="contextual">The view is built for its reader.</param>
     /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start, bool contextual)
+    public ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start, bool contextual)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Load(http, id, start, contextual, null);
+
+    /// <summary>As the other overloads, for the view <paramref name="scope"/> names (TN-43, VA-2: a restricted view needs its own grant).</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="id">The aggregate's id.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <param name="scope">The view and whether it is restricted; <see langword="null"/>: any read of <typeparamref name="T"/>.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start, bool contextual, ReadScope? scope)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -601,8 +614,9 @@ public sealed partial class ChangeEndpoints
             }
             aggregate = start(id, new ChangeContext(context, _time.GetUtcNow()));               // not stored: the view's default
         }
-        var allowed = await _authorization.Check(Read<T>.Instance, aggregate, new ChangeContext(context, _time.GetUtcNow()),
-            options.Principal ?? NoOne, http.RequestAborted).ConfigureAwait(false);
+        var allowed = scope is { } read
+            ? await _authorization.Check(Read<T>.Instance, aggregate, new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, read, http.RequestAborted).ConfigureAwait(false)
+            : await _authorization.Check(Read<T>.Instance, aggregate, new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, http.RequestAborted).ConfigureAwait(false);
         if (allowed.TryGetValue(out Violation? denied))
         {
             await Problem(http, denied).ConfigureAwait(false);
@@ -654,7 +668,19 @@ public sealed partial class ChangeEndpoints
     /// <param name="contextual">The view is built for its reader.</param>
     /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start, bool contextual)
+    public ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start, bool contextual)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => LoadTenant(http, start, contextual, null);
+
+    /// <summary>As the other overloads, for the view <paramref name="scope"/> names (TN-43).</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <param name="scope">The view; <see langword="null"/>: any read of <typeparamref name="T"/>.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start, bool contextual, ReadScope? scope)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -669,7 +695,7 @@ public sealed partial class ChangeEndpoints
             await Problem(http, Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name)).ConfigureAwait(false);
             return null;
         }
-        return await Load(http, id, start, contextual).ConfigureAwait(false);
+        return await Load(http, id, start, contextual, scope).ConfigureAwait(false);
     }
 
     private const string ViewVersionKey = "Tarol.ViewVersion";

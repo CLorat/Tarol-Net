@@ -39,3 +39,27 @@ public abstract class ChangeHandler<TChange, TAggregate> : AuthorizationHandler<
         context.Fail(new AuthorizationFailureReason(this, code));
     }
 }
+
+/// <summary>
+/// A row rule for one view, list or row query of its aggregate (TN-43, VA-2): it runs for reads of <typeparamref name="TView"/>
+/// only, after the role map. <c>ChangeHandler&lt;Read&lt;TAggregate&gt;, TAggregate&gt;</c> rules still run for every view.
+/// </summary>
+/// <typeparam name="TView">The view or query record.</typeparam>
+/// <typeparam name="TAggregate">The aggregate.</typeparam>
+public abstract class ViewHandler<TView, TAggregate> : ChangeHandler<Read<TAggregate>, TAggregate>
+    where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
+{
+    /// <inheritdoc />
+    protected sealed override Task Handle(AuthorizationHandlerContext context, ChangeRequirement requirement, Read<TAggregate> change, TAggregate aggregate)
+    {
+        ArgumentNullException.ThrowIfNull(requirement);
+        return requirement.View?.View == typeof(TView) ? HandleView(context, requirement, aggregate) : Task.CompletedTask;
+    }
+
+    /// <summary>Decides for a read of <typeparamref name="TView"/>: <c>Deny</c>, <c>context.Succeed(requirement)</c>, or nothing.</summary>
+    /// <param name="context">The authorization context.</param>
+    /// <param name="requirement">The read requirement (its <see cref="ChangeRequirement.Context"/> has the time and the operation).</param>
+    /// <param name="aggregate">The loaded aggregate.</param>
+    /// <returns>A task.</returns>
+    protected abstract Task HandleView(AuthorizationHandlerContext context, ChangeRequirement requirement, TAggregate aggregate);
+}

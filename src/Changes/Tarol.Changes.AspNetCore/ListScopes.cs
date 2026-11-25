@@ -55,7 +55,7 @@ public sealed partial class ChangeEndpoints
 
     /// <summary>
     /// Restricts a list query by the caller's <see cref="IListScope{TQuery}"/>, if one is registered (<paramref name="required"/>:
-    /// it must be). Called after <see cref="ListAccess{TAggregate}"/> and the request's own filters.
+    /// it must be). Called after <see cref="ListAccess{TAggregate}(HttpContext)"/> and the request's own filters.
     /// </summary>
     /// <typeparam name="TQuery">The list query record.</typeparam>
     /// <param name="http">The request.</param>

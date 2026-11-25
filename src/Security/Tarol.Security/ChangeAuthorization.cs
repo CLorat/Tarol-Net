@@ -50,14 +50,23 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
     }
 
     /// <inheritdoc />
-    public async ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    public ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Check(change, aggregate, context, principal, null, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, ReadScope scope, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Check(change, aggregate, context, principal, (ReadScope?)scope, cancellationToken);
+
+    private async ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, ReadScope? scope, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(change);
         ArgumentNullException.ThrowIfNull(aggregate);
         ArgumentNullException.ThrowIfNull(principal);
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await _authorization.AuthorizeAsync(principal, aggregate, new ChangeRequirement(change, context)).ConfigureAwait(false);
+        var result = await _authorization.AuthorizeAsync(principal, aggregate, new ChangeRequirement(change, context) { View = scope }).ConfigureAwait(false);
         if (result.Succeeded)
             return Result.Success();
         var reason = result.Failure?.FailureReasons.FirstOrDefault()?.Message;
@@ -72,13 +81,22 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
     }
 
     /// <inheritdoc />
-    public async ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    public ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => CheckList<T>(context, principal, null, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, ReadScope scope, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => CheckList<T>(context, principal, (ReadScope?)scope, cancellationToken);
+
+    private async ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, ReadScope? scope, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(principal);
         cancellationToken.ThrowIfCancellationRequested();
         // no resource: resource handlers (row rules, ChangeHandler<TChange, TAggregate>) never run; the role map may grant Read<T>
-        var result = await _authorization.AuthorizeAsync(principal, null, new ChangeRequirement(Read<T>.Instance, context)).ConfigureAwait(false);
+        var result = await _authorization.AuthorizeAsync(principal, null, new ChangeRequirement(Read<T>.Instance, context) { View = scope }).ConfigureAwait(false);
         if (result.Succeeded)
             return Result.Success();
         var anonymous = principal.Identity?.IsAuthenticated != true;

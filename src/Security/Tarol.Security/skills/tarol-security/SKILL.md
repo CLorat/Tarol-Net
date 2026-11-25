@@ -17,7 +17,10 @@ description: >-
    grant). Nothing granted = `Error.Forbidden("Auth.Forbidden")`; an anonymous caller gets `Error.Unauthorized("Auth.Required")`.
 3. **Only runs with a principal are checked.** HTTP passes `ChangeOptions.Principal` always; jobs, reactions and sagas pass
    none and are not checked. A privileged system action opts in: `new ChangeOptions(Principal: SystemPrincipal.For(actor, "refunds"))`.
-4. A GET is the intent `Read<TAggregate>`: grant it like a change.
+4. A GET is the intent `Read<TAggregate>`: grant it like a change; it grants every view, list and row query of the aggregate
+   except a restricted one. `[Endpoint("GET …", Restricted = true)]` needs `roles.Role("tpp").MayRead<Caregiver, TaxView>()`,
+   which grants that one view (or list) and nothing else. A row rule for one view: `ViewHandler<TView, TAggregate>`
+   (`HandleView`); `ChangeHandler<Read<T>, T>` rules still run for every view, so a restricted view narrows, never widens.
 5. **Who** is a permission (here); **what state allows** is a guard in the aggregate (409). Never read roles in an aggregate.
 6. Another tenant's aggregate is never loaded (404), so rules never see it.
 7. Register rules as **singleton** `IAuthorizationHandler`s; `requirement.Context` has `Now`, `Operation` and `Read<T>()`.

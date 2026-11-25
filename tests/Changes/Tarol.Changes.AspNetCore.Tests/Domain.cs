@@ -165,6 +165,13 @@ public sealed record HouseGreeting(string Name, string Reader) : IView<House, Ho
     public static HouseGreeting From(House house, ViewContext context) => new(house.Name, context.Operation.Actor.Id);
 }
 
+/// <summary>A restricted view (TN-43, VA-2, Tatalu FB-F01.1-6: tax and bank only for the caregiver): its own grant.</summary>
+[Endpoint("GET /house/ledger", Restricted = true)]
+public sealed record HouseLedger(Guid Id, string Name) : IView<House, HouseLedger>
+{
+    public static HouseLedger From(House h) => new(h.Id.Value, h.Name);
+}
+
 /// <summary>A shelf that starts with its first book (TN-42, Tatalu FB-F02.5-2: HealthLoad.OrStart in every change).</summary>
 public partial class Shelf : AggregateRoot<Shelf>, IStartable<Shelf>
 {
@@ -219,6 +226,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(HouseSeasonView))]
 [JsonSerializable(typeof(HouseRow))]
 [JsonSerializable(typeof(HouseGreeting))]
+[JsonSerializable(typeof(HouseLedger))]
 [JsonSerializable(typeof(Shelf.Started))]
 [JsonSerializable(typeof(Shelf.Shelved))]
 [JsonSerializable(typeof(ShelveBook))]

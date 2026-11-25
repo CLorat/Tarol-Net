@@ -26,6 +26,12 @@ public sealed class EndpointAttribute(string route) : Attribute
     /// depend on the caller can never answer unfiltered (TN-6). Without it, a registered scope still applies.
     /// </summary>
     public bool RequiresScope { get; init; }
+
+    /// <summary>
+    /// For a view, list or row query: it needs its own grant, <c>roles.Role(…).MayRead&lt;TAggregate, TView&gt;()</c>;
+    /// <c>Read&lt;TAggregate&gt;</c> alone does not grant it (TN-43, owner decision VA-2a: opt-in). Row rules still run.
+    /// </summary>
+    public bool Restricted { get; init; }
 }
 
 /// <summary>

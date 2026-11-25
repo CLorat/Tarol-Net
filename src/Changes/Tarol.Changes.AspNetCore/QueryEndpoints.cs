@@ -84,14 +84,24 @@ public sealed partial class ChangeEndpoints
     public const string BuildingCode = "Projection.Building";
 
     /// <summary>
-    /// The access of a list request: the edge (tenant from the claims), then <see cref="IChangeAuthorization.CheckList{T}"/>
+    /// The access of a list request: the edge (tenant from the claims), then <see cref="IChangeAuthorization.CheckList{T}(ChangeContext, System.Security.Claims.ClaimsPrincipal, CancellationToken)"/>
     /// (the role map's <c>Read&lt;T&gt;</c>; row rules do not run on lists: an <see cref="IListScope{TQuery}"/> restricts the rows).
     /// </summary>
     /// <typeparam name="TAggregate">The aggregate whose projection is listed.</typeparam>
     /// <param name="http">The request.</param>
     /// <returns>The tenant key of the list, or <see langword="null"/> when the refusal is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<Guid?> ListAccess<TAggregate>(HttpContext http)
+    public ValueTask<Guid?> ListAccess<TAggregate>(HttpContext http)
+        where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
+        => ListAccess<TAggregate>(http, null);
+
+    /// <summary>As <see cref="ListAccess{TAggregate}(HttpContext)"/> for one list or row query (TN-43, VA-2).</summary>
+    /// <typeparam name="TAggregate">The aggregate whose projection is read.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="scope">The query record and whether it is restricted; <see langword="null"/>: any read.</param>
+    /// <returns>The tenant key, or <see langword="null"/> when the refusal is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<Guid?> ListAccess<TAggregate>(HttpContext http, ReadScope? scope)
         where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -102,8 +112,9 @@ public sealed partial class ChangeEndpoints
             await Problem(http, refused).ConfigureAwait(false);
             return null;
         }
-        var allowed = await _authorization.CheckList<TAggregate>(new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, http.RequestAborted)
-            .ConfigureAwait(false);
+        var allowed = scope is { } read
+            ? await _authorization.CheckList<TAggregate>(new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, read, http.RequestAborted).ConfigureAwait(false)
+            : await _authorization.CheckList<TAggregate>(new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, http.RequestAborted).ConfigureAwait(false);
         if (allowed.TryGetValue(out Violation? denied))
         {
             await Problem(http, denied).ConfigureAwait(false);
@@ -252,7 +263,7 @@ public sealed partial class ChangeEndpoints
     /// </summary>
     /// <typeparam name="TRow">The projection's row record (in the application's JSON context).</typeparam>
     /// <param name="http">The request.</param>
-    /// <param name="query">The query, tenant set from <see cref="ListAccess{TAggregate}"/>.</param>
+    /// <param name="query">The query, tenant set from <see cref="ListAccess{TAggregate}(HttpContext)"/>.</param>
     /// <returns>The write.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public async Task List<TRow>(HttpContext http, ListQuery query)
@@ -327,7 +338,7 @@ public sealed partial class ChangeEndpoints
     /// </summary>
     /// <typeparam name="TRow">The projection's row record (in the application's JSON context).</typeparam>
     /// <param name="http">The request.</param>
-    /// <param name="tenant">The tenant key from <see cref="ListAccess{TAggregate}"/>.</param>
+    /// <param name="tenant">The tenant key from <see cref="ListAccess{TAggregate}(HttpContext)"/>.</param>
     /// <param name="id">The row's stream id.</param>
     /// <param name="notFound">The code of a missing row (<c>X.NotFound</c>).</param>
     /// <returns>The write.</returns>

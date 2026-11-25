@@ -104,7 +104,7 @@ public static class GeneratedEndpoints
     {
         var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
         var route_Customer = (http.Request.RouteValues["customer"] as string) ?? "";
-        var tenant = await web.ListAccess<global::Shop.Order>(http);
+        var tenant = await web.ListAccess<global::Shop.Order>(http, new global::Tarol.Changes.ReadScope(typeof(global::Shop.CustomerOrders), false));
         if (tenant is null)
             return;                                                     // 401, 403 or 404 written
         global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;
@@ -134,7 +134,7 @@ public static class GeneratedEndpoints
     private static async global::System.Threading.Tasks.Task List_Shop_MyOrders(global::Microsoft.AspNetCore.Http.HttpContext http)
     {
         var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
-        var tenant = await web.ListAccess<global::Shop.Order>(http);
+        var tenant = await web.ListAccess<global::Shop.Order>(http, new global::Tarol.Changes.ReadScope(typeof(global::Shop.MyOrders), false));
         if (tenant is null)
             return;                                                     // 401, 403 or 404 written
         global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;
@@ -184,7 +184,7 @@ public static class GeneratedEndpoints
     private static async global::System.Threading.Tasks.Task List_Shop_OrderSearch(global::Microsoft.AspNetCore.Http.HttpContext http)
     {
         var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
-        var tenant = await web.ListAccess<global::Shop.Order>(http);
+        var tenant = await web.ListAccess<global::Shop.Order>(http, new global::Tarol.Changes.ReadScope(typeof(global::Shop.OrderSearch), false));
         if (tenant is null)
             return;                                                     // 401, 403 or 404 written
         global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;

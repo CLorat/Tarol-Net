@@ -126,6 +126,20 @@ public sealed class PerTenantTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_restricted_view_needs_its_own_grant_and_that_grant_reads_no_other_view()
+    {
+        // TN-43 (VA-2a/b, Tatalu FB-F01.1-6): Read<T> granted every view of T; now a restricted one needs MayRead<T, TView>
+        (await _app.Post("/house", """{"name":"Alice's"}""", Alice)).Status.ShouldBe(HttpStatusCode.Created);
+        var bookkeeper = new TestApp.Caller("berta", TestApp.TenantA, "bookkeeper");
+
+        (await _app.Get("/house/ledger", Alice)).Status.ShouldBe(HttpStatusCode.Forbidden);          // Read<House> is not enough
+        var ledger = await _app.Get("/house/ledger", bookkeeper);
+        ledger.Status.ShouldBe(HttpStatusCode.OK, ledger.Body);
+        (await _app.Get("/house", bookkeeper)).Status.ShouldBe(HttpStatusCode.Forbidden);           // MayRead<House, HouseLedger> only
+        (await _app.Get("/house", Alice)).Status.ShouldBe(HttpStatusCode.OK);                        // unrestricted views: as before
+    }
+
+    [Fact]
     public async Task A_second_creation_conflicts_and_a_change_before_the_creation_is_not_found()
     {
         (await Put("/house/name", """{"name":"x"}""", Alice)).Body.ShouldContain("House.NotFound");

@@ -172,7 +172,7 @@ public static class GeneratedEndpoints
             await web.Problem(http, global::Tarol.Results.Invalid.Field("Id", "Format"));
             return;
         }
-        var aggregate = await web.Load<global::Shop.Order>(http, route_Id);
+        var aggregate = await web.Load<global::Shop.Order>(http, route_Id, null, false, new global::Tarol.Changes.ReadScope(typeof(global::Shop.OrderView), false));
         if (aggregate is null)
             return;                                                     // 404, 403, 401 or 304 written
         await web.WriteView(http, ViewOf<global::Shop.Order, global::Shop.OrderView>(aggregate));

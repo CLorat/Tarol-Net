@@ -1,15 +1,20 @@
 #nullable enable
+Tarol.Changes.AspNetCore.ChangeEndpoints.ListAccess<TAggregate>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Changes.ReadScope? scope) -> System.Threading.Tasks.ValueTask<System.Guid?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.Load<T>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.StronglyTypedId.Id<T!> id, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.Load<T>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.StronglyTypedId.Id<T!> id, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start, bool contextual) -> System.Threading.Tasks.ValueTask<T?>
+Tarol.Changes.AspNetCore.ChangeEndpoints.Load<T>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.StronglyTypedId.Id<T!> id, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start, bool contextual, Tarol.Changes.ReadScope? scope) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start, bool contextual) -> System.Threading.Tasks.ValueTask<T?>
+Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http, System.Func<Tarol.StronglyTypedId.Id<T!>, Tarol.Changes.ChangeContext, T!>? start, bool contextual, Tarol.Changes.ReadScope? scope) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.Missing(byte[]! bytes, Tarol.Changes.AspNetCore.RequiredMember![]! members, ref System.Collections.Generic.List<Tarol.Results.FieldError!>? errors) -> void
 Tarol.Changes.AspNetCore.ChangeEndpoints.Row<TRow>(Microsoft.AspNetCore.Http.HttpContext! http, System.Guid tenant, System.Guid id, string! notFound) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.ChangeEndpoints.Scope<TQuery>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Queries.ListQuery! query, bool required = false) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListQuery!>
 Tarol.Changes.AspNetCore.ChangeEndpoints.WriteContextView<TView>(Microsoft.AspNetCore.Http.HttpContext! http, TView view) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.get -> bool
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.init -> void
+Tarol.Changes.AspNetCore.EndpointAttribute.Restricted.get -> bool
+Tarol.Changes.AspNetCore.EndpointAttribute.Restricted.init -> void
 Tarol.Changes.AspNetCore.EndpointModule
 Tarol.Changes.AspNetCore.EndpointModule.<Clone>$() -> Tarol.Changes.AspNetCore.EndpointModule!
 Tarol.Changes.AspNetCore.EndpointModule.Deconstruct(out System.Func<Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!, string?, Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!>! Map) -> void

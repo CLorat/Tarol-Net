@@ -45,12 +45,15 @@ internal sealed record EntryModel(string Name, string FullName, EntryKind Kind, 
     /// <summary>A view built for its reader, <c>From(aggregate, ViewContext)</c> (TN-43): ETag by content.</summary>
     public bool Contextual { get; init; }
 
+    /// <summary>A read that needs its own grant (<c>Restricted = true</c>, TN-43).</summary>
+    public bool Restricted { get; init; }
+
     public bool HasBody => Kind is not (EntryKind.View or EntryKind.List) && Members.Count > 0 && System.Linq.Enumerable.Any(Members, m => m.RouteKind is null);
 
     // equality without the location, so a moved declaration regenerates nothing
     public bool Equals(EntryModel? other) => other is not null && Name == other.Name && FullName == other.FullName && Kind == other.Kind
         && Aggregate == other.Aggregate && Verb == other.Verb && Pattern == other.Pattern && Policy == other.Policy && Anonymous == other.Anonymous
-        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable && Contextual == other.Contextual;
+        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable && Contextual == other.Contextual && Restricted == other.Restricted;
 
     public override int GetHashCode() => (FullName, Verb, Pattern).GetHashCode();
 }

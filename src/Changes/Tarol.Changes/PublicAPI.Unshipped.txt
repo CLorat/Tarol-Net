@@ -53,6 +53,8 @@ Tarol.Changes.DeclaredNamesAttribute.Names.get -> System.Collections.Generic.IRe
 Tarol.Changes.GenerateTarolModuleAttribute
 Tarol.Changes.GenerateTarolModuleAttribute.GenerateTarolModuleAttribute(string? name = null) -> void
 Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?
+Tarol.Changes.IChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Changes.IChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
 Tarol.Changes.IContractTopics
 Tarol.Changes.IContractTopics.ContractTopics.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.ContractTopic!>!
 Tarol.Changes.ILoads<T, TData>
@@ -90,6 +92,15 @@ Tarol.Changes.ReactionRun.Result.get -> Tarol.Results.Result<Tarol.Changes.Chang
 Tarol.Changes.ReactionRun.Result.init -> void
 Tarol.Changes.ReadAttribute.Optional.get -> bool
 Tarol.Changes.ReadAttribute.Optional.init -> void
+Tarol.Changes.ReadScope
+Tarol.Changes.ReadScope.Deconstruct(out System.Type! View, out bool Restricted) -> void
+Tarol.Changes.ReadScope.Equals(Tarol.Changes.ReadScope other) -> bool
+Tarol.Changes.ReadScope.ReadScope() -> void
+Tarol.Changes.ReadScope.ReadScope(System.Type! View, bool Restricted) -> void
+Tarol.Changes.ReadScope.Restricted.get -> bool
+Tarol.Changes.ReadScope.Restricted.init -> void
+Tarol.Changes.ReadScope.View.get -> System.Type!
+Tarol.Changes.ReadScope.View.init -> void
 Tarol.Changes.Reads.Find<T>() -> T?
 Tarol.Changes.ReadsAttribute<T>
 Tarol.Changes.ReadsAttribute<T>.Optional.get -> bool
@@ -112,6 +123,9 @@ override Tarol.Changes.Loaded<T, TData>.GetHashCode() -> int
 override Tarol.Changes.ReactionRun.Equals(object? obj) -> bool
 override Tarol.Changes.ReactionRun.GetHashCode() -> int
 override Tarol.Changes.ReactionRun.ToString() -> string!
+~override Tarol.Changes.ReadScope.Equals(object obj) -> bool
+override Tarol.Changes.ReadScope.GetHashCode() -> int
+~override Tarol.Changes.ReadScope.ToString() -> string
 static Tarol.Changes.ChangeTest.At(System.DateTimeOffset now, Tarol.Changes.ChangeTestOptions! options) -> Tarol.Changes.ChangeTest!
 static Tarol.Changes.ChangeTestOptions.operator !=(Tarol.Changes.ChangeTestOptions? left, Tarol.Changes.ChangeTestOptions? right) -> bool
 static Tarol.Changes.ChangeTestOptions.operator ==(Tarol.Changes.ChangeTestOptions? left, Tarol.Changes.ChangeTestOptions? right) -> bool
@@ -121,6 +135,8 @@ static Tarol.Changes.Loaded<T, TData>.operator !=(Tarol.Changes.Loaded<T, TData>
 static Tarol.Changes.Loaded<T, TData>.operator ==(Tarol.Changes.Loaded<T, TData> left, Tarol.Changes.Loaded<T, TData> right) -> bool
 static Tarol.Changes.ReactionRun.operator !=(Tarol.Changes.ReactionRun? left, Tarol.Changes.ReactionRun? right) -> bool
 static Tarol.Changes.ReactionRun.operator ==(Tarol.Changes.ReactionRun? left, Tarol.Changes.ReactionRun? right) -> bool
+static Tarol.Changes.ReadScope.operator !=(Tarol.Changes.ReadScope left, Tarol.Changes.ReadScope right) -> bool
+static Tarol.Changes.ReadScope.operator ==(Tarol.Changes.ReadScope left, Tarol.Changes.ReadScope right) -> bool
 static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! json, System.Action<Tarol.Persistence.EventCodec!>! aggregates) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params Tarol.Persistence.TarolModule![]! modules) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Changes.TenantAggregates.IdOf<T>(Tarol.Kernel.OperationContext! operation) -> Tarol.StronglyTypedId.Id<T!>

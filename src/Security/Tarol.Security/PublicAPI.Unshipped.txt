@@ -1,4 +1,10 @@
 #nullable enable
+Tarol.Security.ChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Security.ChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Security.ChangeRequirement.View.get -> Tarol.Changes.ReadScope?
+Tarol.Security.ChangeRequirement.View.init -> void
+Tarol.Security.ChangeRoles.Grants(System.Security.Claims.ClaimsPrincipal! user, object! read, Tarol.Changes.ReadScope scope) -> bool
+Tarol.Security.RoleGrants.MayRead<TAggregate, TView>() -> Tarol.Security.RoleGrants
 Tarol.Security.SecurityModule
 Tarol.Security.SecurityModule.<Clone>$() -> Tarol.Security.SecurityModule!
 Tarol.Security.SecurityModule.Deconstruct(out System.Action<Tarol.Security.ChangeRoles!>! Map) -> void
@@ -6,8 +12,12 @@ Tarol.Security.SecurityModule.Equals(Tarol.Security.SecurityModule? other) -> bo
 Tarol.Security.SecurityModule.Map.get -> System.Action<Tarol.Security.ChangeRoles!>!
 Tarol.Security.SecurityModule.Map.init -> void
 Tarol.Security.SecurityModule.SecurityModule(System.Action<Tarol.Security.ChangeRoles!>! Map) -> void
+Tarol.Security.ViewHandler<TView, TAggregate>
+Tarol.Security.ViewHandler<TView, TAggregate>.ViewHandler() -> void
+abstract Tarol.Security.ViewHandler<TView, TAggregate>.HandleView(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext! context, Tarol.Security.ChangeRequirement! requirement, TAggregate! aggregate) -> System.Threading.Tasks.Task!
 override Tarol.Security.SecurityModule.Equals(object? obj) -> bool
 override Tarol.Security.SecurityModule.GetHashCode() -> int
 override Tarol.Security.SecurityModule.ToString() -> string!
+override sealed Tarol.Security.ViewHandler<TView, TAggregate>.Handle(Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext! context, Tarol.Security.ChangeRequirement! requirement, Tarol.Security.Read<TAggregate!>! change, TAggregate! aggregate) -> System.Threading.Tasks.Task!
 static Tarol.Security.SecurityModule.operator !=(Tarol.Security.SecurityModule? left, Tarol.Security.SecurityModule? right) -> bool
 static Tarol.Security.SecurityModule.operator ==(Tarol.Security.SecurityModule? left, Tarol.Security.SecurityModule? right) -> bool

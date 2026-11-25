@@ -48,6 +48,7 @@ internal sealed class TestApp : IAsyncDisposable
                 roles.Role("admin").May<CloseAuction>().May<Read<Auction>>();
                 roles.Authenticated().May<WatchAuction>();
                 roles.Role("seller").May<OpenHouse>().May<RenameHouse>().May<Read<House>>().May<ShelveBook>().May<Read<Shelf>>();
+                roles.Role("bookkeeper").MayRead<House, HouseLedger>();
             })
             .AddEndpoints(endpoints)
             .Projections(projections);

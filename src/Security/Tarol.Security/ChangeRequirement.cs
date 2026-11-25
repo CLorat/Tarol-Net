@@ -22,6 +22,12 @@ public sealed class ChangeRequirement : IAuthorizationRequirement
     /// <summary>The change input (or the <see cref="Read{TAggregate}"/> intent).</summary>
     public object Change { get; }
 
+    /// <summary>
+    /// For a read: the view, list or row query it is for (TN-43); <see langword="null"/> for a change or an unscoped read. A
+    /// <c>ChangeHandler&lt;Read&lt;T&gt;, T&gt;</c> row rule runs for every view; a <see cref="ViewHandler{TView, TAggregate}"/> for one.
+    /// </summary>
+    public ReadScope? View { get; init; }
+
     /// <summary>The run's context: <c>Context.Read&lt;Artwork&gt;()</c> for a <c>[Read]</c> aggregate, <c>Context.Now</c>,
     /// <c>Context.Operation</c> (actor, tenant).</summary>
     public ChangeContext Context { get; }
