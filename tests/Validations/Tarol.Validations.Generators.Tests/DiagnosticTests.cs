@@ -118,8 +118,20 @@ public class DiagnosticTests
             {
                 public static void Check(HandMade value, ref ValidationErrors errors) { }
             }
+            // Tatalu FB-F15.1-6: one context knows a value object, the type used through it does not reach one
+            [JsonSerializable(typeof(Placed)), JsonSerializable(typeof(Unrelated))]
+            public partial class BothJson() : JsonSerializerContext(null)
+            {
+                public static BothJson Default { get; } = new();
+                public System.Text.Json.Serialization.Metadata.JsonTypeInfo<Placed> Placed => null!;
+                public System.Text.Json.Serialization.Metadata.JsonTypeInfo<Unrelated> Unrelated => null!;
+                protected override JsonSerializerOptions? GeneratedSerializerOptions => null;
+                public override System.Text.Json.Serialization.Metadata.JsonTypeInfo? GetTypeInfo(System.Type type) => null;
+            }
             public static class Use
             {
+                public static string BothBad(Placed p) => JsonSerializer.Serialize(p, BothJson.Default.Placed);
+                public static string BothFine(Unrelated u) => JsonSerializer.Serialize(u, BothJson.Default.Unrelated);
                 public static Q Make() => new Q(500);
                 public static Q Change(Q q) => q with { Value = 7 };
                 public static HandMade Hand() => new HandMade(1);
@@ -296,8 +308,20 @@ public class DiagnosticTests
                 protected override JsonSerializerOptions? GeneratedSerializerOptions => null;
                 public override System.Text.Json.Serialization.Metadata.JsonTypeInfo? GetTypeInfo(System.Type type) => null;
             }
+            // Tatalu FB-F15.1-6: one context knows a value object, the type used through it does not reach one
+            [JsonSerializable(typeof(Placed)), JsonSerializable(typeof(Unrelated))]
+            public partial class BothJson() : JsonSerializerContext(null)
+            {
+                public static BothJson Default { get; } = new();
+                public System.Text.Json.Serialization.Metadata.JsonTypeInfo<Placed> Placed => null!;
+                public System.Text.Json.Serialization.Metadata.JsonTypeInfo<Unrelated> Unrelated => null!;
+                protected override JsonSerializerOptions? GeneratedSerializerOptions => null;
+                public override System.Text.Json.Serialization.Metadata.JsonTypeInfo? GetTypeInfo(System.Type type) => null;
+            }
             public static class Use
             {
+                public static string BothBad(Placed p) => JsonSerializer.Serialize(p, BothJson.Default.Placed);
+                public static string BothFine(Unrelated u) => JsonSerializer.Serialize(u, BothJson.Default.Unrelated);
                 public static string Bad(Placed p) => JsonSerializer.Serialize(p, PlacedJson.Default.Placed);
                 public static string AlsoBad(Placed p) => JsonSerializer.Serialize(p, typeof(Placed), PlacedJson.Default);
                 public static string Good(Placed p) => JsonSerializer.Serialize(p, ValueObjectJson.Options(PlacedJson.Default));
@@ -306,8 +330,9 @@ public class DiagnosticTests
             }
             """);
 
-        found.Length.ShouldBe(2);
+        found.Length.ShouldBe(3);
         found.ShouldAllBe(d => d.Severity == DiagnosticSeverity.Warning);
-        found.Select(Message).ShouldAllBe(m => m.Contains("ValueObjectJson.Options(PlacedJson.Default)", StringComparison.Ordinal));
+        found.Select(Message).Count(m => m.Contains("ValueObjectJson.Options(PlacedJson.Default)", StringComparison.Ordinal)).ShouldBe(2);
+        found.Select(Message).Count(m => m.Contains("ValueObjectJson.Options(BothJson.Default)", StringComparison.Ordinal)).ShouldBe(1);
     }
 }

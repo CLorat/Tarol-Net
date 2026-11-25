@@ -9,6 +9,7 @@ using Tarol.Changes.AspNetCore.Tests.Garden;
 using Tarol.Changes.AspNetCore.Tests.Kitchen;
 using Tarol.Persistence;
 using Tarol.Queries;
+using Tarol.Results;
 using Tarol.Security;
 using Tarol.Validations;
 
@@ -33,7 +34,7 @@ public sealed class ModuleTests : IAsyncLifetime
         .With(new SecurityModule(roles => roles.Authenticated().May<LayPlot>().May<RenamePlot>().May<Read<Plot>>()));
 
     private static TarolModule KitchenModule => Kitchen.GeneratedModule.Module
-        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<Read<Recipe>>()));
+        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<Read<Recipe>>()));
 
     public async ValueTask InitializeAsync()
     {
@@ -117,7 +118,7 @@ public sealed class ModuleTests : IAsyncLifetime
         var paths = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
 
         var operations = paths.EnumerateObject().SelectMany(p => p.Value.EnumerateObject().Select(o => (Path: p.Name, Verb: o.Name, Operation: o.Value))).ToList();
-        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/servings"]);
+        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/servings"]);
         foreach (var (path, verb, operation) in operations)
         {
             var parameters = operation.TryGetProperty("parameters", out var p) ? p.EnumerateArray().Select(x => $"{x.GetProperty("in").GetString()}:{x.GetProperty("name").GetString()}").ToList() : [];
@@ -128,6 +129,114 @@ public sealed class ModuleTests : IAsyncLifetime
         rename.Count(n => n == "Idempotency-Key").ShouldBe(1);
         var list = paths.GetProperty("/recipes").GetProperty("get").GetProperty("parameters").EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToList();
         list.ShouldBe(["title", "servings", "after", "limit", "offset", "count", "Tarol-Read-After"]);
+    }
+
+    [Fact]
+    public async Task Same_named_contract_types_of_two_assemblies_keep_their_own_schemas()
+    {
+        // Tatalu FB-INT-1 / FB-INT2-1: Garden.Label (1..80) and Pantry.Label (1..120), Garden.Shade and Pantry.Shade were one
+        // schema "Label" / "Shade", whichever came last; the client checked the other assembly's rules.
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        var paths = document.GetProperty("paths");
+        var schemas = document.GetProperty("components").GetProperty("schemas");
+
+        JsonElement Resolve(JsonElement schema)
+            => schema.TryGetProperty("$ref", out var r) ? schemas.GetProperty(r.GetString()!["#/components/schemas/".Length..]) : schema;
+        JsonElement Body(string path) => Resolve(paths.GetProperty(path).GetProperty("put").GetProperty("requestBody").GetProperty("content")
+            .GetProperty("application/json").GetProperty("schema")).GetProperty("properties");
+
+        var plot = Body("/plots/{plot}/label");
+        var recipe = Body("/recipes/{recipe}/label");
+        Resolve(plot.GetProperty("label")).GetProperty("maxLength").GetInt32().ShouldBe(80);
+        Resolve(recipe.GetProperty("label")).GetProperty("maxLength").GetInt32().ShouldBe(120);
+        Resolve(plot.GetProperty("shade")).GetProperty("enum").EnumerateArray().Select(e => e.ToString()).ShouldBe(["Sun", "HalfShade", "FullShade"]);
+        Resolve(recipe.GetProperty("shade")).GetProperty("enum").EnumerateArray().Select(e => e.ToString()).ShouldBe(["Light", "Dark"]);
+        recipe.GetProperty("label").GetProperty("$ref").GetString().ShouldBe("#/components/schemas/PantryLabel");
+        schemas.TryGetProperty("OptionOfLabel", out _).ShouldBeFalse();
+        // TN-33 (Tatalu FB-4, FB-F02.3-2): a BCL enum is written by name with UseStringEnumConverter, so its schema has the names
+        var day = Resolve(recipe.GetProperty("day"));
+        day.GetProperty("type").GetString().ShouldBe("string");
+        day.GetProperty("enum").EnumerateArray().Select(e => e.GetString()).ShouldBe(Enum.GetNames<DayOfWeek>());
+    }
+
+    [Fact]
+    public async Task A_value_object_of_an_assembly_without_endpoints_has_its_type_and_rules()
+    {
+        // Tatalu FB-F01.1-3 / FB-F02.1-4 / FB-INT-3: Pantry.PostalCode was {} and Option<Pantry.Label> "object"
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        var schemas = document.GetProperty("components").GetProperty("schemas");
+        JsonElement Resolve(JsonElement schema)
+            => schema.TryGetProperty("$ref", out var r) ? schemas.GetProperty(r.GetString()!["#/components/schemas/".Length..]) : schema;
+        var body = Resolve(document.GetProperty("paths").GetProperty("/recipes/{recipe}/label").GetProperty("put").GetProperty("requestBody")
+            .GetProperty("content").GetProperty("application/json").GetProperty("schema")).GetProperty("properties");
+
+        var from = Resolve(body.GetProperty("from"));
+        from.GetProperty("type").GetString().ShouldBe("string");
+        from.GetProperty("pattern").GetString().ShouldBe(@"^\d{5}$");
+        // TN-31 (Tatalu FB-3, FB-F17.3-3): Option<T> of a component is T or null in place
+        var note = body.GetProperty("note");
+        note.GetProperty("oneOf")[0].GetProperty("type").GetString().ShouldBe("null");
+        note.GetProperty("oneOf")[1].GetProperty("$ref").GetString().ShouldBe("#/components/schemas/PantryLabel");
+    }
+
+    [Fact]
+    public async Task A_computed_member_that_is_not_nullable_is_required()
+    {
+        // TN-27 (Tatalu FB-F04.6-2): RecipeRow.Scaled => … was optional (scaled?: boolean) although it is always written
+        var schemas = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken))
+            .GetProperty("components").GetProperty("schemas");
+        schemas.GetProperty("RecipeRow").GetProperty("required").EnumerateArray().Select(e => e.GetString()).ShouldContain("scaled");
+    }
+
+    [Fact]
+    public async Task A_member_missing_in_a_nested_record_is_required()
+    {
+        // TN-23 (Tatalu FB-F02.1-3, FB-F03.9-1): only top-level members were Required; a nested DateOnly arrived as 0001-01-01,
+        // a nested enum as its first value
+        var recipe = await Send(HttpMethod.Post, "/recipes", """{"title":"Soup"}""");
+        var id = JsonElement.Parse(recipe.Body).GetProperty("id").GetString();
+
+        var missing = await Send(HttpMethod.Put, $"/recipes/{id}/plan", """{"first":{"note":null},"steps":[{"on":"2026-11-25","shade":"Dark"},{"shade":"Light"}]}""");
+        var complete = await Send(HttpMethod.Put, $"/recipes/{id}/plan", """{"first":{"on":"2026-11-25","shade":"Dark"},"steps":[]}""");
+
+        missing.Status.ShouldBe(HttpStatusCode.BadRequest, missing.Body);
+        var errors = JsonElement.Parse(missing.Body).GetProperty("errors");
+        errors.EnumerateObject().Select(e => $"{e.Name}:{e.Value[0].GetString()}").Order(StringComparer.Ordinal)
+            .ShouldBe(["first.on:Required", "first.shade:Required", "steps[1].on:Required"]);
+        complete.Status.ShouldBe(HttpStatusCode.NoContent, complete.Body);           // a missing nullable member is fine
+    }
+
+    [Fact]
+    public async Task Contract_types_and_constants_of_both_assemblies_are_in_the_document()
+    {
+        // TN-35 (Tatalu FB-F02.6-2, FB-F13.5-1): an enum no operation uses and a backend constant reached the client only as a copy
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+
+        document.GetProperty("x-tarol-types").EnumerateArray().Select(t => t.GetString()).ShouldBe(["Doneness"]);
+        document.GetProperty("components").GetProperty("schemas").GetProperty("Doneness").GetProperty("enum").EnumerateArray()
+            .Select(e => e.GetString()).ShouldBe(["Rare", "WellDone"]);
+        var constants = document.GetProperty("x-tarol-constants");
+        constants.GetProperty("KitchenRulesMaxServings").GetInt32().ShouldBe(12);
+        constants.GetProperty("RecipeFormat").GetString().ShouldBe("v2");
+        constants.GetProperty("GardenRulesOrganic").GetBoolean().ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task A_refusal_with_several_reasons_lists_them_in_the_problem()
+    {
+        // TN-36 (Tatalu FB-F03.4-5): every missing prerequisite at once; Tatalu put "License,Measles" into detail and split it
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext { RequestServices = _app.Services };
+        using var body = new MemoryStream();
+        http.Response.Body = body;
+
+        await _app.Services.GetRequiredService<ChangeEndpoints>().Problem(http, Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense", "Contract.NoMeasles"]));
+
+        var problem = JsonElement.Parse(body.ToArray());
+        http.Response.StatusCode.ShouldBe(409);
+        problem.GetProperty("code").GetString().ShouldBe("Contract.Prerequisites");
+        problem.GetProperty("reasons").EnumerateArray().Select(r => r.GetString()).ShouldBe(["Contract.NoLicense", "Contract.NoMeasles"]);
+        Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense"]).ShouldBe(Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense"]));
+        Error.Conflict("Contract.Prerequisites", ["Contract.NoLicense"]).ShouldNotBe(Error.Conflict("Contract.Prerequisites"));
     }
 
     [Fact]
@@ -181,3 +290,44 @@ public sealed class ModuleTests : IAsyncLifetime
         }
     }
 }
+
+/// <summary>TN-22 (Tatalu FB-INT-1): two types with one schema name fail the document; a pinned name and Option&lt;T&gt; are handled.</summary>
+public sealed class OpenApiSchemaNameTests
+{
+    private static class First
+    {
+        public sealed record Card(string Text);
+    }
+
+    private static class Second
+    {
+        public sealed record Card(int Number);
+    }
+
+    [Fact]
+    public void Two_types_with_one_name_fail_and_name_both()
+    {
+        var options = new object();
+        OpenApiSchemaNames.Name(options, typeof(First.Card), "Card").ShouldBe("Card");
+        OpenApiSchemaNames.Name(options, typeof(First.Card), "Card").ShouldBe("Card");
+        var error = Should.Throw<InvalidOperationException>(() => OpenApiSchemaNames.Name(options, typeof(Second.Card), "Card"));
+        error.Message.ShouldContain("First+Card");
+        error.Message.ShouldContain("Second+Card");
+        error.Message.ShouldContain("OpenApiSchemaName");
+        OpenApiSchemaNames.Name(new object(), typeof(Second.Card), "Card").ShouldBe("Card");   // another document
+    }
+
+    [Fact]
+    public void A_pinned_name_an_option_and_a_generic_of_a_pinned_type()
+    {
+        var options = new object();
+        OpenApiSchemaNames.Claim(options).ShouldBeTrue();
+        OpenApiSchemaNames.Claim(options).ShouldBeFalse();
+        OpenApiSchemaNames.Name(options, typeof(Pantry.Label), "Label").ShouldBe("PantryLabel");
+        OpenApiSchemaNames.Name(options, typeof(Garden.Label), "Label").ShouldBe("Label");
+        OpenApiSchemaNames.Name(options, typeof(Tarol.Options.Option<Pantry.Label>), "OptionOfLabel").ShouldBeNull();
+        OpenApiSchemaNames.Name(options, typeof(List<Pantry.Label>), "ListOfLabel").ShouldBe("ListOfPantryLabel");
+        OpenApiSchemaNames.Name(options, typeof(string), null).ShouldBeNull();
+    }
+}
+

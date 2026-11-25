@@ -23,4 +23,19 @@ public readonly record struct ChangeContext(OperationContext Operation, DateTime
     public T Read<T>(string member)
         where T : class
         => (Reads ?? throw new InvalidOperationException("This change declares no [Read] members.")).Get<T>(member);
+
+    /// <summary>
+    /// The single read-only aggregate of type <typeparamref name="T"/>, if one was loaded (TN-40, Tatalu FB-F03.3-2): an
+    /// optional read (a hand-written <c>IHasReads</c> that skips a missing aggregate) without catching an exception.
+    /// </summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <param name="aggregate">The aggregate, or <see langword="null"/>.</param>
+    /// <returns>Whether one was loaded.</returns>
+    /// <exception cref="InvalidOperationException">Several of that type were loaded; use <see cref="Read{T}(string)"/>.</exception>
+    public bool TryRead<T>([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out T? aggregate)
+        where T : class
+    {
+        aggregate = Reads?.Find<T>();
+        return aggregate is not null;
+    }
 }

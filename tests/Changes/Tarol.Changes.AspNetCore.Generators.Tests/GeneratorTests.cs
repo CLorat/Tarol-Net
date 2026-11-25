@@ -38,6 +38,40 @@ public sealed class GeneratorTests
         => string.Join("\n", GeneratorTestHost.Diagnose(true, true, Sources.Entries).Select(d => d.ToString())).ShouldBeEmpty();
 
     [Fact]
+    public void The_problem_codes_name_what_can_happen()                // TN-30, TN-38 (Tatalu FB-F04.1-2, FB-F17.6-1, FB-F01.1-9)
+    {
+        const string source = GeneratorTestHost.Usings + """
+            namespace Shop;
+
+            public partial class Customer : AggregateRoot<Customer>
+            {
+                public sealed record Joined : Event;
+                private void On(Joined e) { }
+            }
+
+            [Endpoint("POST /orders/{order}/items")]
+            public sealed partial record AddItems(Id<Order> Order, [property: Read] Id<Customer> Buyer, int Items) : IChange<Order>
+            {
+                public Result Execute(Order order, ChangeContext context) => Items > 9 ? Invalid.Field("items", "Order.TooMany") : order.Add(Items);
+            }
+
+            [Endpoint("PUT /orders/{order}/start")]
+            public sealed partial record StartOrder(Id<Order> Order) : ILoads<Order>
+            {
+                public async System.Threading.Tasks.ValueTask<Result<Order>> Load(Tarol.Persistence.IAggregateStore store, ChangeContext context, System.Threading.CancellationToken ct)
+                    => (await store.Load(Order, context.Operation, ct)).TryGetValue(out Order? o) ? o : Order.Open();
+                public Result Execute(Order order, ChangeContext context) => order.Add(0);
+            }
+            """;
+        var generated = string.Join("\n", GeneratorTestHost.Run(GeneratorTestHost.Compile(false, GeneratorTestHost.Domain, source)).GetRunResult()
+            .GeneratedTrees.Select(t => t.GetText(TestContext.Current.CancellationToken).ToString()));
+
+        // [Read] target and an Invalid.Field code of the change; ILoads that loads or starts: no Order.NotFound
+        generated.ShouldContain("""Errors = new string[] { "Auth.Forbidden", "Customer.NotFound", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.NotFound", "Order.TooMany", "Stream.VersionConflict" },""");
+        generated.ShouldContain("""Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Stream.VersionConflict" },""");
+    }
+
+    [Fact]
     public void The_static_problem_codes_of_a_change_are_its_metadata()            // BC-3: x-tarol-errors
     {
         const string source = GeneratorTestHost.Usings + """

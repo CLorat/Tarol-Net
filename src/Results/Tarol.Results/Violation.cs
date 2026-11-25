@@ -196,6 +196,22 @@ public sealed record Error : Violation
     public string? Detail { get; }
 
     /// <summary>
+    /// The codes of several reasons behind one refusal (every missing prerequisite), or <see langword="null"/> (TN-36, Tatalu
+    /// FB-F03.4-5). Problem details carry them as <c>reasons</c>; set with <see cref="Conflict(string, IReadOnlyList{string}, string?)"/>.
+    /// </summary>
+    [JsonPropertyName("reasons")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Reasons { get; init; }
+
+    /// <inheritdoc />
+    public bool Equals(Error? other)
+        => other is not null && Type == other.Type && Code == other.Code && Detail == other.Detail
+           && (ReferenceEquals(Reasons, other.Reasons) || (Reasons is not null && other.Reasons is not null && Reasons.SequenceEqual(other.Reasons)));
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Type, Code, Detail, Reasons?.Count ?? -1);
+
+    /// <summary>
     /// What <c>default(Result)</c> and <c>default(Result&lt;T&gt;)</c> read as: type <see cref="ErrorType.Internal"/>,
     /// code <c>"Result.Uninitialized"</c>. Seeing it means a result was never assigned.
     /// </summary>
@@ -227,6 +243,17 @@ public sealed record Error : Violation
     /// <param name="detail">An optional explanation.</param>
     /// <returns>The error.</returns>
     public static Error Conflict(string code, string? detail = null) => new(ErrorType.Conflict, code, detail);
+
+    /// <summary>Creates an <see cref="ErrorType.Conflict"/> error with several reasons (TN-36): every unmet prerequisite at once.</summary>
+    /// <param name="code">The code of the refusal, for example <c>"Contract.Prerequisites"</c>.</param>
+    /// <param name="reasons">The codes of the reasons, for example <c>["Contract.NoLicense", "Contract.NoMeasles"]</c>.</param>
+    /// <param name="detail">An optional explanation.</param>
+    /// <returns>The error.</returns>
+    public static Error Conflict(string code, IReadOnlyList<string> reasons, string? detail = null)
+    {
+        ArgumentNullException.ThrowIfNull(reasons);
+        return new(ErrorType.Conflict, code, detail) { Reasons = [.. reasons] };
+    }
 
     /// <summary>Creates an <see cref="ErrorType.Forbidden"/> error.</summary>
     /// <param name="code">The code; defaults to <c>"Auth.Forbidden"</c>.</param>

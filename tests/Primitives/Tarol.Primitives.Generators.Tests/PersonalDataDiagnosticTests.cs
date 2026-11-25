@@ -1,6 +1,6 @@
 namespace Tarol.Primitives.Generators.Tests;
 
-/// <summary>Step 16A: the data-protection marks, TPRM030–TPRM033 (data-protection.md §6.1).</summary>
+/// <summary>Step 16A: the data-protection marks, TPRM030–TPRM034 (data-protection.md §6.1).</summary>
 public class PersonalDataDiagnosticTests
 {
     private const string Usings = "using System; using System.Collections.Generic; using Tarol.Primitives; using Tarol.StronglyTypedId;\n";
@@ -93,5 +93,39 @@ public class PersonalDataDiagnosticTests
     [Fact]
     public void A_Valid_Retention_Reports_Nothing()
         => Ids(Customer.Replace("public partial class Customer", "[Retention(Days = 3650)] public partial class Customer", StringComparison.Ordinal).Replace("MEMBER", "", StringComparison.Ordinal).Replace("EVENT", "string Text", StringComparison.Ordinal))
+            .ShouldBeEmpty();
+
+    private const string Noted = """
+        using System.Text.Json.Serialization;
+        public partial class Customer : AggregateRoot<Customer>
+        {
+            public sealed record Noted([property: PersonalData] string? Text, int Count) : Event
+            {
+                BODY
+            }
+            private void On(Noted e) { }
+        }
+        """;
+
+    [Theory]
+    [InlineData("public string? Preview => Text;")]                               // Tatalu FB-F13.3-8: written unsealed
+    [InlineData("public bool Long { get { return Count > 3; } }")]
+    [InlineData("[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Preview => Text;")]
+    public void TPRM034_A_Computed_Property_Next_To_Personal_Data(string body)
+        => Ids(Noted.Replace("BODY", body, StringComparison.Ordinal)).ShouldBe(["TPRM034"]);
+
+    [Theory]
+    [InlineData("public string? Preview() => Text;")]                             // a method is not written
+    [InlineData("[JsonIgnore] public string? Preview => Text;")]
+    [InlineData("[JsonIgnore(Condition = JsonIgnoreCondition.Always)] public string? Preview => Text;")]
+    [InlineData("public string? Extra { get; init; }")]                           // stored data, not computed
+    [InlineData("public static string Kind => \"noted\";")]
+    [InlineData("private string? Preview => Text;")]
+    public void TPRM034_Methods_Ignored_And_Stored_Members_Pass(string body)
+        => Ids(Noted.Replace("BODY", body, StringComparison.Ordinal)).ShouldBeEmpty();
+
+    [Fact]
+    public void TPRM034_An_Event_Without_Personal_Data_May_Compute()
+        => Ids(Noted.Replace("[property: PersonalData] string? Text", "string? Text", StringComparison.Ordinal).Replace("BODY", "public string? Preview => Text;", StringComparison.Ordinal))
             .ShouldBeEmpty();
 }

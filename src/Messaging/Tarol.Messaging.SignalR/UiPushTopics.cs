@@ -36,7 +36,7 @@ public sealed record UiPushTopic(string Name)
 /// given to <c>WithOutboxRows</c> or <c>Publish</c>) has its version, record and stream. The generated
 /// <c>AddTarolEndpoints()</c> of <c>Tarol.Changes.AspNetCore</c> writes them to the OpenAPI document as <c>x-tarol-topics</c>.
 /// </summary>
-public sealed class UiPushTopics
+public sealed class UiPushTopics : Tarol.Changes.IContractTopics
 {
     /// <summary>Describes the topics of <paramref name="options"/>.</summary>
     /// <param name="options">The UI push's topics and rules.</param>
@@ -76,4 +76,8 @@ public sealed class UiPushTopics
 
     /// <summary>The topics, sorted by name.</summary>
     public IReadOnlyList<UiPushTopic> Topics { get; }
+
+    /// <inheritdoc />
+    IReadOnlyList<Tarol.Changes.ContractTopic> Tarol.Changes.IContractTopics.ContractTopics
+        => [.. Topics.Select(static t => new Tarol.Changes.ContractTopic(t.Name, t.Version, t.Stream, t.ContractType, t.Subscribe, t.Publish))];
 }

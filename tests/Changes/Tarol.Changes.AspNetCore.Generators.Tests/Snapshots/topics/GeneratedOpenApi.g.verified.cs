@@ -13,6 +13,11 @@ public static class GeneratedOpenApi
     public static global::Microsoft.AspNetCore.OpenApi.OpenApiOptions AddTarolEndpoints(this global::Microsoft.AspNetCore.OpenApi.OpenApiOptions options)
     {
         global::System.ArgumentNullException.ThrowIfNull(options);
+        if (global::Tarol.Changes.AspNetCore.OpenApiSchemaNames.Claim(options))     // TN-22: one name per type, once per document
+        {
+            var create = options.CreateSchemaReferenceId;
+            options.CreateSchemaReferenceId = info => global::Tarol.Changes.AspNetCore.OpenApiSchemaNames.Name(options, info.Type, create(info));
+        }
         options.AddDocumentTransformer(static (document, _, _) =>
         {
             document.Components ??= new global::Microsoft.OpenApi.OpenApiComponents();
@@ -138,6 +143,12 @@ public static class GeneratedOpenApi
             ["title"] = Text("The code, or \"One or more fields are invalid.\""),
             ["code"] = Text("The error's code (e.g. Auction.NotOpen); absent for invalid input"),
             ["detail"] = Text(),
+            ["reasons"] = new global::Microsoft.OpenApi.OpenApiSchema
+            {
+                Type = global::Microsoft.OpenApi.JsonSchemaType.Array,
+                Description = "The codes of several reasons behind one refusal (e.g. every missing prerequisite)",
+                Items = Text(),
+            },
             ["traceId"] = Text("The request's id, also its Tarol-Request-Id header: quote it when reporting the problem"),
             ["errors"] = new global::Microsoft.OpenApi.OpenApiSchema
             {
@@ -186,11 +197,30 @@ public static class GeneratedOpenApi
         }
     }
 
-    /// <summary><c>Option&lt;T&gt;</c> is <c>T</c> or <c>null</c> on the wire (BC-3).</summary>
+    /// <summary>
+    /// <c>Option&lt;T&gt;</c> is <c>T</c> or <c>null</c> on the wire (BC-3), written in place (it is no component, TN-22): a
+    /// <c>T</c> with a schema of its own (a record, an enum, a value object) is <c>oneOf: [{type: null}, {$ref: T}]</c>, like a
+    /// nullable reference; a primitive is <c>type: [T, null]</c> (TN-31, Tatalu FB-3, FB-F17.3-3).
+    /// </summary>
     private static async global::System.Threading.Tasks.Task Optional(global::Microsoft.OpenApi.OpenApiSchema schema,
         global::Microsoft.AspNetCore.OpenApi.OpenApiSchemaTransformerContext context, global::System.Type inner, global::System.Threading.CancellationToken cancellationToken)
     {
+        if (schema.OneOf is { Count: > 0 })
+            return;                                                       // another assembly's transformer did it
         var value = await context.GetOrCreateSchemaAsync(inner, null, cancellationToken);
+        if (value.Metadata is { } metadata && metadata.TryGetValue("x-schema-id", out var id) && id is string { Length: > 0 })
+        {
+            // a component: ASP.NET replaces the schema in oneOf with its $ref when it resolves the references
+            var description = schema.Description;
+            Clear(schema);
+            schema.Description = description;
+            schema.OneOf = new global::System.Collections.Generic.List<global::Microsoft.OpenApi.IOpenApiSchema>
+            {
+                new global::Microsoft.OpenApi.OpenApiSchema { Type = global::Microsoft.OpenApi.JsonSchemaType.Null },
+                value,
+            };
+            return;
+        }
         Numbers(value);
         schema.Type = (value.Type ?? global::Microsoft.OpenApi.JsonSchemaType.Object) | global::Microsoft.OpenApi.JsonSchemaType.Null;
         schema.Format = value.Format;
@@ -203,6 +233,60 @@ public static class GeneratedOpenApi
         schema.Properties = value.Properties;
         schema.Required = value.Required;
         schema.Enum = value.Enum;
+        if (value.Extensions is { Count: > 0 } extensions)
+            foreach (var (key, extension) in extensions)
+                (schema.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>())[key] = extension;
+    }
+
+    private static void Clear(global::Microsoft.OpenApi.OpenApiSchema schema)
+    {
+        schema.Type = null;
+        schema.Format = null;
+        schema.Pattern = null;
+        schema.MinLength = null;
+        schema.MaxLength = null;
+        schema.Minimum = null;
+        schema.Maximum = null;
+        schema.Items = null;
+        schema.Properties = null;
+        schema.Required = null;
+        schema.Enum = null;
+    }
+
+    /// <summary>
+    /// An enum as the application's JSON options write it (TN-33, Tatalu FB-4, FB-F02.3-2): names with a string enum converter
+    /// (an attribute, <c>UseStringEnumConverter</c> or one on the options, also for BCL enums such as <c>DayOfWeek</c>), as
+    /// the converter's naming policy writes them; otherwise an integer.
+    /// </summary>
+    private static void Enums(global::Microsoft.OpenApi.OpenApiSchema schema, global::Microsoft.AspNetCore.OpenApi.OpenApiSchemaTransformerContext context)
+    {
+        var type = context.JsonTypeInfo.Type;
+        if (!type.IsEnum || context.JsonTypeInfo.Kind != global::System.Text.Json.Serialization.Metadata.JsonTypeInfoKind.None)
+            return;
+        var names = new global::System.Collections.Generic.List<global::System.Text.Json.Nodes.JsonNode>();
+        foreach (var value in global::System.Enum.GetValuesAsUnderlyingType(type))
+        {
+            var written = global::System.Text.Json.JsonSerializer.SerializeToNode(global::System.Enum.ToObject(type, value), context.JsonTypeInfo);
+            if (written is not global::System.Text.Json.Nodes.JsonValue text || text.GetValueKind() != global::System.Text.Json.JsonValueKind.String)
+                return;                                                   // numbers: the schema ASP.NET wrote stays
+            names.Add(text);
+        }
+        schema.Type = global::Microsoft.OpenApi.JsonSchemaType.String;
+        schema.Format = null;
+        schema.Enum = names;
+    }
+
+    /// <summary>A computed member (get-only, no setter) that is not nullable is always written: required (TN-27, Tatalu FB-F04.6-2).</summary>
+    private static void Computed(global::Microsoft.OpenApi.OpenApiSchema schema, global::Microsoft.AspNetCore.OpenApi.OpenApiSchemaTransformerContext context)
+    {
+        if (context.JsonPropertyInfo is not null || context.JsonTypeInfo.Kind != global::System.Text.Json.Serialization.Metadata.JsonTypeInfoKind.Object
+            || schema.Properties is not { Count: > 0 } properties)
+            return;
+        foreach (var property in context.JsonTypeInfo.Properties)
+        {
+            if (property is { Get: not null, Set: null, IsGetNullable: false, IsExtensionData: false } && properties.ContainsKey(property.Name))
+                (schema.Required ??= new global::System.Collections.Generic.HashSet<string>()).Add(property.Name);
+        }
     }
 
     /// <summary>Tarol.Operations' admin endpoints by operation id: the success status, the problem statuses and the codes (its AdminProblems).</summary>
@@ -555,15 +639,15 @@ public static class GeneratedOpenApi
         global::Microsoft.AspNetCore.OpenApi.OpenApiDocumentTransformerContext context, global::System.Threading.CancellationToken cancellationToken)
     {
         var services = context.ApplicationServices;
-        if (global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<global::Tarol.Messaging.SignalR.UiPushTopics>(services) is not { } push
-            || push.Topics.Count == 0)
+        if (global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<global::Tarol.Changes.IContractTopics>(services) is not { } push
+            || push.ContractTopics.Count == 0)
             return;
         var json = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
             .GetRequiredService<global::Microsoft.Extensions.Options.IOptions<global::Microsoft.AspNetCore.Http.Json.JsonOptions>>(services).Value.SerializerOptions;
         var openApi = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
             .GetRequiredService<global::Microsoft.Extensions.Options.IOptionsMonitor<global::Microsoft.AspNetCore.OpenApi.OpenApiOptions>>(services).Get(context.DocumentName);
         var all = new global::System.Text.Json.Nodes.JsonObject();
-        foreach (var topic in push.Topics)
+        foreach (var topic in push.ContractTopics)
         {
             var item = new global::System.Text.Json.Nodes.JsonObject();
             if (topic.Version is { } version)
@@ -593,6 +677,8 @@ public static class GeneratedOpenApi
         var type = context.JsonTypeInfo.Type;
         var services = context.ApplicationServices;
         Numbers(schema);
+        Enums(schema, context);
+        Computed(schema, context);
         if (schema.Type is { } array && (array & global::Microsoft.OpenApi.JsonSchemaType.Array) != 0 && schema.Items is null
             && (type.IsArray ? type.GetElementType() : type.IsGenericType && type.GetGenericArguments().Length == 1 ? type.GetGenericArguments()[0] : null) is { } element
             && (element == typeof(global::Shop.Note) || element == typeof(global::Shop.Quantity)))

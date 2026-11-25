@@ -92,6 +92,33 @@ public sealed class InMemoryDataProtectionTests
     }
 
     [Fact]
+    public async Task Two_State_Members_With_The_Same_Subject_Round_Trip_Sealed()
+    {
+        // Tatalu FB-F13.3-2 (stored state): ShipTo and Note both name Customer as their subject.
+        var customer = await Registered();
+        var order = Order.Place(customer.Id.Value, "1 Main St, London", 42m);
+        order.Readdress("2 Side St, Leeds", "leave at the door");
+        (await _store.Append(order, 0, _alice, Option.None, _ct)).IsSuccess.ShouldBeTrue();
+
+        var loaded = (await _store.Load(order.Id, _alice, _ct)).TryGetValue(out Order? o) ? o : null;
+        loaded.ShouldNotBeNull().ShipTo.ShouldBe("2 Side St, Leeds");
+        loaded.Note.ShouldBe("leave at the door");
+        _store.AssertNoPlaintext("2 Side St, Leeds");
+        _store.AssertNoPlaintext("leave at the door");
+    }
+
+    [Fact]
+    public async Task AssertNoPlaintext_Finds_A_Value_The_Store_Holds_Unsealed()
+    {
+        var customer = Customer.Register("Ada", "ada@example.com", new Address("1 Main St", "London"), "Atlantis");
+        (await _store.Append(customer, 0, _alice, Option.None, _ct)).IsSuccess.ShouldBeTrue();
+
+        _store.AssertNoPlaintext("ada@example.com");
+        Should.Throw<InvalidOperationException>(() => _store.AssertNoPlaintext("Atlantis")).Message.ShouldContain("customer"); // the unsealed country
+        Should.Throw<ArgumentException>(() => _store.AssertNoPlaintext("GB"));
+    }
+
+    [Fact]
     public async Task New_Personal_Data_For_An_Erased_Subject_Is_Refused()
     {
         var customer = await Registered();

@@ -450,4 +450,18 @@ public sealed class PushTests
         (await rules.Authorize(anonymous, TopicOperation.Subscribe, "artflow.chat", Ct)).ShouldBeFalse();
         Should.Throw<ArgumentException>(() => new UiPushOptions().Forward("nosystem"));
     }
+
+    [Fact]
+    public async Task A_topic_rule_may_name_several_roles()
+    {
+        // TN-61 (Tatalu FB-F17.3-9): one rule per role meant a loop in the application
+        var rules = new TopicRules().Subscribe("tatalu.sync", "caregiver", "substitute", "assistant").Publish("tatalu.chat", "caregiver", "parent");
+        static System.Security.Claims.ClaimsPrincipal As(string role)
+            => new(new System.Security.Claims.ClaimsIdentity([new(System.Security.Claims.ClaimTypes.Role, role)], "Test"));
+
+        (await rules.Authorize(As("substitute"), TopicOperation.Subscribe, "tatalu.sync", Ct)).ShouldBeTrue();
+        (await rules.Authorize(As("parent"), TopicOperation.Subscribe, "tatalu.sync", Ct)).ShouldBeFalse();
+        (await rules.Authorize(As("parent"), TopicOperation.Publish, "tatalu.chat", Ct)).ShouldBeTrue();
+        Should.Throw<ArgumentException>(() => new TopicRules().Subscribe("x", Array.Empty<string>()));
+    }
 }

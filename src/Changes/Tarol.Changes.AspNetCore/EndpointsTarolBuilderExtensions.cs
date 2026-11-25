@@ -35,10 +35,18 @@ public static class EndpointsTarolBuilderExtensions
         services.AddSingleton<Webhooks>();
         services.Configure<JsonOptions>(o =>
         {
+            // TN-33 (Tatalu FB-4): the application's contexts come right after the value objects, before ASP.NET's own
+            // resolvers (the reflection-based default when reflection is on). Appended, the default answered first: it writes
+            // enums as numbers although a context with UseStringEnumConverter writes names, so the OpenAPI document said
+            // integer while the entries wrote names.
             o.SerializerOptions.AddValueObjects();
+            var at = o.SerializerOptions.TypeInfoResolverChain.IndexOf(ValueObjectJson.Resolver) + 1;
             foreach (var resolver in options.Json.TypeInfoResolverChain)
-                if (resolver != ValueObjectJson.Resolver && !o.SerializerOptions.TypeInfoResolverChain.Contains(resolver))
-                    o.SerializerOptions.TypeInfoResolverChain.Add(resolver);
+            {
+                if (resolver == ValueObjectJson.Resolver || o.SerializerOptions.TypeInfoResolverChain.Contains(resolver))
+                    continue;
+                o.SerializerOptions.TypeInfoResolverChain.Insert(at++, resolver);
+            }
         });
         return builder;
     }

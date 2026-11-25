@@ -6,7 +6,17 @@ namespace Tarol.Changes.AspNetCore.Generators;
 internal enum EntryKind { Change, Creation, View, List }
 
 /// <summary>An input member: C# name, type, explicit JSON name, route value kind (null = body), optional, default literal.</summary>
-internal sealed record Member(string Name, string Type, string? JsonName, string? RouteName, string? RouteKind, bool Optional, string? DefaultLiteral);
+internal sealed record Member(string Name, string Type, string? JsonName, string? RouteName, string? RouteKind, bool Optional, string? DefaultLiteral)
+{
+    /// <summary>The members of a record this member holds (also as a list element), for <c>Required</c> in every depth (TN-23).</summary>
+    public EquatableArray<RequiredModel> Nested { get; init; }
+
+    /// <summary>Whether the member is a list of those records.</summary>
+    public bool NestedList { get; init; }
+}
+
+/// <summary>A member of a nested input record: its name, JSON name, whether it may be missing, whether it is a list, its own members.</summary>
+internal sealed record RequiredModel(string Name, string? JsonName, bool Optional, bool List, EquatableArray<RequiredModel> Members);
 
 /// <summary>A filter of a list: the member, its non-nullable type, the column, how it is parsed ("enum", "string", "date", "time" or "parsable"),
 /// where it comes from ("query", "route", "claim"), the claim type and the OpenAPI kind.</summary>
@@ -75,3 +85,6 @@ internal sealed record EntryResult(EntryModel? Model, EquatableArray<ValueObject
 }
 
 internal sealed record HookResult(HookModel? Model, DiagnosticInfo? Diagnostic);
+
+/// <summary>A <c>[ContractType]</c> type (its fully qualified name) or a <c>[ContractConstant]</c> (name and C# literal) of the assembly (TN-35).</summary>
+internal sealed record ContractModel(string? Type, string? Constant, string? Literal);

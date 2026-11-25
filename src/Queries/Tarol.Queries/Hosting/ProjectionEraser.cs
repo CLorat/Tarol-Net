@@ -35,12 +35,32 @@ public sealed class ProjectionEraser<TRow> : ErasureParticipant
     public override async ValueTask Forget(Guid tenant, Guid subject, IReadOnlyList<StreamRef> streams, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(streams);
+        await UntilBuilt(cancellationToken).ConfigureAwait(false);
         await Refold([.. streams.Where(static s => s.StreamType == TRow.StreamType)], cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public override async ValueTask ForgetTenant(Guid tenant, CancellationToken cancellationToken)
-        => await Refold(await Store.Streams(tenant, TRow.StreamType, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+    {
+        await UntilBuilt(cancellationToken).ConfigureAwait(false);
+        await Refold(await Store.Streams(tenant, TRow.StreamType, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// TN-25 (Tatalu FB-F17.5-4, FB-INT2-4): while this process's host of the projection builds, a batch it read before the key
+    /// was erased may still be written after the re-fold, with the old values. Wait until it is current first. A read table
+    /// no host has prepared yet holds no rows: the re-fold has nothing to replace (the store answers that without failing).
+    /// </summary>
+    private async ValueTask UntilBuilt(CancellationToken cancellationToken)
+    {
+        foreach (var host in _services.GetServices<ProjectionHost>())
+        {
+            if (host.Name != TRow.Name || host.Version != TRow.Version || host.State == ProjectionState.Current)
+                continue;
+            if (!await host.WaitUntilCurrent(host.ErasureWait, cancellationToken).ConfigureAwait(false))
+                throw new TimeoutException($"The projection {TRow.Name} v{TRow.Version} is still building after {host.ErasureWait}; its rows are re-folded once it is current: run the erasure again.");
+        }
+    }
 
     /// <inheritdoc />
     public override async ValueTask Deleted(IReadOnlyList<StreamRef> streams, CancellationToken cancellationToken)

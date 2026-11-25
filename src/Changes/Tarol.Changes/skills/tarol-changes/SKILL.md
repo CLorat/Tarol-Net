@@ -32,7 +32,9 @@ description: >-
 6. **Inputs are `IValidatable`**, so value rules run before any read and return every field as `Invalid` (TCHG005 warns).
 7. **Run** with an explicit context: `await pipeline.Run(change, OperationContext.Start(actor, tenant, time), options, ct)`.
    `ChangeOptions(Key: new IdempotencyKey(tenant, scope, key))` for redeliverable work. `ExpectedVersion:` for If-Match.
-8. **A version conflict is returned** (`StoreErrors.IsVersionConflict`), never retried by the pipeline. The caller retries.
+8. **A version conflict without an expected version is retried**: a change without `ExpectedVersion` (no `If-Match`) that loses a
+   race is loaded and decided again, up to `ChangePipeline.ConflictAttempts` (3) times. With `ExpectedVersion` the caller gets
+   `Stream.VersionConflict` (`StoreErrors.IsVersionConflict`) at once: it saw a state that is gone.
    The permission (`IChangeAuthorization`, skill `tarol-security`) runs only for runs with `ChangeOptions.Principal`,
    after the load and before the expected version; jobs and reactions pass no principal.
 9. **A reaction to an own event is a change with a factory**: `[OnEvent<Bid.Won>] public static X From(Bid.Won e,
@@ -111,7 +113,7 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 | loading or saving inside `Execute` | not possible: `Execute` gets no store; use `ILoads<T>` or `[Read]` |
 | `context.Read<Artwork>()` without a `[Read] Id<Artwork>` member | `InvalidOperationException` ("no [Read] members") |
 | a factory that returns a loaded aggregate from `ICreation<T>.Execute` | `InvalidOperationException` |
-| expecting the pipeline to retry a `Stream.VersionConflict` | it returns it: retry in the caller with a new run |
+| retrying `Stream.VersionConflict` around `Run` without an expected version | the pipeline did that already (3 attempts); with `If-Match` show the conflict instead |
 | an id member in a creation input | the factory chooses ids; send an `IdempotencyKey` to make retries safe |
 | `[OnEvent<T>]` on an instance, private or wrongly typed method | TCHG006 |
 | renaming a reaction's change without pinning `Name` | its waiting rows and keys use the old name: dead letters |

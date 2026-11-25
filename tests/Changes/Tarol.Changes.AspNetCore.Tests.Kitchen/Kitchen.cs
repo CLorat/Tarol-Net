@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Tarol.Options;
 using Tarol.Primitives;
 using Tarol.Queries;
 using Tarol.Results;
@@ -44,18 +45,55 @@ public sealed partial record ScaleRecipe(Id<Recipe> Recipe, int Servings) : ICha
     public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Servings);
 }
 
+/// <summary>Contract types of an assembly without endpoints (Tatalu FB-F01.1-3, FB-INT-1).</summary>
+[Endpoint("PUT /recipes/{recipe}/label")]
+public sealed partial record LabelRecipe(Id<Recipe> Recipe, Pantry.Label Label, Pantry.PostalCode From, Option<Pantry.Label> Note, Pantry.Shade Shade, DayOfWeek Day) : IChange<Recipe>, Tarol.Validations.IValidatable
+{
+    public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Math.Max(1, Label.Value.Length));
+}
+
+/// <summary>A step of a plan: a nested input record (Tatalu FB-F02.1-3: a missing DateOnly read as 0001-01-01).</summary>
+public sealed record PlanStep(DateOnly On, Pantry.Shade Shade, string? Note);
+
+[Endpoint("PUT /recipes/{recipe}/plan")]
+public sealed partial record PlanRecipe(Id<Recipe> Recipe, PlanStep First, IReadOnlyList<PlanStep> Steps) : IChange<Recipe>
+{
+    public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Steps.Count + 1);
+}
+
+/// <summary>An enum no operation references (Tatalu FB-F02.6-2): a contract type.</summary>
+[Tarol.Kernel.ContractType]
+public enum Doneness
+{
+    Rare,
+    WellDone,
+}
+
+/// <summary>Constants the client needs (Tatalu FB-F13.5-1).</summary>
+public static class KitchenRules
+{
+    [Tarol.Kernel.ContractConstant]
+    public const int MaxServings = 12;
+
+    [Tarol.Kernel.ContractConstant("RecipeFormat")]
+    public const string Format = "v2";
+}
+
 [Projection("recipe-list")]
 public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 {
     public static RecipeRow When(Recipe.Written e, RecordedEvent r) => new(r.StreamId, e.Title, 0);
 
     public RecipeRow When(Recipe.Scaled e) => this with { Servings = e.Servings };
+
+    /// <summary>A computed member: always written, so required in the schema (Tatalu FB-F04.6-2).</summary>
+    public bool Scaled => Servings > 0;
 }
 
 [Endpoint("GET /recipes")]
 public sealed record RecipeSearch(string? Title, int? Servings) : IQuery<RecipeRow>;
 
-[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
-[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow))]
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe)), JsonSerializable(typeof(PlanRecipe)), JsonSerializable(typeof(Doneness))]
 [JsonSerializable(typeof(Recipe.Written)), JsonSerializable(typeof(Recipe.Scaled))]
 public sealed partial class KitchenJson : JsonSerializerContext;

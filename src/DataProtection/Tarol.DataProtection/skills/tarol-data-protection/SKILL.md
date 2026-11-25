@@ -30,6 +30,8 @@ description: >-
 ## Example
 
 ```csharp
+using Tarol.DataProtection;   // AddDataProtection, UseInMemoryKeyStore, IDataSubjects (without it: only CS1061)
+
 [Retention(Days = 3650)]
 public partial class Customer : AggregateRoot<Customer>
 {
@@ -59,6 +61,8 @@ subject fails with `DataProtection.SubjectErased` (409); a returning person is a
 | `Subject = nameof(Customer)` naming a `string`, or a bare `nameof(Customer)` that does not resolve | TPRM031 / CS0103 |
 | marking only the event, not the state member | the state keeps the value in plain JSON |
 | `[PersonalData]` inside a value object | TPRM032: mark the member holding it |
+| a computed public property on an event or row with personal data (`public string? Preview => Text;`) | TPRM034: System.Text.Json would write it unsealed; make it a method or `[JsonIgnore]` |
+| testing that nothing leaks | `InMemoryAggregateStore.AssertNoPlaintext("ada@example.com")` (also through `ChangeTest.Store`) throws when the value is stored unsealed |
 | `DELETE FROM events …` or `UPDATE subject_keys SET wrapped = NULL` | no tombstone/`NOTIFY`, projections and caches keep the data, no audit |
 | rebuilding a projection to forget | minutes per projection; the erasure re-folds only the subject's streams |
 | `AddDataProtection()` without a master key | `InvalidOperationException` naming `Tarol:DataProtection:MasterKey` |

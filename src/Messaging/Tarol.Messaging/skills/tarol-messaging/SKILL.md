@@ -86,7 +86,9 @@ public sealed partial record RecordPayment(Id<Auction> Auction, string Invoice, 
     publisher: a hint for the publisher's own UI, opaque to other systems, `null` from an older publisher.
 11. **An effect** is `IEffect<TEvent>` (`effect:<name>` rows), registered with `.Effect<TEvent, THandler>("name")`,
     resolved from DI per row, run at least once: pass `context.IdempotencyKey` (the event id) to the receiver.
-    `Unavailable` or an exception retries; `Invalid` goes to `outbox_dead`.
+    `Unavailable` or an exception retries; `Invalid` goes to `outbox_dead`. The event's tenant is
+    `context.Recorded.Context.Tenant`, its entity `context.Recorded.Event.EntityId`. Effects are registered in `AddMessaging`
+    even when the application has no bus.
 12. **Test systems together with `MessagingTest`**: `.System(app, json, o => …)` (`Publications`, `Consumers`, `Effects`,
     `Trust`, `PublishThrough` for fault injection), `test[app].Given/When`, `Drain()`, `Later(span)`, `OutboxDead()`.
 

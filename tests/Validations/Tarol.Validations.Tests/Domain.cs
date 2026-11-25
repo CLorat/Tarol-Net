@@ -55,7 +55,30 @@ public sealed partial record SearchOrders([Length(Max = 100)] string Text, [Rang
 /// <summary>An event that embeds value objects (the repository path).</summary>
 public sealed record OrderPlaced(Id<Order> OrderId, Title Name, Quantity Total, Option<Quantity> Bonus, Money Price, IReadOnlyList<Line> Lines);
 
+/// <summary>A calendar day with only a custom rule (Tatalu FB-F02.1-3: no converter, so 400 Json for "2020-01-02").</summary>
+public readonly partial record struct BirthDate(DateOnly Value)
+{
+    private static void Validate(DateOnly value, ref ValidationErrors errors)
+    {
+        if (value.Year < 1900)
+            errors.Add("BirthDate.TooEarly");
+    }
+}
+
+/// <summary>A time of day as a value object.</summary>
+public readonly partial record struct Opening(TimeOnly Value)
+{
+    private static void Validate(TimeOnly value, ref ValidationErrors errors)
+    {
+        if (value.Hour < 6)
+            errors.Add("Opening.TooEarly");
+    }
+}
+
+public sealed record ChildBorn(BirthDate On, Opening Opens);
+
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(ChildBorn))]
 [JsonSerializable(typeof(OrderPlaced))]
 [JsonSerializable(typeof(PlaceOrder))]
 public partial class ShopJson : JsonSerializerContext;

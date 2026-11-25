@@ -96,8 +96,10 @@ internal static class ReactionDiscovery
         if (parameters.Length is not (1 or 2) || !SymbolEqualityComparer.Default.Equals(parameters[0].Type, domainEvent)
             || parameters.Any(p => p.RefKind != RefKind.None))
             return $"the parameters must be ({domainEvent.Name}) or ({domainEvent.Name}, RecordedEvent)";
+        if (parameters.Length == 2 && parameters[1].Type.TypeKind == TypeKind.Error)
+            return $"the type '{parameters[1].Type.ToDisplayString()}' of the second parameter is not found (missing 'using Tarol.Primitives;'?)"; // Tatalu FB-F15.1-1
         if (parameters.Length == 2 && parameters[1].Type.ToDisplayString() != RecordedName)
-            return $"the second parameter must be RecordedEvent, not {parameters[1].Type.Name}";
+            return $"the second parameter must be Tarol.Primitives.RecordedEvent, not {parameters[1].Type.ToDisplayString()}";
         return null;
     }
 

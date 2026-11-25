@@ -193,27 +193,29 @@ internal static class PersonalJson
     /// <summary>The subject values of an object (a copy of the reader scans it; members can come in any order, jsonb reorders).</summary>
     private static Guid[] SubjectValues(Utf8JsonReader scan, ResolvedShape shape)
     {
+        // Several personal members can share one subject member: match the property name against every member first, then
+        // read the value once (comparing after the read would compare the value, not the name).
         var values = new Guid[shape.Names.Length];
+        var matches = new bool[shape.Subjects.Length];
         while (scan.Read() && scan.TokenType == JsonTokenType.PropertyName)
         {
             var matched = false;
             for (var i = 0; i < shape.Subjects.Length; i++)
             {
-                if (shape.Subjects[i] is { } name && scan.ValueTextEquals(name))
-                {
-                    if (!matched)
-                    {
-                        scan.Read();
-                        matched = true;
-                    }
+                matches[i] = shape.Subjects[i] is { } name && scan.ValueTextEquals(name);
+                matched |= matches[i];
+            }
 
-                    if (scan.TokenType == JsonTokenType.String && scan.TryGetGuid(out var guid))
+            scan.Read();
+            if (matched && scan.TokenType == JsonTokenType.String && scan.TryGetGuid(out var guid))
+            {
+                for (var i = 0; i < matches.Length; i++)
+                {
+                    if (matches[i])
                         values[i] = guid;
                 }
             }
 
-            if (!matched)
-                scan.Read();
             scan.Skip();
         }
 

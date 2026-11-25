@@ -229,13 +229,19 @@ internal sealed class Emitter
         sb.Append("        public override ").Append(self).Append(" Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options)\n        {\n");
         if (isStruct)
             sb.Append("            if (reader.TokenType == global::System.Text.Json.JsonTokenType.Null)\n                return default;\n\n");
-        sb.Append("            return new ").Append(self).Append("(reader.").Append(json.Read).Append("()").Append(json.Read == "GetString" ? "!" : string.Empty).Append(");\n        }\n\n");
+        if (json.Read.StartsWith(Builtin, System.StringComparison.Ordinal))
+            sb.Append("            return new ").Append(self).Append('(').Append(json.Read).Append(".Read(ref reader, typeof(").Append(fieldName).Append("), options));\n        }\n\n");
+        else
+            sb.Append("            return new ").Append(self).Append("(reader.").Append(json.Read).Append("()").Append(json.Read == "GetString" ? "!" : string.Empty).Append(");\n        }\n\n");
         sb.Append("        /// <inheritdoc />\n");
         sb.Append("        public override void Write(global::System.Text.Json.Utf8JsonWriter writer, ").Append(self).Append(" value, global::System.Text.Json.JsonSerializerOptions options)\n        {\n");
         sb.Append("            global::System.ArgumentNullException.ThrowIfNull(writer);\n");
         if (fieldType.SpecialType == SpecialType.System_String)
             sb.Append("            if (").Append(access).Append(" is null)\n            {\n                writer.WriteNullValue();\n                return;\n            }\n\n");
-        sb.Append("            writer.").Append(json.Write).Append('(').Append(json.Cast).Append(access).Append(");\n        }\n    }\n");
+        if (json.Write.StartsWith(Builtin, System.StringComparison.Ordinal))
+            sb.Append("            ").Append(json.Write).Append(".Write(writer, ").Append(access).Append(", options);\n        }\n    }\n");
+        else
+            sb.Append("            writer.").Append(json.Write).Append('(').Append(json.Cast).Append(access).Append(");\n        }\n    }\n");
 
         if (IsModuleVisible(_type))
         {
@@ -842,6 +848,8 @@ internal sealed class Emitter
     private static bool IsFormattable(ITypeSymbol type)
         => type.AllInterfaces.Any(static i => i.MetadataName == "IFormattable" && i.ContainingNamespace?.ToDisplayString() == "System");
 
+    private const string Builtin = "global::System.Text.Json.Serialization.Metadata.JsonMetadataServices.";
+
     internal static (string Read, string Write, string Cast)? JsonAccess(ITypeSymbol type) => type.SpecialType switch
     {
         SpecialType.System_String => ("GetString", "WriteStringValue", ""),
@@ -862,6 +870,9 @@ internal sealed class Emitter
         {
             "System.Guid" => ("GetGuid", "WriteStringValue", ""),
             "System.DateTimeOffset" => ("GetDateTimeOffset", "WriteStringValue", ""),
+            // System.Text.Json's own converters (TN-23, Tatalu FB-F02.1-3): "yyyy-MM-dd" and "HH:mm:ss[.fffffff]"
+            "System.DateOnly" => (Builtin + "DateOnlyConverter", Builtin + "DateOnlyConverter", ""),
+            "System.TimeOnly" => (Builtin + "TimeOnlyConverter", Builtin + "TimeOnlyConverter", ""),
             _ => null
         }
     };

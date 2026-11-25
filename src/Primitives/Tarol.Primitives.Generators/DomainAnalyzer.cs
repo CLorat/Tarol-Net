@@ -79,20 +79,36 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
 
                 block.RegisterOperationAction(ctx =>
                 {
+                    // a deconstructing assignment (A, B) = (x, y) assigns each element (Tatalu FB-F03.4-2, TN-14)
+                    if (ctx.Operation is IDeconstructionAssignmentOperation { Target: ITupleOperation targets } deconstruction)
+                    {
+                        var values = deconstruction.Value is ITupleOperation tuple && tuple.Elements.Length == targets.Elements.Length ? tuple.Elements : default;
+                        for (var i = 0; i < targets.Elements.Length; i++)
+                            Assigned(ctx, targets.Elements[i], values.IsDefault ? null : values[i], deconstruction.Syntax.GetLocation());
+                        return;
+                    }
+
                     var target = ctx.Operation switch
                     {
                         IAssignmentOperation assignment => assignment.Target,
                         IIncrementOrDecrementOperation increment => increment.Target,
                         _ => null,
                     };
-                    if (target is IMemberReferenceOperation { Instance: IInstanceReferenceOperation } && LifecycleDiscovery.IsLifecycle(target.Type))
-                        states.Add((method, (INamedTypeSymbol)target.Type!, AssignedState(ctx.Operation, (INamedTypeSymbol)target.Type!)));
-                    if (!apply && StateMember(target) is { } member)
-                        writes.Add((method, member, ctx.Operation.Syntax.GetLocation()));
-                    else if (apply && TransientMember(target) is { } transient && !IsReset(ctx.Operation))
-                        ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.TransientIsState, ctx.Operation.Syntax.GetLocation(), transient.Name, method.Parameters[0].Type.Name));
+                    Assigned(ctx, target, ctx.Operation is ISimpleAssignmentOperation simple ? simple.Value : null, ctx.Operation.Syntax.GetLocation(), ctx.Operation);
                 }, OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.CoalesceAssignment,
-                    OperationKind.Increment, OperationKind.Decrement);
+                    OperationKind.Increment, OperationKind.Decrement, OperationKind.DeconstructionAssignment);
+
+                void Assigned(OperationAnalysisContext ctx, IOperation? target, IOperation? value, Location location, IOperation? assignment = null)
+                {
+                    if (!IsOwnMember(target))
+                        return; // a with expression or an object initializer builds a new value (Tatalu FB-F04.6-4, FB-F15.5-1)
+                    if (LifecycleDiscovery.IsLifecycle(target!.Type))
+                        states.Add((method, (INamedTypeSymbol)target.Type!, value is null ? null : ConstantState(value, (INamedTypeSymbol)target.Type!)));
+                    if (!apply && StateMember(target) is { } member)
+                        writes.Add((method, member, location));
+                    else if (apply && TransientMember(target) is { } transient && !(assignment is not null && IsReset(assignment)))
+                        ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.TransientIsState, location, transient.Name, method.Parameters[0].Type.Name));
+                }
 
                 block.RegisterOperationAction(ctx =>
                 {
@@ -213,15 +229,20 @@ public sealed class DomainAnalyzer : DiagnosticAnalyzer
         });
     }
 
-    /// <summary>The member name of a lifecycle enum constant assigned by a plain assignment, or <see langword="null"/> for a computed value.</summary>
-    private static string? AssignedState(IOperation operation, INamedTypeSymbol lifecycle)
+    /// <summary>The member name of the lifecycle enum constant <paramref name="value"/> is, or <see langword="null"/> for a computed value.</summary>
+    private static string? ConstantState(IOperation value, INamedTypeSymbol lifecycle)
     {
-        if (operation is not ISimpleAssignmentOperation { Value: var value })
-            return null;
         while (value is IConversionOperation { IsImplicit: true } conversion)
             value = conversion.Operand;
         return value.ConstantValue.HasValue ? StateName(lifecycle, value.ConstantValue.Value) : null;
     }
+
+    /// <summary>
+    /// Whether <paramref name="target"/> is a member of this instance (<c>this.X</c>, <c>X</c>), not of a value under construction:
+    /// inside <c>with { X = … }</c> and <c>new T { X = … }</c> the receiver is an implicit one.
+    /// </summary>
+    private static bool IsOwnMember(IOperation? target)
+        => target is IMemberReferenceOperation { Instance: IInstanceReferenceOperation { ReferenceKind: InstanceReferenceKind.ContainingTypeInstance } };
 
     /// <summary>The root or entity an event targets.</summary>
     private static INamedTypeSymbol? TargetOf(ITypeSymbol type)

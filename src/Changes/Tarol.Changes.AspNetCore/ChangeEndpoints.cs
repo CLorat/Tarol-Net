@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.ComponentModel;
+using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -14,6 +15,7 @@ using Tarol.Primitives;
 using Tarol.Results;
 using Tarol.Security;
 using Tarol.StronglyTypedId;
+using Tarol.Validations;
 
 namespace Tarol.Changes.AspNetCore;
 
@@ -238,6 +240,62 @@ public sealed partial class ChangeEndpoints
         return [.. members.Select(m => m.Json ?? Json.PropertyNamingPolicy?.ConvertName(m.Member) ?? m.Member)];
     }
 
+    /// <summary>
+    /// Adds <c>Required</c> for every member missing in a nested record of the body (TN-23, Tatalu FB-F02.1-3, FB-F03.9-1):
+    /// System.Text.Json reads a missing <c>DateOnly</c> as 0001-01-01 and a missing enum as its first value. The top-level
+    /// members are the binder's own; called by generated code with the tree of the input's nested records.
+    /// </summary>
+    /// <param name="bytes">The body.</param>
+    /// <param name="members">The top-level members that hold records, with their records' members.</param>
+    /// <param name="errors">The errors so far; created when one is added.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public void Missing(byte[] bytes, RequiredMember[] members, ref List<FieldError>? errors)
+    {
+        ArgumentNullException.ThrowIfNull(members);
+        using var document = JsonDocument.Parse(bytes);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            return;
+        foreach (var member in members)
+            if (Property(document.RootElement, member) is { } value && member.Members is { } inner)
+                Nested(value, member.Name, member.List, inner, ref errors);
+    }
+
+    private void Nested(JsonElement value, string path, bool list, RequiredMember[] members, ref List<FieldError>? errors)
+    {
+        if (list)
+        {
+            if (value.ValueKind != JsonValueKind.Array)
+                return;
+            var i = 0;
+            foreach (var item in value.EnumerateArray())
+                Nested(item, string.Create(CultureInfo.InvariantCulture, $"{path}[{i++}]"), false, members, ref errors);
+            return;
+        }
+        if (value.ValueKind != JsonValueKind.Object)
+            return;
+        foreach (var member in members)
+        {
+            var field = path + "." + member.Name;
+            if (Property(value, member) is not { } inner)
+            {
+                if (!member.Optional && errors?.Exists(f => f.Field == field) != true)
+                    (errors ??= []).Add(new FieldError(field, ValidationCodes.Required));
+                continue;
+            }
+            if (member.Members is { } next)
+                Nested(inner, field, member.List, next, ref errors);
+        }
+    }
+
+    private JsonElement? Property(JsonElement value, RequiredMember member)
+    {
+        var name = member.Json ?? Json.PropertyNamingPolicy?.ConvertName(member.Name) ?? member.Name;
+        foreach (var property in value.EnumerateObject())
+            if (string.Equals(property.Name, name, Json.PropertyNameCaseInsensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                return property.Value;
+        return null;
+    }
+
     /// <summary>Whether the reader's property name is <paramref name="name"/> (case-insensitive when the options say so).</summary>
     /// <param name="reader">A reader on a property name.</param>
     /// <param name="name">The JSON name.</param>
@@ -361,7 +419,11 @@ public sealed partial class ChangeEndpoints
             problem.Status = status;
             problem.Extensions["traceId"] = requestId;                         // the header's id, not ASP.NET's W3C traceparent
             if (violation is Error error)
+            {
                 problem.Extensions["code"] = error.Code;
+                if (error.Reasons is { } reasons)
+                    problem.Extensions["reasons"] = reasons;                // TN-36
+            }
             if (await service.TryWriteAsync(new ProblemDetailsContext { HttpContext = http, ProblemDetails = problem }).ConfigureAwait(false))
                 return;
         }
@@ -393,6 +455,13 @@ public sealed partial class ChangeEndpoints
                 writer.WriteString("code", error.Code);
                 if (error.Detail is { } detail)
                     writer.WriteString("detail", detail);
+                if (error.Reasons is { } reasons)
+                {
+                    writer.WriteStartArray("reasons");                         // TN-36 (Tatalu FB-F03.4-5)
+                    foreach (var reason in reasons)
+                        writer.WriteStringValue(reason);
+                    writer.WriteEndArray();
+                }
             }
             writer.WriteString("traceId", requestId);
             writer.WriteEndObject();

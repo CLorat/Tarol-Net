@@ -4,6 +4,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <ProjectReference Include="../../../src/Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <ProjectReference Include="../Tarol.Changes.AspNetCore.Tests.Pantry/Tarol.Changes.AspNetCore.Tests.Pantry.csproj" />
     <ProjectReference Include="../../../src/Changes/Tarol.Changes.AspNetCore.Generators/Tarol.Changes.AspNetCore.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../../src/Changes/Tarol.Changes.Generators/Tarol.Changes.Generators.csproj"

@@ -1,1 +1,9 @@
 #nullable enable
+Tarol.Kernel.ContractConstantAttribute
+Tarol.Kernel.ContractConstantAttribute.ContractConstantAttribute(string? name = null) -> void
+Tarol.Kernel.ContractConstantAttribute.Name.get -> string?
+Tarol.Kernel.ContractTypeAttribute
+Tarol.Kernel.ContractTypeAttribute.ContractTypeAttribute() -> void
+Tarol.Kernel.OpenApiSchemaNameAttribute
+Tarol.Kernel.OpenApiSchemaNameAttribute.Name.get -> string!
+Tarol.Kernel.OpenApiSchemaNameAttribute.OpenApiSchemaNameAttribute(string! name) -> void

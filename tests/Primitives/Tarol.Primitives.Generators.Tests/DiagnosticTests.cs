@@ -195,6 +195,19 @@ public class DiagnosticTests
         => Ids(Counter.Replace("public Success Add(int by)", "public void Again() => Recalculate();\n    public Success Add(int by)", StringComparison.Ordinal))
             .ShouldBe(["TPRM013"]);
 
+    [Theory]
+    // Tatalu FB-F04.6-4 / FB-F15.5-1: a with expression or an object initializer builds a new value; it assigns no state
+    [InlineData("public sealed record Input(int By, bool Confirmed); public Success Confirm(Input input) { input = input with { Confirmed = true }; return Raise(new Added(input.By)); }")]
+    [InlineData("public sealed record Input(int By, bool Confirmed); public Input Copy(Input input) => input with { Confirmed = true };")]
+    [InlineData("public sealed class Draft { public int By { get; set; } } public Draft Start() => new Draft { By = 1 };")]
+    public void TPRM013_Is_Not_Reported_For_A_With_Expression_Or_An_Initializer(string member)
+        => Ids(Counter.Replace("public Success Add(int by)", member + "\n    public Success Add(int by)", StringComparison.Ordinal)).ShouldBeEmpty();
+
+    [Fact]
+    public void TPRM013_A_Deconstructing_Assignment_In_A_Behaviour()
+        => Ids(Counter.Replace("public Success Add(int by)", "public void Reset() => (Count, _shadow) = (0, 0);\n    public Success Add(int by)", StringComparison.Ordinal))
+            .ShouldBe(["TPRM013", "TPRM013"]);
+
     [Fact]
     public void TPRM014_A_Rule_A_Throw_A_Clock_Or_A_Raise_In_An_On_Handler()
         => Ids("""

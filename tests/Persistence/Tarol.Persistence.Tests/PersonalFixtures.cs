@@ -65,9 +65,20 @@ public partial class Order : AggregateRoot<Order>
         return order;
     }
 
+    [PersonalData(Subject = nameof(Customer))] public string? Note { get; private set; }
+
+    public Success Readdress(string shipTo, string note) => Raise(new Readdressed(Customer, shipTo, note));
+
     public sealed record Placed(Guid Customer, [property: PersonalData(Subject = nameof(Placed.Customer))] string? ShipTo, decimal Total) : Event;
 
+    /// <summary>Two personal members with the same subject member (Tatalu FB-F13.3-2).</summary>
+    public sealed record Readdressed(
+        Guid Customer,
+        [property: PersonalData(Subject = nameof(Readdressed.Customer))] string? ShipTo,
+        [property: PersonalData(Subject = nameof(Readdressed.Customer))] string? Note) : Event;
+
     private void On(Placed e) { Customer = e.Customer; ShipTo = e.ShipTo; Total = e.Total; }
+    private void On(Readdressed e) { ShipTo = e.ShipTo; Note = e.Note; }
 }
 
 /// <summary>"customer.signed_up" v1 named the name "fullName"; it is a sealed field, and the upcaster sees it opened.</summary>
@@ -90,6 +101,7 @@ public sealed class SignedUpToRegistered : IEventUpcaster
 [JsonSerializable(typeof(Customer.Moved))]
 [JsonSerializable(typeof(Contact.Added))]
 [JsonSerializable(typeof(Order.Placed))]
+[JsonSerializable(typeof(Order.Readdressed))]
 [JsonSerializable(typeof(Address))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(int?))]

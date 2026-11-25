@@ -18,6 +18,12 @@ public sealed class ProjectionOptions
     /// <summary>The longest wait after failures (default 30 s).</summary>
     public TimeSpan MaxBackoff { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// How long an erasure waits for this projection, when its host in this process is still building, before it re-folds the
+    /// subject's streams (default 1 min; TN-25, Tatalu FB-F17.5-4): a batch read before the key was erased must be written first.
+    /// </summary>
+    public TimeSpan ErasureWait { get; set; } = TimeSpan.FromMinutes(1);
+
     internal TimeSpan PollFor(bool signalled) => Poll ?? (signalled ? TimeSpan.FromSeconds(1) : TimeSpan.FromMilliseconds(100));
 
     internal void Validate()
@@ -27,9 +33,10 @@ public sealed class ProjectionOptions
             ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(poll, TimeSpan.Zero, nameof(Poll));
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(Backoff, TimeSpan.Zero, nameof(Backoff));
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxBackoff, Backoff, nameof(MaxBackoff));
+        ArgumentOutOfRangeException.ThrowIfLessThan(ErasureWait, TimeSpan.Zero, nameof(ErasureWait));
     }
 
-    internal ProjectionOptions Copy() => new() { Batch = Batch, Poll = Poll, Backoff = Backoff, MaxBackoff = MaxBackoff };
+    internal ProjectionOptions Copy() => new() { Batch = Batch, Poll = Poll, Backoff = Backoff, MaxBackoff = MaxBackoff, ErasureWait = ErasureWait };
 }
 
 /// <summary>

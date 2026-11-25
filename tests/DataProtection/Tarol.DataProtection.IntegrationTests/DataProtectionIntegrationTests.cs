@@ -39,7 +39,7 @@ public sealed class DataProtectionIntegrationTests(Postgres postgres)
     private Guid Tenant => _context.Tenant.GetValueOrThrow().Value;
 
     /// <summary>One process: the Npgsql store with keys, two projections on Npgsql read models behind the page cache, data protection, the admin entry.</summary>
-    private async Task<WebApplication> Process(string schema)
+    private async Task<WebApplication> Process(string schema, bool prepare = true)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -74,8 +74,9 @@ public sealed class DataProtectionIntegrationTests(Postgres postgres)
             await hosted.StartAsync(Ct);
         await web.StartAsync(Ct);
         await web.Services.GetRequiredService<NpgsqlKeyStore>().StartListening(Ct);
-        foreach (var host in web.Services.GetServices<ProjectionHost>())
-            await host.CatchUp(Ct);  // prepares the read tables
+        if (prepare)
+            foreach (var host in web.Services.GetServices<ProjectionHost>())
+                await host.CatchUp(Ct);  // prepares the read tables
         return web;
     }
 
@@ -146,6 +147,23 @@ public sealed class DataProtectionIntegrationTests(Postgres postgres)
         (await Scalar($"SELECT count(*) FROM {schema}.lookups")).ShouldBe(0L);
         (await Scalar($"SELECT actor || ' ' || action || ' ' || target FROM {schema}.operations_audit")).ShouldBe($"operator erase subject:{ada.Id.Value}");
         ((string)(await Scalar($"SELECT doc::text FROM {schema}.rm_customers_v1"))!).ShouldNotContain("ada@");
+    }
+
+    [Fact]
+    public async Task An_Erasure_Before_The_Projections_Prepared_Their_Tables_Completes()
+    {
+        // Tatalu FB-F17.5-4 / FB-INT2-4: on a fresh database the projection hosts had not prepared their read tables yet;
+        // the eraser's re-fold failed (42P01) and EraseSubject ended with ErasureIncompleteException, the key already gone.
+        var schema = postgres.NewSchema();
+        await using var a = await Process(schema, prepare: false);
+        var ada = Customer.Register(Id<Customer>.New(), "Ada", "ada@example.org", "GB");
+        await Commit(a.Services, ada);
+
+        var erasure = await a.Services.GetRequiredService<IDataSubjects>().EraseSubject(Tenant, ada.Id.Value, "operator", Ct);
+
+        erasure.Streams.Count.ShouldBe(1);
+        await Project(a.Services);                                      // the host builds from the erased stream
+        (await Row<CustomerRow>(a.Services, ada.Id.Value)).ShouldBe(new CustomerRow(ada.Id.Value, null, null, "GB"));
     }
 
     [Fact]

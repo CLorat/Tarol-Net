@@ -106,6 +106,20 @@ public class LifecycleDiagnosticTests
             .ShouldBeEmpty();
 
     [Fact]
+    public void TPRM022_Counts_A_Deconstructing_Assignment()
+        // Tatalu FB-F03.4-2 (TN-14): (At, State) = (…, Status.Done) assigns Done
+        => Ids("[Lifecycle] public enum Status { [To(Running)] New, [To(Done)] Running, Done }",
+                Aggregate.Replace("private void On(Finished e) { _ = e; State = Status.Done; }", "public DateTimeOffset At { get; private set; } private void On(Finished e) { _ = e; (At, State) = (DateTimeOffset.UnixEpoch, Status.Done); }", StringComparison.Ordinal))
+            .ShouldBeEmpty();
+
+    [Fact]
+    public void TPRM023_Counts_A_Deconstructing_Assignment()
+        => Ids("[Lifecycle] public enum Status { [To(Running)] New, [To(Done)] Running, Done }",
+                Aggregate.Replace("public sealed record Finished : Event;", "[Transition<Status>(Status.Running, Status.Done)] public sealed record Finished : Event; public int Note { get; private set; }", StringComparison.Ordinal)
+                    .Replace("private void On(Finished e) { _ = e; State = Status.Done; }", "private void On(Finished e) { _ = e; (Note, State) = (1, Status.Done); }", StringComparison.Ordinal))
+            .ShouldBeEmpty();
+
+    [Fact]
     public void TPRM022_Is_Not_Reported_For_An_Enum_No_Aggregate_Uses()
         => Ids("[Lifecycle] public enum Status { [To(Running)] New, [To(Done)] Running, Done }").ShouldBeEmpty();
 
