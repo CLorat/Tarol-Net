@@ -7,7 +7,7 @@ description: >-
   AggregateTest given/when/then helper, the stored state (StateSchema, WriteState/ReadState, AggregateState,
   [LoadByReplay], [StateName], [Transient], StoredStateMatchesReplay), lifecycles ([Lifecycle], [To], [Transition<T>],
   <Enum>Lifecycle, CanTransitionTo/RequireTransitionTo, Lifecycle.ForbiddenStep), personal data ([PersonalData],
-  Subject = nameof(…)) and [Retention(Days)], and fixing TPRM001-TPRM033.
+  Subject = nameof(…)) and [Retention(Days)], and fixing TPRM001-TPRM034.
   Do not decompile or web-search, do not hand-write a dispatch switch or a state serializer, do not use the old
   DomainEvent<TRoot,TEntity>/CreateDomainEvent/DomainClock/ToSnapshot/[SnapshotIgnore] API.
 ---
@@ -186,6 +186,7 @@ public partial class Order : AggregateRoot<Order>
 | `Subject` naming a `string`, a `Guid?`, a missing member or itself | TPRM031 |
 | `[PersonalData]` inside a value object, on a `[Transient]`/static/computed member, in a `[LoadByReplay]` state | TPRM032: mark the member that holds the value |
 | `[Retention]` on an entity or with `Days = 0` | TPRM033 |
+| a computed public property (`=> …`) on an event or projection row with `[PersonalData]` members | TPRM034: it would be stored unsealed; a method or `[JsonIgnore]` |
 | the order's own id as the subject of the customer's address | erasing the customer misses it: `Subject = nameof(Placed.Customer)` |
 
 ## AOT

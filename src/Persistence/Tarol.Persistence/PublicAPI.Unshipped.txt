@@ -1,4 +1,5 @@
 #nullable enable
+Tarol.Persistence.InMemoryAggregateStore.AssertNoPlaintext(string! plaintext) -> void
 Tarol.Persistence.TarolBuilder.Modules.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>!
 Tarol.Persistence.TarolBuilder.Modules.init -> void
 Tarol.Persistence.TarolModule

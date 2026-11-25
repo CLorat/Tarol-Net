@@ -240,6 +240,13 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "[Retention(Days = n)] keeps an aggregate's streams n days (n >= 1) after their last event, then tarol.retention deletes them. It belongs on an aggregate root.");
 
+    /// <summary>TPRM034: a computed public property of an event or projection row with personal data (analyzer).</summary>
+    public static readonly DiagnosticDescriptor PersonalComputed = new(
+        "TPRM034", "Computed property is written unsealed",
+        "'{0}' of '{1}' is a computed public property; System.Text.Json writes it into the stored payload unsealed, next to the [PersonalData] members of '{1}'. Make it a method, or mark it [JsonIgnore].",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "Events and projection rows are stored as System.Text.Json writes them. A public get-only property without a backing field is written too, although nothing reads it back; when it derives its value from a [PersonalData] member, that value is stored in plaintext and survives the subject's erasure. The rule applies to types with personal data: declare the computation as a method, or mark the property [JsonIgnore].");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
         "TPRM001" => GeneratorFailure,
@@ -269,6 +276,7 @@ internal static class Diagnostics
         "TPRM031" => PersonalSubject,
         "TPRM032" => PersonalPlacement,
         "TPRM033" => RetentionPlacement,
+        "TPRM034" => PersonalComputed,
         _ => GeneratorFailure,
     };
 }

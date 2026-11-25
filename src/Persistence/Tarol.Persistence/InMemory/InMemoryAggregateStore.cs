@@ -102,6 +102,40 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed, IDataP
         return this;
     }
 
+    /// <summary>
+    /// Throws when <paramref name="plaintext"/> appears as it is (or JSON-escaped) in a stored event payload or a stored
+    /// state: the bytes the store would write, after sealing. A test proves with it that a personal value never reaches the
+    /// store unsealed, for example through a computed property that System.Text.Json writes next to a <c>[PersonalData]</c>
+    /// member (TPRM034). Only aggregates with personal data are serialized here; the others keep their events as objects.
+    /// </summary>
+    /// <param name="plaintext">The personal value, as it would appear inside a JSON string (at least 4 characters, so a random id or nonce does not hold it by chance).</param>
+    /// <exception cref="ArgumentException"><paramref name="plaintext"/> is shorter than 4 characters.</exception>
+    /// <exception cref="InvalidOperationException">The value was found; the message names the stream type, the stream and the event or the state.</exception>
+    public void AssertNoPlaintext(string plaintext)
+    {
+        ArgumentNullException.ThrowIfNull(plaintext);
+        if (plaintext.Length < 4)
+            throw new ArgumentException("The value needs at least 4 characters: a shorter one occurs by chance in ids and nonces.", nameof(plaintext));
+        var raw = System.Text.Encoding.UTF8.GetBytes(plaintext);
+        var escaped = JsonEncodedText.Encode(plaintext).EncodedUtf8Bytes.ToArray();
+        lock (_gate)
+        {
+            foreach (var (key, stream) in _streams)
+            {
+                for (var i = 0; i < stream.Events.Count; i++)
+                {
+                    if (stream.Sealed is { } payloads && i < payloads.Count && payloads[i] is { } payload && Holds(payload.Payload, raw, escaped))
+                        throw new InvalidOperationException($"The plaintext was found in the payload of event '{payload.Type.Alias}' v{payload.Type.Version} (stream '{key.Type}' {key.Id}, version {i + 1}).");
+                }
+
+                if (stream.State is { } state && Holds(state, raw, escaped))
+                    throw new InvalidOperationException($"The plaintext was found in the stored state of stream '{key.Type}' {key.Id}.");
+            }
+        }
+
+        static bool Holds(byte[] bytes, byte[] raw, byte[] escaped) => bytes.AsSpan().IndexOf(raw) >= 0 || bytes.AsSpan().IndexOf(escaped) >= 0;
+    }
+
     /// <summary>The committed history of one stream (empty when it does not exist in the tenant).</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
     /// <param name="id">The stream id.</param>

@@ -11,7 +11,8 @@ namespace Tarol.Primitives.Generators;
 ///     <item>TPRM030: a <c>[PersonalData]</c> member is nullable (an erased value reads as <c>null</c>);</item>
 ///     <item>TPRM031: its <c>Subject</c> names a non-nullable <c>Guid</c>/<c>Id&lt;T&gt;</c> member of the same type;</item>
 ///     <item>TPRM032: it sits on an event, a stored member of an aggregate or entity, or a projection row (<c>[Projection]</c>);</item>
-///     <item>TPRM033: <c>[Retention]</c> sits on an aggregate root with <c>Days &gt;= 1</c>.</item>
+///     <item>TPRM033: <c>[Retention]</c> sits on an aggregate root with <c>Days &gt;= 1</c>;</item>
+///     <item>TPRM034: an event or projection row with personal data has no computed public property (System.Text.Json would write it unsealed).</item>
 /// </list>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -19,7 +20,7 @@ public sealed class PersonalDataAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } =
-        ImmutableArray.Create(Diagnostics.PersonalNotNullable, Diagnostics.PersonalSubject, Diagnostics.PersonalPlacement, Diagnostics.RetentionPlacement);
+        ImmutableArray.Create(Diagnostics.PersonalNotNullable, Diagnostics.PersonalSubject, Diagnostics.PersonalPlacement, Diagnostics.RetentionPlacement, Diagnostics.PersonalComputed);
 
     /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
@@ -33,6 +34,7 @@ public sealed class PersonalDataAnalyzer : DiagnosticAnalyzer
             start.RegisterSymbolAction(static ctx => Check(ctx, (ISymbol)ctx.Symbol), SymbolKind.Property, SymbolKind.Field);
             start.RegisterSymbolAction(static ctx => CheckParameter(ctx), SymbolKind.Method);
             start.RegisterSymbolAction(static ctx => CheckRetention(ctx, (INamedTypeSymbol)ctx.Symbol), SymbolKind.NamedType);
+            start.RegisterSymbolAction(static ctx => CheckComputed(ctx, (INamedTypeSymbol)ctx.Symbol), SymbolKind.NamedType);
         });
     }
 
@@ -127,6 +129,45 @@ public sealed class PersonalDataAnalyzer : DiagnosticAnalyzer
         else if (attribute.NamedArguments.FirstOrDefault(static n => n.Key == "Days").Value.Value is not int days || days < 1)
             ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.RetentionPlacement, location, type.Name, "needs Days of at least 1"));
     }
+
+    /// <summary>
+    /// TPRM034 (Tatalu FB-F13.3-8): System.Text.Json writes every public instance property with a getter, so a computed one
+    /// on an event or projection row lands in the stored payload next to the sealed members, unsealed.
+    /// </summary>
+    private static void CheckComputed(SymbolAnalysisContext ctx, INamedTypeSymbol type)
+    {
+        if (type.TypeKind is not (Microsoft.CodeAnalysis.TypeKind.Class or Microsoft.CodeAnalysis.TypeKind.Struct) || !(Symbols.IsDomainEvent(type) || IsProjectionRow(type)))
+            return;
+        if (!HasPersonalMember(type))
+            return;
+        foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
+        {
+            if (property is not { IsStatic: false, IsIndexer: false, DeclaredAccessibility: Accessibility.Public, GetMethod: not null, IsImplicitlyDeclared: false })
+                continue;
+            if (HasBackingField(property) || property.IsAbstract || IgnoredByJson(property))
+                continue;
+            ctx.ReportDiagnostic(Diagnostic.Create(Diagnostics.PersonalComputed, property.Locations.FirstOrDefault(), property.Name, type.Name));
+        }
+    }
+
+    private static bool IsProjectionRow(INamedTypeSymbol type)
+        => type.GetAttributes().Any(static a => a.AttributeClass is { Name: "ProjectionAttribute", ContainingNamespace: { Name: "Queries", ContainingNamespace: { Name: "Tarol", ContainingNamespace.IsGlobalNamespace: true } } });
+
+    private static bool HasPersonalMember(INamedTypeSymbol type)
+    {
+        foreach (var member in type.GetMembers())
+        {
+            if (member is IPropertySymbol or IFieldSymbol && Own(member) is not null)
+                return true;
+        }
+
+        return type.InstanceConstructors.SelectMany(static c => c.Parameters).Any(static p => Own(p) is not null);
+    }
+
+    private static bool IgnoredByJson(IPropertySymbol property)
+        => property.GetAttributes().Any(static a => a.AttributeClass is { Name: "JsonIgnoreAttribute" } attribute
+            && attribute.ContainingNamespace.ToDisplayString() == "System.Text.Json.Serialization"
+            && (a.NamedArguments.FirstOrDefault(static n => n.Key == "Condition").Value.Value is null or 1)); // JsonIgnoreCondition.Always = 1
 
     private static AttributeData? Own(ISymbol symbol)
         => symbol.GetAttributes().FirstOrDefault(static a => Symbols.Is(a.AttributeClass, PersonalDiscovery.Attribute));
