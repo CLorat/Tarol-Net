@@ -2,3 +2,5 @@
 Tarol.Jobs.JobTest.BeforeEachRun(System.Func<System.Threading.Tasks.Task!>! step) -> Tarol.Jobs.JobTest!
 Tarol.Jobs.JobsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Jobs.JobsBuilder!
 Tarol.Jobs.JobsBuilder.AddModules() -> Tarol.Jobs.JobsBuilder!
+Tarol.Jobs.StoreTenantsTarolBuilderExtensions
+static Tarol.Jobs.StoreTenantsTarolBuilderExtensions.UseStoreTenants<T>(this Tarol.Persistence.TarolBuilder! builder) -> Tarol.Persistence.TarolBuilder!

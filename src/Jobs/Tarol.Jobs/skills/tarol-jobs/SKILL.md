@@ -43,7 +43,8 @@ description: >-
 8. **Per tenant**: `PerTenant = true` (attribute or `JobOptions`) and register your
    `ITenantDirectory` (`ValueTask<IReadOnlyList<Id<ITenant>>> Tenants(CancellationToken)`); the host reads it at startup and
    every `TenantSyncEvery` and keeps one row per tenant. The tenant is `o.Tenant` / `run.Occurrence.Tenant` and the change's
-   context tenant. Without a directory the host fails at startup.
+   context tenant. Without a directory the host fails at startup. When every tenant has a `[PerTenant]` aggregate (its
+   settings), `.UseStoreTenants<Settings>()` is the directory: its stream ids (TN-56).
 9. **Configuration** overrides by name: `Tarol:Jobs:<name>:Cron`, `:TimeZone`, `:Enabled` (`false` pauses; re-enabled it
    starts at its next occurrence). Read **at startup** (restart the workers to apply); names are case-sensitive. Invalid
    values, unknown zones and unknown names fail at startup. A changed schedule

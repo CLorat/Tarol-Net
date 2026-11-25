@@ -21,7 +21,7 @@ namespace Tarol.Persistence;
 /// store does. Without them, and for <c>[LoadByReplay]</c> aggregates, loads replay the history. With a codec, events go
 /// through JSON on every append. Streams are keyed by (tenant, <c>T.StreamType</c>, id). Thread-safe.
 /// </remarks>
-public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed, IDataProtectionStore
+public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed, IDataProtectionStore, IStreamIds
 {
     private readonly TimeProvider _time;
     private readonly JsonSerializerOptions? _stateOptions;
@@ -633,6 +633,19 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed, IDataP
     }
 
     private static Guid TenantOf(Option<Id<ITenant>> tenant) => tenant.TryGetValue(out Id<ITenant> id) ? id.Value : Guid.Empty;
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<Guid>> StreamIds(string streamType, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(streamType);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_gate)
+        {
+            var ids = _streams.Keys.Where(k => k.Type == streamType).Select(static k => k.Id).Distinct().ToList();
+            ids.Sort();
+            return ValueTask.FromResult<IReadOnlyList<Guid>>(ids);
+        }
+    }
 
     private readonly record struct StreamKey(Guid Tenant, string Type, Guid Id);
 

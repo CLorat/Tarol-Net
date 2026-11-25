@@ -1,7 +1,10 @@
 #nullable enable
+Tarol.Persistence.IStreamIds
+Tarol.Persistence.IStreamIds.StreamIds(string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<System.Guid>!>
 Tarol.Persistence.IdempotencyKey.Refusal.get -> Tarol.Results.Violation?
 Tarol.Persistence.IdempotencyKey.Refusal.init -> void
 Tarol.Persistence.InMemoryAggregateStore.AssertNoPlaintext(string! plaintext) -> void
+Tarol.Persistence.InMemoryAggregateStore.StreamIds(string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<System.Guid>!>
 Tarol.Persistence.StoredOutcome.Refusal.get -> Tarol.Results.Violation?
 Tarol.Persistence.StoredOutcome.Refusal.init -> void
 Tarol.Persistence.TarolBuilder.Modules.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>!

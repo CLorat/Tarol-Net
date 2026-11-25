@@ -108,6 +108,26 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task Stream_ids_list_one_type_without_erased_tenants()                       // TN-56
+    {
+        var store = postgres.Store(_time);
+        var (kept, erased) = (NewTenant(), NewTenant());
+        var keptMember = Member.Join(Id<Member>.New(_time), "kept@x");
+        var erasedMember = Member.Join(Id<Member>.New(_time), "erased@x");
+        var tally = Tally.Start(Id<Tally>.New(_time));
+        await Committed(store, keptMember, kept);
+        await Committed(store, erasedMember, erased);
+        await Committed(store, tally, kept);
+        await postgres.Execute($"INSERT INTO tarol.tenant_keys (tenant, key_id, wrapped, created_at, erased_at) VALUES ('{TenantOf(erased)}', NULL, NULL, now(), now())");
+
+        var ids = await store.StreamIds(Member.StreamType, Ct);
+
+        ids.ShouldContain(keptMember.Id.Value);
+        ids.ShouldNotContain(erasedMember.Id.Value);
+        ids.ShouldNotContain(tally.Id.Value);
+    }
+
+    [Fact]
     public async Task A_load_by_replay_aggregate_stores_no_state()
     {
         var store = postgres.Store(_time);

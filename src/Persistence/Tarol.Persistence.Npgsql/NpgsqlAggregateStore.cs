@@ -41,7 +41,7 @@ namespace Tarol.Persistence.Npgsql;
 /// (<see cref="NpgsqlSlimDataSourceBuilder"/>: <c>EnableArrays()</c>).
 /// </para>
 /// </remarks>
-public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempotencyKeyPurge, IDataProtectionStore
+public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempotencyKeyPurge, IDataProtectionStore, IStreamIds
 {
     private static readonly Guid NoTenant = Guid.Empty;
     private readonly NpgsqlDataSource _db;
@@ -277,6 +277,21 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
                     reader.IsDBNull(3) ? Option.None : reader.GetString(3))
                 { Refusal = reader.IsDBNull(4) ? null : Refusals.Read(reader.GetString(4)) }
                 : Option.None;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Streams whose tenant was erased (<c>tenant_keys.erased_at</c>) are left out (TM-6).</remarks>
+    public async ValueTask<IReadOnlyList<Guid>> StreamIds(string streamType, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(streamType);
+        await using var command = _db.CreateCommand(_sql.StreamIds);
+        Add(command, streamType);
+        var ids = new List<Guid>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                ids.Add(reader.GetGuid(0));
+        return ids;
     }
 
     // ----------------------------------------------------------------------------------------------------------- append
@@ -1091,6 +1106,12 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             """;
 
         public string Find => field ??= $"SELECT stream_id FROM {schema}.lookups WHERE tenant = $1 AND type = $2 AND lookup = $3 AND key = $4";
+
+        public string StreamIds => field ??= $"""
+            SELECT DISTINCT s.id FROM {schema}.streams s
+            WHERE s.type = $1 AND NOT EXISTS (SELECT 1 FROM {schema}.tenant_keys k WHERE k.tenant = s.tenant AND k.erased_at IS NOT NULL)
+            ORDER BY s.id
+            """;
 
         public string Seen => field ??= $"SELECT stream_id, version, events, fingerprint, refusal::text FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
 

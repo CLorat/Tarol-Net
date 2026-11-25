@@ -3,10 +3,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Tarol.Changes;
+using Tarol.Kernel;
 using Tarol.Options;
 using Tarol.Persistence;
 using Tarol.Results;
 using Tarol.Sagas;
+using Tarol.StronglyTypedId;
 
 namespace Tarol.Jobs.Tests;
 
@@ -336,6 +338,28 @@ public sealed class HostTests
         using var provider = services.BuildServiceProvider();
 
         Should.Throw<InvalidOperationException>(() => provider.GetRequiredService<JobHost>()).Message.ShouldContain("ITenantDirectory");
+    }
+
+    [Fact]
+    public async Task UseStoreTenants_lists_the_streams_of_a_per_tenant_aggregate_and_refuses_another()   // TN-56
+    {
+        var services = new ServiceCollection();
+        var tarol = services.AddTarol(TestJson.Default, codec => codec.Add<Branch>().Add<Counter>()).UseInMemoryStore().UseStoreTenants<Branch>();
+        using var provider = services.BuildServiceProvider();
+        var store = provider.GetRequiredService<IAggregateStore>();
+        var ct = TestContext.Current.CancellationToken;
+        var tenants = new[] { Guid.Parse("0196f000-0000-7000-8000-0000000000b2"), Guid.Parse("0196f000-0000-7000-8000-0000000000a1") };
+        foreach (var tenant in tenants)
+        {
+            var context = OperationContext.Start(Actor.System("setup"), Id<ITenant>.From(tenant), TimeProvider.System);
+            (await store.Append(Branch.Open(Id<Branch>.From(tenant), "x"), 0, context, Option.None, ct)).IsSuccess.ShouldBeTrue();
+            (await store.Append(Counter.Start(Id<Counter>.New(TimeProvider.System)), 0, context, Option.None, ct)).IsSuccess.ShouldBeTrue();
+        }
+
+        var listed = await provider.GetRequiredService<ITenantDirectory>().Tenants(ct);
+
+        listed.Select(t => t.Value).ShouldBe(tenants, ignoreOrder: true);                      // the branches, not the counters
+        Should.Throw<InvalidOperationException>(() => tarol.UseStoreTenants<Counter>()).Message.ShouldContain("not [PerTenant]");
     }
 
     [Fact]
