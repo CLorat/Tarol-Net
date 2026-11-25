@@ -33,7 +33,7 @@ public static class GeneratedEndpoints
                     new string[] { web.Names(("Customer", null))[0] },
                     "orders:write")
                 {
-                    Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Order.AlreadyExists", "Stream.VersionConflict" },
+                    Errors = new string[] { "Auth.Forbidden", "Idempotency.DuplicateKey", "Idempotency.KeyReused", "Stream.VersionConflict" },
                     Owner = typeof(GeneratedEndpoints).Assembly,
                 });
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:write");

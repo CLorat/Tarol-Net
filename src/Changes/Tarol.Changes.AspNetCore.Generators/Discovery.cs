@@ -134,7 +134,7 @@ internal static class Discovery
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), kind, aggregate, verb, pattern, policy, anonymous,
             new EquatableArray<Member>(members.ToImmutableArray()), location)
         {
-            Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct),
+            Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct, perTenant),
         };
         warnings.AddRange(diagnostics);                                         // a view's warnings (an entry with errors returned earlier)
         return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), new EquatableArray<DiagnosticInfo>(warnings.ToImmutableArray()))
@@ -587,19 +587,26 @@ internal static class Discovery
     /// or the aggregate that those call (two levels; source only). A code built at run time is not found.
     /// </summary>
     internal static EquatableArray<string> Codes(EntryKind kind, string aggregate, bool tenantRoute, INamedTypeSymbol input, Compilation? compilation,
-        CancellationToken ct)
+        CancellationToken ct, bool perTenant = false)
     {
         var name = Short(aggregate);
         var codes = new SortedSet<string>(StringComparer.Ordinal) { "Auth.Forbidden" };
         if (tenantRoute)
             codes.Add("Tenant.NotFound");
+        var loads = input.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() == "Tarol.Changes.ILoads<T>");
         switch (kind)
         {
             case EntryKind.Change:
-                codes.UnionWith([name + ".NotFound", "Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
+                // TN-30 (Tatalu FB-F04.1-2): an ILoads change loads itself; its NotFound is only what Load returns (scanned below)
+                if (!loads)
+                    codes.Add(name + ".NotFound");
+                codes.UnionWith(["Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
                 break;
             case EntryKind.Creation:
-                codes.UnionWith([name + ".AlreadyExists", "Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
+                // TN-30 (Tatalu FB-F17.6-1): AlreadyExists only when the id can repeat: it comes from the input, or is the tenant's
+                if (perTenant || IdMembers(input).Any(t => t.ToDisplayString(Fq) == aggregate))
+                    codes.Add(name + ".AlreadyExists");
+                codes.UnionWith(["Stream.VersionConflict", "Idempotency.KeyReused", "Idempotency.DuplicateKey"]);
                 break;
             case EntryKind.View:
                 codes.Add(name + ".NotFound");
@@ -607,6 +614,17 @@ internal static class Discovery
             case EntryKind.List:
                 codes.Add("Projection.Building");
                 break;
+        }
+        if (kind is EntryKind.Change or EntryKind.Creation)
+        {
+            // TN-30 (Tatalu FB-F04.1-2): a missing [Read] aggregate is 422 <X>.NotFound
+            foreach (var member in input.GetMembers().Where(static m => m is IPropertySymbol or IParameterSymbol))
+                if (member.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() == "Tarol.Changes.ReadAttribute") && IdTarget(member) is { } read)
+                    codes.Add(read.Name + ".NotFound");
+            foreach (var ctor in input.InstanceConstructors)
+                foreach (var p in ctor.Parameters)
+                    if (p.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() == "Tarol.Changes.ReadAttribute") && IdTarget(p) is { } read)
+                        codes.Add(read.Name + ".NotFound");
         }
         if (kind is EntryKind.Change or EntryKind.Creation && compilation is not null)
         {
@@ -630,8 +648,9 @@ internal static class Discovery
                     {
                         if (model.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol called)
                             continue;
-                        if (called.IsStatic && called.ContainingType?.ToDisplayString() == "Tarol.Results.Error")
+                        if (called.IsStatic && called.ContainingType?.ToDisplayString() is "Tarol.Results.Error" or "Tarol.Results.Invalid")
                         {
+                            // TN-38 (Tatalu FB-F01.1-9, FB-F15.1-8): also Invalid.Field codes of the change and its aggregate
                             if (Code(invocation, called, model, ct) is { } code)
                                 codes.Add(code);
                         }
@@ -644,6 +663,18 @@ internal static class Discovery
             }
         }
         return new EquatableArray<string>(codes.ToImmutableArray());
+    }
+
+    private static IEnumerable<ITypeSymbol> IdMembers(INamedTypeSymbol input)
+        => input.InstanceConstructors.SelectMany(static c => c.Parameters).Select(static p => IdTarget(p)).Where(static t => t is not null).Select(static t => t!);
+
+    /// <summary>The <c>T</c> of an <c>Id&lt;T&gt;</c> (or <c>Option&lt;Id&lt;T&gt;&gt;</c>) member.</summary>
+    private static ITypeSymbol? IdTarget(ISymbol member)
+    {
+        var type = member switch { IPropertySymbol p => p.Type, IParameterSymbol p => p.Type, _ => null };
+        if (type is INamedTypeSymbol { TypeArguments.Length: 1 } option && option.OriginalDefinition.ToDisplayString() == "Tarol.Options.Option<T>")
+            type = option.TypeArguments[0];
+        return type is INamedTypeSymbol { TypeArguments.Length: 1 } id && id.OriginalDefinition.ToDisplayString() == "Tarol.StronglyTypedId.Id<T>" ? id.TypeArguments[0] : null;
     }
 
     /// <summary>The code of an <c>Error</c> factory call: a constant <c>code</c> argument, or the parameter's default.</summary>
