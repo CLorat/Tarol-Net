@@ -23,7 +23,8 @@ description: >-
 3. **Creation** = `ICreation<T>` whose `Execute(context)` returns the static factory's `Result<T>`. The factory makes the
    id (`Id<T>.New(now)`). No load. `ChangeOutcome.StreamId` is the new id.
 4. **Special changes**: another key or load-or-create → `ILoads<T>` with `Load(IAggregateReader reader, ChangeContext
-   context, CancellationToken ct)`. Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
+   context, CancellationToken ct)`; data for the decision (the actor's role, facts) → `ILoads<T, TData>`: `Load` returns
+   `new Loaded<T, TData>(aggregate, data)`, `Execute(T aggregate, TData data, ChangeContext context)` (never a field). Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
    `context.Read<X>()` (missing → 422 `X.NotFound`; `[Read(Optional = true)]` + `context.TryRead(out X? x)`). Without an
    input member: `[Reads<X>]` on the change for a `[PerTenant]` X, `[Reads<X>(SameIdAs = nameof(Member))]` for the X under
    the same Guid (`Optional = true` allowed). Never implement `IHasReads` yourself (TCHG013). A `[Read]` of the target's

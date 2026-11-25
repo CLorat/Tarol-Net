@@ -191,7 +191,18 @@ public sealed partial class ChangePipeline
         var changeContext = new ChangeContext(context, _time.GetUtcNow(), loadedReads) { Confirmations = options.Confirmed };
 
         T? aggregate;
-        if (change is ILoads<T> loads)
+        object? data = null;
+        var withData = change as ILoadsWithData<T>;
+        if (withData is not null)
+        {
+            // TN-41: ILoads<T, TData>: the data reaches Execute, no field on the change
+            var own = await withData.LoadWithData(_store, changeContext, cancellationToken);
+            if (own.TryGetValue(out Violation? refused))
+                return refused;
+            (aggregate, data) = own.GetValueOrThrow();
+            ArgumentNullException.ThrowIfNull(aggregate, nameof(ILoads<>.Load));
+        }
+        else if (change is ILoads<T> loads)
         {
             var own = await loads.Load(_store, changeContext, cancellationToken);
             if (own.TryGetValue(out Violation? refused))
@@ -217,7 +228,7 @@ public sealed partial class ChangePipeline
         if (options.ExpectedVersion.TryGetValue(out long seenVersion) && seenVersion != expected)
             return StoreErrors.VersionConflict(seenVersion, expected);
 
-        var decided = change.Execute(aggregate, changeContext);
+        var decided = withData is not null ? withData.ExecuteWithData(aggregate, data, changeContext) : change.Execute(aggregate, changeContext);
         if (decided.TryGetValue(out Violation? refusedByGuard))
             return refusedByGuard;
         return await Commit(aggregate, expected, context, options, cancellationToken);

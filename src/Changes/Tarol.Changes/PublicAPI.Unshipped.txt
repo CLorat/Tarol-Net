@@ -51,6 +51,21 @@ Tarol.Changes.GenerateTarolModuleAttribute.GenerateTarolModuleAttribute(string? 
 Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?
 Tarol.Changes.IContractTopics
 Tarol.Changes.IContractTopics.ContractTopics.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.ContractTopic!>!
+Tarol.Changes.ILoads<T, TData>
+Tarol.Changes.ILoads<T, TData>.Execute(T! aggregate, TData data, Tarol.Changes.ChangeContext context) -> Tarol.Results.Result
+Tarol.Changes.ILoads<T, TData>.Load(Tarol.Persistence.IAggregateReader! reader, Tarol.Changes.ChangeContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.Loaded<T!, TData>>>
+Tarol.Changes.ILoadsWithData<T>
+Tarol.Changes.ILoadsWithData<T>.ExecuteWithData(T! aggregate, object? data, Tarol.Changes.ChangeContext context) -> Tarol.Results.Result
+Tarol.Changes.ILoadsWithData<T>.LoadWithData(Tarol.Persistence.IAggregateReader! reader, Tarol.Changes.ChangeContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.Loaded<T!, object?>>>
+Tarol.Changes.Loaded<T, TData>
+Tarol.Changes.Loaded<T, TData>.Aggregate.get -> T
+Tarol.Changes.Loaded<T, TData>.Aggregate.init -> void
+Tarol.Changes.Loaded<T, TData>.Data.get -> TData
+Tarol.Changes.Loaded<T, TData>.Data.init -> void
+Tarol.Changes.Loaded<T, TData>.Deconstruct(out T Aggregate, out TData Data) -> void
+Tarol.Changes.Loaded<T, TData>.Equals(Tarol.Changes.Loaded<T, TData> other) -> bool
+Tarol.Changes.Loaded<T, TData>.Loaded() -> void
+Tarol.Changes.Loaded<T, TData>.Loaded(T Aggregate, TData Data) -> void
 Tarol.Changes.ReactionRun
 Tarol.Changes.ReactionRun.<Clone>$() -> Tarol.Changes.ReactionRun!
 Tarol.Changes.ReactionRun.Cause.get -> Tarol.Primitives.RecordedEvent!
@@ -82,6 +97,9 @@ override Tarol.Changes.ChangeTestOptions.ToString() -> string!
 override Tarol.Changes.ContractTopic.Equals(object? obj) -> bool
 override Tarol.Changes.ContractTopic.GetHashCode() -> int
 override Tarol.Changes.ContractTopic.ToString() -> string!
+~override Tarol.Changes.Loaded<T, TData>.Equals(object obj) -> bool
+override Tarol.Changes.Loaded<T, TData>.GetHashCode() -> int
+~override Tarol.Changes.Loaded<T, TData>.ToString() -> string
 override Tarol.Changes.ReactionRun.Equals(object? obj) -> bool
 override Tarol.Changes.ReactionRun.GetHashCode() -> int
 override Tarol.Changes.ReactionRun.ToString() -> string!
@@ -90,6 +108,8 @@ static Tarol.Changes.ChangeTestOptions.operator !=(Tarol.Changes.ChangeTestOptio
 static Tarol.Changes.ChangeTestOptions.operator ==(Tarol.Changes.ChangeTestOptions? left, Tarol.Changes.ChangeTestOptions? right) -> bool
 static Tarol.Changes.ContractTopic.operator !=(Tarol.Changes.ContractTopic? left, Tarol.Changes.ContractTopic? right) -> bool
 static Tarol.Changes.ContractTopic.operator ==(Tarol.Changes.ContractTopic? left, Tarol.Changes.ContractTopic? right) -> bool
+static Tarol.Changes.Loaded<T, TData>.operator !=(Tarol.Changes.Loaded<T, TData> left, Tarol.Changes.Loaded<T, TData> right) -> bool
+static Tarol.Changes.Loaded<T, TData>.operator ==(Tarol.Changes.Loaded<T, TData> left, Tarol.Changes.Loaded<T, TData> right) -> bool
 static Tarol.Changes.ReactionRun.operator !=(Tarol.Changes.ReactionRun? left, Tarol.Changes.ReactionRun? right) -> bool
 static Tarol.Changes.ReactionRun.operator ==(Tarol.Changes.ReactionRun? left, Tarol.Changes.ReactionRun? right) -> bool
 static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! json, System.Action<Tarol.Persistence.EventCodec!>! aggregates) -> Tarol.Persistence.TarolBuilder!
