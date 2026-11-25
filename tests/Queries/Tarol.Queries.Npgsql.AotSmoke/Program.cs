@@ -24,9 +24,9 @@ void Check(string name, bool ok)
 static Page<AuctionRow> Ok(Result<Page<AuctionRow>> result) => result.TryGetValue(out Page<AuctionRow>? page) ? page : throw new InvalidOperationException(result.ToString());
 
 var script = NpgsqlReadModelSchema.Script<AuctionRow>("smoke");
-Check("the DDL from the generated column map", script.Contains("ends_at timestamptz NOT NULL", StringComparison.Ordinal)
-                                              && script.Contains("title text COLLATE \"C\" NOT NULL", StringComparison.Ordinal)
-                                              && script.Contains("ON smoke.rm_auction_list_v1 (tenant, highest_bid, id)", StringComparison.Ordinal));
+Check("the DDL from the generated column map", script.Contains("\"ends_at\" timestamptz NOT NULL", StringComparison.Ordinal)
+                                              && script.Contains("\"title\" text COLLATE \"C\" NOT NULL", StringComparison.Ordinal)
+                                              && script.Contains("ON smoke.rm_auction_list_v1 (tenant, \"highest_bid\", id)", StringComparison.Ordinal));
 
 var connectionString = Environment.GetEnvironmentVariable("TAROL_PG");
 if (string.IsNullOrWhiteSpace(connectionString))

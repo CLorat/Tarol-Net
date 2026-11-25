@@ -14,7 +14,7 @@ new TarolBuilder(services, json, new EventCodec(json).Add<Note>()).UseNpgsqlRead
 await using var provider = services.BuildServiceProvider();
 var store = provider.GetRequiredService<IReadModels>().Store<NoteRow>();
 
-if (!script.Contains("tarol.rm_notes_v1", StringComparison.Ordinal) || !script.Contains("written_at timestamptz NOT NULL", StringComparison.Ordinal)
+if (!script.Contains("tarol.rm_notes_v1", StringComparison.Ordinal) || !script.Contains("\"written_at\" timestamptz NOT NULL", StringComparison.Ordinal)
     || store is not NpgsqlReadModelStore<NoteRow> { Table: "tarol.rm_notes_v1" })
 {
     Console.Error.WriteLine("Tarol.Queries.Npgsql package consumer: unexpected script or store\n" + script);
