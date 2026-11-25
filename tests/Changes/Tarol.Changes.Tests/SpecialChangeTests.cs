@@ -99,6 +99,20 @@ public sealed class SpecialChangeTests
     }
 
     [Fact]
+    public void TryRead_answers_without_an_exception_when_nothing_was_loaded()
+    {
+        // TN-40 (Tatalu FB-F03.3-2): an optional read caught the InvalidOperationException of Read<T>()
+        var operation = OperationContext.Start(Actor.Anonymous, Option.None, TimeProvider.System);
+        var artwork = Artwork.Register(verified: true);
+
+        new ChangeContext(operation, Start).TryRead(out Artwork? none).ShouldBeFalse();
+        none.ShouldBeNull();
+        new ChangeContext(operation, Start, new Reads(new Dictionary<string, object>())).TryRead(out Artwork? _).ShouldBeFalse();
+        new ChangeContext(operation, Start, new Reads(new Dictionary<string, object> { ["Art"] = artwork })).TryRead(out Artwork? found).ShouldBeTrue();
+        found.ShouldBeSameAs(artwork);
+    }
+
+    [Fact]
     public void Reads_finds_by_type_and_by_member()
     {
         var a = Artwork.Register(verified: true);

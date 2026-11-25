@@ -46,6 +46,19 @@ public sealed class Reads
         return found ?? throw new InvalidOperationException($"No [Read] member is {typeof(T).Name}.");
     }
 
+    /// <summary>The single aggregate of type <typeparamref name="T"/>, or <see langword="null"/> when none was loaded.</summary>
+    /// <typeparam name="T">The aggregate type.</typeparam>
+    /// <returns>The aggregate, or <see langword="null"/>.</returns>
+    /// <exception cref="InvalidOperationException">Several of that type.</exception>
+    public T? Find<T>()
+        where T : class
+        => _byMember.Values.OfType<T>().Count() switch
+        {
+            0 => null,
+            1 => _byMember.Values.OfType<T>().First(),
+            _ => throw new InvalidOperationException($"Several [Read] members are {typeof(T).Name}; use Read<{typeof(T).Name}>(nameof(member))."),
+        };
+
     /// <summary>The aggregate of the member named <paramref name="member"/>.</summary>
     /// <typeparam name="T">The aggregate type.</typeparam>
     /// <param name="member">The member's name.</param>
