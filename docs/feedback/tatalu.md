@@ -163,9 +163,13 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-42 | load or start, 201, `IView.Empty`, `Id<T>.Derive` | open: CR-D/CR-E (decisions CR-4a/b pending) |
 | TN-43, TN-44 | views with context and rights per view; list rules with the query and range filters; again FB-E07-3, FB-F06.1-1, FB-E07-4 | open: decisions VA-1 … VA-4 pending |
 | TN-47 | reactions: fan-out, skip, all events of an aggregate, the triggering event; again FB-F06.3-5, FB-F06.3-6, FB-F06.6-4, FB-F06.5-3, FB-F06.2-3, FB-E07-2, FB-INT3-5, new FB-F06.4-3, FB-E07-7 (TN-83) | open: needs a design note (no owner decision listed yet) |
-| TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | open: next for E08/E10 |
+| TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | generic start `Empty(RecordedEvent)` built `3133118` (FB-F01.2-2); one row `IRowQuery<TRow>` built `c6ca39e` (FB-F01.2-4); per entity, from the state and the SQL read endpoint (join over two aggregate types) open: need a design note (row key per entity; a read endpoint for `ISqlProjection`) |
 | TN-58 | data protection; new FB-E07-8 (erasure with exceptions, retention from a domain date) | open: decisions DP2-1 … DP2-6 pending |
 | TN-62 | Zitadel; new FB-F06.5-2 (time-limited grants), FB-F05.2-2 (row rule over several children) | open: decisions TM-1 … TM-6 pending |
-| TN-63 | effects; new FB-F06.5-4 (reads in effects), FB-E07-6 (correlation delivery → cause), FB-F05.8-1 (recurring domain dates) | open: `dueAt` can be built without a decision; digest decision pending |
+| TN-63 | effects; new FB-F06.5-4 (reads in effects), FB-E07-6 (correlation delivery → cause), FB-F05.8-1 (recurring domain dates) | `dueAt` built `7953ecb` (FB-F17.4-3); digest (decision pending), reads in effects, correlation and recurring dates open |
 | TN-65 | `Tarol.Files`; FB-F05.2-1 gives the concrete API need (`IMediaStore`, `tatalu_media`) | open: decisions FI-1 … FI-5 pending; next for E12 |
-| TN-34, TN-46, TN-48, TN-49, TN-50, TN-51, TN-55, TN-56, TN-57, TN-59, TN-60, TN-64, TN-66 | as in round 2 | open (not reached in round 3; see the note's "Open" section) |
+| TN-34 | enums as route values (FB-F17.4-5) | built `2ab0222` |
+| TN-57 | `JobTest` with a projection (FB-F03.4-6) | built `ee5f861` as `JobTest.BeforeEachRun` (no Tarol.Queries dependency in Tarol.Jobs) |
+| TN-46 | commit and refuse (FB-F15.1-4) | open: needs a design note: a committed refusal stores the idempotency key, so a replay would answer success; options: store the refusal with the key, or commit without the key |
+| TN-48 | event id in `On`, entity id in `Deleted` (FB-F04.4-1, FB-F02.3-1) | open: an `On` also runs at `Raise`, before the store assigns the event id; needs a design note |
+| TN-49, TN-50, TN-51, TN-55, TN-56, TN-59, TN-60, TN-64, TN-66 | as in round 2 | open (decisions or design notes pending; see the round-3 note) |

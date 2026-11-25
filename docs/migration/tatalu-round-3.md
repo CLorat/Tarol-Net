@@ -270,12 +270,73 @@ as an app test; it is no longer the only proof.
   `DiagnosticTests.TVAL004_A_Rule_That_Does_Not_Fit_The_Type` (Scale case). Client: tarol-codegen TS-29 reads `multipleOf`/`step`.
 * **Tatalu:** E08–E10 amounts as `[Scale(2)]` value objects; the integer minute × 700 arithmetic of the hours account stays until TN-54.
 
+## Round 3b (after the merge of #125)
+
+The items below were built after round 3 was merged, without waiting for a decision. Each has its test (red before) and the
+Tatalu file whose workaround goes.
+
+### TN-54 (part) `Empty(RecordedEvent)`: a start row for any instance `When` (FB-F01.2-2)
+
+* **Behaviour (`Tarol.Queries.Generators`):** a row may declare `public static TRow Empty(RecordedEvent r)`; every instance
+  `When` then starts from it on a new stream, so no static `When` is needed for a stream whose first event varies. A wrong
+  shape is TQRY003; TQRY002 names `Empty` as the other way.
+* **Tests [verified]:** `EmptyRowTests.A_stream_may_start_with_any_event_an_instance_When_handles` (did not compile before:
+  TQRY002), `DiagnosticTests.An_Empty_start_row_replaces_the_creating_When_and_a_wrong_one_is_reported`.
+* **Tatalu:** `Caregiver.Started` raised first by `Caregiver.Begin` (`backend/src/Tatalu.Einrichtung/Caregiver.cs`) only for the
+  projection may go; the row gets `Empty`.
+
+### TN-54 (part) One projection row: `IRowQuery<TRow>` (FB-F01.2-4)
+
+* **New API:** `Tarol.Queries.IRowQuery<TRow>` (marker); `ChangeEndpoints.Row<TRow>` (`EditorBrowsable(Never)`, generated code).
+* **Behaviour:** a record with `[Endpoint("GET …")]` implementing `IRowQuery<TRow>` answers one row: with no member the caller's
+  tenant's row of a `[PerTenant]` aggregate, else the row of its one route member (`Guid` or `Id<T>`). Access (`Read<T>`),
+  `Tarol-Read-After` and 503 while building are a list's; `ETag` is the row's version (304); a missing row is 404 `X.NotFound`.
+  Document: `x-tarol-kind: row`, the row's schema, `Tarol-Read-After`, 304, 503. TWEB003 for other shapes. tarol-codegen TS-39.
+* **Test [verified]:** `PerTenantTests.One_row_of_a_projection_is_read_for_the_tenant_or_by_id_with_ETag_read_after_and_404`.
+* **Tatalu:** `GET /tpp/aenderungen` as a list of one row (`backend/src/Tatalu.Einrichtung/CaregiverHistory.cs`) and `items[0]` in the
+  frontend become a row query (`IRowQuery<CaregiverHistoryRow>`) and a plain read.
+
+### TN-63 (part) Effects with a due time (FB-F17.4-3)
+
+* **New API (`Tarol.Messaging`):** `EffectSet.Add<TEvent>(name, handler, dueAt)`, `MessagingBuilder.Effect<TEvent, THandler>(name, dueAt)`.
+  `EffectSet.DueAt`/`IsScheduled` answer from it (they were always `null`/`false`).
+* **Test [verified]:** `PublicationTests.An_effect_with_a_due_time_runs_once_it_is_due_not_at_the_commit`.
+* **Tatalu:** the detour `Notification.Deferred` → `ReleaseNotification` → `Notification.Queued`
+  (`backend/src/Tatalu.Plattform/Benachrichtigungen/Notification.cs`, `Changes.cs`) becomes one effect with `dueAt: e => e.NotBefore`.
+
+### TN-34 Enums as route values (FB-F17.4-5)
+
+* **Behaviour:** a route member of a change or view may be an enum: a defined name, case-insensitive; a number or a
+  combination is 400 `Format`. The path parameter lists the names. Lists keep refusing enum route members (TWEB003).
+* **New API:** `RouteValue.Values`; `ChangeEndpoints.TryEnumName<TEnum>` (`EditorBrowsable(Never)`).
+* **Test [verified]:** `ModuleTests.An_enum_route_value_binds_a_name_case_insensitively_and_refuses_numbers_and_unknown_names`
+  (did not compile before: TWEB003).
+* **Tatalu:** the category in the body of `PUT /ich/benachrichtigungen/kanaele` (`backend/src/Tatalu.Plattform/Benachrichtigungen/Changes.cs`)
+  may move to the route (`…/kanaele/{category}`).
+
+### TN-57 `JobTest.BeforeEachRun` (FB-F03.4-6)
+
+* **New API (`Tarol.Jobs`):** `JobTest.BeforeEachRun(Func<Task>)`, e.g. a projection's `CatchUp` over `test.Store`.
+* **Test [verified]:** `JobProjectionTests.A_job_reads_a_projection_over_the_test_store_caught_up_before_every_run`.
+* **Tatalu:** the port `ICareFiles` with a fixed list in `backend/tests/Tatalu.Vertraege.Tests/ContractRulesTests.cs` may become
+  `ProjectionTest<CareFileRow>.Over(test.Store)` with `BeforeEachRun(rows.CatchUp)`; `ReadModelCareFiles` (`backend/src/Tatalu.Vertraege/Daily.cs`) may go.
+
+### Not built in 3b, and why
+
+* **TN-46 commit and refuse:** a refusal that commits would store the idempotency key, and a replay would answer success. It
+  needs a design note: store the refusal with the key (a store schema change), or commit without the key (double counting on retry).
+* **TN-48 event id in `On`:** an `On` also runs at `Raise`, before the store assigns the event id. It needs a design note (an id at
+  `Raise`, or only for replay).
+* **TN-54 per entity / from the state / SQL read endpoint:** a row key per entity and a read endpoint for `ISqlProjection` (the
+  join for billing, FB-F04.5-1) need a design note; next for E08/E10.
+* **Skills over the 8 KB guide:** `tarol-changes` (12 KB) and `tarol-queries` (12 KB).
+
 ## Open after round 3
 
-Not reached or waiting for a decision (next step in the register): TN-34 (enum route values), TN-41 (`ILoads<T, TData>`,
+Not reached or waiting for a decision (next step in the register; see also "Round 3b"): TN-41 (`ILoads<T, TData>`,
 decision CR-2), TN-42 (load or start; CR-4a/b), TN-43/44 (views and list rules; VA-*), TN-46, TN-47 with TN-83 (reactions:
-needs a design note), TN-48, TN-49 (ports; CR-3), TN-50, TN-51, TN-54 (projections for billing: next), TN-55, TN-56/62
-(TM-*), TN-57, TN-58 (DP2-*), TN-59/60, TN-63 (effects: `dueAt` next), TN-64 (AU-*), TN-65 (FI-*), TN-66 (WP-*), TN-67 rest.
+needs a design note), TN-48, TN-49 (ports; CR-3), TN-50, TN-51, TN-54 rest (per entity, from the state, SQL read endpoint: next for billing), TN-55, TN-56/62
+(TM-*), TN-58 (DP2-*), TN-59/60, TN-63 rest (digest, reads, correlation, recurring dates), TN-64 (AU-*), TN-65 (FI-*), TN-66 (WP-*), TN-67 rest.
 The skill `tarol-changes` is 12 KB, over the 8 KB guide: split it (reactions into `tarol-sagas`) in the next round.
 
 ## Skill evaluation checklist (round 3)
@@ -325,6 +386,11 @@ These add to the round-2 notes ([tatalu-round-2.md](tatalu-round-2.md#release-no
 
 | Tatalu workaround | Replace with | Item |
 |---|---|---|
+| `Caregiver.Started` first event only for the projection (`backend/src/Tatalu.Einrichtung/Caregiver.cs`) | `static Empty(RecordedEvent r)` on the row | TN-54 |
+| `GET /tpp/aenderungen` as a one-row list, `items[0]` (`backend/src/Tatalu.Einrichtung/CaregiverHistory.cs`) | `IRowQuery<TRow>` | TN-54 |
+| `Deferred` → `ReleaseNotification` → `Queued` (`backend/src/Tatalu.Plattform/Benachrichtigungen/Notification.cs`, `Changes.cs`) | `Effect<…>(name, dueAt: e => e.NotBefore)` | TN-63 |
+| category in the body of `PUT /ich/benachrichtigungen/kanaele` | an enum route member | TN-34 |
+| port `ICareFiles` and its fixed list in tests (`backend/tests/Tatalu.Vertraege.Tests/ContractRulesTests.cs`, `backend/src/Tatalu.Vertraege/Daily.cs`) | `ProjectionTest.Over(test.Store)` + `JobTest.BeforeEachRun` | TN-57 |
 | `StartsOn`/`EndsOn` in `backend/src/Tatalu.Dokumentation/MedicationViews.cs` | `From`/`Until` | TN-69 |
 | UTC conversion in `AnnualPlan.Local` and the `Local` helpers (`backend/src/Tatalu.Planung/ChildAbsence.cs`, `Appointment.cs`, `Reminders.cs`) | a local `DateTimeOffset` as `DueAt` | TN-70 |
 | `max_connections=200` (`docker-compose.yml`, `backend/src/Tatalu.AppHost/AppHost.cs`), the bus's own connection string in `backend/src/Tatalu.Host/TataluApp.cs` | default `max_connections` after measuring; `UseNpgsqlBus(options)` | TN-72 |

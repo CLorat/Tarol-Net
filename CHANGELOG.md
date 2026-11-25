@@ -6,6 +6,16 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Tatalu feedback, round 3b
+
+#### Added
+
+* `static TRow Empty(RecordedEvent r)` starts a projection row for any instance `When` (TN-54).
+* `IRowQuery<TRow>`: a GET answering one projection row, `x-tarol-kind: row` (TN-54).
+* Effects with a due time: `EffectSet.Add(name, handler, dueAt)`, `MessagingBuilder.Effect<TEvent, THandler>(name, dueAt)` (TN-63).
+* Enums as route values of changes and views, `RouteValue.Values` (TN-34).
+* `JobTest.BeforeEachRun` (TN-57).
+
 ### Tatalu feedback, round 3 (TN-69 … TN-83; [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md))
 
 #### Fixed
