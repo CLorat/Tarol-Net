@@ -86,7 +86,9 @@ public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<Aucti
   `{ "items": […], "next": "…" | null, "total": n }`, weak `ETag` (304), `Tarol-Position`.
 * Read your own write: send the change answer's `Tarol-Position` (text `<transaction>.<position>`, e.g. `7341.1000412`;
   copy it as it is) as `Tarol-Read-After`; after 2 s the list answers with
-  `Tarol-Stale: true`. 503 + `Retry-After` while a new projection version builds.
+  `Tarol-Stale: true`. 503 + `Retry-After` while a new projection version builds. A test or start-up step waits for all hosts of
+  the process with `ProjectionHosts.WaitUntilCurrent(timeout, ct)` (`Building` names the rest) instead of retrying on 503;
+  `p.ReadyWhenCurrent()` keeps readiness down until then.
 * Grant the list with the role map: `roles.Role("bidder").May<Read<Auction>>()`. Row rules do not run on lists.
 * Rows that depend on domain data ("a parent sees only their children's entries"): implement `IListScope<TQuery>` and
   mark the entry `RequiresScope = true` (startup fails without the registration):

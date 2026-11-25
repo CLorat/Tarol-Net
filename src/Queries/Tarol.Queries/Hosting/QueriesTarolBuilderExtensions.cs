@@ -39,6 +39,7 @@ public sealed class ProjectionsBuilder
         Services.AddSingleton<ProjectionHost>(static provider => provider.GetRequiredService<ProjectionHost<TRow>>());
         Services.AddSingleton<IHostedService>(static provider => provider.GetRequiredService<ProjectionHost<TRow>>());
         Services.AddSingleton<ErasureParticipant>(static provider => new ProjectionEraser<TRow>(provider));   // step 16C (DP-5)
+        Services.TryAddSingleton(static provider => new ProjectionHosts(provider.GetServices<ProjectionHost>()));
         return this;
     }
 
@@ -70,6 +71,20 @@ public sealed class ProjectionsBuilder
         var host = new HostSlot();
         Services.AddSingleton<ProjectionHost>(provider => host.Get(provider, projection, Options(configure)));
         Services.AddSingleton<IHostedService>(provider => host.Get(provider, projection, Options(configure)));
+        Services.TryAddSingleton(static provider => new ProjectionHosts(provider.GetServices<ProjectionHost>()));
+        return this;
+    }
+
+    /// <summary>
+    /// Makes the process ready (the <c>ready</c> health group of <c>AddOperations</c>) only when every projection it hosts is
+    /// current (TN-26, Tatalu FB-INT2-3). Opt-in: a worker that rebuilds a new projection version is not ready meanwhile.
+    /// </summary>
+    /// <returns>This builder.</returns>
+    public ProjectionsBuilder ReadyWhenCurrent()
+    {
+        Services.TryAddSingleton(static provider => new ProjectionHosts(provider.GetServices<ProjectionHost>()));
+        Services.AddSingleton(new ReadinessCheck("projections", static provider =>
+            provider.GetRequiredService<ProjectionHosts>().Building is { Count: > 0 } building ? "building: " + string.Join(", ", building) : null));
         return this;
     }
 

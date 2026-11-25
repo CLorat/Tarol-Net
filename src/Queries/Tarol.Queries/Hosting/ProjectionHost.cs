@@ -222,6 +222,42 @@ public abstract partial class ProjectionHost : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Waits until this host has reached the head of the feed once (<see cref="ProjectionState.Current"/>), up to
+    /// <paramref name="timeout"/> (TN-26, Tatalu FB-INT2-3). The host must be running (or a test must drive it).
+    /// </summary>
+    /// <param name="timeout">The longest wait.</param>
+    /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <returns><see langword="true"/> when it is current; <see langword="false"/> on timeout.</returns>
+    public async Task<bool> WaitUntilCurrent(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        var end = _time.GetTimestamp() + (long)(timeout.TotalSeconds * _time.TimestampFrequency);
+        while (true)
+        {
+            Task moved;
+            lock (_gate)
+            {
+                if (_checkpoint.State == ProjectionState.Current)
+                    return true;
+                moved = _moved.Task;
+            }
+            var left = end - _time.GetTimestamp();
+            if (left <= 0)
+                return false;
+            try
+            {
+                await moved.WaitAsync(TimeSpan.FromSeconds((double)left / _time.TimestampFrequency), _time, cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                return State == ProjectionState.Current;
+            }
+        }
+    }
+
+    /// <summary>How long an erasure waits for this host while it builds (<see cref="ProjectionOptions.ErasureWait"/>).</summary>
+    internal TimeSpan ErasureWait => _options.ErasureWait;
+
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

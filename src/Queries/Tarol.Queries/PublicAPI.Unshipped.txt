@@ -15,6 +15,12 @@ Tarol.Queries.ProjectionArrayColumn<TRow, TElement>
 Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.ProjectionArrayColumn(string! name, string! member, Tarol.Queries.ColumnType type, bool nullable, System.Func<TRow, TElement[]?>! get) -> void
 Tarol.Queries.ProjectionColumn<TRow>.IsArray.get -> bool
 Tarol.Queries.ProjectionColumn<TRow>.Matches(TRow row, System.Collections.Generic.IReadOnlySet<object!>! values) -> bool
+Tarol.Queries.ProjectionHost.WaitUntilCurrent(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Tarol.Queries.ProjectionHosts
+Tarol.Queries.ProjectionHosts.All.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ProjectionHost!>!
+Tarol.Queries.ProjectionHosts.Building.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Queries.ProjectionHosts.ProjectionHosts(System.Collections.Generic.IEnumerable<Tarol.Queries.ProjectionHost!>! hosts) -> void
+Tarol.Queries.ProjectionHosts.WaitUntilCurrent(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 Tarol.Queries.ProjectionModule
 Tarol.Queries.ProjectionModule.<Clone>$() -> Tarol.Queries.ProjectionModule!
 Tarol.Queries.ProjectionModule.Add.get -> System.Action<Tarol.Queries.ProjectionsBuilder!>!
@@ -22,8 +28,11 @@ Tarol.Queries.ProjectionModule.Add.init -> void
 Tarol.Queries.ProjectionModule.Deconstruct(out System.Action<Tarol.Queries.ProjectionsBuilder!>! Add) -> void
 Tarol.Queries.ProjectionModule.Equals(Tarol.Queries.ProjectionModule? other) -> bool
 Tarol.Queries.ProjectionModule.ProjectionModule(System.Action<Tarol.Queries.ProjectionsBuilder!>! Add) -> void
+Tarol.Queries.ProjectionOptions.ErasureWait.get -> System.TimeSpan
+Tarol.Queries.ProjectionOptions.ErasureWait.set -> void
 Tarol.Queries.ProjectionsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Queries.ProjectionsBuilder!
 Tarol.Queries.ProjectionsBuilder.AddModules() -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.ProjectionsBuilder.ReadyWhenCurrent() -> Tarol.Queries.ProjectionsBuilder!
 Tarol.Queries.SetFilter
 Tarol.Queries.SetFilter.<Clone>$() -> Tarol.Queries.SetFilter!
 Tarol.Queries.SetFilter.Column.get -> string!
