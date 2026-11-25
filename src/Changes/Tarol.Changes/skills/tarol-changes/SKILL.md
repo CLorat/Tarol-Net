@@ -83,6 +83,9 @@ then.Events.ShouldBe([new Auction.Closed(start)]);
 then.Recorded[0].Context.Actor.ShouldBe(Actor.User("seller"));
 var twice = await test.When(new CloseAuction(auction.Id));
 twice.Result.TryGetValue(out Violation? conflict).ShouldBeTrue();      // Error.Conflict("AuctionStatus.NotAllowed", …)
+// like the app's store: sealed personal data (codec), the app's lookups, the reactions a change causes
+var app = ChangeTest.At(start, new ChangeTestOptions { Codec = codec, Lookups = lookups, Reactions = GeneratedReactions.Set, RunReactions = true });
+(await app.When(change)).Reactions;   app.History(id);   app.StoredStateMatchesReplay(id, json.Options);
 
 // an internal run by hand (a scheduled job uses [Scheduled] or JobRun.Change of skill tarol-jobs, which key it)
 var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.AuctionSettlement"), tenant, time), cancellationToken: ct);
@@ -106,6 +109,9 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 
 | Mistake | Result |
 |---|---|
+| `ChangeTest.At(now)` for an aggregate with `[PersonalData]` | nothing is sealed: a sealing error shows up in the host only; pass `ChangeTestOptions.Codec` |
+| `new ChangeOptions(Principal: p)` in a `ChangeTest` without `Authorization` | `InvalidOperationException` (the pipeline would answer 403 `Auth.NotConfigured`) |
+| `Store.Recorded.Where(r => r.StreamId == id)` for a `[PerTenant]` aggregate | events of every singleton of the tenant; use `test.History(id)` |
 | `record Close(Auction Auction)` (the instance as input) | not serializable, not reloadable; take `Id<Auction>` |
 | two `Id<Auction>` members, no explicit `Target` | TCHG001 |
 | `record Close(…) : IChange<…>` not `partial` | TCHG002 |
