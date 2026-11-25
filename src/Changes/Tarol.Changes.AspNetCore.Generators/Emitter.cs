@@ -47,6 +47,8 @@ internal static class Emitter
                 View(sb, e);
             else if (e.Kind == EntryKind.List)
                 List(sb, e);
+            else if (e.Kind == EntryKind.Row)
+                Row(sb, e);
             else
                 Change(sb, e);
         }
@@ -67,7 +69,7 @@ internal static class Emitter
     private static void MapEntry(StringBuilder sb, EntryModel e)
     {
         var method = Method(e);
-        var kind = e.Kind switch { EntryKind.Creation => "creation", EntryKind.View => "view", EntryKind.List => "list", _ => "change" };
+        var kind = e.Kind switch { EntryKind.Creation => "creation", EntryKind.View => "view", EntryKind.List => "list", EntryKind.Row => "row", _ => "change" };
         var route = e.Members.Where(m => m.RouteKind is not null).ToArray();
         var body = e.Members.Where(m => m.RouteKind is null).ToArray();
         sb.Append("        {\n");
@@ -75,7 +77,7 @@ internal static class Emitter
           .Append(Pascal(e.Verb)).Append(", (").Append(Http).Append(".RequestDelegate)").Append(method).Append(");\n");
         sb.Append("            ").Append(Builder).Append(".RoutingEndpointConventionBuilderExtensions.WithName(endpoint, names + \"").Append(e.Name).Append("\");\n");
         sb.Append("            ").Append(Builder).Append(".RoutingEndpointConventionBuilderExtensions.WithMetadata(endpoint,\n");
-        if (e.Kind is not (EntryKind.View or EntryKind.List))
+        if (e.Kind is not (EntryKind.View or EntryKind.List or EntryKind.Row))
             sb.Append("                new ").Append(Http).Append(".Metadata.AcceptsMetadata(new[] { \"application/json\" }, typeof(").Append(e.FullName).Append("), isOptional: ")
               .Append(e.HasBody ? "false" : "true").Append("),\n");
         sb.Append("                new ").Append(Http).Append(".ProducesResponseTypeMetadata(").Append(e.Kind switch
@@ -83,6 +85,7 @@ internal static class Emitter
             EntryKind.Creation => "201",
             EntryKind.View => $"200, typeof({e.FullName}), new[] {{ \"application/json\" }}",
             EntryKind.List => $"200, typeof({e.Query!.Row}), new[] {{ \"application/json\" }}",     // the row; the OpenAPI transformer wraps it in the page
+            EntryKind.Row => $"200, typeof({e.Query!.Row}), new[] {{ \"application/json\" }}",
             _ => "204",
         }).Append("),\n");
         sb.Append("                ((").Append(Http).Append(".RequestDelegate)").Append(method).Append(").Method,                // OpenAPI describes endpoints that carry a MethodInfo\n");
@@ -92,7 +95,7 @@ internal static class Emitter
                                                       + (m.RouteKind == "id" ? $" {{ Aggregate = {Literal(IdAggregate(m.Type))} }}" : "")))).Append(" },\n");
         sb.Append("                    new string[] { ").Append(string.Join(", ", body.Select(NameOf))).Append(" },\n");
         sb.Append("                    ").Append(e.Policy is null ? "null" : Literal(e.Policy));
-        if (e.Query is { } q)
+        if (e.Query is { } q && e.Kind == EntryKind.List)
         {
             sb.Append(",\n                    new global::Tarol.Changes.AspNetCore.QueryParameter[]\n                    {\n");
             foreach (var f in q.Filters.Where(f => f.Source == "query"))
@@ -109,7 +112,7 @@ internal static class Emitter
         }
         sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n");
         sb.Append("                    Owner = typeof(GeneratedEndpoints).Assembly,\n");
-        if (e.Query is { } scoped)
+        if (e.Query is { } scoped && e.Kind == EntryKind.List)
             sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
               .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");
         sb.Append("                });\n");
@@ -147,6 +150,20 @@ internal static class Emitter
         sb.Append("        if (!").Append(parse).Append(")\n        {\n");
         sb.Append("            await web.Problem(http, global::Tarol.Results.Invalid.Field(\"").Append(m.Name).Append("\", \"Format\"));\n");
         sb.Append("            return;\n        }\n");
+    }
+
+    // a row (TN-54): the list's access, then the one row of the route's id or of the caller's tenant
+    private static void Row(StringBuilder sb, EntryModel e)
+    {
+        var id = e.Members.FirstOrDefault();
+        sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
+        sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
+        if (id is not null)
+            Route(sb, id);
+        sb.Append("        if (await web.ListAccess<").Append(e.Aggregate).Append(">(http) is not { } tenant)\n            return;\n");
+        var key = id is null ? "tenant" : id.RouteKind == "id" ? "route_" + id.Name + ".Value" : "route_" + id.Name;
+        sb.Append("        await web.Row<").Append(e.Query!.Row).Append(">(http, tenant, ").Append(key).Append(", ")
+          .Append(Literal(e.Aggregate.Substring(e.Aggregate.LastIndexOf('.') + 1) + ".NotFound")).Append(");\n    }\n");
     }
 
     private static void View(StringBuilder sb, EntryModel e)
@@ -355,7 +372,7 @@ internal static class Emitter
     /// <summary>The error path of a body member: its C# name (converted by the naming policy), or its own JSON name.</summary>
     private static string Field(Member m) => m.JsonName ?? m.Name;
 
-    private static string Method(EntryModel e) => (e.Kind switch { EntryKind.View => "View_", EntryKind.List => "List_", _ => "Run_" }) + Key(e);
+    private static string Method(EntryModel e) => (e.Kind switch { EntryKind.View => "View_", EntryKind.List => "List_", EntryKind.Row => "Row_", _ => "Run_" }) + Key(e);
 
     /// <summary>Unique per input (two inputs may share a name in different namespaces), deterministic.</summary>
     private static string Key(EntryModel e) => Ident(e.FullName.StartsWith("global::", System.StringComparison.Ordinal) ? e.FullName.Substring(8) : e.FullName);

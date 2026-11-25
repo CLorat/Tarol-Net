@@ -1,6 +1,7 @@
 #nullable enable
 Tarol.Changes.AspNetCore.ChangeEndpoints.LoadTenant<T>(Microsoft.AspNetCore.Http.HttpContext! http) -> System.Threading.Tasks.ValueTask<T?>
 Tarol.Changes.AspNetCore.ChangeEndpoints.Missing(byte[]! bytes, Tarol.Changes.AspNetCore.RequiredMember![]! members, ref System.Collections.Generic.List<Tarol.Results.FieldError!>? errors) -> void
+Tarol.Changes.AspNetCore.ChangeEndpoints.Row<TRow>(Microsoft.AspNetCore.Http.HttpContext! http, System.Guid tenant, System.Guid id, string! notFound) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.ChangeEndpoints.Scope<TQuery>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Queries.ListQuery! query, bool required = false) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListQuery!>
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.get -> bool
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.init -> void

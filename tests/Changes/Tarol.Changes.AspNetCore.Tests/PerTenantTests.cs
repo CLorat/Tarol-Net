@@ -46,6 +46,37 @@ public sealed class PerTenantTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task One_row_of_a_projection_is_read_for_the_tenant_or_by_id_with_ETag_read_after_and_404()
+    {
+        // TN-54 (Tatalu FB-F01.2-4): GET /tpp/aenderungen was a list of one row; the frontend took items[0]
+        (await _app.Get("/house/row", Alice)).Status.ShouldBe(HttpStatusCode.NotFound);
+        (await _app.Post("/house", """{"name":"Alice's"}""", Alice)).Status.ShouldBe(HttpStatusCode.Created);
+        var renamed = await Put("/house/name", """{"name":"Alice & Bob"}""", Bob);
+        var position = renamed.Response.Headers.GetValues(Positions.PositionHeader).Single();
+
+        var row = await _app.Get("/house/row", Alice, h => h.Add(Positions.ReadAfterHeader, position));
+
+        row.Status.ShouldBe(HttpStatusCode.OK, row.Body);
+        var json = JsonElement.Parse(row.Body);
+        json.GetProperty("name").GetString().ShouldBe("Alice & Bob");
+        json.GetProperty("renames").GetInt32().ShouldBe(1);
+        row.ETag.ShouldBe("\"2\"");
+        (await _app.Get("/house/row", Alice, h => h.IfNoneMatch.Add(new System.Net.Http.Headers.EntityTagHeaderValue("\"2\"")))).Status
+            .ShouldBe(HttpStatusCode.NotModified);
+        var byId = await _app.Get($"/house-rows/{TenantA}", Alice);
+        byId.Status.ShouldBe(HttpStatusCode.OK, byId.Body);
+        (await _app.Get($"/house-rows/{Guid.NewGuid()}", Alice)).Body.ShouldContain("House.NotFound");
+        (await _app.Get("/house/row", Carol)).Status.ShouldBe(HttpStatusCode.NotFound);            // another tenant's row is not seen
+
+        var document = JsonElement.Parse((await _app.Get("/openapi/v1.json", Alice)).Body);
+        var get = document.GetProperty("paths").GetProperty("/house/row").GetProperty("get");
+        get.GetProperty("x-tarol-kind").GetString().ShouldBe("row");
+        get.GetProperty("responses").GetProperty("200").GetProperty("content").GetProperty("application/json").GetProperty("schema")
+            .GetProperty("$ref").GetString().ShouldBe("#/components/schemas/HouseRow");
+        get.GetProperty("x-tarol-errors").EnumerateArray().Select(e => e.GetString()).ShouldContain("House.NotFound");
+    }
+
+    [Fact]
     public async Task A_second_creation_conflicts_and_a_change_before_the_creation_is_not_found()
     {
         (await Put("/house/name", """{"name":"x"}""", Alice)).Body.ShouldContain("House.NotFound");

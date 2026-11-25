@@ -48,3 +48,16 @@ public sealed class DescendingAttribute : Attribute;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "A marker the endpoint generator reads; it names the projection a query record lists (queries.md §5).")]
 public interface IQuery<TRow>
     where TRow : class, IProjection<TRow>;
+
+/// <summary>
+/// The marker of a query for <b>one</b> row of the projection <typeparamref name="TRow"/> (TN-54, Tatalu FB-F01.2-4: one row
+/// per tenant, a history row): <c>Tarol.Changes.AspNetCore</c> generates a GET endpoint answering the row as JSON (404 when
+/// the stream has none). The row is the one of the route member (a <see cref="Guid"/> or an <c>Id&lt;T&gt;</c>), or, with no
+/// member, the caller's tenant's row of a <c>[PerTenant]</c> aggregate. Access, <c>Tarol-Read-After</c> and 503 while building
+/// are a list's.
+/// </summary>
+/// <example><code>[Endpoint("GET /caregiver/changes")] public sealed record CaregiverChanges : IRowQuery&lt;CaregiverChangesRow&gt;;</code></example>
+/// <typeparam name="TRow">The projection's row record.</typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "A marker the endpoint generator reads; it names the projection whose row a query reads.")]
+public interface IRowQuery<TRow>
+    where TRow : class, IProjection<TRow>;

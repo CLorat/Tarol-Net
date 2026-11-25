@@ -1,6 +1,7 @@
 #nullable enable
 Tarol.Queries.ColumnType.Date = 9 -> Tarol.Queries.ColumnType
 Tarol.Queries.ColumnType.Time = 10 -> Tarol.Queries.ColumnType
+Tarol.Queries.IRowQuery<TRow>
 Tarol.Queries.ListQuery.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilter!>!
 Tarol.Queries.ListQuery.Sets.init -> void
 Tarol.Queries.ListQuery.Within(Tarol.Queries.ListScope! scope) -> Tarol.Queries.ListQuery!

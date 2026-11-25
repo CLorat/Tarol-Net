@@ -2,7 +2,7 @@
 name: tarol-queries
 description: >-
   Use when adding a read model, list or search over a Tarol event-sourced application: a [Projection] row record with
-  When(event) methods, its ProjectionHost (AddProjections), list endpoints ([Endpoint("GET …")] on an IQuery<TRow>
+  When(event) methods, its ProjectionHost (AddProjections), list endpoints ([Endpoint("GET …")] on an IQuery<TRow>; one row with IRowQuery<TRow>
   record with filters, a Sort enum, [FromClaim], IListScope, cursor, Tarol-Read-After), ListQuery pages with ETag, read-your-writes,
   ISqlProjection, and testing with ProjectionTest; fixing TQRY001-TQRY006. Do not query streams.state, read a projection
   inside a change, or decompile the package.
@@ -76,6 +76,9 @@ public sealed record AuctionSearch(AuctionStatus? Status, string? Seller, Auctio
 
 [Endpoint("GET /my/auctions")]
 public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<AuctionRow>;
+// one row (TN-54): the caller's tenant's row of a [PerTenant] aggregate, or by a route id; 404 X.NotFound, ETag = row version
+[Endpoint("GET /house/row")] public sealed record TenantHouseRow : IRowQuery<HouseRow>;
+[Endpoint("GET /auctions/{auction}/row")] public sealed record AuctionRowById(Guid Auction) : IRowQuery<AuctionRow>;
 ```
 
 * Filter members are **nullable** and named like a row member (`Status` → column `status`); `?status=Open` (enum names,

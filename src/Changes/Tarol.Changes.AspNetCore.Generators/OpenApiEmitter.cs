@@ -675,6 +675,32 @@ internal static class OpenApiEmitter
                         Content = ProblemContent(),
                     };
                 }
+                else if (metadata.Kind == "row" && operation.Responses.TryGetValue("200", out var single) && single is global::Microsoft.OpenApi.OpenApiResponse one)
+                {
+                    // TN-54: one row of a projection: a list's read-after and 503, a view's ETag and 304
+                    operation.Parameters ??= new global::System.Collections.Generic.List<global::Microsoft.OpenApi.IOpenApiParameter>();
+                    operation.Parameters.Add(new global::Microsoft.OpenApi.OpenApiParameter
+                    {
+                        Name = "Tarol-Read-After",
+                        In = global::Microsoft.OpenApi.ParameterLocation.Header,
+                        Description = "Wait until the row contains the change that answered this Tarol-Position (bounded; then Tarol-Stale: true)",
+                        Schema = Text(),
+                    });
+                    one.Description = "The row";
+                    one.Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader>
+                    {
+                        ["ETag"] = Header("The row's version, for If-None-Match"),
+                        ["Tarol-Position"] = Header("The position read: every change at or before it is in the answer"),
+                        ["Tarol-Stale"] = Header("true when Tarol-Read-After timed out"),
+                    };
+                    operation.Responses["304"] = new global::Microsoft.OpenApi.OpenApiResponse { Description = "Not modified (If-None-Match)" };
+                    operation.Responses["503"] = new global::Microsoft.OpenApi.OpenApiResponse
+                    {
+                        Description = "The projection is being built (a new version); Retry-After says when to ask again",
+                        Headers = new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiHeader> { ["Retry-After"] = Header("Seconds") },
+                        Content = ProblemContent(),
+                    };
+                }
                 else if (metadata.Kind == "me")
                     operation.Responses["200"] = new global::Microsoft.OpenApi.OpenApiResponse
                     {
@@ -691,7 +717,7 @@ internal static class OpenApiEmitter
                 }
                 foreach (var (status, description) in Problems)
                 {
-                    if (metadata.Kind is "view" or "list" or "search" && status is "409" or "415" or "422")
+                    if (metadata.Kind is "view" or "list" or "search" or "row" && status is "409" or "415" or "422")
                         continue;
                     if (metadata.Kind == "me" && status != "401")
                         continue;

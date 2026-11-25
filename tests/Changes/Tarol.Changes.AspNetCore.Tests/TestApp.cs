@@ -180,7 +180,7 @@ internal static class TestStores
     {
         if (!builder.Services.Any(static d => d.ServiceType == typeof(Tarol.Queries.IReadModels)))
             Tarol.Queries.QueriesTarolBuilderExtensions.UseInMemoryReadModels(builder);
-        return hosted ? Tarol.Queries.QueriesTarolBuilderExtensions.AddProjections(builder, p => p.Add<AuctionRow>(o => o.Poll = TimeSpan.FromMilliseconds(5))) : builder;
+        return hosted ? Tarol.Queries.QueriesTarolBuilderExtensions.AddProjections(builder, p => p.Add<AuctionRow>(o => o.Poll = TimeSpan.FromMilliseconds(5)).Add<HouseRow>(o => o.Poll = TimeSpan.FromMilliseconds(5))) : builder;
     }
 
     public static TarolBuilder Store(this TarolBuilder builder, Action<TarolBuilder>? store)

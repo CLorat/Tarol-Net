@@ -306,6 +306,62 @@ public sealed partial class ChangeEndpoints
         await http.Response.Body.WriteAsync(buffer.WrittenMemory, http.RequestAborted).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Answers a row request (TN-54): <c>Tarol-Read-After</c> as for a list, 503 while the projection builds, the row of
+    /// (<paramref name="tenant"/>, <paramref name="id"/>) with its <c>ETag</c> (the row's version; 304 for a match) and
+    /// <c>Tarol-Position</c>, or 404 <paramref name="notFound"/>.
+    /// </summary>
+    /// <typeparam name="TRow">The projection's row record (in the application's JSON context).</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="tenant">The tenant key from <see cref="ListAccess{TAggregate}"/>.</param>
+    /// <param name="id">The row's stream id.</param>
+    /// <param name="notFound">The code of a missing row (<c>X.NotFound</c>).</param>
+    /// <returns>The write.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async Task Row<TRow>(HttpContext http, Guid tenant, Guid id, string notFound)
+        where TRow : class, IProjection<TRow>
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var positions = http.RequestServices.GetRequiredService<IProjectionPositions>();
+        var store = http.RequestServices.GetRequiredService<IReadModels>().Store<TRow>();
+        if (http.Request.Headers[Positions.ReadAfterHeader].ToString() is { Length: > 0 } readAfter)
+        {
+            if (!Positions.TryParse(readAfter, out var position))
+            {
+                await Problem(http, Invalid.Field(Positions.ReadAfterHeader, "Format")).ConfigureAwait(false);
+                return;
+            }
+            if (!await positions.WaitFor<TRow>(position, Options.Queries.ReadAfterTimeout, http.RequestAborted).ConfigureAwait(false))
+                http.Response.Headers[Positions.StaleHeader] = "true";
+        }
+        var checkpoint = await positions.Checkpoint<TRow>(http.RequestAborted).ConfigureAwait(false);
+        if (checkpoint.State == ProjectionState.Building)
+        {
+            await Unavailable(http, Error.Unavailable(BuildingCode, $"The projection '{TRow.Name}' v{TRow.Version} is being built.")).ConfigureAwait(false);
+            return;
+        }
+        http.Response.Headers[Positions.PositionHeader] = Positions.Format(checkpoint.Position);
+        if (await store.Find(new RowKey(tenant, id), http.RequestAborted).ConfigureAwait(false) is not { } found)
+        {
+            await Problem(http, Error.NotFound(notFound)).ConfigureAwait(false);
+            return;
+        }
+        var etag = "\"" + found.Version.ToString(CultureInfo.InvariantCulture) + "\"";
+        http.Response.Headers.ETag = etag;
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
+        {
+            http.Response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+        http.Response.StatusCode = StatusCodes.Status200OK;
+        http.Response.ContentType = "application/json";
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>(1024);
+        using (var writer = new Utf8JsonWriter(buffer))
+            JsonSerializer.Serialize(writer, found.Row, Json.GetTypeInfo<TRow>());
+        http.Response.ContentLength = buffer.WrittenCount;
+        await http.Response.Body.WriteAsync(buffer.WrittenMemory, http.RequestAborted).ConfigureAwait(false);
+    }
+
     private async Task Unavailable(HttpContext http, Error error)
     {
         http.Response.Headers.RetryAfter = ((int)Math.Ceiling(Options.Queries.RetryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);

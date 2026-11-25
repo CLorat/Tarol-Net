@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Tarol.Changes.AspNetCore.Generators;
 
-internal enum EntryKind { Change, Creation, View, List }
+internal enum EntryKind { Change, Creation, View, List, Row }
 
 /// <summary>An input member: C# name, type, explicit JSON name, route value kind (null = body), optional, default literal.</summary>
 internal sealed record Member(string Name, string Type, string? JsonName, string? RouteName, string? RouteKind, bool Optional, string? DefaultLiteral)

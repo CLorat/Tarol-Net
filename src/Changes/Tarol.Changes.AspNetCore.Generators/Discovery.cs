@@ -39,6 +39,8 @@ internal static class Discovery
 
         if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IQuery<TRow>") is { } query)
             return List(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)query.TypeArguments[0], location, ct);
+        if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IRowQuery<TRow>") is { } rowQuery)
+            return Row(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)rowQuery.TypeArguments[0], location, ct);
         if (attribute.NamedArguments.Any(n => n.Key == "RequiresScope" && n.Value.Value is true))
             return Fail(Diagnostics.NotAnEntry, type.Name, "RequiresScope applies to list queries (IQuery<TRow>) only");
 
@@ -290,6 +292,56 @@ internal static class Discovery
 
     private static readonly HashSet<string> Reserved = new(StringComparer.Ordinal) { "tenant", "id", "version", "doc" };
 
+    /// <summary>
+    /// A row entry (TN-54): an IRowQuery&lt;TRow&gt; record read with GET; its one member is the row's stream id from the route,
+    /// or it has none and the aggregate is [PerTenant].
+    /// </summary>
+    private static EntryResult Row(INamedTypeSymbol type, AttributeData attribute, string verb, string pattern, List<string> placeholders,
+        INamedTypeSymbol row, LocationInfo? location, CancellationToken ct)
+    {
+        EntryResult Fail(DiagnosticDescriptor d, params string[] args)
+            => new(null, default, new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(DiagnosticInfo.Create(d, location, args))));
+        if (verb != "GET")
+            return Fail(Diagnostics.NotAnEntry, type.Name, "a row query is read with GET");
+        if (type.IsGenericType || type.DeclaredAccessibility != Accessibility.Public)
+            return Fail(Diagnostics.NotAnEntry, type.Name, "an entry is a public, non-generic type");
+        var aggregate = RowAggregate(row);
+        if (aggregate is null)
+            return Fail(Diagnostics.NotAnEntry, type.Name, $"{row.Name} is not a [Projection] row record with When methods over an aggregate's events");
+        var ctor = type.InstanceConstructors
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !(c.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, type)))
+            .OrderByDescending(c => c.Parameters.Length).FirstOrDefault();
+        if (ctor is null)
+            return Fail(Diagnostics.NoConstructor, type.Name);
+        var members = new List<Member>();
+        if (ctor.Parameters.Length == 0)
+        {
+            if (!(RowAggregateSymbol(row)?.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute") ?? false))
+                return Fail(Diagnostics.RouteValue, type.Name, $"a row query without a member reads the tenant's row of a [PerTenant] aggregate; give it a route member Guid or Id<{Short(aggregate)}>");
+        }
+        else
+        {
+            var p = ctor.Parameters[0];
+            var kind = RouteKind(p.Type);
+            var placeholder = placeholders.FirstOrDefault(h => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase));
+            if (ctor.Parameters.Length > 1 || placeholder is null || kind is not ("guid" or "id"))
+                return Fail(Diagnostics.RouteValue, type.Name, "a row query has one member, the row's stream id from the route (a Guid or an Id<T>)");
+            members.Add(new Member(char.ToUpperInvariant(p.Name[0]) + p.Name.Substring(1), p.Type.ToDisplayString(Fq), null, placeholder, kind, false, null));
+        }
+        foreach (var h in placeholders.Where(h => !ctor.Parameters.Any(p => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase))))
+            return Fail(Diagnostics.RouteValue, type.Name, $"the route value '{{{h}}}' is not a member of the input");
+        var policy = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Policy").Value.Value as string;
+        var anonymous = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Anonymous").Value.Value is true;
+        var model = new EntryModel(type.Name, type.ToDisplayString(Fq), EntryKind.Row, aggregate, verb, pattern, policy, anonymous,
+            new EquatableArray<Member>(members.ToImmutableArray()), location,
+            new QueryModel(row.ToDisplayString(Fq), new EquatableArray<FilterModel>(ImmutableArray<FilterModel>.Empty), null,
+                new EquatableArray<SortModel>(ImmutableArray<SortModel>.Empty), null, false))
+        {
+            Errors = Codes(EntryKind.Row, aggregate, placeholders.Contains("tenant"), type, null, ct),
+        };
+        return new(model, default, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
+    }
+
     /// <summary>A list entry: an IQuery&lt;TRow&gt; record read with GET (step 12C, QR-4, QR-6).</summary>
     private static EntryResult List(INamedTypeSymbol type, AttributeData attribute, string verb, string pattern, List<string> placeholders,
         INamedTypeSymbol row, LocationInfo? location, CancellationToken ct)
@@ -467,7 +519,9 @@ internal static class Discovery
          };
 
     /// <summary>The aggregate of a projection row: the root of its When methods' first event (AggregateRoot&lt;T&gt; or Entity&lt;TRoot, _&gt;).</summary>
-    private static string? RowAggregate(INamedTypeSymbol row)
+    private static string? RowAggregate(INamedTypeSymbol row) => RowAggregateSymbol(row)?.ToDisplayString(Fq);
+
+    private static ITypeSymbol? RowAggregateSymbol(INamedTypeSymbol row)
     {
         foreach (var method in row.GetMembers("When").OfType<IMethodSymbol>())
         {
@@ -478,7 +532,7 @@ internal static class Discovery
                 if (current.ContainingType is not { } owner || owner.ContainingNamespace?.ToDisplayString() != "Tarol.Primitives")
                     continue;
                 if (owner.MetadataName is "AggregateRoot`1" or "Entity`2")
-                    return owner.TypeArguments[0].ToDisplayString(Fq);
+                    return owner.TypeArguments[0];
             }
         }
         return null;
@@ -618,6 +672,10 @@ internal static class Discovery
                 break;
             case EntryKind.List:
                 codes.Add("Projection.Building");
+                break;
+            case EntryKind.Row:
+                codes.Add("Projection.Building");
+                codes.Add(name + ".NotFound");
                 break;
         }
         if (kind is EntryKind.Change or EntryKind.Creation)

@@ -141,6 +141,23 @@ public sealed record HouseSeasonView(string Name, DateOnly From, DateOnly Until)
     static HouseSeasonView IView<House, HouseSeasonView>.From(House h) => new(h.Name, new DateOnly(2026, 4, 1), new DateOnly(2026, 10, 31));
 }
 
+/// <summary>The tenant's house as one projection row (TN-54, Tatalu FB-F01.2-4: a history row per tenant).</summary>
+[Tarol.Queries.Projection("houses")]
+public sealed partial record HouseRow(Guid Id, string Name, int Renames)
+{
+    public static HouseRow When(House.Founded e, RecordedEvent r) => new(r.StreamId, e.Name, 0);
+
+    public HouseRow When(House.Retitled e) => this with { Name = e.Name, Renames = Renames + 1 };
+}
+
+/// <summary>GET /house/row: the caller's tenant's row (House is [PerTenant]).</summary>
+[Endpoint("GET /house/row")]
+public sealed record TenantHouseRow : Tarol.Queries.IRowQuery<HouseRow>;
+
+/// <summary>GET /house-rows/{house}: the row of a stream id.</summary>
+[Endpoint("GET /house-rows/{house}")]
+public sealed record HouseRowById(Guid House) : Tarol.Queries.IRowQuery<HouseRow>;
+
 /// <summary>The payment provider's own contract (anti-corruption: its names stay here).</summary>
 public sealed record PaymentSucceededV2(string PaymentId, Guid Reference, decimal Amount, string Currency);
 public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
@@ -160,6 +177,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(House.Founded)), JsonSerializable(typeof(House.Retitled)), JsonSerializable(typeof(OpenHouse)), JsonSerializable(typeof(RenameHouse))]
 [JsonSerializable(typeof(HouseView))]
 [JsonSerializable(typeof(HouseSeasonView))]
+[JsonSerializable(typeof(HouseRow))]
 public sealed partial class AppJson : JsonSerializerContext;
 
 /// <summary>A note visible to its owner only (step 18D: the audience of a search hit).</summary>
