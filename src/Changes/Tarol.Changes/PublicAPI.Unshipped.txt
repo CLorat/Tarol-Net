@@ -64,7 +64,15 @@ Tarol.Changes.ReactionRun.Recorded.get -> System.Collections.Generic.IReadOnlyLi
 Tarol.Changes.ReactionRun.Recorded.init -> void
 Tarol.Changes.ReactionRun.Result.get -> Tarol.Results.Result<Tarol.Changes.ChangeOutcome>
 Tarol.Changes.ReactionRun.Result.init -> void
+Tarol.Changes.ReadAttribute.Optional.get -> bool
+Tarol.Changes.ReadAttribute.Optional.init -> void
 Tarol.Changes.Reads.Find<T>() -> T?
+Tarol.Changes.ReadsAttribute<T>
+Tarol.Changes.ReadsAttribute<T>.Optional.get -> bool
+Tarol.Changes.ReadsAttribute<T>.Optional.init -> void
+Tarol.Changes.ReadsAttribute<T>.ReadsAttribute() -> void
+Tarol.Changes.ReadsAttribute<T>.SameIdAs.get -> string?
+Tarol.Changes.ReadsAttribute<T>.SameIdAs.init -> void
 Tarol.Changes.TenantAggregates
 const Tarol.Changes.ChangePipeline.ConflictAttempts = 3 -> int
 const Tarol.Changes.TenantAggregates.TenantRequiredCode = "Tenant.Required" -> string!

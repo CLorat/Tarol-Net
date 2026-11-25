@@ -11,7 +11,11 @@ internal enum ChangeKind
 }
 
 /// <summary>A [Read] member: its name, the aggregate type (fully qualified) and its simple name.</summary>
-internal sealed record ReadModel(string Member, string Aggregate, string AggregateName);
+/// <summary>
+/// One read before Execute: <see cref="Key"/> in <c>Reads</c>; <see cref="IdExpression"/> computes the id from <c>this</c> and
+/// <c>context</c> (<see langword="null"/>: the tenant's one, TN-40); <see cref="Optional"/>: a miss is left out.
+/// </summary>
+internal sealed record ReadModel(string Key, string Aggregate, string AggregateName, string? IdExpression, bool Optional);
 
 /// <summary>What the source is emitted from: no locations, no symbols, no bodies.</summary>
 internal sealed record ChangeModel(

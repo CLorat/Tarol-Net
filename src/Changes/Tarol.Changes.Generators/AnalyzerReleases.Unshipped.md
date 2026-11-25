@@ -6,3 +6,4 @@
 Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 TCHG012 | Tarol.Changes | Error | Diagnostics
+TCHG013 | Tarol.Changes | Error | Diagnostics

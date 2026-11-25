@@ -26,7 +26,10 @@ description: >-
    id (`Id<T>.New(now)`). No load. `ChangeOutcome.StreamId` is the new id.
 4. **Special changes**: another key or load-or-create → `ILoads<T>` with `Load(IAggregateReader reader, ChangeContext
    context, CancellationToken ct)`. Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
-   `context.Read<X>()` (missing → 422 `X.NotFound`). A rule that must *change* two aggregates is a saga, not a change.
+   `context.Read<X>()` (missing → 422 `X.NotFound`; `[Read(Optional = true)]` + `context.TryRead(out X? x)`). Without an
+   input member: `[Reads<X>]` on the change for a `[PerTenant]` X, `[Reads<X>(SameIdAs = nameof(Member))]` for the X under
+   the same Guid (`Optional = true` allowed). Never implement `IHasReads` yourself (TCHG013). A `[Read]` of the target's
+   type is fine next to the target member (a sibling). A rule that must *change* two aggregates is a saga, not a change.
 5. **Time and actor come from the context**: `context.Now` (read once from the pipeline's `TimeProvider`),
    `context.Operation.Actor`. Never `DateTimeOffset.UtcNow` (TKRN001).
 6. **Inputs are `IValidatable`**, so value rules run before any read and return every field as `Invalid` (TCHG005 warns).
@@ -116,6 +119,7 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 | two `Id<Auction>` members, no explicit `Target` | TCHG001 |
 | `record Close(…) : IChange<…>` not `partial` | TCHG002 |
 | `[Read] string Customer`, or `[Read]` on the own target id | TCHG004 |
+| `[Reads<X>]` of an X that is not `[PerTenant]`, or a hand-written `IHasReads` next to reads | TCHG013 (was CS8646 without a hint) |
 | value-object members but no `IValidatable` | TCHG005: rules do not run before the load |
 | loading or saving inside `Execute` | not possible: `Execute` gets no store; use `ILoads<T>` or `[Read]` |
 | `context.Read<Artwork>()` without a `[Read] Id<Artwork>` member | `InvalidOperationException` ("no [Read] members") |

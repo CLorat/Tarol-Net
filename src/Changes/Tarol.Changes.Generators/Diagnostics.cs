@@ -89,8 +89,15 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "Reported by every assembly that references two or more assemblies declaring the same reaction or job name (typically the host). Renaming after a deployment breaks rows in flight; pin the old name with Name instead.");
 
+    public static readonly DiagnosticDescriptor ReadsMisuse = new(
+        "TCHG013", "[Reads<T>] cannot be loaded",
+        "[Reads<{0}>] on '{1}': {2}",
+        Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
+        description: "[Reads<T>] loads T before Execute: the tenant's one when T is [PerTenant], otherwise the one with the Guid of the member SameIdAs names (an Id<X> or a Guid). The generator writes IHasReads; a change does not implement it by hand.");
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
+        "TCHG013" => ReadsMisuse,
         "TCHG012" => NameAcrossAssemblies,
         "TCHG009" => JobShape,
         "TCHG010" => JobCron,

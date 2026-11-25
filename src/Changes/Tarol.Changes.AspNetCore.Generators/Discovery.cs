@@ -622,14 +622,21 @@ internal static class Discovery
         }
         if (kind is EntryKind.Change or EntryKind.Creation)
         {
-            // TN-30 (Tatalu FB-F04.1-2): a missing [Read] aggregate is 422 <X>.NotFound
+            // TN-30 (Tatalu FB-F04.1-2): a missing [Read] aggregate is 422 <X>.NotFound; not for an Optional one (TN-40)
+            static bool Required(AttributeData a) => a.AttributeClass?.ToDisplayString() == "Tarol.Changes.ReadAttribute"
+                && !a.NamedArguments.Any(static n => n.Key == "Optional" && n.Value.Value is true);
             foreach (var member in input.GetMembers().Where(static m => m is IPropertySymbol or IParameterSymbol))
-                if (member.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() == "Tarol.Changes.ReadAttribute") && IdTarget(member) is { } read)
+                if (member.GetAttributes().Any(Required) && IdTarget(member) is { } read)
                     codes.Add(read.Name + ".NotFound");
             foreach (var ctor in input.InstanceConstructors)
                 foreach (var p in ctor.Parameters)
-                    if (p.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() == "Tarol.Changes.ReadAttribute") && IdTarget(p) is { } read)
+                    if (p.GetAttributes().Any(Required) && IdTarget(p) is { } read)
                         codes.Add(read.Name + ".NotFound");
+            // [Reads<T>] on the change type (TN-40)
+            foreach (var a in input.GetAttributes())
+                if (a.AttributeClass is { IsGenericType: true } reads && reads.OriginalDefinition.ToDisplayString() == "Tarol.Changes.ReadsAttribute<T>"
+                    && !a.NamedArguments.Any(static n => n.Key == "Optional" && n.Value.Value is true))
+                    codes.Add(reads.TypeArguments[0].Name + ".NotFound");
         }
         if (kind is EntryKind.Change or EntryKind.Creation && compilation is not null)
         {
