@@ -60,6 +60,28 @@ public sealed class TopicRules : ITopicAuthorizer
     /// <returns>This.</returns>
     public TopicRules Publish(string topic, string? role = null) => Allow(TopicOperation.Publish, topic, role);
 
+    /// <summary>Allows subscribing to <paramref name="topic"/> for each of <paramref name="roles"/> (TN-61, Tatalu FB-F17.3-9).</summary>
+    /// <param name="topic">A topic, or a prefix ending in <c>*</c>.</param>
+    /// <param name="roles">The roles; any one of them is enough.</param>
+    /// <returns>This.</returns>
+    public TopicRules Subscribe(string topic, params string[] roles) => Each(TopicOperation.Subscribe, topic, roles);
+
+    /// <summary>Allows publishing to <paramref name="topic"/> for each of <paramref name="roles"/> (TN-61).</summary>
+    /// <param name="topic">A topic, or a prefix ending in <c>*</c>.</param>
+    /// <param name="roles">The roles; any one of them is enough.</param>
+    /// <returns>This.</returns>
+    public TopicRules Publish(string topic, params string[] roles) => Each(TopicOperation.Publish, topic, roles);
+
+    private TopicRules Each(TopicOperation operation, string topic, string[] roles)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        if (roles.Length == 0)
+            throw new ArgumentException("Name at least one role, or call the overload without roles for any authenticated user.", nameof(roles));
+        foreach (var role in roles)
+            Allow(operation, topic, role ?? throw new ArgumentException("A role is null.", nameof(roles)));
+        return this;
+    }
+
     /// <inheritdoc />
     public ValueTask<bool> Authorize(ClaimsPrincipal principal, TopicOperation operation, string topic, CancellationToken cancellationToken)
     {
