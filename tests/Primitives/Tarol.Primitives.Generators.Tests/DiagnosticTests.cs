@@ -200,6 +200,10 @@ public class DiagnosticTests
     [InlineData("public sealed record Input(int By, bool Confirmed); public Success Confirm(Input input) { input = input with { Confirmed = true }; return Raise(new Added(input.By)); }")]
     [InlineData("public sealed record Input(int By, bool Confirmed); public Input Copy(Input input) => input with { Confirmed = true };")]
     [InlineData("public sealed class Draft { public int By { get; set; } } public Draft Start() => new Draft { By = 1 };")]
+    // round 3: FB-E07-5 a copy of a state record, FB-F06.6-2 comparing two copies, FB-F05.1-2 a copy of a list entry of the state
+    [InlineData("public sealed record Rules(int UrgentPerDay); public Rules Settings { get; private set; } = new(0); public Success Set(int n) { var rules = Settings with { UrgentPerDay = n }; return Raise(new Added(rules.UrgentPerDay)); }")]
+    [InlineData("public sealed record Input(int By, bool Confirmed); public bool Same(Input a, Input b) => a with { Confirmed = false } == b with { Confirmed = false };")]
+    [InlineData("public sealed record Entry(int At); public System.Collections.Generic.List<Entry> Entries { get; } = []; public Entry Corrected(int i, int at) { var current = Entries[i]; return current with { At = at }; }")]
     public void TPRM013_Is_Not_Reported_For_A_With_Expression_Or_An_Initializer(string member)
         => Ids(Counter.Replace("public Success Add(int by)", member + "\n    public Success Add(int by)", StringComparison.Ordinal)).ShouldBeEmpty();
 
