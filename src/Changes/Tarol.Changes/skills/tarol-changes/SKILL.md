@@ -96,6 +96,7 @@ var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Ac
 | loading or saving inside `Execute` | not possible: `Execute` gets no store; use `ILoads<T>` or `[Read]` |
 | retrying `Stream.VersionConflict` around `Run` without an expected version | the pipeline did that already (3 attempts); with `If-Match` show the conflict instead |
 | an id member in a creation input | the factory chooses ids; send an `IdempotencyKey` to make retries safe |
+| a second change to store a failed attempt, then refuse | `Raise(…)` then `return Result.Rejected(Error.Conflict("X.WrongAnswer"));`: the events commit, the caller gets the refusal, a replay under the key gets it again (TN-46) |
 | a warning with an input flag (`bool ConfirmQuota`) and the data in `detail` | `if (!context.Confirmed("Absence.QuotaExceeded")) return Error.ConfirmationRequired("Absence.QuotaExceeded", args);` — the client resends with `Tarol-Confirm: Absence.QuotaExceeded` |
 
 ## Operations

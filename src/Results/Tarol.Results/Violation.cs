@@ -29,6 +29,14 @@ public closed record Violation
     /// <summary>Returns the HTTP status code for this violation: 400 for <see cref="Invalid"/>, the type's code for <see cref="Error"/>.</summary>
     /// <returns>The status code.</returns>
     public abstract int ToHttpStatusCode();
+
+    /// <summary>
+    /// Whether a change that returns this refusal still commits the events it raised (TN-46, Tatalu FB-F15.1-4: count a failed
+    /// attempt and answer 400). Set with <see cref="Result.Rejected"/>; the pipeline commits, answers this violation, and
+    /// stores it with the idempotency key, so a replay answers the same refusal. Not part of the JSON.
+    /// </summary>
+    [JsonIgnore]
+    public bool Commits { get; init; }
 }
 
 /// <summary>One validation problem of one field.</summary>

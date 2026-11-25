@@ -89,6 +89,25 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task A_refusal_is_stored_with_its_key_and_read_back()                       // TN-46
+    {
+        var store = postgres.Store(_time);
+        var context = NewTenant();
+        var member = Member.Join(Id<Member>.New(_time), "r@x");
+        var refusal = new Error(ErrorType.Conflict, "Invitation.WrongAnswer", "2 of 5") { Reasons = ["Invitation.Attempts"] };
+        var key = new IdempotencyKey(context.Tenant, "http", "refused-1") { Refusal = refusal };
+        var plain = new IdempotencyKey(context.Tenant, "http", "plain-1");
+        (await store.Append(member, 0, context, key, Ct)).IsSuccess.ShouldBeTrue();
+
+        var stored = (await store.Seen(key, Ct)).GetValueOrThrow();
+        (stored.Refusal as Error)!.Code.ShouldBe(refusal.Code);
+        ((Error)stored.Refusal!).Detail.ShouldBe("2 of 5");
+        ((Error)stored.Refusal!).Reasons.ShouldBe(["Invitation.Attempts"]);
+        (await postgres.Scalar($"SELECT refusal->>'code' FROM tarol.idempotency_keys WHERE key = 'refused-1'")).ShouldBe("Invitation.WrongAnswer");
+        (await store.Seen(plain, Ct)).IsSome.ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task A_load_by_replay_aggregate_stores_no_state()
     {
         var store = postgres.Store(_time);

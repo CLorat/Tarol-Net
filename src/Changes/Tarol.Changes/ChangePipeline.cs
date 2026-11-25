@@ -237,7 +237,14 @@ public sealed partial class ChangePipeline
 
         var decided = withData is not null ? withData.ExecuteWithData(aggregate, data, changeContext) : change.Execute(aggregate, changeContext);
         if (decided.TryGetValue(out Violation? refusedByGuard))
-            return refusedByGuard;
+        {
+            // TN-46 (Result.Rejected): the raised events commit, the caller gets the refusal; stored with the key, a replay answers it again
+            if (!refusedByGuard.Commits || aggregate.UncommittedChanges.Length == 0)
+                return refusedByGuard;
+            var keyed = options.Key.TryGetValue(out IdempotencyKey key) ? options with { Key = key with { Refusal = refusedByGuard } } : options;
+            var committed = await Commit(aggregate, expected, context, keyed, cancellationToken);
+            return committed.TryGetValue(out Violation? failed) ? failed : refusedByGuard;
+        }
         return await Commit(aggregate, expected, context, options, cancellationToken);
     }
 
@@ -350,6 +357,8 @@ public sealed partial class ChangePipeline
             KeyReused(_log, key.Scope, key.Key);                                                // the scope stays in the log (BC-17)
             return StoreErrors.KeyReused(key);                                                  // R-9: another request under the key
         }
+        if (stored.Refusal is { } refusal)
+            return refusal;                                                                     // TN-46: a committed refusal replays as itself
         return new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true) { Created = stored.Version == stored.Events };
     }
 

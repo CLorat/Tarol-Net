@@ -420,7 +420,7 @@ public sealed class InMemoryAggregateStore : IAggregateStore, IEventFeed, IDataP
                 stream.Lookups[lookup] = newKey;
             }
             if (key.TryGetValue(out idempotency))
-                _keys[Identity(idempotency)] = new StoredOutcome(aggregate.Id.Value, changes[^1].Version, changes.Length, idempotency.Fingerprint);
+                _keys[Identity(idempotency)] = new StoredOutcome(aggregate.Id.Value, changes[^1].Version, changes.Length, idempotency.Fingerprint) { Refusal = idempotency.Refusal };
             return _recorded[^1].Event.Position;
         }
     }

@@ -1,5 +1,9 @@
 #nullable enable
+Tarol.Persistence.IdempotencyKey.Refusal.get -> Tarol.Results.Violation?
+Tarol.Persistence.IdempotencyKey.Refusal.init -> void
 Tarol.Persistence.InMemoryAggregateStore.AssertNoPlaintext(string! plaintext) -> void
+Tarol.Persistence.StoredOutcome.Refusal.get -> Tarol.Results.Violation?
+Tarol.Persistence.StoredOutcome.Refusal.init -> void
 Tarol.Persistence.TarolBuilder.Modules.get -> System.Collections.Generic.IReadOnlyList<Tarol.Persistence.TarolModule!>!
 Tarol.Persistence.TarolBuilder.Modules.init -> void
 Tarol.Persistence.TarolModule

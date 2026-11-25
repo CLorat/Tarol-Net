@@ -275,6 +275,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
                 ? new StoredOutcome(reader.GetGuid(0), reader.GetInt64(1), reader.GetInt32(2),
                     reader.IsDBNull(3) ? Option.None : reader.GetString(3))
+                { Refusal = reader.IsDBNull(4) ? null : Refusals.Read(reader.GetString(4)) }
                 : Option.None;
     }
 
@@ -397,7 +398,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             NpgsqlBatchCommand? keyCommand = null;
             if (key.TryGetValue(out IdempotencyKey idempotency))
                 keyCommand = Command(batch, _sql.StoreKey, TenantOf(idempotency.Tenant), idempotency.Scope, idempotency.Key, id, version, changes.Length, at, eventIds[0],
-                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = idempotency.Fingerprint.TryGetValue(out string? fingerprint) ? fingerprint : DBNull.Value });
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = idempotency.Fingerprint.TryGetValue(out string? fingerprint) ? fingerprint : DBNull.Value },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = idempotency.Refusal is { } refusal ? Refusals.Write(refusal) : DBNull.Value });
             var lookupCommands = new List<(NpgsqlBatchCommand Command, string Lookup, string Key)>();
             foreach (var (lookup, lookupKey) in lookupKeys)
             {
@@ -1036,8 +1038,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             """;
 
         public string StoreKey => field ??= $"""
-            INSERT INTO {schema}.idempotency_keys (tenant, scope, key, stream_id, version, events, stored_at, fingerprint)
-            SELECT $1, $2, $3, $4, $5, $6, $7, $9 WHERE {Ours("$8")}
+            INSERT INTO {schema}.idempotency_keys (tenant, scope, key, stream_id, version, events, stored_at, fingerprint, refusal)
+            SELECT $1, $2, $3, $4, $5, $6, $7, $9, $10::jsonb WHERE {Ours("$8")}
             ON CONFLICT (tenant, scope, key) DO NOTHING
             """;
 
@@ -1090,7 +1092,7 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
 
         public string Find => field ??= $"SELECT stream_id FROM {schema}.lookups WHERE tenant = $1 AND type = $2 AND lookup = $3 AND key = $4";
 
-        public string Seen => field ??= $"SELECT stream_id, version, events, fingerprint FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
+        public string Seen => field ??= $"SELECT stream_id, version, events, fingerprint, refusal::text FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
 
         // (tx_id, position) is the order; only transactions older than the oldest running one are final (P-14).
         // The text column needs its own name: ORDER BY tx_id would otherwise sort by the text output column.

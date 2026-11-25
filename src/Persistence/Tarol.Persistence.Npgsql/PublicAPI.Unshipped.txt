@@ -1,1 +1,2 @@
 #nullable enable
+const Tarol.Persistence.Npgsql.NpgsqlSchema.Version = 5 -> int

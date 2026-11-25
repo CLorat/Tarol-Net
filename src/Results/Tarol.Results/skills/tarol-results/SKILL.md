@@ -74,7 +74,8 @@ Factories: `Error.NotFound(code)`, `Error.NotFound<TEntity, TId>(id)` (code `"{T
 reasons), `Error.ConfirmationRequired(code, args)` (a warning the caller confirms: 409 with `confirm: {code, args}`; args are
 strings for the message, not parsed detail); `Invalid.Field(field, code)`,
 `new Invalid(params FieldError[])`, `invalid.Combine(other)`. Results: `Result.Success()`, `Result.Success(value)`,
-`Result<T>.Failure(violation)`. Combinators: `Map`, `Bind`, `Ensure`, `Tap`, `TapFailure`, `Match`,
+`Result<T>.Failure(violation)`. `Result.Rejected(violation)` marks a refusal that still commits the change's raised
+events (`Violation.Commits`, not in the JSON; TN-46). Combinators: `Map`, `Bind`, `Ensure`, `Tap`, `TapFailure`, `Match`,
 `GetValueOrDefault`, `ToResult()`, `MapAsync`/`BindAsync`/`EnsureAsync`/`TapAsync`, plus `Map`/`Bind`/`BindAsync`/`Ensure`/
 `Tap`/`TapFailure`/`Match` on `ValueTask<Result<T>>`; `Result.Combine(r1, r2)` gives a tuple; `results.Sequence()`.
 
