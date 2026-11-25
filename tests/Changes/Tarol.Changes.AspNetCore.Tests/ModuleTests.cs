@@ -34,7 +34,7 @@ public sealed class ModuleTests : IAsyncLifetime
         .With(new SecurityModule(roles => roles.Authenticated().May<LayPlot>().May<RenamePlot>().May<Read<Plot>>()));
 
     private static TarolModule KitchenModule => Kitchen.GeneratedModule.Module
-        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<Read<Recipe>>()));
+        .With(new SecurityModule(roles => roles.Role("cook").May<WriteRecipe>().May<ScaleRecipe>().May<PlanRecipe>().May<PriceRecipe>().May<Read<Recipe>>()));
 
     public async ValueTask InitializeAsync()
     {
@@ -118,7 +118,7 @@ public sealed class ModuleTests : IAsyncLifetime
         var paths = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
 
         var operations = paths.EnumerateObject().SelectMany(p => p.Value.EnumerateObject().Select(o => (Path: p.Name, Verb: o.Name, Operation: o.Value))).ToList();
-        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/servings"]);
+        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/plan", "/recipes/{recipe}/price", "/recipes/{recipe}/servings"]);
         foreach (var (path, verb, operation) in operations)
         {
             var parameters = operation.TryGetProperty("parameters", out var p) ? p.EnumerateArray().Select(x => $"{x.GetProperty("in").GetString()}:{x.GetProperty("name").GetString()}").ToList() : [];
@@ -177,6 +177,35 @@ public sealed class ModuleTests : IAsyncLifetime
         var note = body.GetProperty("note");
         note.GetProperty("oneOf")[0].GetProperty("type").GetString().ShouldBe("null");
         note.GetProperty("oneOf")[1].GetProperty("$ref").GetString().ShouldBe("#/components/schemas/PantryLabel");
+    }
+
+    [Fact]
+    public async Task Scale_is_multipleOf_in_the_schema_and_a_400_with_code_Scale()
+    {
+        // TN-53 (Tatalu E08–E10): decimal stays a JSON number; [Scale(2)] gives multipleOf 0.01 and the rule with its step
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        var schemas = document.GetProperty("components").GetProperty("schemas");
+        JsonElement Resolve(JsonElement schema)
+            => schema.TryGetProperty("$ref", out var r) ? schemas.GetProperty(r.GetString()!["#/components/schemas/".Length..]) : schema;
+        var body = Resolve(document.GetProperty("paths").GetProperty("/recipes/{recipe}/price").GetProperty("put").GetProperty("requestBody")
+            .GetProperty("content").GetProperty("application/json").GetProperty("schema")).GetProperty("properties");
+
+        var price = Resolve(body.GetProperty("price"));
+        price.GetProperty("multipleOf").GetDecimal().ShouldBe(0.01m);
+        price.GetProperty("minimum").GetDecimal().ShouldBe(0m);
+        price.GetProperty("x-tarol-rules").EnumerateArray().Single(r => r.GetProperty("rule").GetString() == "Scale").GetProperty("step").GetDecimal().ShouldBe(0.01m);
+        body.GetProperty("weight").GetProperty("multipleOf").GetDecimal().ShouldBe(0.1m);
+
+        var recipe = await Send(HttpMethod.Post, "/recipes", """{"title":"Soup"}""");
+        var id = JsonElement.Parse(recipe.Body).GetProperty("id").GetString();
+        var refused = await Send(HttpMethod.Put, $"/recipes/{id}/price", """{"price":12.505,"weight":1.25}""");
+        var priced = await Send(HttpMethod.Put, $"/recipes/{id}/price", """{"price":12.50,"weight":1.2}""");
+
+        refused.Status.ShouldBe(HttpStatusCode.BadRequest, refused.Body);
+        var errors = JsonElement.Parse(refused.Body).GetProperty("errors");
+        errors.GetProperty("price").EnumerateArray().Single().GetString().ShouldStartWith("Scale");
+        errors.GetProperty("weight").EnumerateArray().Single().GetString().ShouldStartWith("Scale");
+        priced.Status.ShouldBe(HttpStatusCode.NoContent, priced.Body);
     }
 
     [Fact]

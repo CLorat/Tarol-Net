@@ -24,4 +24,7 @@ public static class ValidationCodes
 
     /// <summary>A collection whose number of elements is outside <see cref="CountAttribute" />.</summary>
     public const string Count = "Count";
+
+    /// <summary>A decimal has more digits after the decimal point than <see cref="ScaleAttribute"/> allows; detail: the digits.</summary>
+    public const string Scale = "Scale";
 }

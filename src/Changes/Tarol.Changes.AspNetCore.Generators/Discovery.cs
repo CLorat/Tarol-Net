@@ -261,6 +261,11 @@ internal static class Discovery
                 case "RangeAttribute":
                     rules.Add(new RuleModel("Range", "Range", Number(Arg(0, "Min")), Number(Arg(1, "Max")), null, null));
                     break;
+                case "ScaleAttribute" when a.ConstructorArguments.Length == 1 && a.ConstructorArguments[0].Value is int digits and >= 0 and <= 28:
+                    // TN-53: multipleOf 10^-digits; the step as text (0.01), exact as a decimal
+                    rules.Add(new RuleModel("Scale", "Scale", null, null, null, null,
+                        digits == 0 ? "1" : "0." + new string('0', digits - 1) + "1"));
+                    break;
                 case "NotEmptyAttribute":
                     rules.Add(new RuleModel("NotEmpty", "Required", null, null, null, null));
                     break;

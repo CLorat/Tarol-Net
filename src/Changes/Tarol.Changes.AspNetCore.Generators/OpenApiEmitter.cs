@@ -136,6 +136,8 @@ internal static class OpenApiEmitter
                 sb.Append("            schema.Maximum = ").Append(Emitter.Literal(vo.Maximum)).Append(";\n");
             if (vo.Pattern is not null)
                 sb.Append("            schema.Pattern = ").Append(Emitter.Literal(vo.Pattern)).Append(";\n");
+            if (vo.Rules.FirstOrDefault(static r => r.Rule == "Scale")?.Step is { } step)
+                sb.Append("            schema.MultipleOf = ").Append(step).Append("m;\n");              // TN-53
             if (vo.Rules.Count > 0)
                 sb.Append("            Rules(schema, ").Append(RuleArray(vo.Rules)).Append(", keywords: false);\n");
             sb.Append("            return;\n        }\n");
@@ -155,7 +157,7 @@ internal static class OpenApiEmitter
     }
 
     private static string RuleArray(EquatableArray<RuleModel> rules)
-        => "new Rule[] { " + string.Join(", ", rules.Select(r => $"new({Emitter.Literal(r.Rule)}, {Emitter.Literal(r.Code)}, {Lit(r.Min)}, {Lit(r.Max)}, {Lit(r.Pattern)}, {Lit(r.Flags)})")) + " }";
+        => "new Rule[] { " + string.Join(", ", rules.Select(r => $"new({Emitter.Literal(r.Rule)}, {Emitter.Literal(r.Code)}, {Lit(r.Min)}, {Lit(r.Max)}, {Lit(r.Pattern)}, {Lit(r.Flags)}{(r.Step is null ? "" : ", " + Lit(r.Step))})")) + " }";
 
     private static string Lit(string? value) => value is null ? "null" : Emitter.Literal(value);
 
@@ -210,7 +212,7 @@ internal static class OpenApiEmitter
             private const string ProblemSchemaId = "TarolProblem";
 
             /// <summary>A validation rule as the client checks it (BC-4): the attribute, the code it reports, its bounds, its pattern and flags.</summary>
-            private readonly record struct Rule(string Name, string Code, string? Min, string? Max, string? Pattern, string? Flags);
+            private readonly record struct Rule(string Name, string Code, string? Min, string? Max, string? Pattern, string? Flags, string? Step = null);
 
             /// <summary>Tarol.Validations' [Email] (Rules.Email), for clients that check it the same way.</summary>
             private const string EmailRule = "one @ with 1 to 64 characters before it; a domain of at most 253 characters that contains a dot, does not start or end with one and has no empty label; no white space; at most 254 characters";
@@ -244,6 +246,8 @@ internal static class OpenApiEmitter
                         item["pattern"] = rule.Pattern;
                     if (rule.Flags is not null)
                         item["flags"] = rule.Flags;
+                    if (rule.Step is not null)
+                        item["step"] = Bound(rule.Step);
                     list.Add((global::System.Text.Json.Nodes.JsonNode)item);
                     if (rule.Name == "Email")
                         Extension(schema.Extensions ??= new global::System.Collections.Generic.Dictionary<string, global::Microsoft.OpenApi.IOpenApiExtension>(), "x-tarol-email",
@@ -269,6 +273,9 @@ internal static class OpenApiEmitter
                             break;
                         case "Pattern":
                             schema.Pattern = rule.Pattern;
+                            break;
+                        case "Scale":
+                            schema.MultipleOf = rule.Step is { } step ? decimal.Parse(step, global::System.Globalization.CultureInfo.InvariantCulture) : schema.MultipleOf;
                             break;
                         case "Email":
                             schema.Format = "email";
@@ -394,6 +401,7 @@ internal static class OpenApiEmitter
                 schema.MaxLength = value.MaxLength;
                 schema.Minimum = value.Minimum;
                 schema.Maximum = value.Maximum;
+                schema.MultipleOf = value.MultipleOf;
                 schema.Items = value.Items;
                 schema.Properties = value.Properties;
                 schema.Required = value.Required;
@@ -412,6 +420,7 @@ internal static class OpenApiEmitter
                 schema.MaxLength = null;
                 schema.Minimum = null;
                 schema.Maximum = null;
+                schema.MultipleOf = null;
                 schema.Items = null;
                 schema.Properties = null;
                 schema.Required = null;

@@ -32,6 +32,12 @@ public static class Rules
     /// <returns><see langword="false" /> for <see langword="null" />, empty and white-space-only text.</returns>
     public static bool NotBlank(string? value) => !string.IsNullOrWhiteSpace(value);
 
+    /// <summary>Whether <paramref name="value"/> has at most <paramref name="digits"/> digits after the decimal point (<see cref="ScaleAttribute"/>; trailing zeros do not count).</summary>
+    /// <param name="value">The value.</param>
+    /// <param name="digits">The digits allowed.</param>
+    /// <returns><see langword="true"/> when rounding to <paramref name="digits"/> keeps the value.</returns>
+    public static bool Scale(decimal value, int digits) => decimal.Round(value, digits) == value;
+
     /// <summary>
     ///     A structural e-mail check without a regular expression: one <c>@</c> with 1–64 characters before it, a domain of at
     ///     most 253 characters that contains a dot, does not start or end with one and has no empty label, no white space,
