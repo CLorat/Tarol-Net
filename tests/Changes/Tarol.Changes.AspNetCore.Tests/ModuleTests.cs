@@ -289,6 +289,40 @@ public sealed class ModuleTests : IAsyncLifetime
             names.Distinct().Count().ShouldBe(names.Count, $"{verb} {path}: {string.Join(", ", names)}");
         }
     }
+
+    [Fact]
+    public async Task With_three_assemblies_a_list_answer_is_one_page_not_a_page_of_pages()
+    {
+        // Tatalu FB-F06.3-1 (preview.5): each assembly's transformer wrapped every list answer again; nine contexts, nine levels
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddTarol([GardenJson.Default, KitchenJson.Default], c => c.Add<Plot>().Add<Recipe>()).UseInMemoryStore().AddSecurity(_ => { }).AddEndpoints();
+        builder.Services.AddAuthentication("test").AddScheme<AuthenticationSchemeOptions, TestApp.HeaderScheme>("test", null);
+        builder.Services.AddAuthorization();
+        builder.Services.AddOpenApi(o =>
+        {
+            Garden.GeneratedOpenApi.AddTarolEndpoints(o);
+            Kitchen.GeneratedOpenApi.AddTarolEndpoints(o);
+            o.AddTarolEndpoints();                                                       // a third assembly (this one's)
+        });
+        await using var app = builder.Build();
+        app.MapOpenApi();
+        Garden.GeneratedEndpoints.MapChanges(app, "Garden");
+        Kitchen.GeneratedEndpoints.MapChanges(app, "Kitchen");
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var paths = JsonElement.Parse(await app.GetTestClient().GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
+
+        foreach (var path in new[] { "/plots", "/recipes" })
+        {
+            var page = paths.GetProperty(path).GetProperty("get").GetProperty("responses").GetProperty("200").GetProperty("content")
+                .GetProperty("application/json").GetProperty("schema");
+            page.GetProperty("properties").EnumerateObject().Select(p => p.Name).ShouldBe(["items", "next", "total"], ignoreOrder: true);
+            var row = page.GetProperty("properties").GetProperty("items").GetProperty("items");
+            row.TryGetProperty("$ref", out _).ShouldBeTrue($"{path}: the items are rows, not pages: {row}");
+        }
+    }
 }
 
 /// <summary>TN-22 (Tatalu FB-INT-1): two types with one schema name fail the document; a pinned name and Option&lt;T&gt; are handled.</summary>
