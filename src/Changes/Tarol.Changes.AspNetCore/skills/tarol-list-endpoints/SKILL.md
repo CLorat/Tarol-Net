@@ -31,6 +31,9 @@ public sealed record MyAuctions([FromClaim("sub")] string Seller) : IQuery<Aucti
 
 * Filter members are **nullable** and named like a row member (`Status` → column `status`); `?status=Open` (enum names,
   case-insensitive). A member named `Sort` of an enum whose members name `[Sort]` members (or `Id`) is the order.
+* Ranges (TN-44): `[AtLeast(nameof(Row.Day))] DateOnly? From, [AtMost(nameof(Row.Day))] DateOnly? Until` lists
+  `?from=2026-11-01&until=2026-11-30` (both inclusive, both optional; a null column never matches). The member's type is
+  the column's (TQRY005 otherwise); mark the column `[Sort]` when the range is the common case, for the index.
 * `?sort=HighestBid` names an enum member (case-insensitive); a member without `[Descending]` ascends. The default is
   the `Sort` member's default value.
 * `[FromClaim("sub")]` binds the caller's claim (403 without it); never add a request parameter for "my" rows. The row's

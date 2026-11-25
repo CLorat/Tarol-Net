@@ -36,6 +36,31 @@ public sealed class ProjectionAttribute(string name) : Attribute
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter, Inherited = false)]
 public sealed class SortAttribute : Attribute;
 
+/// <summary>
+/// Makes a member of a list query record a lower bound (TN-44): the endpoint lists the rows whose
+/// <paramref name="member"/> is at least the value (<c>&gt;=</c>; a <see langword="null"/> column never matches). The member
+/// is nullable, its type is the column's, and absent means no bound: <c>[AtLeast(nameof(AttendanceRow.Day))] DateOnly? From</c>.
+/// </summary>
+/// <param name="member">The row member (<c>nameof(Row.Day)</c>).</param>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter, Inherited = false)]
+public sealed class AtLeastAttribute(string member) : Attribute
+{
+    /// <summary>The row member the bound applies to.</summary>
+    public string Member { get; } = member;
+}
+
+/// <summary>
+/// Makes a member of a list query record an upper bound (TN-44): the rows whose <paramref name="member"/> is at most the value
+/// (<c>&lt;=</c>, inclusive). With an <see cref="AtLeastAttribute"/> member on the same row member it is a closed range.
+/// </summary>
+/// <param name="member">The row member (<c>nameof(Row.Day)</c>).</param>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter, Inherited = false)]
+public sealed class AtMostAttribute(string member) : Attribute
+{
+    /// <summary>The row member the bound applies to.</summary>
+    public string Member { get; } = member;
+}
+
 /// <summary>Marks a member of a query record's sort enum as descending (the row id, the tie-break, descends with it).</summary>
 [AttributeUsage(AttributeTargets.Field, Inherited = false)]
 public sealed class DescendingAttribute : Attribute;

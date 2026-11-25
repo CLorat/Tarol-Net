@@ -425,6 +425,12 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                 ? $" AND {NpgsqlReadModelSchema.Quote(set.Name)} && ${parameters.Count}"
                 : $" AND {NpgsqlReadModelSchema.Quote(set.Name)} = ANY(${parameters.Count})");
         }
+        foreach (var (column, bound, value) in plan.Ranges)
+        {
+            // a null column fails >= and <=, as in the in-memory store
+            parameters.Add(new NpgsqlParameter { Value = value });
+            where.Append(CultureInfo.InvariantCulture, $" AND {NpgsqlReadModelSchema.Quote(column.Name)} {(bound == RangeBound.AtLeast ? ">=" : "<=")} ${parameters.Count}");
+        }
         return where.ToString();
     }
 

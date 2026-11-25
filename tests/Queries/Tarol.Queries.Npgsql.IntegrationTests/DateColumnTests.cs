@@ -55,6 +55,10 @@ public sealed class DateColumnTests(Postgres postgres)
             Query(TenantA) with { Filters = [new ColumnFilter("contract_ends", null)], Sort = "day", Limit = 2 },
             Query(TenantA) with { Filters = [new ColumnFilter("arrived", new TimeOnly(8, 15, 0, 123, 456))] },
             Query(TenantA).Within(ListScope.In("day", [Monday, Monday.AddDays(4)])) with { Sort = "day" },
+            // TN-44: a closed range of days, an open one, and a range over a nullable column (nulls never match)
+            Query(TenantA) with { Ranges = [new RangeFilter("day", RangeBound.AtLeast, Monday.AddDays(1)), new RangeFilter("day", RangeBound.AtMost, Monday.AddDays(3))], Sort = "day", Limit = 2 },
+            Query(TenantA) with { Ranges = [new RangeFilter("arrived", RangeBound.AtLeast, new TimeOnly(8, 0))], Sort = "day" },
+            Query(TenantA) with { Ranges = [new RangeFilter("contract_ends", RangeBound.AtLeast, Monday)], Sort = "day", Limit = 3 },
         })
         {
             var sql = await store.All(query);

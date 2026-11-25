@@ -225,6 +225,9 @@ public sealed class DiagnosticTests
     [InlineData("public sealed record Q(long? Items) : IQuery<OrderRow>;", "holds int, not long")]
     [InlineData("public sealed record Q(S Sort = S.Customer) : IQuery<OrderRow>; public enum S { Customer }", "names no [Sort] member")]
     [InlineData("public sealed record Q([FromClaim(\"sub\")] OrderState State) : IQuery<OrderRow>;", "a string or a Guid")]
+    [InlineData("public sealed record Q([AtLeast(\"Nope\")] int? From) : IQuery<OrderRow>;", "has no typed column 'Nope' for the [AtLeast] bound")]  // TN-44
+    [InlineData("public sealed record Q([AtMost(nameof(OrderRow.Items))] long? Until) : IQuery<OrderRow>;", "holds int, not long")]
+    [InlineData("public sealed record Q([AtMost(nameof(OrderRow.Items))] int Until) : IQuery<OrderRow>;", "a filter member is nullable")]
     public void TQRY005_query_members_name_columns(string record, string message)
         => Message("[Endpoint(\"GET /q\")] " + record, "TQRY005").ShouldContain(message);
 

@@ -423,9 +423,17 @@ internal static class Discovery
                 defaultSort ??= sorts.FirstOrDefault()?.EnumMember;
                 continue;
             }
-            if (!columns.TryGetValue(name, out var target))
+            var (bound, bounded) = BoundOf(p) ?? (property is null ? null : BoundOf(property)) ?? (null, name);
+            if (bound is not null && (claim is not null || placeholder is not null))
             {
-                Bad($"{row.Name} has no typed column '{name}' (filters compare equal to a scalar member of the row)");
+                Bad("an [AtLeast]/[AtMost] member is read from the query string, not a claim or the route");
+                continue;
+            }
+            if (!columns.TryGetValue(bounded, out var target))
+            {
+                Bad(bound is null
+                    ? $"{row.Name} has no typed column '{name}' (filters compare equal to a scalar member of the row)"
+                    : $"{row.Name} has no typed column '{bounded}' for the [{bound}] bound");
                 continue;
             }
             if (!SymbolEqualityComparer.Default.Equals(underlying, Underlying(target.Type)))
@@ -473,7 +481,7 @@ internal static class Discovery
                 Bad($"{underlying.ToDisplayString()} cannot be read from the query string");
                 continue;
             }
-            filters.Add(new FilterModel(name, typeName, target.Column, parse!, "query", null, openApi, new EquatableArray<string>(values)));
+            filters.Add(new FilterModel(name, typeName, target.Column, parse!, "query", null, openApi, new EquatableArray<string>(values), bound));
         }
         foreach (var h in placeholders.Where(h => !ctor.Parameters.Any(p => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase))))
             diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name, $"the route value '{{{h}}}' is not a member of the input"));
@@ -492,6 +500,18 @@ internal static class Discovery
             Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
         };
         return new(model, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
+    }
+
+    // [AtLeast(member)] / [AtMost(member)] (TN-44): the bound and the row member it applies to
+    private static (string? Bound, string Member)? BoundOf(ISymbol symbol)
+    {
+        foreach (var a in symbol.GetAttributes())
+        {
+            var name = a.AttributeClass?.ToDisplayString();
+            if (name is "Tarol.Queries.AtLeastAttribute" or "Tarol.Queries.AtMostAttribute" && a.ConstructorArguments.Length == 1 && a.ConstructorArguments[0].Value is string member)
+                return (name == "Tarol.Queries.AtLeastAttribute" ? "AtLeast" : "AtMost", member);
+        }
+        return null;
     }
 
     private static string? ClaimOf(ISymbol symbol)

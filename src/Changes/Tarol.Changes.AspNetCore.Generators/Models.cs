@@ -20,7 +20,7 @@ internal sealed record RequiredModel(string Name, string? JsonName, bool Optiona
 
 /// <summary>A filter of a list: the member, its non-nullable type, the column, how it is parsed ("enum", "string", "date", "time" or "parsable"),
 /// where it comes from ("query", "route", "claim"), the claim type and the OpenAPI kind.</summary>
-internal sealed record FilterModel(string Member, string Type, string Column, string Parse, string Source, string? Claim, string OpenApiKind, EquatableArray<string> Values);
+internal sealed record FilterModel(string Member, string Type, string Column, string Parse, string Source, string? Claim, string OpenApiKind, EquatableArray<string> Values, string? Bound = null);
 
 /// <summary>A sort of a list: the enum member, the column (or "id") and the direction.</summary>
 internal sealed record SortModel(string EnumMember, string Column, bool Descending);

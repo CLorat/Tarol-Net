@@ -105,7 +105,8 @@ internal static class Emitter
             sb.Append(",\n                    new global::Tarol.Changes.AspNetCore.QueryParameter[]\n                    {\n");
             foreach (var f in q.Filters.Where(f => f.Source == "query"))
                 sb.Append("                        new(web.Names((\"").Append(f.Member).Append("\", null))[0], \"").Append(f.OpenApiKind).Append("\", new string[] { ")
-                  .Append(string.Join(", ", f.Values.Select(Literal))).Append(" }, \"Equal to the row's ").Append(f.Column).Append("; absent: any\"),\n");
+                  .Append(string.Join(", ", f.Values.Select(Literal))).Append(" }, \"").Append(f.Bound switch { "AtLeast" => "At least", "AtMost" => "At most", _ => "Equal to" }).Append(" the row's ").Append(f.Column)
+                  .Append(f.Bound is null ? "; absent: any" : " (inclusive; a null never matches); absent: no bound").Append("\"),\n");
             if (q.SortMember is not null)
                 sb.Append("                        new(\"sort\", \"enum\", new string[] { ").Append(string.Join(", ", q.Sorts.Select(o => Literal(o.EnumMember))))
                   .Append(" }, \"The order (default ").Append(q.DefaultSort).Append("); the id breaks ties\"),\n");
@@ -212,6 +213,9 @@ internal static class Emitter
         sb.Append("        if (tenant is null)\n            return;                                                     // 401, 403 or 404 written\n");
         sb.Append("        global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;\n");
         sb.Append("        var filters = new global::System.Collections.Generic.List<global::Tarol.Queries.ColumnFilter>(").Append(q.Filters.Count).Append(");\n");
+        var ranged = q.Filters.Any(f => f.Bound is not null);
+        if (ranged)
+            sb.Append("        var ranges = new global::System.Collections.Generic.List<global::Tarol.Queries.RangeFilter>(2);\n");
         foreach (var f in q.Filters.Where(f => f.Source == "claim"))
         {
             sb.Append("        var claim_").Append(f.Member).Append(" = ").Append(Web).Append(".Claim(http, ").Append(Literal(f.Claim!)).Append(");\n");
@@ -232,13 +236,19 @@ internal static class Emitter
             sb.Append("        else if (q_").Append(f.Member).Append(" is not null)\n        {\n");
             if (f.Parse == "string")
             {
-                sb.Append("            filters.Add(new(").Append(Literal(f.Column)).Append(", q_").Append(f.Member).Append("));\n");
+                if (f.Bound is null)
+                    sb.Append("            filters.Add(new(").Append(Literal(f.Column)).Append(", q_").Append(f.Member).Append("));\n");
+                else
+                    sb.Append("            ranges.Add(new(").Append(Literal(f.Column)).Append(", global::Tarol.Queries.RangeBound.").Append(f.Bound).Append(", q_").Append(f.Member).Append("));\n");
             }
             else
             {
                 sb.Append("            if (").Append(Web).Append(f.Parse switch { "enum" => ".TryEnum<", "date" => ".TryDate(", "time" => ".TryTime(", _ => ".TryFilter<" })
                   .Append(f.Parse is "date" or "time" ? "" : f.Type + ">(").Append("q_").Append(f.Member).Append(", out var v_").Append(f.Member).Append("))\n");
-                sb.Append("                filters.Add(new(").Append(Literal(f.Column)).Append(", v_").Append(f.Member).Append("));\n");
+                if (f.Bound is null)
+                    sb.Append("                filters.Add(new(").Append(Literal(f.Column)).Append(", v_").Append(f.Member).Append("));\n");
+                else
+                    sb.Append("                ranges.Add(new(").Append(Literal(f.Column)).Append(", global::Tarol.Queries.RangeBound.").Append(f.Bound).Append(", v_").Append(f.Member).Append("));\n");
                 sb.Append("            else\n                (errors ??= new()).Add(new(\"").Append(f.Member).Append("\", \"Format\"));\n");
             }
             sb.Append("        }\n");
@@ -260,7 +270,8 @@ internal static class Emitter
             sb.Append(q.Sorts.Count > 0 ? "            else\n    " : "").Append("            (errors ??= new()).Add(new(\"sort\", \"Format\"));\n");
             sb.Append("        }\n");
         }
-        sb.Append("        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters, Sort = sort, Descending = descending }, ref errors);\n");
+        sb.Append("        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters").Append(ranged ? ", Ranges = ranges" : "")
+          .Append(", Sort = sort, Descending = descending }, ref errors);\n");
         sb.Append("        if (errors is not null)\n        {\n            await web.Problem(http, new global::Tarol.Results.Invalid(errors));\n            return;\n        }\n");
         sb.Append("        query = await web.Scope<").Append(e.FullName).Append(">(http, query").Append(q.RequiresScope ? ", required: true" : "")
           .Append(");          // the caller's rows (IListScope, TN-6)\n");

@@ -96,4 +96,42 @@ public sealed class DateColumnTests
         ColumnValues.TryParse(type, "99999999999999", out _).ShouldBeFalse();
         Should.Throw<ArgumentException>(() => ColumnValues.Normalize(type, DateTimeOffset.UnixEpoch));   // an instant is not a day
     }
+
+    [Fact]
+    public async Task A_range_of_days_lists_the_days_between_its_bounds_with_cursor_pages()
+    {
+        var test = await Seeded();
+
+        var week = await All(test, Query(A) with
+        {
+            Ranges = [new RangeFilter("day", RangeBound.AtLeast, Monday.AddDays(1)), new RangeFilter(nameof(AttendanceRow.Day), RangeBound.AtMost, Monday.AddDays(3))],
+            Sort = "day",
+            Limit = 2,
+        });
+        var ended = await All(test, Query(A) with { Ranges = [new RangeFilter("contract_ends", RangeBound.AtLeast, Monday)] });
+        var late = await All(test, Query(A) with { Ranges = [new RangeFilter("arrived", RangeBound.AtLeast, new TimeOnly(8, 0))] });
+
+        week.Select(r => r.Day).Distinct().ShouldBe([Monday.AddDays(1), Monday.AddDays(2), Monday.AddDays(3)]);
+        week.Count.ShouldBe(6);
+        ended.Count.ShouldBe(5); // Mia's rows have no contract end: null never matches a range
+        ended.ShouldAllBe(r => r.Child == Leo);
+        late.ShouldAllBe(r => r.Child == Leo);
+    }
+
+    [Fact]
+    public async Task A_range_binds_the_cursor_and_rejects_arrays_and_nulls()
+    {
+        var test = await Seeded();
+        var start = Query(A) with { Ranges = [new RangeFilter("day", RangeBound.AtLeast, Monday.AddDays(1))], Sort = "day", Limit = 1 };
+        var first = await test.Search(start);
+        first.TryGetValue(out Page<AttendanceRow>? page).ShouldBeTrue();
+
+        var moved = await test.Search(start with { Ranges = [new RangeFilter("day", RangeBound.AtLeast, Monday)], After = page!.Next });
+        var unchanged = await test.Search(Query(A) with { Sort = "day", Limit = 1 });
+
+        moved.IsSuccess.ShouldBeFalse(); // another range is another list: the cursor does not fit
+        unchanged.IsSuccess.ShouldBeTrue();
+        Should.Throw<ArgumentException>(() => ListQueryPlan<AttendanceRow>.Create(Query(A) with { Ranges = [new RangeFilter("day", RangeBound.AtLeast, null!)] }));
+        Should.Throw<ArgumentException>(() => ListQueryPlan<LogRow>.Create(Query(A) with { Ranges = [new RangeFilter("tagged", RangeBound.AtMost, Guid.Empty)] }));
+    }
 }
