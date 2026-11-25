@@ -163,6 +163,28 @@ public sealed partial class ChangePipeline
         if (await Seen(options, cancellationToken) is { } replayed)
             return replayed;                                                                    // the first outcome, or KeyReused
 
+        // TN-45 (Tatalu FB-F17.3-10, FB-F02.2-2): a change that states no expected version (no If-Match) took no stand on the
+        // aggregate's state; losing a race to another writer (a second device, a reaction) is not the caller's conflict. Load
+        // again and decide again, a few times; with an expected version the conflict is the caller's to see.
+        var attempts = options.ExpectedVersion.IsSome ? 1 : ConflictAttempts;
+        for (var attempt = 1; ; attempt++)
+        {
+            var result = await Attempt(change, context, options, cancellationToken);
+            if (attempt >= attempts || !StoreErrors.IsVersionConflict(result.ToResult()))
+                return result;
+            Retried(_log, change.GetType().Name, attempt);
+        }
+    }
+
+    /// <summary>How often a change without an expected version is tried when it loses a race (TN-45): 3.</summary>
+    public const int ConflictAttempts = 3;
+
+    [LoggerMessage(EventId = 7006, Level = LogLevel.Debug, Message = "Change {Change} lost a race on attempt {Attempt} and runs again")]
+    private static partial void Retried(ILogger logger, string change, int attempt);
+
+    private async ValueTask<Result<ChangeOutcome>> Attempt<T>(IChange<T> change, OperationContext context, ChangeOptions options, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+    {
         var (missing, loadedReads) = await LoadReads(change, context, cancellationToken);
         if (missing is not null)
             return missing;

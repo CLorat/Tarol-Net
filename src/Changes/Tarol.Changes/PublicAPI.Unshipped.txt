@@ -22,6 +22,7 @@ Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?
 Tarol.Changes.IContractTopics
 Tarol.Changes.IContractTopics.ContractTopics.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.ContractTopic!>!
 Tarol.Changes.TenantAggregates
+const Tarol.Changes.ChangePipeline.ConflictAttempts = 3 -> int
 const Tarol.Changes.TenantAggregates.TenantRequiredCode = "Tenant.Required" -> string!
 override Tarol.Changes.ContractTopic.Equals(object? obj) -> bool
 override Tarol.Changes.ContractTopic.GetHashCode() -> int

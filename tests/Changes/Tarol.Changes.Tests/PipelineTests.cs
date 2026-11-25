@@ -160,23 +160,86 @@ public sealed class PipelineTests
         late.Recorded.ShouldAllBe(r => r.Context.Actor == job && r.RecordedAt == Start.AddDays(8));
     }
 
-    [Fact]
-    public async Task A_version_conflict_is_returned_not_retried()
+    private static async Task<(InMemoryAggregateStore Inner, Auction Auction, OperationContext Context)> Racing()
     {
         var auction = NewAuction();
         var inner = new InMemoryAggregateStore(TimeProvider.System);
         var context = OperationContext.Start(Actor.User("alice"), Option.None, TimeProvider.System);
         (await inner.Append(auction, 0, context, Option.None, TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
         AggregateChanges.Committed(auction);
+        return (inner, auction, context);
+    }
+
+    private static void Bid(InMemoryAggregateStore inner, Auction auction, OperationContext context, int amount)
+    {
+        var history = inner.History(auction.Id, Option.None);
+        var other = Auction.Rehydrate(auction.Id, history);
+        _ = other.PlaceBid("carol", new Amount(amount), Start);
+        _ = inner.Append(other, history.Length, context, Option.None, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+    }
+
+    [Fact]
+    public async Task A_change_without_an_expected_version_that_loses_a_race_runs_again()
+    {
+        // TN-45 (Tatalu FB-F17.3-10, FB-F02.2-2): two devices, or a reaction and a user, change the same aggregate; the one
+        // that sent no If-Match got 409 Stream.VersionConflict although it assumed no state
+        var (inner, auction, context) = await Racing();
+        var raced = 0;
         var racing = new RacingStore(inner, () =>
         {
-            var other = Auction.Rehydrate(auction.Id, inner.History(auction.Id, Option.None));
-            _ = other.PlaceBid("carol", new Amount(500), Start);
-            _ = inner.Append(other, 1, context, Option.None, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+            if (raced++ == 0)
+                Bid(inner, auction, context, 500);
+        });
+        var pipeline = new ChangePipeline(racing, ChangeTest.At(Start).Clock);
+
+        var result = await pipeline.Run(new PlaceBid(auction.Id, new Amount(600)), context, cancellationToken: TestContext.Current.CancellationToken);
+
+        result.GetValueOrThrow().Version.ShouldBe(3);                                         // decided again on the new state
+        inner.Loads.ShouldBe(2);
+        inner.History(auction.Id, Option.None).Length.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task A_change_without_an_expected_version_decides_again_and_may_be_refused()
+    {
+        var (inner, auction, context) = await Racing();
+        var raced = 0;
+        var racing = new RacingStore(inner, () =>
+        {
+            if (raced++ == 0)
+                Bid(inner, auction, context, 500);
         });
         var pipeline = new ChangePipeline(racing, ChangeTest.At(Start).Clock);
 
         var result = await pipeline.Run(new PlaceBid(auction.Id, new Amount(150)), context, cancellationToken: TestContext.Current.CancellationToken);
+
+        StoreErrors.IsVersionConflict(result.ToResult()).ShouldBeFalse();                    // the guard of the new state answers
+        result.IsFailure.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task A_change_that_keeps_losing_returns_the_conflict_after_three_attempts()
+    {
+        var (inner, auction, context) = await Racing();
+        var amount = 1000;
+        var racing = new RacingStore(inner, () => Bid(inner, auction, context, amount += 100));
+        var pipeline = new ChangePipeline(racing, ChangeTest.At(Start).Clock);
+
+        var result = await pipeline.Run(new PlaceBid(auction.Id, new Amount(10_000)), context, cancellationToken: TestContext.Current.CancellationToken);
+
+        StoreErrors.IsVersionConflict(result.ToResult()).ShouldBeTrue();
+        inner.Loads.ShouldBe(ChangePipeline.ConflictAttempts);
+    }
+
+    [Fact]
+    public async Task A_change_with_an_expected_version_gets_the_conflict_and_is_not_retried()
+    {
+        var (inner, auction, context) = await Racing();
+        var racing = new RacingStore(inner, () => Bid(inner, auction, context, 500));
+        var pipeline = new ChangePipeline(racing, ChangeTest.At(Start).Clock);
+
+        var result = await pipeline.Run(new PlaceBid(auction.Id, new Amount(600)), context, new ChangeOptions(ExpectedVersion: Option.Some(1L)),
+            TestContext.Current.CancellationToken);
 
         StoreErrors.IsVersionConflict(result.ToResult()).ShouldBeTrue();
         inner.Loads.ShouldBe(1);
