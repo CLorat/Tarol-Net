@@ -21,7 +21,8 @@ public partial class Subscription : AggregateRoot<Subscription>
 
     public Success Cancel(string reason) => Raise(new Cancelled(reason));
 
-    public sealed record Started(string Plan) : Event;
+    /// <summary>Currency and Trial were added after v1 events were stored (Tatalu FB-E07-1): optional, with defaults.</summary>
+    public sealed record Started(string Plan, string Currency = "EUR", bool Trial = false) : Event;
 
     [EventType("subscription.cancelled", 2)]
     public sealed record Cancelled(string Reason) : Event;

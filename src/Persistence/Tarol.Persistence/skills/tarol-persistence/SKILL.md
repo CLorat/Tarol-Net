@@ -68,6 +68,9 @@ store.Recorded[^1].Context.ShouldBe(context);
    use `ValueObjectJson.Options(context)` when events hold value objects. `Add<T>()` throws at once for a missing event.
 9. **Change a stored event** by raising its version and registering an `IEventUpcaster` from the old (alias, version);
    upcasters chain, also across a renamed alias. An unknown alias or version throws on load: never catch it.
+   **No new version** for an added member with a default (`record Requested(…, bool AlwaysEmail = false)`, or a nullable
+   one): old payloads read the default. Renaming, removing, retyping or adding a member without a default needs the
+   version and an upcaster.
 10. **Tests catch serialization bugs** with `new InMemoryAggregateStore(time, new InMemoryStoreOptions { Codec = codec,
     Lookups = lookups })`: every event goes through JSON, the state uses the codec's options. Share `StoreLookups`
     with the production store.
