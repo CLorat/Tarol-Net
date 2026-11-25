@@ -1,6 +1,6 @@
 using System.Security.Claims;
-using Tarol.Changes;
 using Microsoft.AspNetCore.Authorization;
+using Tarol.Changes;
 
 namespace Tarol.Security;
 
