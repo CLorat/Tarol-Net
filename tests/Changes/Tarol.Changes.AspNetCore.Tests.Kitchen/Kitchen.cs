@@ -58,6 +58,9 @@ public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
     public static RecipeRow When(Recipe.Written e, RecordedEvent r) => new(r.StreamId, e.Title, 0);
 
     public RecipeRow When(Recipe.Scaled e) => this with { Servings = e.Servings };
+
+    /// <summary>A computed member: always written, so required in the schema (Tatalu FB-F04.6-2).</summary>
+    public bool Scaled => Servings > 0;
 }
 
 [Endpoint("GET /recipes")]

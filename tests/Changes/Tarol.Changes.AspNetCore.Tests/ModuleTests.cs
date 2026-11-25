@@ -179,6 +179,15 @@ public sealed class ModuleTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_computed_member_that_is_not_nullable_is_required()
+    {
+        // TN-27 (Tatalu FB-F04.6-2): RecipeRow.Scaled => … was optional (scaled?: boolean) although it is always written
+        var schemas = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken))
+            .GetProperty("components").GetProperty("schemas");
+        schemas.GetProperty("RecipeRow").GetProperty("required").EnumerateArray().Select(e => e.GetString()).ShouldContain("scaled");
+    }
+
+    [Fact]
     public void Module_names_are_unique_and_a_module_needs_json()
     {
         Should.Throw<ArgumentException>(() => new ServiceCollection().AddTarol(GardenModule, GardenModule)).Message.ShouldContain("Garden");
