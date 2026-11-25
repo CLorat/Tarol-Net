@@ -308,7 +308,14 @@ the application's. The modules of TN-8 already combine one context per assembly.
 
 ## Verification
 
-See the end of this note (filled in after the last commit of the round).
+SDK 11.0.100, 2026-11-25 **[verified]**: `dotnet build Tarol.slnx` 0 warnings; `dotnet format --verify-no-changes` clean;
+`dotnet test --solution Tarol.slnx` with Docker: **2214 of 2214**; `dotnet pack -c Release` + `eng/verify-packages.sh`: OK;
+`eng/aot-smoke.sh`: all checks passed (no IL warnings). End to end: the document of the two-assembly test application
+(`ModuleTests`) generated with Tarol-Svelte's round-2 `tarol-codegen` without error: `note: PantryLabel | null`,
+`DayOfWeek` and `Doneness` as name unions, `KitchenRulesMaxServings`/`RecipeFormat` as `export const`.
+
+Suppressions: none. New diagnostic: TPRM034 (`AnalyzerReleases.Unshipped.md`). Public API files regenerated with
+`eng/public-api.py update`.
 
 ## Release notes 0.1.0-preview.6 (for Tatalu)
 
