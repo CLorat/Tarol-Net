@@ -4,6 +4,7 @@ using Tarol.Primitives;
 using Tarol.Queries;
 using Tarol.Results;
 using Tarol.StronglyTypedId;
+using Tarol.Validations;
 
 [assembly: Tarol.Changes.GenerateTarolModule("Garden")]
 
@@ -42,6 +43,23 @@ public sealed partial record RenamePlot(Id<Plot> Plot, string Name) : IChange<Pl
     public Result Execute(Plot plot, ChangeContext context) => plot.Rename(Name);
 }
 
+/// <summary>The garden's own label, 1 to 80 characters: same name as <c>Pantry.Label</c> (1 to 120), another type (Tatalu FB-INT-1).</summary>
+public readonly partial record struct Label([Length(1, 80)] string Value);
+
+/// <summary>The garden's own shade, other values than <c>Pantry.Shade</c> (Tatalu FB-INT2-1).</summary>
+public enum Shade
+{
+    Sun,
+    HalfShade,
+    FullShade,
+}
+
+[Endpoint("PUT /plots/{plot}/label")]
+public sealed partial record LabelPlot(Id<Plot> Plot, Label Label, Shade Shade) : IChange<Plot>, IValidatable
+{
+    public Result Execute(Plot plot, ChangeContext context) => plot.Rename(Label.Value);
+}
+
 [Projection("plot-list")]
 public sealed partial record PlotRow(Guid Id, string Name)
 {
@@ -53,7 +71,7 @@ public sealed partial record PlotRow(Guid Id, string Name)
 [Endpoint("GET /plots")]
 public sealed record PlotSearch(string? Name) : IQuery<PlotRow>;
 
-[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
-[JsonSerializable(typeof(LayPlot)), JsonSerializable(typeof(RenamePlot)), JsonSerializable(typeof(PlotRow))]
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(LayPlot)), JsonSerializable(typeof(RenamePlot)), JsonSerializable(typeof(PlotRow)), JsonSerializable(typeof(LabelPlot))]
 [JsonSerializable(typeof(Plot.Laid)), JsonSerializable(typeof(Plot.Renamed))]
 public sealed partial class GardenJson : JsonSerializerContext;

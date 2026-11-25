@@ -1,1 +1,4 @@
 #nullable enable
+Tarol.Kernel.OpenApiSchemaNameAttribute
+Tarol.Kernel.OpenApiSchemaNameAttribute.Name.get -> string!
+Tarol.Kernel.OpenApiSchemaNameAttribute.OpenApiSchemaNameAttribute(string! name) -> void

@@ -657,10 +657,14 @@ internal static class Discovery
         return literal is null ? "default!" : $"({p.Type.ToDisplayString(Fq)})({literal})";
     }
 
-    /// <summary>A value object: a record struct with one positional member of a JSON primitive, and its rules.</summary>
+    /// <summary>
+    /// A value object: a record struct with one positional member of a JSON primitive, and its rules. A record struct of a
+    /// referenced assembly does not say it is a record in metadata; there the <c>Check</c> method the validation generator
+    /// writes marks it (Tatalu FB-F01.1-3, FB-F02.1-4: a value object of a contract assembly without endpoints was <c>{}</c>).
+    /// </summary>
     private static ValueObjectModel? ValueObject(ITypeSymbol type)
     {
-        if (type is not INamedTypeSymbol { IsRecord: true, IsValueType: true } record)
+        if (type is not INamedTypeSymbol { IsValueType: true } record || !(record.IsRecord || HasCheck(record)))
             return null;
         var ctor = record.InstanceConstructors.FirstOrDefault(c => c.Parameters.Length == 1 && !SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, record));
         if (ctor is null)
@@ -717,6 +721,12 @@ internal static class Discovery
             Rules = new EquatableArray<RuleModel>(RulesOf(p.GetAttributes()).ToImmutableArray()),
         };
     }
+
+    /// <summary>The generated <c>static void Check(T value, ref ValidationErrors errors)</c> of a value object (Tarol.Validations).</summary>
+    private static bool HasCheck(INamedTypeSymbol type)
+        => type.GetMembers("Check").OfType<IMethodSymbol>().Any(m => m is { IsStatic: true, ReturnsVoid: true, Parameters.Length: 2 }
+            && m.Parameters[1].RefKind == RefKind.Ref && m.Parameters[1].Type.ToDisplayString() == "Tarol.Validations.ValidationErrors"
+            && SymbolEqualityComparer.Default.Equals(m.Parameters[0].Type, type));
 
     private static string? Number(object? value) => value switch
     {

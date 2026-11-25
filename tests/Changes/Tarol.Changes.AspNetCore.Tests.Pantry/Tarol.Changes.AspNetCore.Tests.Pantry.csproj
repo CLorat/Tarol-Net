@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Test fixture (Tatalu round 2): contract types of an assembly without endpoints, used by the other fixtures' inputs
+       and views (value objects from a referenced assembly, FB-F01.1-3; same-named types, FB-INT-1). -->
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Validations/Tarol.Validations/Tarol.Validations.csproj" />
+    <ProjectReference Include="../../../src/Kernel/Tarol.Kernel/Tarol.Kernel.csproj" />
+    <ProjectReference Include="../../../src/Validations/Tarol.Validations.Generators/Tarol.Validations.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

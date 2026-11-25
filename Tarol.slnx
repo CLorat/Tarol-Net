@@ -101,6 +101,7 @@
     <Project Path="tests/Changes/Tarol.Changes.AspNetCore.Tests/Tarol.Changes.AspNetCore.Tests.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.AspNetCore.Tests.Garden/Tarol.Changes.AspNetCore.Tests.Garden.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.AspNetCore.Tests.Kitchen/Tarol.Changes.AspNetCore.Tests.Kitchen.csproj" />
+    <Project Path="tests/Changes/Tarol.Changes.AspNetCore.Tests.Pantry/Tarol.Changes.AspNetCore.Tests.Pantry.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.Generators.Tests/Tarol.Changes.Generators.Tests.csproj" />
     <Project Path="tests/Changes/Tarol.Changes.Tests/Tarol.Changes.Tests.csproj" />
   </Folder>

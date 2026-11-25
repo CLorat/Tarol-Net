@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Tarol.Options;
 using Tarol.Primitives;
 using Tarol.Queries;
 using Tarol.Results;
@@ -44,6 +45,13 @@ public sealed partial record ScaleRecipe(Id<Recipe> Recipe, int Servings) : ICha
     public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Servings);
 }
 
+/// <summary>Contract types of an assembly without endpoints (Tatalu FB-F01.1-3, FB-INT-1).</summary>
+[Endpoint("PUT /recipes/{recipe}/label")]
+public sealed partial record LabelRecipe(Id<Recipe> Recipe, Pantry.Label Label, Pantry.PostalCode From, Option<Pantry.Label> Note, Pantry.Shade Shade, DayOfWeek Day) : IChange<Recipe>, Tarol.Validations.IValidatable
+{
+    public Result Execute(Recipe recipe, ChangeContext context) => recipe.Scale(Math.Max(1, Label.Value.Length));
+}
+
 [Projection("recipe-list")]
 public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 {
@@ -55,7 +63,7 @@ public sealed partial record RecipeRow(Guid Id, string Title, int Servings)
 [Endpoint("GET /recipes")]
 public sealed record RecipeSearch(string? Title, int? Servings) : IQuery<RecipeRow>;
 
-[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
-[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow))]
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
+[JsonSerializable(typeof(WriteRecipe)), JsonSerializable(typeof(ScaleRecipe)), JsonSerializable(typeof(RecipeRow)), JsonSerializable(typeof(LabelRecipe))]
 [JsonSerializable(typeof(Recipe.Written)), JsonSerializable(typeof(Recipe.Scaled))]
 public sealed partial class KitchenJson : JsonSerializerContext;

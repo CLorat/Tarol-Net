@@ -117,7 +117,7 @@ public sealed class ModuleTests : IAsyncLifetime
         var paths = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken)).GetProperty("paths");
 
         var operations = paths.EnumerateObject().SelectMany(p => p.Value.EnumerateObject().Select(o => (Path: p.Name, Verb: o.Name, Operation: o.Value))).ToList();
-        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/servings"]);
+        operations.Select(o => o.Path).Distinct().Order(StringComparer.Ordinal).ShouldBe(["/plots", "/plots/{plot}/label", "/plots/{plot}/name", "/recipes", "/recipes/{recipe}/label", "/recipes/{recipe}/servings"]);
         foreach (var (path, verb, operation) in operations)
         {
             var parameters = operation.TryGetProperty("parameters", out var p) ? p.EnumerateArray().Select(x => $"{x.GetProperty("in").GetString()}:{x.GetProperty("name").GetString()}").ToList() : [];
@@ -128,6 +128,54 @@ public sealed class ModuleTests : IAsyncLifetime
         rename.Count(n => n == "Idempotency-Key").ShouldBe(1);
         var list = paths.GetProperty("/recipes").GetProperty("get").GetProperty("parameters").EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToList();
         list.ShouldBe(["title", "servings", "after", "limit", "offset", "count", "Tarol-Read-After"]);
+    }
+
+    [Fact]
+    public async Task Same_named_contract_types_of_two_assemblies_keep_their_own_schemas()
+    {
+        // Tatalu FB-INT-1 / FB-INT2-1: Garden.Label (1..80) and Pantry.Label (1..120), Garden.Shade and Pantry.Shade were one
+        // schema "Label" / "Shade", whichever came last; the client checked the other assembly's rules.
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        var paths = document.GetProperty("paths");
+        var schemas = document.GetProperty("components").GetProperty("schemas");
+
+        JsonElement Resolve(JsonElement schema)
+            => schema.TryGetProperty("$ref", out var r) ? schemas.GetProperty(r.GetString()!["#/components/schemas/".Length..]) : schema;
+        JsonElement Body(string path) => Resolve(paths.GetProperty(path).GetProperty("put").GetProperty("requestBody").GetProperty("content")
+            .GetProperty("application/json").GetProperty("schema")).GetProperty("properties");
+
+        var plot = Body("/plots/{plot}/label");
+        var recipe = Body("/recipes/{recipe}/label");
+        Resolve(plot.GetProperty("label")).GetProperty("maxLength").GetInt32().ShouldBe(80);
+        Resolve(recipe.GetProperty("label")).GetProperty("maxLength").GetInt32().ShouldBe(120);
+        Resolve(plot.GetProperty("shade")).GetProperty("enum").EnumerateArray().Select(e => e.ToString()).ShouldBe(["Sun", "HalfShade", "FullShade"]);
+        Resolve(recipe.GetProperty("shade")).GetProperty("enum").EnumerateArray().Select(e => e.ToString()).ShouldBe(["Light", "Dark"]);
+        recipe.GetProperty("label").GetProperty("$ref").GetString().ShouldBe("#/components/schemas/PantryLabel");
+        schemas.TryGetProperty("OptionOfLabel", out _).ShouldBeFalse();
+        // TN-33 (Tatalu FB-4, FB-F02.3-2): a BCL enum is written by name with UseStringEnumConverter, so its schema has the names
+        var day = Resolve(recipe.GetProperty("day"));
+        day.GetProperty("type").GetString().ShouldBe("string");
+        day.GetProperty("enum").EnumerateArray().Select(e => e.GetString()).ShouldBe(Enum.GetNames<DayOfWeek>());
+    }
+
+    [Fact]
+    public async Task A_value_object_of_an_assembly_without_endpoints_has_its_type_and_rules()
+    {
+        // Tatalu FB-F01.1-3 / FB-F02.1-4 / FB-INT-3: Pantry.PostalCode was {} and Option<Pantry.Label> "object"
+        var document = JsonElement.Parse(await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        var schemas = document.GetProperty("components").GetProperty("schemas");
+        JsonElement Resolve(JsonElement schema)
+            => schema.TryGetProperty("$ref", out var r) ? schemas.GetProperty(r.GetString()!["#/components/schemas/".Length..]) : schema;
+        var body = Resolve(document.GetProperty("paths").GetProperty("/recipes/{recipe}/label").GetProperty("put").GetProperty("requestBody")
+            .GetProperty("content").GetProperty("application/json").GetProperty("schema")).GetProperty("properties");
+
+        var from = Resolve(body.GetProperty("from"));
+        from.GetProperty("type").GetString().ShouldBe("string");
+        from.GetProperty("pattern").GetString().ShouldBe(@"^\d{5}$");
+        // TN-31 (Tatalu FB-3, FB-F17.3-3): Option<T> of a component is T or null in place
+        var note = body.GetProperty("note");
+        note.GetProperty("oneOf")[0].GetProperty("type").GetString().ShouldBe("null");
+        note.GetProperty("oneOf")[1].GetProperty("$ref").GetString().ShouldBe("#/components/schemas/PantryLabel");
     }
 
     [Fact]
@@ -181,3 +229,44 @@ public sealed class ModuleTests : IAsyncLifetime
         }
     }
 }
+
+/// <summary>TN-22 (Tatalu FB-INT-1): two types with one schema name fail the document; a pinned name and Option&lt;T&gt; are handled.</summary>
+public sealed class OpenApiSchemaNameTests
+{
+    private static class First
+    {
+        public sealed record Card(string Text);
+    }
+
+    private static class Second
+    {
+        public sealed record Card(int Number);
+    }
+
+    [Fact]
+    public void Two_types_with_one_name_fail_and_name_both()
+    {
+        var options = new object();
+        OpenApiSchemaNames.Name(options, typeof(First.Card), "Card").ShouldBe("Card");
+        OpenApiSchemaNames.Name(options, typeof(First.Card), "Card").ShouldBe("Card");
+        var error = Should.Throw<InvalidOperationException>(() => OpenApiSchemaNames.Name(options, typeof(Second.Card), "Card"));
+        error.Message.ShouldContain("First+Card");
+        error.Message.ShouldContain("Second+Card");
+        error.Message.ShouldContain("OpenApiSchemaName");
+        OpenApiSchemaNames.Name(new object(), typeof(Second.Card), "Card").ShouldBe("Card");   // another document
+    }
+
+    [Fact]
+    public void A_pinned_name_an_option_and_a_generic_of_a_pinned_type()
+    {
+        var options = new object();
+        OpenApiSchemaNames.Claim(options).ShouldBeTrue();
+        OpenApiSchemaNames.Claim(options).ShouldBeFalse();
+        OpenApiSchemaNames.Name(options, typeof(Pantry.Label), "Label").ShouldBe("PantryLabel");
+        OpenApiSchemaNames.Name(options, typeof(Garden.Label), "Label").ShouldBe("Label");
+        OpenApiSchemaNames.Name(options, typeof(Tarol.Options.Option<Pantry.Label>), "OptionOfLabel").ShouldBeNull();
+        OpenApiSchemaNames.Name(options, typeof(List<Pantry.Label>), "ListOfLabel").ShouldBe("ListOfPantryLabel");
+        OpenApiSchemaNames.Name(options, typeof(string), null).ShouldBeNull();
+    }
+}
+

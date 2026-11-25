@@ -20,6 +20,7 @@ Tarol.Changes.AspNetCore.OpenApiModule.Configure.init -> void
 Tarol.Changes.AspNetCore.OpenApiModule.Deconstruct(out System.Action<object!>! Configure) -> void
 Tarol.Changes.AspNetCore.OpenApiModule.Equals(Tarol.Changes.AspNetCore.OpenApiModule? other) -> bool
 Tarol.Changes.AspNetCore.OpenApiModule.OpenApiModule(System.Action<object!>! Configure) -> void
+Tarol.Changes.AspNetCore.OpenApiSchemaNames
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.get -> System.Reflection.Assembly?
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Owner.init -> void
 Tarol.Changes.AspNetCore.TarolEndpointMetadata.Scoped.get -> bool
@@ -39,3 +40,5 @@ static Tarol.Changes.AspNetCore.ModuleEndpointExtensions.ConfigureOpenApi(this S
 static Tarol.Changes.AspNetCore.ModuleEndpointExtensions.MapModules(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! app, System.Func<Tarol.Persistence.TarolModule!, string?>? names = null) -> Microsoft.AspNetCore.Routing.IEndpointRouteBuilder!
 static Tarol.Changes.AspNetCore.OpenApiModule.operator !=(Tarol.Changes.AspNetCore.OpenApiModule? left, Tarol.Changes.AspNetCore.OpenApiModule? right) -> bool
 static Tarol.Changes.AspNetCore.OpenApiModule.operator ==(Tarol.Changes.AspNetCore.OpenApiModule? left, Tarol.Changes.AspNetCore.OpenApiModule? right) -> bool
+static Tarol.Changes.AspNetCore.OpenApiSchemaNames.Claim(object! openApiOptions) -> bool
+static Tarol.Changes.AspNetCore.OpenApiSchemaNames.Name(object! openApiOptions, System.Type! type, string? proposed) -> string?
