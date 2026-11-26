@@ -119,13 +119,30 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
         await Committed(store, offline, captured);
         await Committed(store, online, direct);
 
+        // page through the shared database's feed until both commits are visible: a parallel test's open transaction hides later
+        // commits for a moment (the xmin horizon), and the feed may hold more than one page before them
         var events = new List<PositionedEvent>();
-        await foreach (var e in store.ReadAll(GlobalPosition.Start, 10_000, Ct))
-            if (e.Event.StreamId == offline.Id.Value || e.Event.StreamId == online.Id.Value)
-                events.Add(e);
+        var position = GlobalPosition.Start;
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (events.Count < 2)
+        {
+            var read = 0;
+            await foreach (var e in store.ReadAll(position, 1_000, Ct))
+            {
+                read++;
+                position = e.Position;
+                if (e.Event.StreamId == offline.Id.Value || e.Event.StreamId == online.Id.Value)
+                    events.Add(e);
+            }
+            if (read == 0)
+            {
+                waited.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(30), "the two commits did not reach the feed");
+                await Task.Delay(20, Ct);
+            }
+        }
 
-        var read = events.Single(e => e.Event.StreamId == offline.Id.Value).Event.Context.Capture.ShouldNotBeNull();
-        (read.Device, read.At).ShouldBe(("tab-7", at));
+        var captureRead = events.Single(e => e.Event.StreamId == offline.Id.Value).Event.Context.Capture.ShouldNotBeNull();
+        (captureRead.Device, captureRead.At).ShouldBe(("tab-7", at));
         events.Single(e => e.Event.StreamId == online.Id.Value).Event.Context.Capture.ShouldBeNull();
         (await postgres.Scalar($"SELECT device FROM tarol.events WHERE stream_id = '{offline.Id.Value}'")).ShouldBe("tab-7");
     }

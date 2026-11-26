@@ -13,6 +13,7 @@ public sealed class SkillExampleTests
     {
         // ── verbatim ──
         var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<ICapabilityCheck, LinkCheck>();
         builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
             .UseInMemoryStore()                                    // .UseNpgsqlStore(connectionString) in production
             .AddSecurity(roles =>

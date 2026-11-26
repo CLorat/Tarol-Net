@@ -167,6 +167,19 @@ public sealed class DiagnosticTests
     }
 
     [Fact]
+    public void A_capability_link_is_a_change_without_a_policy_with_the_tenant_and_the_token_in_its_route()
+    {
+        Diagnose("""[Endpoint("POST /links/{tenant}/{token}/close", Capability = true)] public sealed partial record C(Id<Order> Order)""" + Close).ShouldBeEmpty();
+        Message("""[Endpoint("POST /links/{tenant}/close", Capability = true)] public sealed partial record C(Id<Order> Order)""" + Close, "TWEB003")
+            .ShouldContain("names the tenant and the token in its route");
+        Message("""[Endpoint("POST /links/{tenant}/{token}", Capability = true, Policy = "p")] public sealed partial record C(Id<Order> Order)""" + Close, "TWEB002")
+            .ShouldContain("has no Policy");
+        Message("""
+            [Endpoint("GET /links/{tenant}/{token}", Capability = true)] public sealed record V(Guid Id) : IView<Order, V> { public static V From(Order o) => new(o.Id.Value); }
+            """, "TWEB002").ShouldContain("a change or a creation, not a read");
+    }
+
+    [Fact]
     public void TWEB003_route_values_bind_supported_members()
     {
         Message("""[Endpoint("POST /orders/{order}/{other}")] public sealed partial record C(Id<Order> Order)""" + Close, "TWEB003").ShouldContain("'{other}' is not a member");

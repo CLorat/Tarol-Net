@@ -22,6 +22,15 @@ public sealed class EndpointAttribute(string route) : Attribute
     public bool Anonymous { get; init; }
 
     /// <summary>
+    /// A capability link (TN-50, owner decision S-1): an invitation, a confirmation, a magic link. The caller is not signed in; the
+    /// route names the tenant and a token, <c>"POST /invitations/{tenant}/{token}/accept"</c>, and the registered
+    /// <see cref="ICapabilityCheck"/> checks the token and names the actor before the change runs. No principal reaches the
+    /// pipeline (the token is the authorization, not the role map). For changes and creations, no <see cref="Policy"/> (TWEB002), and
+    /// the route has <c>{tenant}</c> and <c>{token}</c> (TWEB003). An input member <c>Token</c> or <c>Tenant</c> binds the route value like any other.
+    /// </summary>
+    public bool Capability { get; init; }
+
+    /// <summary>
     /// For a list query: an <see cref="IListScope{TQuery}"/> must be registered (startup fails without one), so a list whose rows
     /// depend on the caller can never answer unfiltered (TN-6). Without it, a registered scope still applies.
     /// </summary>

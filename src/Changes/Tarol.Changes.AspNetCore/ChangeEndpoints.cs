@@ -129,13 +129,20 @@ public sealed partial class ChangeEndpoints
             && !(tenant.TryGetValue(out Id<ITenant> own) && TenantOf(routed).TryGetValue(out Id<ITenant> asked) && own == asked))
             return (null!, default, Error.NotFound("Tenant.NotFound", routed));                 // never reveal another tenant (R-11)
         var context = OperationContext.Start(actor, tenant, _time);
+        return Headers(http, context, $"http:{actor.Kind}:{actor.Id}:{http.Request.Method} {http.Request.Path}", body, user);
+    }
 
+    // the request's headers on a context: Idempotency-Key (in the scope), If-Match, Tarol-Confirm, the capture (TN-60)
+    private (OperationContext Context, ChangeOptions Options, Violation? Refused) Headers(HttpContext http, OperationContext context, string scope,
+        ReadOnlySpan<byte> body, ClaimsPrincipal? principal)
+    {
+        var tenant = context.Tenant;
         Option<IdempotencyKey> key = Option.None;
         if (http.Request.Headers[TarolHeaders.IdempotencyKey].ToString() is { Length: > 0 } k)
         {
             if (k.Length > 255)
                 return (context, default, Invalid.Field("Idempotency-Key", "Length"));
-            key = new IdempotencyKey(tenant, $"http:{actor.Kind}:{actor.Id}:{http.Request.Method} {http.Request.Path}", k)
+            key = new IdempotencyKey(tenant, scope, k)
             {
                 Fingerprint = Fingerprint(http.Request.Method, http.Request.Path.Value ?? "", body),
             };
@@ -160,7 +167,7 @@ public sealed partial class ChangeEndpoints
             context = context with { Capture = capture };
         else if (refusedCapture is not null)
             return (context, default, refusedCapture);
-        return (context, new ChangeOptions(key, ifMatch, user) { Confirmed = confirmed }, null);
+        return (context, new ChangeOptions(key, ifMatch, principal) { Confirmed = confirmed }, null);
     }
 
     // TN-60: Tarol-Device and Tarol-Captured-At of an offline outbox; the time must lie within the skew and the age the options allow

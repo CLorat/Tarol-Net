@@ -22,6 +22,7 @@ public sealed class OpenApiTopicsTests
         builder.WebHost.UseTestServer();
         if (ownAuthorizer)
             builder.Services.AddSingleton<ITopicAuthorizer, Nobody>();
+        builder.Services.AddSingleton<ICapabilityCheck, LinkCheck>();
         builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>())
             .WithOutboxRows(GeneratedPublications.Set)                 // as the sample's API: the rows only, the worker publishes
             .UseInMemoryStore()

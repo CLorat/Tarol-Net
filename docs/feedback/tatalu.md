@@ -103,7 +103,7 @@ round-2 branch (PR links follow the PRs).
 | TN-47 | P1 | Reactions: fan-out, skip, all events of an aggregate | FB-F15.2-1, FB-F15.9-2, FB-F17.4-2, FB-F13.3-7 | fan-out and skip built after 0.1.0-preview.6 (R-1, R-2); "all events of an aggregate" stays the audit's feed (R-3, [audit.md](../architecture/audit.md)) |
 | TN-48 | P1 | Entity id and path in child events; event id in `On` | FB-F02.3-1, FB-F15.9-1, FB-F01.2-3, FB-F04.4-1 | documentation part built `28db79b`; the rest open |
 | TN-49 | P1 | Ports in changes (`Prepare`), versioned parameters, `LocalNow(zone)` | FB-F17.2-1, FB-F02.6-1, FB-F01.9-1 | pattern in `tarol-sagas` built `28db79b`; ports designed (change-reads.md), open |
-| TN-50 | P1 | Anonymous capability links with the tenant from the route | FB-F15.1-2 | open |
+| TN-50 | P1 | Anonymous capability links with the tenant from the route | FB-F15.1-2 | built (S-1: `Capability = true`, `ICapabilityCheck`) |
 | TN-51 | P1 | Read your reactions | FB-INT2-8 | documented (`tarol-sagas` rule 9); an option is open |
 | TN-52 | P1 | Reservation pattern | FB-F03.3-1 | built `28db79b` (skill) |
 | TN-53 | P1 | `Money` / `[Scale(2)]` | FB-F03.6-1 | open |
@@ -173,4 +173,4 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-46 | commit and refuse (FB-F15.1-4) | built `b6d3716` (round 3c) |
 | TN-48 | event id in `On`, entity id in `Deleted` (FB-F04.4-1, FB-F02.3-1) | open: an `On` also runs at `Raise`, before the store assigns the event id; needs a design note |
 | TN-56, TN-59, TN-60 | as in round 2 | built in round 3c (see the rows above and the round-3 note) |
-| TN-49, TN-50, TN-51, TN-55, TN-66 | as in round 2 | open: decided 2026-11-26 (recommendations), not built yet; see the round-3 note |
+| TN-49, TN-51, TN-55, TN-66 | as in round 2 | open: decided 2026-11-26 (recommendations), not built yet; see the round-3 note |

@@ -17,7 +17,10 @@ description: >-
 2. **Register once, map once**: `AddTarol(…).UseNpgsqlStore(…).AddSecurity(roles => …).AddEndpoints()`, then
    `app.MapChanges()` (a route group: `app.MapGroup("/v1").MapChanges(names: "V1")`). `AddSecurity` is required.
 3. **Two checks**: the endpoint `Policy` (or the default policy: authenticated) and the change's authorization (skill
-   `tarol-security`: role map + row rules). `Anonymous = true` skips only the first.
+   `tarol-security`: role map + row rules). `Anonymous = true` skips only the first. A link without sign-in (invitation,
+   confirmation): `[Endpoint("POST /invitations/{tenant}/{token}/accept", Capability = true)]` on a change; the registered
+   `ICapabilityCheck.Check(CapabilityRequest, ct)` finds what the token opens (by its hash) and returns the `Actor` to run as,
+   or the refusal (`Error.NotFound` for unknown or used); no principal, no role map. Rate-limit it.
 4. **Authentication is the app's** (JwtBearer, …). The edge reads `sub`, `client_id`, `tenant`; an identity provider with
    other shapes sets `ChangeEndpointOptions.Actor` / `.Tenant` (or maps claims in an `IClaimsTransformation`).
 5. **Retries**: clients send `Idempotency-Key` (the same key with another body → 422) and `If-Match: "<version>"` from the
@@ -81,6 +84,8 @@ version is current, a weak `ETag` answers 304. A hit's `snippet` is plain text; 
 |---|---|
 | `[Endpoint]` on the aggregate | TWEB002: declare a view |
 | a `{value}` with no member of that name | TWEB003 |
+| `Capability = true` without `{tenant}` and `{token}`, with a `Policy`, or on a read | TWEB003, TWEB002 |
+| a capability entry and no `ICapabilityCheck` registered | the host does not start |
 | `MapChanges()` without `AddSecurity` | `InvalidOperationException` at startup (fail closed) |
 | a second `MapChanges()` without `names:` | "Duplicate endpoint name" at the first request |
 | the input not in the JSON context | `NotSupportedException` for its member types at the first request |
