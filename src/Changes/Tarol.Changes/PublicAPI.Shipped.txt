@@ -44,6 +44,8 @@ Tarol.Changes.ChangeOutcome.Position.get -> Tarol.Persistence.GlobalPosition
 Tarol.Changes.ChangeOutcome.Position.init -> void
 Tarol.Changes.ChangeOutcome.Replayed.get -> bool
 Tarol.Changes.ChangeOutcome.Replayed.init -> void
+Tarol.Changes.ChangeOutcome.Skipped.get -> bool
+Tarol.Changes.ChangeOutcome.Skipped.init -> void
 Tarol.Changes.ChangeOutcome.StreamId.get -> System.Guid
 Tarol.Changes.ChangeOutcome.StreamId.init -> void
 Tarol.Changes.ChangeOutcome.Version.get -> long
@@ -280,6 +282,7 @@ Tarol.Changes.Verdict
 Tarol.Changes.Verdict.Bury = 2 -> Tarol.Changes.Verdict
 Tarol.Changes.Verdict.Done = 0 -> Tarol.Changes.Verdict
 Tarol.Changes.Verdict.Retry = 1 -> Tarol.Changes.Verdict
+const Tarol.Changes.ChangeOutcome.SkippedCode = "Change.Skipped" -> string!
 const Tarol.Changes.ChangePipeline.ActivitySourceName = "Tarol.Changes" -> string!
 const Tarol.Changes.ChangePipeline.ConflictAttempts = 3 -> int
 const Tarol.Changes.ChangePipeline.MeterName = "Tarol.Changes" -> string!
@@ -322,6 +325,8 @@ static Tarol.Changes.ChangeContext.operator !=(Tarol.Changes.ChangeContext left,
 static Tarol.Changes.ChangeContext.operator ==(Tarol.Changes.ChangeContext left, Tarol.Changes.ChangeContext right) -> bool
 static Tarol.Changes.ChangeOptions.operator !=(Tarol.Changes.ChangeOptions left, Tarol.Changes.ChangeOptions right) -> bool
 static Tarol.Changes.ChangeOptions.operator ==(Tarol.Changes.ChangeOptions left, Tarol.Changes.ChangeOptions right) -> bool
+static Tarol.Changes.ChangeOutcome.Nothing.get -> Tarol.Changes.ChangeOutcome
+static Tarol.Changes.ChangeOutcome.Skip(string? reason = null) -> Tarol.Results.Error!
 static Tarol.Changes.ChangeOutcome.operator !=(Tarol.Changes.ChangeOutcome left, Tarol.Changes.ChangeOutcome right) -> bool
 static Tarol.Changes.ChangeOutcome.operator ==(Tarol.Changes.ChangeOutcome left, Tarol.Changes.ChangeOutcome right) -> bool
 static Tarol.Changes.ChangeTest.At(System.DateTimeOffset now, System.Text.Json.JsonSerializerOptions? stateOptions = null, Tarol.Changes.IChangeAuthorization? authorization = null) -> Tarol.Changes.ChangeTest!
@@ -349,8 +354,12 @@ static Tarol.Changes.ReactionRun.operator !=(Tarol.Changes.ReactionRun? left, Ta
 static Tarol.Changes.ReactionRun.operator ==(Tarol.Changes.ReactionRun? left, Tarol.Changes.ReactionRun? right) -> bool
 static Tarol.Changes.ReactionSet.Combine(params Tarol.Changes.ReactionSet![]! sets) -> Tarol.Changes.ReactionSet!
 static Tarol.Changes.ReactionSet.Context(string! reaction, Tarol.Primitives.RecordedEvent! recorded) -> Tarol.Kernel.OperationContext!
+static Tarol.Changes.ReactionSet.Each<TChange>(System.Collections.Generic.IEnumerable<TChange?>? changes, System.Func<TChange, int, System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>>! run) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+static Tarol.Changes.ReactionSet.Element(System.Guid target, int index) -> string!
 static Tarol.Changes.ReactionSet.Empty.get -> Tarol.Changes.ReactionSet!
 static Tarol.Changes.ReactionSet.Options(string! reaction, Tarol.Primitives.RecordedEvent! recorded) -> Tarol.Changes.ChangeOptions
+static Tarol.Changes.ReactionSet.Options(string! reaction, Tarol.Primitives.RecordedEvent! recorded, string! element) -> Tarol.Changes.ChangeOptions
+static Tarol.Changes.ReactionSet.Skip() -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 static Tarol.Changes.ReadScope.operator !=(Tarol.Changes.ReadScope left, Tarol.Changes.ReadScope right) -> bool
 static Tarol.Changes.ReadScope.operator ==(Tarol.Changes.ReadScope left, Tarol.Changes.ReadScope right) -> bool
 static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! json, System.Action<Tarol.Persistence.EventCodec!>! aggregates) -> Tarol.Persistence.TarolBuilder!

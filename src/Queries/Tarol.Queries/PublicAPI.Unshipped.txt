@@ -1,8 +1,1 @@
 #nullable enable
-Tarol.Queries.IProjection<TRow>.PerEntity.get -> bool
-Tarol.Queries.IReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-Tarol.Queries.InMemoryReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-Tarol.Queries.ProjectionAttribute.PerEntity.get -> bool
-Tarol.Queries.ProjectionAttribute.PerEntity.set -> void
-Tarol.Queries.Versioned<TRow>.Stream.get -> System.Guid
-Tarol.Queries.Versioned<TRow>.Stream.init -> void

@@ -6,7 +6,21 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
-### Added
+## [0.1.0]
+
+The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
+(`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
+"in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
+`0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version. `0.1.0-preview.6`
+ships 31 packages (30 and the meta-package) and 93 diagnostics: it adds `Tarol.Audit` and `Tarol.Audit.Npgsql` and the rounds 2
+and 3 of the Tatalu feedback (upgrade: PostgreSQL store schema
+version 5, additive; see [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md#release-notes-010-preview6-round-3-for-tatalu)). `0.1.0-preview.7`
+adds rows per entity, one topic for several events, and reaction fan-out and skip (upgrade: additive; a per-entity
+projection's table gets a `stream_id` column when it is created).
+
+### In 0.1.0-preview.7: Tatalu feedback, round 3 after preview.6
+
+#### Added
 
 * Projection rows per entity: `[Projection(…, PerEntity = true)]`, `IProjection<TRow>.PerEntity`, `Versioned<TRow>.Stream`,
   `IReadModelStore<TRow>.RemoveStreams`; a per-entity read table has an indexed `stream_id` column (TN-54, owner decision P-1).
@@ -16,15 +30,6 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `IEnumerable<X>` (one change per element, keyed per element target); `ChangeOutcome.Skipped`, `ChangeOutcome.Nothing`,
   `ChangeOutcome.Skip(reason)` for `Load`; `ReactionSet.Each`, `Skip`, `Element` and `Options(reaction, recorded, element)`.
 
-## [0.1.0]
-
-The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
-(`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
-"in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
-`0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version. `0.1.0-preview.6`
-ships 31 packages (30 and the meta-package) and 93 diagnostics: it adds `Tarol.Audit` and `Tarol.Audit.Npgsql` and the rounds 2
-and 3 of the Tatalu feedback (upgrade: PostgreSQL store schema
-version 5, additive; see [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md#release-notes-010-preview6-round-3-for-tatalu)).
 
 ### In 0.1.0-preview.6: Tatalu feedback, round 3c (owner decisions 2026-11-26)
 

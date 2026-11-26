@@ -1,3 +1,1 @@
 #nullable enable
-Tarol.Messaging.PublicationInfo.EventTypes.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
-Tarol.Messaging.PublicationInfo.EventTypes.init -> void

@@ -329,6 +329,8 @@ Tarol.Messaging.PublicationInfo.Deconstruct(out string! Name, out string! Contra
 Tarol.Messaging.PublicationInfo.Equals(Tarol.Messaging.PublicationInfo? other) -> bool
 Tarol.Messaging.PublicationInfo.EventType.get -> System.Type?
 Tarol.Messaging.PublicationInfo.EventType.init -> void
+Tarol.Messaging.PublicationInfo.EventTypes.get -> System.Collections.Generic.IReadOnlyList<System.Type!>!
+Tarol.Messaging.PublicationInfo.EventTypes.init -> void
 Tarol.Messaging.PublicationInfo.Name.get -> string!
 Tarol.Messaging.PublicationInfo.Name.init -> void
 Tarol.Messaging.PublicationInfo.PublicationInfo(string! Name, string! Contract, int Version) -> void

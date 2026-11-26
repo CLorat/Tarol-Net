@@ -49,6 +49,7 @@ Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.NpgsqlReadModelStore(Npgsql.Npgs
 Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.PushesCheckpoints.get -> bool
 Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Search(Tarol.Queries.ListQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Queries.Page<TRow!>!>>
 Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.Table.get -> string!
