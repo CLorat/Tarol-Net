@@ -44,7 +44,7 @@ internal static class ReactionDiscovery
         var eventName = domainEvent.Name;
         var factory = change.Name + "." + method.Name;
 
-        var why = Shape(method, change, domainEvent, compilation);
+        var why = Shape(method, change, domainEvent, compilation, out var returns);
         if (why is not null)
             return Fail(DiagnosticInfo.Create(Diagnostics.ReactionShape, location, eventName, factory, why));
 
@@ -65,7 +65,7 @@ internal static class ReactionDiscovery
         var changeName = change.ToDisplayString(Qualified);
         var eventFullName = domainEvent.ToDisplayString(Qualified);
         var model = new ReactionModel(name!, changeName, eventFullName, Depth(domainEvent), changeName + "." + method.Name,
-            method.Parameters.Length == 2, dueAt);
+            method.Parameters.Length == 2, dueAt, returns, TargetOf(change, compilation));
         return new DiscoveredReaction(model, new ReactionSite(name!, changeName, eventFullName, location),
             new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
 
@@ -73,8 +73,9 @@ internal static class ReactionDiscovery
             => new(null, null, new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(diagnostic)));
     }
 
-    private static string? Shape(IMethodSymbol method, INamedTypeSymbol change, INamedTypeSymbol domainEvent, Compilation compilation)
+    private static string? Shape(IMethodSymbol method, INamedTypeSymbol change, INamedTypeSymbol domainEvent, Compilation compilation, out int returns)
     {
+        returns = 0;
         var changeInterface = compilation.GetTypeByMetadataName(ChangeName);
         var creationInterface = compilation.GetTypeByMetadataName(CreationName);
         var isChange = change.AllInterfaces.Any(i =>
@@ -90,8 +91,9 @@ internal static class ReactionDiscovery
             return "the factory cannot be generic";
         if (!compilation.IsSymbolAccessibleWithin(method, compilation.Assembly))
             return "the factory (or a type containing it) is private; generated code must call it";
-        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, change))
-            return $"the factory must return {change.Name}";
+        returns = Returns(method.ReturnType, change, compilation);
+        if (returns < 0)
+            return $"the factory must return {change.Name}, {change.Name}? (nothing to do) or IEnumerable<{change.Name}> (one run per element)";
         var parameters = method.Parameters;
         if (parameters.Length is not (1 or 2) || !SymbolEqualityComparer.Default.Equals(parameters[0].Type, domainEvent)
             || parameters.Any(p => p.RefKind != RefKind.None))
@@ -101,6 +103,29 @@ internal static class ReactionDiscovery
         if (parameters.Length == 2 && parameters[1].Type.ToDisplayString() != RecordedName)
             return $"the second parameter must be Tarol.Primitives.RecordedEvent, not {parameters[1].Type.ToDisplayString()}";
         return null;
+    }
+
+    // 0: the change; 1: the change or null (R-2); 2: several changes (R-1, IEnumerable<T> or a type implementing it); -1: neither
+    private static int Returns(ITypeSymbol type, INamedTypeSymbol change, Compilation compilation)
+    {
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+            return SymbolEqualityComparer.Default.Equals(nullable.TypeArguments[0], change) ? 1 : -1;
+        if (SymbolEqualityComparer.Default.Equals(type, change))
+            return type.NullableAnnotation == NullableAnnotation.Annotated ? 1 : 0;
+        var enumerable = compilation.GetSpecialType(SpecialType.System_Collections_Generic_IEnumerable_T);
+        bool IsEnumerableOfChange(ITypeSymbol t) => t is INamedTypeSymbol named && SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, enumerable)
+            && SymbolEqualityComparer.Default.Equals(named.TypeArguments[0], change);
+        if (type.SpecialType == SpecialType.System_String)
+            return -1;
+        return IsEnumerableOfChange(type) || type.AllInterfaces.Any(IsEnumerableOfChange) ? 2 : -1;
+    }
+
+    // the aggregate T of IChange<T>, whose Target keys each element of a fan-out (R-1); null for a creation
+    private static string? TargetOf(INamedTypeSymbol change, Compilation compilation)
+    {
+        var changeInterface = compilation.GetTypeByMetadataName(ChangeName);
+        var target = change.AllInterfaces.FirstOrDefault(i => SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, changeInterface));
+        return target?.TypeArguments[0].ToDisplayString(Qualified);
     }
 
     private static bool IsDateTimeOffsetProperty(INamedTypeSymbol type, string name)

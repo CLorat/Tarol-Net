@@ -63,8 +63,19 @@ internal static class ReactionEmitter
         sb.Append("        return (reaction, recorded.Event.Event) switch\n        {\n");
         foreach (var r in sorted.OrderByDescending(r => r.EventDepth).ThenBy(r => r))
         {
-            sb.Append("            (").Append(Literal(r.Name)).Append(", ").Append(r.Event).Append(" e) => pipeline.Run(")
-                .Append(r.Factory).Append(r.WithRecorded ? "(e, recorded)" : "(e)").Append(", context, options, cancellationToken),\n");
+            var call = r.Factory + (r.WithRecorded ? "(e, recorded)" : "(e)");
+            sb.Append("            (").Append(Literal(r.Name)).Append(", ").Append(r.Event).Append(" e) => ");
+            if (r.Returns == 1)
+                sb.Append(call).Append(" is { } change ? pipeline.Run(change, context, options, cancellationToken) : global::Tarol.Changes.ReactionSet.Skip(),\n");
+            else if (r.Returns == 2)
+            {
+                var target = r.Target is null ? "global::System.Guid.Empty" : "((global::Tarol.Changes.IChange<" + r.Target + ">)change).Target.Value";
+                sb.Append("global::Tarol.Changes.ReactionSet.Each(").Append(call).Append(", (change, index) => pipeline.Run(change, context,\n")
+                    .Append("                global::Tarol.Changes.ReactionSet.Options(reaction, recorded, global::Tarol.Changes.ReactionSet.Element(")
+                    .Append(target).Append(", index)), cancellationToken)),\n");
+            }
+            else
+                sb.Append("pipeline.Run(").Append(call).Append(", context, options, cancellationToken),\n");
         }
         sb.Append("            _ => throw new global::System.InvalidOperationException($\"The reaction '{reaction}' of ")
             .Append(Interpolated(assemblyName ?? "this assembly")).Append(" does not handle {recorded.Event.Event.GetType().Name}.\"),\n");

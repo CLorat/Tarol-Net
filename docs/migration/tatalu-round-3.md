@@ -566,9 +566,29 @@ the other pipeline tests.
 * **Tatalu:** one topic per event for "this conversation changed" (`backend/src/Tatalu.Kommunikation`, the UI subscribing to each)
   becomes one topic fed by every event.
 
+### TN-47 Reaction fan-out and skip (owner decisions R-1, R-2; FB-F15.2-1, FB-F15.9-2, FB-F17.4-2, FB-F13.3-7)
+
+* **New API (`Tarol.Changes`):** `ChangeOutcome.Skipped`, `ChangeOutcome.Nothing`, `ChangeOutcome.Skip(reason)` and
+  `SkippedCode` (`Change.Skipped`); `ReactionSet.Skip()`, `ReactionSet.Each<TChange>(…)`, `ReactionSet.Element(target, index)`,
+  `ReactionSet.Options(reaction, recorded, element)`.
+* **Behaviour (`Tarol.Changes.Generators`):** TCHG006 accepts a factory returning `X?` (R-2: `null` runs nothing, the row is done)
+  or `IEnumerable<X>` and types implementing it (R-1: one pipeline run per element, in order, each under the key
+  `(tenant, reaction:<name>, <event id>:<element>)`; the element is the change's target, `#<index>` for a creation or an
+  `ILoads<T>` without one). A failing element fails the row; its retry replays the elements that committed.
+* **Behaviour (`ChangePipeline`):** `Load` (of `ILoads<T>` and `ILoads<T, TData>`) answering `ChangeOutcome.Skip(…)` is a success
+  with `Skipped` (HTTP 204), nothing appended, no key stored.
+* **Deviation from the decision text:** R-1 said one outbox row per element. The outbox row is written at commit, before the
+  factory runs (the factory runs in the worker, with the recorded event), so the row stays one per event and the per-element key
+  gives the same exactly-once guarantee; the cost is that one failing element holds the later ones until it succeeds or dead-letters.
+* **Tests [verified]:** `ReactionTests.A_fan_out_runs_one_change_per_element_each_under_its_own_key_and_a_retry_replays_them`,
+  `A_factory_answering_null_or_a_Load_answering_Skip_is_a_done_row_that_appends_nothing`; generator snapshots (both arms),
+  `TCHG006_factory_shape` with a `List<int>` return.
+* **Tatalu:** a reaction "for every child of the group" returns the list of changes; "the child left" is `ChangeOutcome.Skip`
+  instead of a retried `NotFound`.
+
 ## Open after round 3
 
-Not built yet (each with its owner decision taken, 2026-11-26): TN-47 with TN-83 (reactions: needs a design note), TN-49 /
+Not built yet (each with its owner decision taken, 2026-11-26): TN-49 /
 CR-3 (ports: document only), TN-50, TN-51, TN-54 rest (per-entity rows need a stream id column, since retention deletes rows by
 stream; the SQL read endpoint for billing), TN-55, TN-58 (DP2-*), TN-60b (capture in the event columns), TN-62 and the rest of
 TM-*, TN-63 rest (digest as a documented pattern, reads, correlation, recurring dates), TN-65

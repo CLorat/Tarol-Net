@@ -100,14 +100,14 @@ round-2 branch (PR links follow the PRs).
 | TN-44 | P1 | List rules with the query; range filters `>=`/`<=` | FB-F04.1-1, FB-F13.3-1 | range filters built `553e1bc` (round 3c); refusing a list on its filters open |
 | TN-45 | P1 | A change without `If-Match` retries a version conflict | FB-F17.3-10, FB-F02.2-2 | built `f5225c7` (client: TS-32) |
 | TN-46 | P1 | Commit and refuse (`Result.Rejected` after `Raise`) | FB-F15.1-4 | built `b6d3716` (round 3c) |
-| TN-47 | P1 | Reactions: fan-out, skip, all events of an aggregate | FB-F15.2-1, FB-F15.9-2, FB-F17.4-2, FB-F13.3-7 | open (audit part in [audit.md](../architecture/audit.md)) |
+| TN-47 | P1 | Reactions: fan-out, skip, all events of an aggregate | FB-F15.2-1, FB-F15.9-2, FB-F17.4-2, FB-F13.3-7 | fan-out and skip built after 0.1.0-preview.6 (R-1, R-2); "all events of an aggregate" stays the audit's feed (R-3, [audit.md](../architecture/audit.md)) |
 | TN-48 | P1 | Entity id and path in child events; event id in `On` | FB-F02.3-1, FB-F15.9-1, FB-F01.2-3, FB-F04.4-1 | documentation part built `28db79b`; the rest open |
 | TN-49 | P1 | Ports in changes (`Prepare`), versioned parameters, `LocalNow(zone)` | FB-F17.2-1, FB-F02.6-1, FB-F01.9-1 | pattern in `tarol-sagas` built `28db79b`; ports designed (change-reads.md), open |
 | TN-50 | P1 | Anonymous capability links with the tenant from the route | FB-F15.1-2 | open |
 | TN-51 | P1 | Read your reactions | FB-INT2-8 | documented (`tarol-sagas` rule 9); an option is open |
 | TN-52 | P1 | Reservation pattern | FB-F03.3-1 | built `28db79b` (skill) |
 | TN-53 | P1 | `Money` / `[Scale(2)]` | FB-F03.6-1 | open |
-| TN-54 | P1 | Projections: per entity, from the stored state, generic start, single view, SQL read endpoint | FB-F03.4-4, FB-F04.1-4, FB-F01.2-2, FB-F01.2-4, FB-F04.3-1, FB-F04.5-1 | open |
+| TN-54 | P1 | Projections: per entity, from the stored state, generic start, single view, SQL read endpoint | FB-F03.4-4, FB-F04.1-4, FB-F01.2-2, FB-F01.2-4, FB-F04.3-1, FB-F04.5-1 | per entity built after 0.1.0-preview.6 (P-1); "from the stored state" and the SQL read endpoint open (P-2 decided) |
 | TN-55 | P1 | Value equality for collections in events and views | FB-F04.8-1 | open |
 | TN-56 | P1 | `UseStoreTenants()`; global master data | FB-F03.4-3, FB-F17.7-2 | `UseStoreTenants<T>()` built `e5db48c` (round 3c); global master data and TN-62 open |
 | TN-57 | P1 | `JobTest.WithProjection<TRow>()` | FB-F03.4-6 | open |
@@ -148,7 +148,7 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-80 | P2 | Two personal fields of one subject: allowed in rows, not in events | FB-F06.4-2, FB-F05.3-1 | *Checked: fixed by TN-19* (any number of personal members per subject, events and state); TN-76 makes `ChangeTest` seal, so such errors surface in unit tests |
 | TN-81 | P2 | No promise that an added event member with a default needs no upcaster | FB-E07-1 | built `75553d3` (skill `tarol-persistence`, test) |
 | TN-82 | P2 | Enum name collision in the document | FB-F06.2-1 | *Checked: fixed by TN-22* (the document fails naming both types) |
-| TN-83 | P1 | One live topic fed by several events of one contract (TMSG005) | FB-E07-7 | open: part of TN-47 (needs a `[Publishes<A, B>]` shape) |
+| TN-83 | P1 | One live topic fed by several events of one contract (TMSG005) | FB-E07-7 | built after 0.1.0-preview.6 (R-4: TMSG005 allows several events per contract version with one record) |
 
 **Round-2 items built or confirmed in round 3**
 
@@ -162,8 +162,8 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-41 | `ILoads<T, TData>`; again FB-F05.1-1, FB-F06.3-3, FB-F06.4-4 | built `003a5b2` (round 3c) |
 | TN-42 | load or start, 201, `IView.Empty`, `Id<T>.Derive` | built `c7e973c`, `63e950a` (round 3c) |
 | TN-43, TN-44 | views with context and rights per view; list rules with the query and range filters; again FB-E07-3, FB-F06.1-1, FB-E07-4 | open: decisions VA-1 … VA-4 pending |
-| TN-47 | reactions: fan-out, skip, all events of an aggregate, the triggering event; again FB-F06.3-5, FB-F06.3-6, FB-F06.6-4, FB-F06.5-3, FB-F06.2-3, FB-E07-2, FB-INT3-5, new FB-F06.4-3, FB-E07-7 (TN-83) | open: needs a design note (no owner decision listed yet) |
-| TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | generic start `Empty(RecordedEvent)` built `3133118` (FB-F01.2-2); one row `IRowQuery<TRow>` built `c6ca39e` (FB-F01.2-4); per entity, from the state and the SQL read endpoint (join over two aggregate types) open: need a design note (row key per entity; a read endpoint for `ISqlProjection`) |
+| TN-47 | reactions: fan-out, skip, all events of an aggregate, the triggering event; again FB-F06.3-5, FB-F06.3-6, FB-F06.6-4, FB-F06.5-3, FB-F06.2-3, FB-E07-2, FB-INT3-5, new FB-F06.4-3, FB-E07-7 (TN-83) | fan-out and skip built (R-1, R-2); the rest is R-3 (the audit reads the feed) |
+| TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | generic start built `3133118`; one row built `c6ca39e`; per entity built (P-1); from the state and the SQL read endpoint open (P-2 decided) |
 | TN-58 | data protection; new FB-E07-8 (erasure with exceptions, retention from a domain date) | open: decisions DP2-1 … DP2-6 pending |
 | TN-62 | Zitadel; new FB-F06.5-2 (time-limited grants), FB-F05.2-2 (row rule over several children) | open: decisions TM-1 … TM-6 pending |
 | TN-63 | effects; new FB-F06.5-4 (reads in effects), FB-E07-6 (correlation delivery → cause), FB-F05.8-1 (recurring domain dates) | `dueAt` built `7953ecb` (FB-F17.4-3); digest (decision pending), reads in effects, correlation and recurring dates open |

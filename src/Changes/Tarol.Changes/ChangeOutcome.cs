@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Tarol.Options;
 using Tarol.Persistence;
+using Tarol.Results;
 
 namespace Tarol.Changes;
 
@@ -21,6 +22,26 @@ public readonly record struct ChangeOutcome(Guid StreamId, long Version, int Eve
     /// answers 201 with <c>{id, version}</c> for every such change (owner decision CR-4a), not only for creations.
     /// </summary>
     public bool Created { get; init; }
+
+    /// <summary>
+    /// Nothing was to be done (R-2, TN-47): a reaction factory returned <see langword="null"/>, or <c>Load</c> answered <see cref="Skip"/>.
+    /// Nothing was appended; a reaction's row is done (not retried), HTTP answers 204.
+    /// </summary>
+    public bool Skipped { get; init; }
+
+    /// <summary>The code of <see cref="Skip"/>: <c>Change.Skipped</c>.</summary>
+    public const string SkippedCode = "Change.Skipped";
+
+    /// <summary>The outcome of a change that had nothing to do (<see cref="Skipped"/>).</summary>
+    public static ChangeOutcome Nothing { get; } = new(Guid.Empty, 0, 0) { Skipped = true };
+
+    /// <summary>
+    /// What <c>Load</c> answers when there is nothing to do (R-2, TN-47): the target is gone or the event no longer applies. The
+    /// pipeline answers <see cref="Nothing"/> instead of a failure, so a reaction's row is done instead of retried as a <c>NotFound</c>.
+    /// </summary>
+    /// <param name="reason">Why, for the log.</param>
+    /// <returns>The violation <c>Load</c> returns.</returns>
+    public static Error Skip(string? reason = null) => Error.NotFound(SkippedCode, reason);
 }
 
 /// <summary>What a channel passes along with a change.</summary>

@@ -12,6 +12,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `IReadModelStore<TRow>.RemoveStreams`; a per-entity read table has an indexed `stream_id` column (TN-54, owner decision P-1).
 * Several events may publish one contract version with the same record (TN-83, owner decision R-4): TMSG005 reports only two
   records per contract version or two methods for one event; `PublicationInfo.EventTypes`.
+* Reaction fan-out and skip (TN-47, owner decisions R-1, R-2): an `[OnEvent<T>]` factory may return `X?` (null: nothing runs) or
+  `IEnumerable<X>` (one change per element, keyed per element target); `ChangeOutcome.Skipped`, `ChangeOutcome.Nothing`,
+  `ChangeOutcome.Skip(reason)` for `Load`; `ReactionSet.Each`, `Skip`, `Element` and `Options(reaction, recorded, element)`.
 
 ## [0.1.0]
 
