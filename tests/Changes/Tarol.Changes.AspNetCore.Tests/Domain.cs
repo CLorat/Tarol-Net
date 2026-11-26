@@ -231,7 +231,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(House.Founded)), JsonSerializable(typeof(House.Retitled)), JsonSerializable(typeof(OpenHouse)), JsonSerializable(typeof(RenameHouse))]
 [JsonSerializable(typeof(HouseView))]
 [JsonSerializable(typeof(HouseSeasonView))]
-[JsonSerializable(typeof(HouseRow))]
+[JsonSerializable(typeof(HouseRow)), JsonSerializable(typeof(CloseAuctionByLink))]
 [JsonSerializable(typeof(HouseGreeting))]
 [JsonSerializable(typeof(HouseLedger))]
 [JsonSerializable(typeof(Shelf.Started))]
