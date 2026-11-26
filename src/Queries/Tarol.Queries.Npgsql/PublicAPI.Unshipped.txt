@@ -1,2 +1,1 @@
 #nullable enable
-Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>

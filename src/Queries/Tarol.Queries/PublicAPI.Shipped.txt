@@ -36,6 +36,7 @@ Tarol.Queries.IProjection<TRow>
 Tarol.Queries.IProjection<TRow>.Apply(TRow? row, Tarol.Primitives.RecordedEvent! recorded) -> TRow?
 Tarol.Queries.IProjection<TRow>.Columns.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ProjectionColumn<TRow!>!>!
 Tarol.Queries.IProjection<TRow>.Name.get -> string!
+Tarol.Queries.IProjection<TRow>.PerEntity.get -> bool
 Tarol.Queries.IProjection<TRow>.StreamType.get -> string!
 Tarol.Queries.IProjection<TRow>.Version.get -> int
 Tarol.Queries.IProjectionGate
@@ -53,6 +54,7 @@ Tarol.Queries.IReadModelStore<TRow>.Find(Tarol.Queries.RowKey key, System.Thread
 Tarol.Queries.IReadModelStore<TRow>.Load(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<Tarol.Queries.RowKey, Tarol.Queries.Versioned<TRow!>!>!>
 Tarol.Queries.IReadModelStore<TRow>.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Queries.IReadModelStore<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.IReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Tarol.Queries.IReadModelStore<TRow>.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Queries.IReadModelStore<TRow>.Search(Tarol.Queries.ListQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Queries.Page<TRow!>!>>
 Tarol.Queries.IReadModelStore<TRow>.Write(Tarol.Queries.ProjectionBatch<TRow!>! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
@@ -77,6 +79,7 @@ Tarol.Queries.InMemoryReadModelStore<TRow>.Load(System.Collections.Generic.IRead
 Tarol.Queries.InMemoryReadModelStore<TRow>.Prepare(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Queries.InMemoryReadModelStore<TRow>.Refused.get -> int
 Tarol.Queries.InMemoryReadModelStore<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.InMemoryReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 Tarol.Queries.InMemoryReadModelStore<TRow>.Replace(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Queries.InMemoryReadModelStore<TRow>.Rows.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>!
 Tarol.Queries.InMemoryReadModelStore<TRow>.Search(Tarol.Queries.ListQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Queries.Page<TRow!>!>>
@@ -150,6 +153,8 @@ Tarol.Queries.ProjectionArrayColumn<TRow, TElement>
 Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.ProjectionArrayColumn(string! name, string! member, Tarol.Queries.ColumnType type, bool nullable, System.Func<TRow, TElement[]?>! get) -> void
 Tarol.Queries.ProjectionAttribute
 Tarol.Queries.ProjectionAttribute.Name.get -> string!
+Tarol.Queries.ProjectionAttribute.PerEntity.get -> bool
+Tarol.Queries.ProjectionAttribute.PerEntity.set -> void
 Tarol.Queries.ProjectionAttribute.ProjectionAttribute(string! name) -> void
 Tarol.Queries.ProjectionAttribute.Version.get -> int
 Tarol.Queries.ProjectionAttribute.Version.set -> void
@@ -322,6 +327,8 @@ Tarol.Queries.Versioned<TRow>.Key.get -> Tarol.Queries.RowKey
 Tarol.Queries.Versioned<TRow>.Key.init -> void
 Tarol.Queries.Versioned<TRow>.Row.get -> TRow
 Tarol.Queries.Versioned<TRow>.Row.init -> void
+Tarol.Queries.Versioned<TRow>.Stream.get -> System.Guid
+Tarol.Queries.Versioned<TRow>.Stream.init -> void
 Tarol.Queries.Versioned<TRow>.Version.get -> long
 Tarol.Queries.Versioned<TRow>.Version.init -> void
 Tarol.Queries.Versioned<TRow>.Versioned(Tarol.Queries.RowKey Key, long Version, TRow Row) -> void

@@ -1,10 +1,1 @@
 #nullable enable
-Tarol.Changes.ChangeOutcome.Skipped.get -> bool
-Tarol.Changes.ChangeOutcome.Skipped.init -> void
-const Tarol.Changes.ChangeOutcome.SkippedCode = "Change.Skipped" -> string!
-static Tarol.Changes.ChangeOutcome.Nothing.get -> Tarol.Changes.ChangeOutcome
-static Tarol.Changes.ChangeOutcome.Skip(string? reason = null) -> Tarol.Results.Error!
-static Tarol.Changes.ReactionSet.Each<TChange>(System.Collections.Generic.IEnumerable<TChange?>? changes, System.Func<TChange, int, System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>>! run) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
-static Tarol.Changes.ReactionSet.Element(System.Guid target, int index) -> string!
-static Tarol.Changes.ReactionSet.Options(string! reaction, Tarol.Primitives.RecordedEvent! recorded, string! element) -> Tarol.Changes.ChangeOptions
-static Tarol.Changes.ReactionSet.Skip() -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
