@@ -586,11 +586,33 @@ the other pipeline tests.
 * **Tatalu:** a reaction "for every child of the group" returns the list of changes; "the child left" is `ChangeOutcome.Skip`
   instead of a retried `NotFound`.
 
+### TN-54 Read endpoint over an SQL projection (owner decision P-2; FB-F04.5-1)
+
+* **New API (`Tarol.Queries`):** `ProjectionAttribute.Sql`, `ProjectionAttribute.Aggregate`, `IProjection<TRow>.Sql` (static virtual, default `false`, generated),
+  `ISqlProjection<TRow>` (`Name` and `Version` are the row's). **(`Tarol.Queries.Npgsql`):** `NpgsqlRows<TRow>` with `Prepare`,
+  `Write` (insert or replace by tenant and id, no version guard), `Remove` and `Table`, each on the batch's connection and
+  transaction.
+* **Behaviour:** a `Sql = true` row record declares columns only: a `When` is TQRY003, `PerEntity` is TQRY001; its `StreamType`
+  is empty. Its table is a row projection's (`rm_<name>_v<version>`, typed columns and `jsonb` row), its checkpoint is the SQL
+  projection's, so `IQuery<TRow>`/`IRowQuery<TRow>` endpoints, `Tarol-Read-After` and the 503 while building work unchanged.
+  `ProjectionsBuilder.Add<TRow>()` refuses the row (`InvalidOperationException` naming `ISqlProjection<TRow>`), and the generated
+  module skips it. The endpoints need an aggregate for the `Read<T>` grant and the tenant check: an SQL row names it with
+  `Aggregate = typeof(X)` (an aggregate root; without it TWEB001; on a row projection TQRY001).
+* **Not covered:** erasure. An SQL projection still registers its own `ErasureParticipant` (unchanged; `tarol-queries` says so).
+* **Tests [verified]:** `SqlRowsTests` (Npgsql integration: a projection counting auctions per seller in the batch transaction;
+  `Search` sorted by its column, `Find`, the tenant boundary, the checkpoint through `NpgsqlProjectionPositions`; `NpgsqlRows`
+  refuses a row projection's row), `SqlRowEndpointTests` (AspNetCore: list sorted and filtered, the tenant boundary, the row
+  read, 401 and 404, 503 while building), `BuilderTests.An_sql_projections_row_is_not_hosted_as_a_row_projection_and_names_its_projection`,
+  generator `An_sql_projections_row_has_columns_and_no_When`, `TQRY003_an_sql_projections_row_with_a_When`,
+  `TQRY001_an_sql_projection_per_entity`, `TQRY001_Aggregate_on_a_row_projection`.
+* **Skills:** `tarol-queries` rule 4 and Endpoints; `tarol-queries-npgsql` rule 10 (8.1 KB, slightly over the guide).
+* **Tatalu:** billing and the hours account (a join over two aggregate types) become an `ISqlProjection<BillingRow>` with a list
+  endpoint, instead of a hand-written port.
+
 ## Open after round 3
 
 Not built yet (each with its owner decision taken, 2026-11-26): TN-49 /
-CR-3 (ports: document only), TN-50, TN-51, TN-54 rest (per-entity rows need a stream id column, since retention deletes rows by
-stream; the SQL read endpoint for billing), TN-55, TN-58 (DP2-*), TN-60b (capture in the event columns), TN-62 and the rest of
+CR-3 (ports: document only), TN-50, TN-51, TN-54 rest (rows from the stored state), TN-55, TN-58 (DP2-*), TN-62 and the rest of
 TM-*, TN-63 rest (digest as a documented pattern, reads, correlation, recurring dates), TN-65
 `Tarol.Files` (FI-*), TN-66 Web Push (WP-*), TN-67 rest; VA-C's Development `requires` member; VA-D's policy-failure decorator
 and hub refusals; the "list rules" half of TN-44. Skills still over the 8 KB guide: `tarol-primitives`, `tarol-persistence`,
@@ -600,6 +622,7 @@ and hub refusals; the "list rules" half of TN-44. Skills still over the 8 KB gui
 
 | Task | Expected API | Mistakes to avoid |
 |---|---|---|
+| billing rows computed in SQL, listed over HTTP | `[Projection("billing", Sql = true, Aggregate = typeof(Facility))]`, `ISqlProjection<BillingRow>`, `NpgsqlRows<BillingRow>.Write` | `Add<BillingRow>()`; own tables behind a hand-written port; a second connection in `Apply` |
 | a change needs the tenant's facility | `[Reads<ChildDayCare>]`, `context.Read<ChildDayCare>()` | a hand-written `IHasReads` (TCHG013) |
 | a change of a care file needs the child under the same Guid | `[Reads<Child>(SameIdAs = nameof(CareFile))]` | an extra `Id<Child>` member the client must send |
 | a read that may be missing | `[Read(Optional = true)]` / `Optional = true`, `context.TryRead(out X? x)` | catching the exception of `Read<T>()` |

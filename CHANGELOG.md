@@ -6,6 +6,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* Rows of an SQL projection that list and row queries read (TN-54, owner decision P-2): `[Projection(…, Sql = true, Aggregate =
+  typeof(X))]` (columns only, no `When`; `X` is the aggregate whose `Read<X>` grant the endpoints need), `IProjection<TRow>.Sql`, `ISqlProjection<TRow>` (name and version from the row), `NpgsqlRows<TRow>` (`Prepare`,
+  `Write`, `Remove`, `Table` in the batch transaction); `ProjectionsBuilder.Add<TRow>()` refuses such a row, and a module does not
+  host it.
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline

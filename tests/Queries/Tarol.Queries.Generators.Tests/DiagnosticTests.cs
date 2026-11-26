@@ -13,6 +13,25 @@ public sealed class DiagnosticTests
         """;
 
     [Fact]
+    public void An_sql_projections_row_has_columns_and_no_When()
+        => Diagnose("[Projection(\"rows\", Sql = true)] public sealed partial record Row(Guid Id, [Sort] int Count);").ShouldBeEmpty();
+
+    [Fact]
+    public void TQRY003_an_sql_projections_row_with_a_When()
+        => Message("[Projection(\"rows\", Sql = true)] public sealed partial record Row(Guid Id)\n" + Valid, "TQRY003")
+            .ShouldContain("an SQL projection (Sql = true) has no When methods: its ISqlProjection<Row> writes the rows");
+
+    [Fact]
+    public void TQRY001_Aggregate_on_a_row_projection()
+        => Message("[Projection(\"rows\", Aggregate = typeof(Order))] public sealed partial record Row(Guid Id)\n" + Valid, "TQRY001")
+            .ShouldContain("Aggregate names the read grant of an SQL projection's rows");
+
+    [Fact]
+    public void TQRY001_an_sql_projection_per_entity()
+        => Message("[Projection(\"rows\", Sql = true, PerEntity = true)] public sealed partial record Row(Guid Id);", "TQRY001")
+            .ShouldContain("cannot be PerEntity");
+
+    [Fact]
     public void A_valid_projection_has_no_diagnostics()
         => Diagnose("[Projection(\"rows\")] public sealed partial record Row(Guid Id)\n" + Valid).ShouldBeEmpty();
 

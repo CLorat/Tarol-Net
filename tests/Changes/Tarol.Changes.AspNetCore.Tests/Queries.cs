@@ -49,3 +49,21 @@ public sealed record AuctionsBetween([AtLeast(nameof(AuctionRow.EndsOn))] DateOn
 /// <summary>A seller's auctions from the route.</summary>
 [Endpoint("GET /sellers/{seller}/auctions")]
 public sealed record SellerAuctions(string Seller, AuctionSort Sort = AuctionSort.HighestBid) : IQuery<AuctionRow>;
+
+/// <summary>TN-54 (P-2): the rows of an SQL projection (auctions per seller), read with the Read&lt;Auction&gt; grant.</summary>
+[Projection("seller-totals", Sql = true, Aggregate = typeof(Auction))]
+public sealed partial record SellerTotalRow(Guid Id, string Seller, [Sort] int Auctions);
+
+public enum SellerTotalSort
+{
+    [Descending] Auctions,
+    Id,
+}
+
+/// <summary>The sellers with the most auctions first.</summary>
+[Endpoint("GET /seller-totals", Policy = "auctions:read")]
+public sealed record SellerTotals(string? Seller, SellerTotalSort Sort = SellerTotalSort.Auctions) : IQuery<SellerTotalRow>;
+
+/// <summary>One seller's total.</summary>
+[Endpoint("GET /seller-totals/{id}", Policy = "auctions:read")]
+public sealed record SellerTotal(Guid Id) : IRowQuery<SellerTotalRow>;

@@ -320,7 +320,7 @@ internal static class Discovery
             return Fail(Diagnostics.NotAnEntry, type.Name, "an entry is a public, non-generic type");
         var aggregate = RowAggregate(row);
         if (aggregate is null)
-            return Fail(Diagnostics.NotAnEntry, type.Name, $"{row.Name} is not a [Projection] row record with When methods over an aggregate's events");
+            return Fail(Diagnostics.NotAnEntry, type.Name, $"{row.Name} is not a [Projection] row record with When methods over an aggregate's events, or an SQL projection's row with Aggregate = typeof(<an aggregate root>)");
         var ctor = type.InstanceConstructors
             .Where(c => c.DeclaredAccessibility == Accessibility.Public && !(c.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, type)))
             .OrderByDescending(c => c.Parameters.Length).FirstOrDefault();
@@ -370,7 +370,7 @@ internal static class Discovery
             return Fail(Diagnostics.NotAnEntry, type.Name, "an entry is a public, non-generic type");
         var aggregate = RowAggregate(row);
         if (aggregate is null)
-            return Fail(Diagnostics.NotAnEntry, type.Name, $"{row.Name} is not a [Projection] row record with When methods over an aggregate's events");
+            return Fail(Diagnostics.NotAnEntry, type.Name, $"{row.Name} is not a [Projection] row record with When methods over an aggregate's events, or an SQL projection's row with Aggregate = typeof(<an aggregate root>)");
 
         // the row's typed columns: scalar public members except the key, in snake case
         var ctorParameters = row.InstanceConstructors.SelectMany(c => c.Parameters).ToList();
@@ -576,6 +576,11 @@ internal static class Discovery
 
     private static ITypeSymbol? RowAggregateSymbol(INamedTypeSymbol row)
     {
+        // TN-54 (P-2): an SQL projection's row names the aggregate of its read grant
+        var named = row.GetAttributes().FirstOrDefault(static a => a.AttributeClass?.ToDisplayString() == "Tarol.Queries.ProjectionAttribute")?
+            .NamedArguments.FirstOrDefault(static n => n.Key == "Aggregate").Value.Value as INamedTypeSymbol;
+        if (named is not null)
+            return IsAggregateRoot(named) ? named : null;
         foreach (var method in row.GetMembers("When").OfType<IMethodSymbol>())
         {
             if (method.Parameters.Length == 0 || method.Parameters[0].Type is not INamedTypeSymbol domainEvent)
@@ -589,6 +594,14 @@ internal static class Discovery
             }
         }
         return null;
+    }
+
+    private static bool IsAggregateRoot(INamedTypeSymbol type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+            if (current.MetadataName == "AggregateRoot`1" && current.ContainingNamespace?.ToDisplayString() == "Tarol.Primitives")
+                return true;
+        return false;
     }
 
     /// <summary>The column name of a member (the Queries generator's rule): EndsAt → ends_at.</summary>

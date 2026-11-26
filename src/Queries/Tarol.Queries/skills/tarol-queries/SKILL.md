@@ -27,7 +27,9 @@ description: >-
    `[Sort]` marks a non-nullable column as a sort (an index per sort).
 4. Rows are per stream and keyed (tenant, stream id). `[Projection("dog-list", PerEntity = true)]` keys them by the entity id
    instead (root events are not applied; `When(Dog.Added e, RecordedEvent r)` takes `r.Event.EntityId`); erasure and retention
-   still find them by stream. For totals across streams write an `ISqlProjection`.
+   still find them by stream. For totals across streams write an `ISqlProjection<TRow>` over a `[Projection("seller-totals",
+   Sql = true, Aggregate = typeof(Auction))]` row (columns only, no `When`: TQRY003; not `Add<TRow>()`); the endpoints read its
+   rows with `Read<Auction>`.
 5. To change a row's shape or logic, raise `Version`: the new version builds from the start of the feed next to the
    old one (`ProjectionState.Building` until it is `Current`). Never alter or truncate a read table.
 6. Host projections in the worker: `builder.UseInMemoryReadModels()` (or `UseNpgsqlReadModels()`) in every process that
@@ -72,7 +74,7 @@ result.TryGetValue(out Page<AuctionRow>? page).ShouldBeTrue();   // page.Items, 
 ## Endpoints
 
 Lists, one-row reads, filters, `IListScope`, paging and `Tarol-Read-After` over HTTP: skill `tarol-list-endpoints`
-(`Tarol.Changes.AspNetCore`). An `ISqlProjection`'s tables are not served by those endpoints: read them behind your own port.
+(`Tarol.Changes.AspNetCore`). An `ISqlProjection<TRow>`'s rows are served like any row; a plain `ISqlProjection`'s own tables are not.
 
 ## Personal data (step 16)
 

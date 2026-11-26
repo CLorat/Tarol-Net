@@ -107,7 +107,7 @@ round-2 branch (PR links follow the PRs).
 | TN-51 | P1 | Read your reactions | FB-INT2-8 | documented (`tarol-sagas` rule 9); an option is open |
 | TN-52 | P1 | Reservation pattern | FB-F03.3-1 | built `28db79b` (skill) |
 | TN-53 | P1 | `Money` / `[Scale(2)]` | FB-F03.6-1 | open |
-| TN-54 | P1 | Projections: per entity, from the stored state, generic start, single view, SQL read endpoint | FB-F03.4-4, FB-F04.1-4, FB-F01.2-2, FB-F01.2-4, FB-F04.3-1, FB-F04.5-1 | per entity built after 0.1.0-preview.6 (P-1); "from the stored state" and the SQL read endpoint open (P-2 decided) |
+| TN-54 | P1 | Projections: per entity, from the stored state, generic start, single view, SQL read endpoint | FB-F03.4-4, FB-F04.1-4, FB-F01.2-2, FB-F01.2-4, FB-F04.3-1, FB-F04.5-1 | per entity (P-1, preview.7) and the SQL read endpoint (P-2) built; "from the stored state" open |
 | TN-55 | P1 | Value equality for collections in events and views | FB-F04.8-1 | open |
 | TN-56 | P1 | `UseStoreTenants()`; global master data | FB-F03.4-3, FB-F17.7-2 | `UseStoreTenants<T>()` built `e5db48c` (round 3c); global master data and TN-62 open |
 | TN-57 | P1 | `JobTest.WithProjection<TRow>()` | FB-F03.4-6 | open |
@@ -163,7 +163,7 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-42 | load or start, 201, `IView.Empty`, `Id<T>.Derive` | built `c7e973c`, `63e950a` (round 3c) |
 | TN-43, TN-44 | views with context and rights per view; list rules with the query and range filters; again FB-E07-3, FB-F06.1-1, FB-E07-4 | open: decisions VA-1 … VA-4 pending |
 | TN-47 | reactions: fan-out, skip, all events of an aggregate, the triggering event; again FB-F06.3-5, FB-F06.3-6, FB-F06.6-4, FB-F06.5-3, FB-F06.2-3, FB-E07-2, FB-INT3-5, new FB-F06.4-3, FB-E07-7 (TN-83) | fan-out and skip built (R-1, R-2); the rest is R-3 (the audit reads the feed) |
-| TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | generic start built `3133118`; one row built `c6ca39e`; per entity built (P-1); from the state and the SQL read endpoint open (P-2 decided) |
+| TN-54 | projections per entity, from the state, generic start, single view, SQL read endpoint (FB-F04.5-1 billing, hours account) | generic start built `3133118`; one row built `c6ca39e`; per entity built (P-1); SQL read endpoint built (P-2); from the state open |
 | TN-58 | data protection; new FB-E07-8 (erasure with exceptions, retention from a domain date) | open: decisions DP2-1 … DP2-6 pending |
 | TN-62 | Zitadel; new FB-F06.5-2 (time-limited grants), FB-F05.2-2 (row rule over several children) | open: decisions TM-1 … TM-6 pending |
 | TN-63 | effects; new FB-F06.5-4 (reads in effects), FB-E07-6 (correlation delivery → cause), FB-F05.8-1 (recurring domain dates) | `dueAt` built `7953ecb` (FB-F17.4-3); digest (decision pending), reads in effects, correlation and recurring dates open |

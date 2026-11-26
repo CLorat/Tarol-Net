@@ -46,7 +46,10 @@ internal static class ModuleGenerator
             .Where(static j => j is not null).Select(static (j, _) => j!).Collect();
         var projections = context.SyntaxProvider
             .ForAttributeWithMetadataName("Tarol.Queries.ProjectionAttribute", static (node, _) => node is TypeDeclarationSyntax,
-                static (ctx, _) => ctx.TargetSymbol is INamedTypeSymbol t ? t.ToDisplayString(Fq) : null)
+                // TN-54 (P-2): the rows of an SQL projection are written by its ISqlProjection<TRow>, not by a row host
+                static (ctx, _) => ctx.TargetSymbol is INamedTypeSymbol t
+                                   && !ctx.Attributes.Any(static a => a.NamedArguments.Any(static n => n.Key == "Sql" && n.Value.Value is true))
+                    ? t.ToDisplayString(Fq) : null)
             .Where(static p => p is not null).Select(static (p, _) => p!).Collect();
         var entries = context.SyntaxProvider
             .ForAttributeWithMetadataName("Tarol.Changes.AspNetCore.EndpointAttribute", static (node, _) => node is TypeDeclarationSyntax, static (_, _) => true)

@@ -205,11 +205,16 @@ public sealed partial record DogRow(Guid Id, Guid Kennel, [Sort] string Name)
     public DogRow When(Dog.Renamed e) => this with { Name = e.Name };
 }
 
+/// <summary>TN-54 (P-2): the rows of an SQL projection, auctions per seller, read like a row projection's.</summary>
+[Projection("seller-rows", Sql = true)]
+public sealed partial record SellerRow(Guid Id, string Seller, [Sort] int Auctions);
+
 [System.Text.Json.Serialization.JsonSourceGenerationOptions(PropertyNamingPolicy = System.Text.Json.Serialization.JsonKnownNamingPolicy.CamelCase)]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Kennel.Opened), TypeInfoPropertyName = "KennelOpened")]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Dog.Added))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Dog.Renamed), TypeInfoPropertyName = "DogRenamed")]
 [System.Text.Json.Serialization.JsonSerializable(typeof(DogRow))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(SellerRow))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.Opened))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.BidPlaced))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.Closed))]

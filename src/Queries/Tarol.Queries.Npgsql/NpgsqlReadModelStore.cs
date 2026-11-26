@@ -20,7 +20,7 @@ namespace Tarol.Queries.Npgsql;
 public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
     where TRow : class, IProjection<TRow>
 {
-    private readonly NpgsqlDataSource _db;
+    private readonly NpgsqlDataSource? _db;
     private readonly JsonTypeInfo<TRow> _json;
     private readonly IReadOnlyList<ProjectionColumn<TRow>> _columns;
     private readonly string _schema;
@@ -47,11 +47,26 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         ArgumentNullException.ThrowIfNull(json);
         NpgsqlReadModelSchema.Validate(schema);
         _db = dataSource;
-        _json = TypeInfo(json);
-        _columns = TRow.Columns;
-        _schema = schema;
-        _channel = pushCheckpoints ? CheckpointSql.Channel(schema) : null;
-        Table = $"{schema}.{Projections.TableOf<TRow>()}";
+        (_json, _columns, _schema, _channel, Table, _upsert, _replace, _advance, _checkpoint, _load) = Statements(json, schema, pushCheckpoints);
+    }
+
+    // the statements of an SQL projection's rows (NpgsqlRows, TN-54 P-2): no data source, it writes in the batch's transaction
+    internal NpgsqlReadModelStore(JsonSerializerOptions json, string schema)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        NpgsqlReadModelSchema.Validate(schema);
+        (_json, _columns, _schema, _channel, Table, _upsert, _replace, _advance, _checkpoint, _load) = Statements(json, schema, false);
+    }
+
+    private NpgsqlDataSource Db => _db ?? throw new InvalidOperationException("These rows are written by an SQL projection in its transaction (NpgsqlRows).");
+
+    private static (JsonTypeInfo<TRow>, IReadOnlyList<ProjectionColumn<TRow>>, string, string?, string, string, string, string, string, string) Statements(
+        JsonSerializerOptions json, string schema, bool pushCheckpoints)
+    {
+        var typeInfo = TypeInfo(json);
+        var columns = TRow.Columns;
+        var channel = pushCheckpoints ? CheckpointSql.Channel(schema) : null;
+        var table = $"{schema}.{Projections.TableOf<TRow>()}";
 
         var names = new StringBuilder("tenant, id, version");
         var arrays = new StringBuilder("$1::uuid[], $2::uuid[], $3::bigint[]");
@@ -69,7 +84,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             select.Append(", c4");
             updates.Append(", stream_id = excluded.stream_id");
         }
-        foreach (var column in _columns)
+        foreach (var column in columns)
         {
             p++;
             names.Append(", ").Append(NpgsqlReadModelSchema.Quote(column.Name));
@@ -85,24 +100,25 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         aliases.Append(CultureInfo.InvariantCulture, $", c{p}");
         select.Append(CultureInfo.InvariantCulture, $", c{p}");
         updates.Append(", doc = excluded.doc");
-        _upsert = $"""
-            INSERT INTO {Table} AS t ({names})
+        var upsert = $"""
+            INSERT INTO {table} AS t ({names})
             SELECT {select} FROM unnest({arrays}) AS u({aliases})
             ON CONFLICT (tenant, id) DO UPDATE SET {updates}
             WHERE t.version < excluded.version
             """;
         // an erasure's re-fold rewrites a row at the same version (DP-5): the guard above would refuse it
-        _replace = $"""
-            INSERT INTO {Table} AS t ({names})
+        var replace = $"""
+            INSERT INTO {table} AS t ({names})
             SELECT {select} FROM unnest({arrays}) AS u({aliases})
             ON CONFLICT (tenant, id) DO UPDATE SET {updates}
             """;
-        _advance = $"""
+        var advance = $"""
             UPDATE {schema}.projections SET tx = $3::text::xid8, pos = $4, state = $5, updated_at = now()
             WHERE name = $1 AND version = $2 AND tx = $6::text::xid8 AND pos = $7
             """;
-        _checkpoint = $"SELECT tx::text, pos, state FROM {schema}.projections WHERE name = $1 AND version = $2";
-        _load = $"SELECT tenant, id, version, doc::text{(TRow.PerEntity ? ", stream_id" : "")} FROM {Table} WHERE (tenant, id) IN (SELECT * FROM unnest($1::uuid[], $2::uuid[]))";
+        var checkpoint = $"SELECT tx::text, pos, state FROM {schema}.projections WHERE name = $1 AND version = $2";
+        var load = $"SELECT tenant, id, version, doc::text{(TRow.PerEntity ? ", stream_id" : "")} FROM {table} WHERE (tenant, id) IN (SELECT * FROM unnest($1::uuid[], $2::uuid[]))";
+        return (typeInfo, columns, schema, channel, table, upsert, replace, advance, checkpoint, load);
     }
 
     /// <summary>The error code of <see cref="Search"/> before any host prepared the table (<see cref="ErrorType.Unavailable"/>: HTTP 503).</summary>
@@ -117,27 +133,53 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
     /// <inheritdoc />
     public async ValueTask Prepare(CancellationToken cancellationToken)
     {
-        var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var connection = await Db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using (connection.ConfigureAwait(false))
         {
             var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
             {
-                // parallel CREATE … IF NOT EXISTS race on the catalog: one preparer at a time per schema
-                await using (var lockCommand = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext($1))", connection, transaction))
-                {
-                    lockCommand.Parameters.Add(new NpgsqlParameter { Value = "tarol.read-models:" + _schema });
-                    await lockCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                }
-                await using (var create = new NpgsqlCommand(NpgsqlReadModelSchema.TableScript<TRow>(_schema), connection, transaction))
-                    await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                await Upgrade(connection, transaction, cancellationToken).ConfigureAwait(false);
-                await using (var indexes = new NpgsqlCommand(NpgsqlReadModelSchema.IndexScript<TRow>(_schema), connection, transaction))
-                    if (indexes.CommandText.Length > 0)
-                        await indexes.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                await PrepareIn(connection, transaction, cancellationToken).ConfigureAwait(false);
                 await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
             }
         }
+    }
+
+    // the table, its upgrade and its indexes, in the caller's transaction
+    internal async ValueTask PrepareIn(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        // parallel CREATE … IF NOT EXISTS race on the catalog: one preparer at a time per schema
+        await using (var lockCommand = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext($1))", connection, transaction))
+        {
+            lockCommand.Parameters.Add(new NpgsqlParameter { Value = "tarol.read-models:" + _schema });
+            await lockCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        await using (var create = new NpgsqlCommand(NpgsqlReadModelSchema.TableScript<TRow>(_schema), connection, transaction))
+            await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await Upgrade(connection, transaction, cancellationToken).ConfigureAwait(false);
+        await using (var indexes = new NpgsqlCommand(NpgsqlReadModelSchema.IndexScript<TRow>(_schema), connection, transaction))
+            if (indexes.CommandText.Length > 0)
+                await indexes.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // rows as given (an SQL projection decides them; no version guard), in the caller's transaction
+    internal async ValueTask<int> WriteIn(IReadOnlyList<Versioned<TRow>> rows, NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (rows.Count == 0)
+            return 0;
+        await using var command = new NpgsqlCommand(_replace, connection, transaction);
+        AddRows(command.Parameters, rows);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async ValueTask<int> RemoveIn(IReadOnlyCollection<RowKey> keys, NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (keys.Count == 0)
+            return 0;
+        await using var command = new NpgsqlCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.id = k.id", connection, transaction);
+        command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Tenant).ToArray() });
+        command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Id).ToArray() });
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -216,7 +258,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
     /// <inheritdoc />
     public async ValueTask<ProjectionCheckpoint> Checkpoint(CancellationToken cancellationToken)
     {
-        await using var command = _db.CreateCommand(_checkpoint);
+        await using var command = Db.CreateCommand(_checkpoint);
         command.Parameters.Add(new NpgsqlParameter { Value = TRow.Name });
         command.Parameters.Add(new NpgsqlParameter { Value = TRow.Version });
         try
@@ -237,7 +279,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         var found = new Dictionary<RowKey, Versioned<TRow>>(keys.Count);
         if (keys.Count == 0)
             return found;
-        await using var command = _db.CreateCommand(_load);
+        await using var command = Db.CreateCommand(_load);
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Tenant).ToArray() });
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Id).ToArray() });
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -253,7 +295,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
     public async ValueTask<bool> Write(ProjectionBatch<TRow> batch, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(batch);
-        var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        var connection = await Db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using (connection.ConfigureAwait(false))
         {
             var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
@@ -290,7 +332,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         ArgumentNullException.ThrowIfNull(rows);
         if (rows.Count == 0)
             return;
-        await using var command = _db.CreateCommand(_replace);
+        await using var command = Db.CreateCommand(_replace);
         AddRows(command.Parameters, rows);
         try
         {
@@ -309,7 +351,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         ArgumentNullException.ThrowIfNull(keys);
         if (keys.Count == 0)
             return 0;
-        await using var command = _db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.id = k.id");
+        await using var command = Db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.id = k.id");
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Tenant).ToArray() });
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Id).ToArray() });
         try
@@ -330,7 +372,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             return await Remove(streams, cancellationToken).ConfigureAwait(false);
         if (streams.Count == 0)
             return 0;
-        await using var command = _db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.stream_id = k.id");
+        await using var command = Db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.stream_id = k.id");
         command.Parameters.Add(new NpgsqlParameter { Value = streams.Select(static k => k.Tenant).ToArray() });
         command.Parameters.Add(new NpgsqlParameter { Value = streams.Select(static k => k.Id).ToArray() });
         try
@@ -403,7 +445,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
                 batch.BatchCommands.Add(count);
             }
 
-            var connection = await _db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            var connection = await Db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
             await using (connection.ConfigureAwait(false))
             {
                 batch.Connection = connection;
