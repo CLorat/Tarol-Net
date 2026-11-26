@@ -16,6 +16,12 @@ Tarol.Changes.AspNetCore.ChangeEndpoints.Row<TRow>(Microsoft.AspNetCore.Http.Htt
 Tarol.Changes.AspNetCore.ChangeEndpoints.Scope<TQuery>(Microsoft.AspNetCore.Http.HttpContext! http, Tarol.Queries.ListQuery! query, bool required = false) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ListQuery!>
 Tarol.Changes.AspNetCore.ChangeEndpoints.WriteContextView<TView>(Microsoft.AspNetCore.Http.HttpContext! http, TView view) -> System.Threading.Tasks.Task!
 Tarol.Changes.AspNetCore.DeviceGateExtensions
+Tarol.Changes.AspNetCore.DeviceGateOptions
+Tarol.Changes.AspNetCore.DeviceGateOptions.Claim.get -> string!
+Tarol.Changes.AspNetCore.DeviceGateOptions.Claim.set -> void
+Tarol.Changes.AspNetCore.DeviceGateOptions.DeviceGateOptions() -> void
+Tarol.Changes.AspNetCore.DeviceGateOptions.RequireDevice.get -> bool
+Tarol.Changes.AspNetCore.DeviceGateOptions.RequireDevice.set -> void
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.get -> bool
 Tarol.Changes.AspNetCore.EndpointAttribute.RequiresScope.init -> void
 Tarol.Changes.AspNetCore.EndpointAttribute.Restricted.get -> bool
@@ -76,6 +82,8 @@ Tarol.Changes.AspNetCore.ViewContext.Operation.init -> void
 Tarol.Changes.AspNetCore.ViewContext.ViewContext() -> void
 Tarol.Changes.AspNetCore.ViewContext.ViewContext(Tarol.Kernel.OperationContext! Operation, System.DateTimeOffset Now) -> void
 const Tarol.Changes.AspNetCore.DeviceGateExtensions.EndedCode = "Device.Ended" -> string!
+const Tarol.Changes.AspNetCore.DeviceGateExtensions.MismatchCode = "Device.Mismatch" -> string!
+const Tarol.Changes.AspNetCore.DeviceGateExtensions.RequiredCode = "Device.Required" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.CapturedAt = "Tarol-Captured-At" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.Confirm = "Tarol-Confirm" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.Device = "Tarol-Device" -> string!
@@ -97,7 +105,7 @@ static Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(string! text, out System
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnumName<TEnum>(string? text, out TEnum value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryTime(string! text, out System.TimeOnly value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.ViewContextOf(Microsoft.AspNetCore.Http.HttpContext! http) -> Tarol.Changes.AspNetCore.ViewContext
-static Tarol.Changes.AspNetCore.DeviceGateExtensions.UseDeviceGate(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
+static Tarol.Changes.AspNetCore.DeviceGateExtensions.UseDeviceGate(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app, System.Action<Tarol.Changes.AspNetCore.DeviceGateOptions!>? configure = null) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
 static Tarol.Changes.AspNetCore.EndpointModule.operator !=(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool
 static Tarol.Changes.AspNetCore.EndpointModule.operator ==(Tarol.Changes.AspNetCore.EndpointModule? left, Tarol.Changes.AspNetCore.EndpointModule? right) -> bool
 static Tarol.Changes.AspNetCore.ModuleEndpointExtensions.ConfigureOpenApi(this System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules, object! openApiOptions) -> void

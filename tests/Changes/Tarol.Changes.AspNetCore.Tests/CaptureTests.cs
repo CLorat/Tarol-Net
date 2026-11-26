@@ -72,4 +72,31 @@ public sealed class CaptureTests : IAsyncLifetime
         read.Status.ShouldBe(HttpStatusCode.Unauthorized);                                     // reads too: the gate is a middleware
         spaced.Status.ShouldBe(HttpStatusCode.BadRequest, spaced.Body);
     }
+
+    [Fact]
+    public async Task A_device_bound_to_the_token_is_checked_without_the_header_and_a_contradicting_header_is_refused()
+    {
+        var lost = await _app.Get("/auctions", Alice, h => h.Add("X-Device-Claim", "lost-1"));            // no Tarol-Device: no bypass
+        var mismatch = await _app.Get("/auctions", Alice, h => { h.Add("X-Device-Claim", "tab-1"); h.Add("Tarol-Device", "tab-2"); });
+        var same = await _app.Get("/auctions", Alice, h => { h.Add("X-Device-Claim", "tab-1"); h.Add("Tarol-Device", "tab-1"); });
+
+        lost.Status.ShouldBe(HttpStatusCode.Unauthorized);
+        lost.Response.Headers.WwwAuthenticate.ToString().ShouldContain("Device.Ended");
+        mismatch.Status.ShouldBe(HttpStatusCode.Unauthorized);
+        mismatch.Response.Headers.WwwAuthenticate.ToString().ShouldContain("Device.Mismatch");
+        same.Status.ShouldBe(HttpStatusCode.OK, same.Body);
+    }
+
+    [Fact]
+    public async Task RequireDevice_refuses_a_signed_in_request_that_names_no_device()
+    {
+        await using var app = await Start(devices: o => o.RequireDevice = true);
+
+        var none = await app.Get("/auctions", Alice);
+        var named = await app.Get("/auctions", Alice, h => h.Add("Tarol-Device", "tab-1"));
+
+        none.Status.ShouldBe(HttpStatusCode.Unauthorized);
+        none.Response.Headers.WwwAuthenticate.ToString().ShouldContain("Device.Required");
+        named.Status.ShouldBe(HttpStatusCode.OK, named.Body);
+    }
 }

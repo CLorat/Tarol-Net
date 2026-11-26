@@ -32,7 +32,7 @@ internal sealed class TestApp : IAsyncDisposable
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
         Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null,
-        string? corsOrigin = null, bool scopes = true)
+        string? corsOrigin = null, bool scopes = true, Action<DeviceGateOptions>? devices = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
@@ -86,7 +86,7 @@ internal sealed class TestApp : IAsyncDisposable
         if (corsOrigin is not null)
             app.UseCors("browser");
         app.UseAuthentication();
-        app.UseDeviceGate();                                                                   // TN-60
+        app.UseDeviceGate(devices);                                                            // TN-60
         app.UseAuthorization();
         app.MapOpenApi();
         app.MapChanges();
@@ -171,6 +171,8 @@ internal sealed class TestApp : IAsyncDisposable
             claims.AddRange(Request.Headers["X-Scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(s => new Claim("scope", s)));
             if (Request.Headers["X-Tenant"].ToString() is { Length: > 0 } tenant)
                 claims.Add(new Claim("tenant", tenant));
+            if (Request.Headers["X-Device-Claim"].ToString() is { Length: > 0 } device)
+                claims.Add(new Claim("device_id", device));                                    // a device bound to the token (TN-60)
             if (Request.Headers["X-Client"].ToString() is { Length: > 0 } client)
                 claims.Add(new Claim("client_id", client));
             var identity = new ClaimsIdentity(claims, "test", "sub", "role");

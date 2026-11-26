@@ -502,6 +502,11 @@ was red before (a new API's test did not compile before), and the Tatalu file wh
   `OperationContext.Capture`; out of bounds is 400 `Future`/`TooOld`/`Format`. Both headers are in `TarolHeaders.Allowed` (CORS).
   The context's JSON carries `capture` when present (outbox, bus envelopes). `UseDeviceGate()` answers 401 with
   `WWW-Authenticate: Bearer error="invalid_token", error_description="Device.Ended"` for an ended device (a 401 has no body).
+  **Hardened after CodeQL (`cs/user-controlled-bypass`):** a header alone is the client's word, so a lost device could leave it out.
+  `UseDeviceGate(o => …)` takes `DeviceGateOptions`: the device is the token's `Claim` (default `device_id`) when present, a header
+  naming another device is 401 `Device.Mismatch`, and `RequireDevice` refuses a signed-in request without any device (401
+  `Device.Required`). Tests [verified]: `CaptureTests.A_device_bound_to_the_token_is_checked_without_the_header_and_a_contradicting_header_is_refused`,
+  `RequireDevice_refuses_a_signed_in_request_that_names_no_device`.
 * **TN-60b (owner decision C-1):** the PostgreSQL store writes the capture to `events.device`/`captured_at` (schema version 5,
   additive) and reads it back into `RecordedEvent.Context.Capture`, so projections and reactions fed from the store see it. Only a
   commit with a capture names the columns, so a store keeps writing on an older schema while it is upgraded
