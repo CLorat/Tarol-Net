@@ -46,6 +46,12 @@ public readonly record struct IdempotencyKey
     /// <summary>What the key was used for, e.g. a hash of an HTTP request's method, path and body; <c>None</c> when the
     /// channel has nothing to compare (reactions, webhooks).</summary>
     public Option<string> Fingerprint { get; init; }
+
+    /// <summary>
+    /// The refusal a committing change answered (TN-46, <c>Result.Rejected</c>), stored with the key so a replay answers it
+    /// again; <see langword="null"/> for a successful commit.
+    /// </summary>
+    public Tarol.Results.Violation? Refusal { get; init; }
 }
 
 /// <summary>What the store remembers under an <see cref="IdempotencyKey"/>.</summary>
@@ -53,4 +59,8 @@ public readonly record struct IdempotencyKey
 /// <param name="Version">The stream's version after the commit.</param>
 /// <param name="Events">How many events the commit appended.</param>
 /// <param name="Fingerprint">The fingerprint of the key that stored it, if it had one.</param>
-public readonly record struct StoredOutcome(Guid StreamId, long Version, int Events, Option<string> Fingerprint = default);
+public readonly record struct StoredOutcome(Guid StreamId, long Version, int Events, Option<string> Fingerprint = default)
+{
+    /// <summary>The refusal the commit answered (TN-46); <see langword="null"/> for a success.</summary>
+    public Tarol.Results.Violation? Refusal { get; init; }
+}

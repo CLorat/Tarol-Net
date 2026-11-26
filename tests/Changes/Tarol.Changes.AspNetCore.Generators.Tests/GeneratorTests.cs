@@ -225,6 +225,9 @@ public sealed class DiagnosticTests
     [InlineData("public sealed record Q(long? Items) : IQuery<OrderRow>;", "holds int, not long")]
     [InlineData("public sealed record Q(S Sort = S.Customer) : IQuery<OrderRow>; public enum S { Customer }", "names no [Sort] member")]
     [InlineData("public sealed record Q([FromClaim(\"sub\")] OrderState State) : IQuery<OrderRow>;", "a string or a Guid")]
+    [InlineData("public sealed record Q([AtLeast(\"Nope\")] int? From) : IQuery<OrderRow>;", "has no typed column 'Nope' for the [AtLeast] bound")]  // TN-44
+    [InlineData("public sealed record Q([AtMost(nameof(OrderRow.Items))] long? Until) : IQuery<OrderRow>;", "holds int, not long")]
+    [InlineData("public sealed record Q([AtMost(nameof(OrderRow.Items))] int Until) : IQuery<OrderRow>;", "a filter member is nullable")]
     public void TQRY005_query_members_name_columns(string record, string message)
         => Message("[Endpoint(\"GET /q\")] " + record, "TQRY005").ShouldContain(message);
 
@@ -253,13 +256,13 @@ public sealed class DiagnosticTests
         => Diagnose("""[Endpoint("POST /orders/{order}/a")] public sealed partial record A(Id<Order> Order)""" + Close).ShouldBeEmpty();
 }
 
-/// <summary>The list scope example of skills/tarol-queries/SKILL.md (TN-6), read from the file: every API name compiles.</summary>
+/// <summary>The list scope example of skills/tarol-list-endpoints/SKILL.md (TN-6), read from the file: every API name compiles.</summary>
 public sealed class ListScopeSkillExampleTests
 {
     [Fact]
     public void The_scope_example_compiles_with_the_generators()
     {
-        var skill = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../src/Queries/Tarol.Queries/skills/tarol-queries/SKILL.md"));
+        var skill = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../src/Changes/Tarol.Changes.AspNetCore/skills/tarol-list-endpoints/SKILL.md"));
         var start = skill.IndexOf("[Endpoint(\"GET /logs\"", StringComparison.Ordinal);
         var example = skill[start..skill.IndexOf("```", start, StringComparison.Ordinal)];
         var source = GeneratorTestHost.Usings + """

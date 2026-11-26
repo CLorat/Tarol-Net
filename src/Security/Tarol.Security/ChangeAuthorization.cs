@@ -36,6 +36,9 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
 
     private readonly IAuthorizationService _authorization;
     private readonly ILogger _log;
+    private readonly ChangeRoles? _roles;
+    private readonly IAuthorizationHandler[] _handlers = [];
+    private readonly AccessObservers? _observers;
 
     /// <summary>Creates the authorization.</summary>
     /// <param name="authorization">ASP.NET Core's authorization service (<c>AddAuthorizationCore</c>).</param>
@@ -49,17 +52,68 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
         _denied = (meters?.Create(MeterName) ?? SharedMeter).CreateCounter<long>("tarol.authorization.denied", "{request}", "Changes and reads refused by authorization.");
     }
 
+    /// <summary>Creates the authorization that also answers <see cref="MayBeGranted"/> from the role map and the row rules (VA-3).</summary>
+    /// <param name="authorization">ASP.NET Core's authorization service (<c>AddAuthorizationCore</c>).</param>
+    /// <param name="roles">The role map.</param>
+    /// <param name="handlers">The registered authorization handlers (the <see cref="ChangeHandler{TChange, TAggregate}"/> row rules among them).</param>
+    /// <param name="observers">The access observers (TN-59): every denial, and every granted <c>Sensitive</c> read.</param>
+    /// <param name="logger">The denial log.</param>
+    /// <param name="meters">Creates the meter <see cref="MeterName"/>; <see langword="null"/> = a shared meter.</param>
+    public ChangeAuthorization(IAuthorizationService authorization, ChangeRoles roles, IEnumerable<IAuthorizationHandler> handlers,
+        AccessObservers observers, ILogger<ChangeAuthorization>? logger = null, IMeterFactory? meters = null)
+        : this(authorization, logger, meters)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+        ArgumentNullException.ThrowIfNull(handlers);
+        ArgumentNullException.ThrowIfNull(observers);
+        _roles = roles;
+        _handlers = [.. handlers];
+        _observers = observers.Any ? observers : null;
+    }
+
     /// <inheritdoc />
-    public async ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    /// <remarks>
+    /// A role of the map, or a <see cref="ChangeHandler{TChange, TAggregate}"/> / <see cref="ViewHandler{TView, TAggregate}"/> for the
+    /// intent (a rule that only denies counts too: the check cannot see inside it). Lists are granted by the role map only (row
+    /// rules do not run on lists), so a rule does not cover a list. <see langword="null"/> when built without the role map.
+    /// </remarks>
+    public bool? MayBeGranted(Type intent, ReadScope? scope)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+        if (_roles is null)
+            return null;
+        if (_roles.GrantsAnyone(intent, scope))
+            return true;
+        foreach (var handler in _handlers)
+            if (handler is IChangeRule rule && rule.Covers(intent, scope))
+                return true;
+        return false;
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Check(change, aggregate, context, principal, null, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, ReadScope scope, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Check(change, aggregate, context, principal, (ReadScope?)scope, cancellationToken);
+
+    private async ValueTask<Result> Check<T>(object change, T aggregate, ChangeContext context, ClaimsPrincipal principal, ReadScope? scope, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(change);
         ArgumentNullException.ThrowIfNull(aggregate);
         ArgumentNullException.ThrowIfNull(principal);
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await _authorization.AuthorizeAsync(principal, aggregate, new ChangeRequirement(change, context)).ConfigureAwait(false);
+        var result = await _authorization.AuthorizeAsync(principal, aggregate, new ChangeRequirement(change, context) { View = scope }).ConfigureAwait(false);
         if (result.Succeeded)
+        {
+            if (_observers is not null && scope is { Sensitive: true } sensitive)
+                await _observers.Report(Record(context, Name(change), typeof(T).Name, aggregate.Id.Value, sensitive, AccessDecision.Allowed, null), cancellationToken).ConfigureAwait(false);
             return Result.Success();
+        }
         var reason = result.Failure?.FailureReasons.FirstOrDefault()?.Message;
         var anonymous = principal.Identity?.IsAuthenticated != true;
         var code = anonymous ? RequiredCode : reason ?? ForbiddenCode;
@@ -68,27 +122,47 @@ public sealed partial class ChangeAuthorization : IChangeAuthorization
         _denied.Add(1, new KeyValuePair<string, object?>("change", name), new KeyValuePair<string, object?>("reason", code),
             new KeyValuePair<string, object?>("actor.kind", actor.Kind.ToString()));
         Refused(_log, name, typeof(T).Name, aggregate.Id.Value, actor.Kind, actor.Id, code);
+        if (_observers is not null)
+            await _observers.Report(Record(context, name, typeof(T).Name, aggregate.Id.Value, scope, AccessDecision.Denied, code), cancellationToken).ConfigureAwait(false);
         return anonymous ? Error.Unauthorized(RequiredCode) : Error.Forbidden(code);
     }
 
     /// <inheritdoc />
-    public async ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+    public ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => CheckList<T>(context, principal, null, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, ReadScope scope, CancellationToken cancellationToken)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => CheckList<T>(context, principal, (ReadScope?)scope, cancellationToken);
+
+    private async ValueTask<Result> CheckList<T>(ChangeContext context, ClaimsPrincipal principal, ReadScope? scope, CancellationToken cancellationToken)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(principal);
         cancellationToken.ThrowIfCancellationRequested();
         // no resource: resource handlers (row rules, ChangeHandler<TChange, TAggregate>) never run; the role map may grant Read<T>
-        var result = await _authorization.AuthorizeAsync(principal, null, new ChangeRequirement(Read<T>.Instance, context)).ConfigureAwait(false);
+        var result = await _authorization.AuthorizeAsync(principal, null, new ChangeRequirement(Read<T>.Instance, context) { View = scope }).ConfigureAwait(false);
         if (result.Succeeded)
+        {
+            if (_observers is not null && scope is { Sensitive: true } sensitive)
+                await _observers.Report(Record(context, "List<" + typeof(T).Name + ">", typeof(T).Name, null, sensitive, AccessDecision.Allowed, null), cancellationToken).ConfigureAwait(false);
             return Result.Success();
+        }
         var anonymous = principal.Identity?.IsAuthenticated != true;
         var code = anonymous ? RequiredCode : result.Failure?.FailureReasons.FirstOrDefault()?.Message ?? ForbiddenCode;
         var actor = context.Operation.Actor;
         _denied.Add(1, new KeyValuePair<string, object?>("change", "List<" + typeof(T).Name + ">"), new KeyValuePair<string, object?>("reason", code),
             new KeyValuePair<string, object?>("actor.kind", actor.Kind.ToString()));
         ListRefused(_log, typeof(T).Name, actor.Kind, actor.Id, code);
+        if (_observers is not null)
+            await _observers.Report(Record(context, "List<" + typeof(T).Name + ">", typeof(T).Name, null, scope, AccessDecision.Denied, code), cancellationToken).ConfigureAwait(false);
         return anonymous ? Error.Unauthorized(RequiredCode) : Error.Forbidden(code);
     }
+
+    private static AccessRecord Record(ChangeContext context, string intent, string aggregate, Guid? id, ReadScope? scope, AccessDecision decision, string? code)
+        => new(context.Operation.Actor, context.Operation.Tenant, intent, aggregate, id, scope?.View.Name, decision, code, context.Now);
 
     [LoggerMessage(EventId = 1002, Level = LogLevel.Warning, Message = "Refused a list of {Aggregate} for {ActorKind} {ActorId}: {Reason}")]
     private static partial void ListRefused(ILogger logger, string aggregate, ActorKind actorKind, string actorId, string reason);

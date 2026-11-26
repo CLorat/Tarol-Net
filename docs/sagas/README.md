@@ -45,4 +45,4 @@ every idle claim would be a span. A runnable prototype with an Aspire AppHost is
 
 ## Skills
 
-`tarol-sagas` (worker, sagas, `ReactionTest`) and the reactions section of `tarol-changes` ship in the packages.
+`tarol-sagas` (worker, sagas, `ReactionTest`) and `tarol-reactions` (in `Tarol.Changes`: `[OnEvent<T>]`, `[Scheduled]`) ship in the packages.

@@ -84,14 +84,24 @@ public sealed partial class ChangeEndpoints
     public const string BuildingCode = "Projection.Building";
 
     /// <summary>
-    /// The access of a list request: the edge (tenant from the claims), then <see cref="IChangeAuthorization.CheckList{T}"/>
+    /// The access of a list request: the edge (tenant from the claims), then <see cref="IChangeAuthorization.CheckList{T}(ChangeContext, System.Security.Claims.ClaimsPrincipal, CancellationToken)"/>
     /// (the role map's <c>Read&lt;T&gt;</c>; row rules do not run on lists: an <see cref="IListScope{TQuery}"/> restricts the rows).
     /// </summary>
     /// <typeparam name="TAggregate">The aggregate whose projection is listed.</typeparam>
     /// <param name="http">The request.</param>
     /// <returns>The tenant key of the list, or <see langword="null"/> when the refusal is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<Guid?> ListAccess<TAggregate>(HttpContext http)
+    public ValueTask<Guid?> ListAccess<TAggregate>(HttpContext http)
+        where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
+        => ListAccess<TAggregate>(http, null);
+
+    /// <summary>As <see cref="ListAccess{TAggregate}(HttpContext)"/> for one list or row query (TN-43, VA-2).</summary>
+    /// <typeparam name="TAggregate">The aggregate whose projection is read.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="scope">The query record and whether it is restricted; <see langword="null"/>: any read.</param>
+    /// <returns>The tenant key, or <see langword="null"/> when the refusal is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<Guid?> ListAccess<TAggregate>(HttpContext http, ReadScope? scope)
         where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -102,8 +112,9 @@ public sealed partial class ChangeEndpoints
             await Problem(http, refused).ConfigureAwait(false);
             return null;
         }
-        var allowed = await _authorization.CheckList<TAggregate>(new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, http.RequestAborted)
-            .ConfigureAwait(false);
+        var allowed = scope is { } read
+            ? await _authorization.CheckList<TAggregate>(new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, read, http.RequestAborted).ConfigureAwait(false)
+            : await _authorization.CheckList<TAggregate>(new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, http.RequestAborted).ConfigureAwait(false);
         if (allowed.TryGetValue(out Violation? denied))
         {
             await Problem(http, denied).ConfigureAwait(false);
@@ -183,6 +194,20 @@ public sealed partial class ChangeEndpoints
         return text.Length > 0 && !char.IsDigit(text[0]) && text[0] != '-' && Enum.TryParse(text, ignoreCase: true, out value) && Enum.IsDefined(value);
     }
 
+    /// <summary>A route value naming a member of <typeparamref name="TEnum"/> (TN-34): a defined name, case-insensitive; never a number or a combination.</summary>
+    /// <typeparam name="TEnum">The enum.</typeparam>
+    /// <param name="text">The route value.</param>
+    /// <param name="value">The member.</param>
+    /// <returns>Whether it names one.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static bool TryEnumName<TEnum>(string? text, out TEnum value)
+        where TEnum : struct, Enum
+    {
+        value = default;
+        return text is { Length: > 0 } && !char.IsAsciiDigit(text[0]) && text[0] is not ('-' or '+') && !text.Contains(',', StringComparison.Ordinal)
+               && Enum.TryParse(text, ignoreCase: true, out value) && Enum.IsDefined(value);
+    }
+
     /// <summary>The field code of a query key a list does not know (BC-14).</summary>
     public const string UnknownKeyCode = "Unknown";
 
@@ -238,7 +263,7 @@ public sealed partial class ChangeEndpoints
     /// </summary>
     /// <typeparam name="TRow">The projection's row record (in the application's JSON context).</typeparam>
     /// <param name="http">The request.</param>
-    /// <param name="query">The query, tenant set from <see cref="ListAccess{TAggregate}"/>.</param>
+    /// <param name="query">The query, tenant set from <see cref="ListAccess{TAggregate}(HttpContext)"/>.</param>
     /// <returns>The write.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public async Task List<TRow>(HttpContext http, ListQuery query)
@@ -302,6 +327,62 @@ public sealed partial class ChangeEndpoints
                 writer.WriteNumber("total", total);
             writer.WriteEndObject();
         }
+        http.Response.ContentLength = buffer.WrittenCount;
+        await http.Response.Body.WriteAsync(buffer.WrittenMemory, http.RequestAborted).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Answers a row request (TN-54): <c>Tarol-Read-After</c> as for a list, 503 while the projection builds, the row of
+    /// (<paramref name="tenant"/>, <paramref name="id"/>) with its <c>ETag</c> (the row's version; 304 for a match) and
+    /// <c>Tarol-Position</c>, or 404 <paramref name="notFound"/>.
+    /// </summary>
+    /// <typeparam name="TRow">The projection's row record (in the application's JSON context).</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="tenant">The tenant key from <see cref="ListAccess{TAggregate}(HttpContext)"/>.</param>
+    /// <param name="id">The row's stream id.</param>
+    /// <param name="notFound">The code of a missing row (<c>X.NotFound</c>).</param>
+    /// <returns>The write.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async Task Row<TRow>(HttpContext http, Guid tenant, Guid id, string notFound)
+        where TRow : class, IProjection<TRow>
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var positions = http.RequestServices.GetRequiredService<IProjectionPositions>();
+        var store = http.RequestServices.GetRequiredService<IReadModels>().Store<TRow>();
+        if (http.Request.Headers[Positions.ReadAfterHeader].ToString() is { Length: > 0 } readAfter)
+        {
+            if (!Positions.TryParse(readAfter, out var position))
+            {
+                await Problem(http, Invalid.Field(Positions.ReadAfterHeader, "Format")).ConfigureAwait(false);
+                return;
+            }
+            if (!await positions.WaitFor<TRow>(position, Options.Queries.ReadAfterTimeout, http.RequestAborted).ConfigureAwait(false))
+                http.Response.Headers[Positions.StaleHeader] = "true";
+        }
+        var checkpoint = await positions.Checkpoint<TRow>(http.RequestAborted).ConfigureAwait(false);
+        if (checkpoint.State == ProjectionState.Building)
+        {
+            await Unavailable(http, Error.Unavailable(BuildingCode, $"The projection '{TRow.Name}' v{TRow.Version} is being built.")).ConfigureAwait(false);
+            return;
+        }
+        http.Response.Headers[Positions.PositionHeader] = Positions.Format(checkpoint.Position);
+        if (await store.Find(new RowKey(tenant, id), http.RequestAborted).ConfigureAwait(false) is not { } found)
+        {
+            await Problem(http, Error.NotFound(notFound)).ConfigureAwait(false);
+            return;
+        }
+        var etag = "\"" + found.Version.ToString(CultureInfo.InvariantCulture) + "\"";
+        http.Response.Headers.ETag = etag;
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
+        {
+            http.Response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+        http.Response.StatusCode = StatusCodes.Status200OK;
+        http.Response.ContentType = "application/json";
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>(1024);
+        using (var writer = new Utf8JsonWriter(buffer))
+            JsonSerializer.Serialize(writer, found.Row, Json.GetTypeInfo<TRow>());
         http.Response.ContentLength = buffer.WrittenCount;
         await http.Response.Body.WriteAsync(buffer.WrittenMemory, http.RequestAborted).ConfigureAwait(false);
     }

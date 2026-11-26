@@ -18,6 +18,22 @@ public partial class ResultJsonTests
 
     [Theory]
     [MemberData(nameof(Modes))]
+    public void Reasons_Should_RoundTrip_And_Commits_Should_StayOutOfTheJson(string mode)          // TN-46
+    {
+        var rejected = Result.Rejected(new Error(ErrorType.Conflict, "Order.Blocked") { Reasons = ["Order.Unpaid", "Order.NoAddress"] });
+        rejected.TryGetValue(out Violation? violation).ShouldBeTrue();
+        violation!.Commits.ShouldBeTrue();
+
+        var json = JsonSerializer.Serialize(violation, Options(mode));
+        var back = (Error)JsonSerializer.Deserialize<Violation>(json, Options(mode))!;
+
+        json.ShouldBe("""{"kind":"error","type":"Conflict","code":"Order.Blocked","reasons":["Order.Unpaid","Order.NoAddress"]}""");
+        (back.Code, back.Commits).ShouldBe(("Order.Blocked", false));
+        back.Reasons.ShouldBe(["Order.Unpaid", "Order.NoAddress"]);
+    }
+
+    [Theory]
+    [MemberData(nameof(Modes))]
     public void Success_Should_BeAValueEnvelope(string mode)
     {
         var json = JsonSerializer.Serialize(Result<User>.Success(new User("Ada")), Options(mode));

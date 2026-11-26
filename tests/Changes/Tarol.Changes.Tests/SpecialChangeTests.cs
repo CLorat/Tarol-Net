@@ -85,7 +85,7 @@ public sealed class SpecialChangeTests
         var first = await test.When(new ApprovePayout(id, 150), Actor.System("Jobs.Payouts"));
         var second = await test.When(new ApprovePayout(id, 150), Actor.System("Jobs.Payouts"));
 
-        (first.Result.GetValueOrThrow() with { Position = default }).ShouldBe(new ChangeOutcome(id.Value, 2, 2));
+        (first.Result.GetValueOrThrow() with { Position = default }).ShouldBe(new ChangeOutcome(id.Value, 2, 2) { Created = true });   // TN-42: the load-or-create started the stream
         first.Events.ShouldBe([new Payout.BecameDue(150), new Payout.WasApproved()]);
         Failure(second.Result).ShouldBe(Error.Conflict("Payout.AlreadyApproved"));
     }

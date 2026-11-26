@@ -44,6 +44,20 @@ public partial class KernelJsonTests
         JsonSerializer.Deserialize(JsonSerializer.Serialize(Anonymous, Info(mode)), Info(mode)).ShouldBe(Anonymous);
     }
 
+    [Theory] // TN-60: the capture of an offline device is part of the contract when present, absent otherwise
+    [MemberData(nameof(Modes))]
+    public void Context_Should_CarryTheCapture(string mode)
+    {
+        var captured = Anonymous with { Capture = new Capture("tab-7", new DateTimeOffset(2026, 11, 26, 6, 31, 0, TimeSpan.Zero)) };
+
+        var json = JsonSerializer.Serialize(captured, Info(mode));
+        var back = JsonSerializer.Deserialize(json, Info(mode))!;
+
+        json.ShouldEndWith(""","causationId":null,"capture":{"device":"tab-7","at":"2026-11-26T06:31:00+00:00"}}""");
+        back.Capture.ShouldBe(captured.Capture);
+        JsonSerializer.Deserialize(json.Replace("\"device\":\"tab-7\",", "", StringComparison.Ordinal), Info(mode))!.Capture!.Device.ShouldBeNull();
+    }
+
     [Fact] // the case that broke with Option<Id<…>> metadata: the context nested in an app type, app context only
     public void Context_InsideAnAppType_Should_NeedNoExtraMetadata()
     {

@@ -24,15 +24,23 @@ public static class TarolHeaders
     /// </summary>
     public const string Confirm = "Tarol-Confirm";
 
+    /// <summary><c>Tarol-Device: &lt;opaque id&gt;</c>: the device that captured the change (TN-60); <c>OperationContext.Capture.Device</c>,
+    /// and the key an <see cref="IDeviceGate"/> refuses ended devices by.</summary>
+    public const string Device = "Tarol-Device";
+
+    /// <summary><c>Tarol-Captured-At: 2026-11-26T07:31:00+01:00</c>: when the device captured the change (TN-60, RFC 3339 with an
+    /// offset); <c>OperationContext.Capture.At</c>, bounded by <c>ChangeEndpointOptions.CaptureSkew</c> and <c>CaptureMaxAge</c>.</summary>
+    public const string CapturedAt = "Tarol-Captured-At";
+
     /// <summary>The response headers a browser must read: <c>ETag</c>, <c>Location</c>, <c>Tarol-Position</c>,
     /// <c>Tarol-Stale</c>, <c>Idempotent-Replayed</c>, <c>Tarol-Request-Id</c>, <c>Retry-After</c>, <c>WWW-Authenticate</c>.</summary>
     public static IReadOnlyList<string> Exposed { get; } =
         ["ETag", "Location", Positions.PositionHeader, Positions.StaleHeader, IdempotentReplayed, RequestId, "Retry-After", "WWW-Authenticate"];
 
     /// <summary>The request headers a browser sends: <c>Authorization</c>, <c>Content-Type</c>, <c>Idempotency-Key</c>,
-    /// <c>If-Match</c>, <c>If-None-Match</c>, <c>Tarol-Read-After</c>, <c>traceparent</c>.</summary>
+    /// <c>Tarol-Confirm</c>, <c>Tarol-Device</c>, <c>Tarol-Captured-At</c>, <c>If-Match</c>, <c>If-None-Match</c>, <c>Tarol-Read-After</c>, <c>traceparent</c>.</summary>
     public static IReadOnlyList<string> Allowed { get; } =
-        ["Authorization", "Content-Type", IdempotencyKey, Confirm, "If-Match", "If-None-Match", Positions.ReadAfterHeader, "traceparent"];
+        ["Authorization", "Content-Type", IdempotencyKey, Confirm, Device, CapturedAt, "If-Match", "If-None-Match", Positions.ReadAfterHeader, "traceparent"];
 
     /// <summary>Allows <see cref="Allowed"/> as request headers and exposes <see cref="Exposed"/> on the policy. Origins, methods
     /// and credentials stay the application's choice.</summary>

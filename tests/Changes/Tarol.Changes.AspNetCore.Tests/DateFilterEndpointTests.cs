@@ -70,4 +70,31 @@ public sealed class DateFilterEndpointTests : IAsyncLifetime
         parameters["endsAtTime"].GetProperty("format").GetString().ShouldBe("time");
         parameters["sort"].GetProperty("enum").EnumerateArray().Select(e => e.GetString()).ShouldBe(["EndsOn", "Id"]);
     }
+
+    [Fact]
+    public async Task A_range_of_days_lists_the_auctions_between_its_bounds()
+    {
+        static string Day(DateTimeOffset at) => DateOnly.FromDateTime(at.UtcDateTime).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+        Titles(await List($"/auctions/between?from={Day(Base.AddDays(1))}&sort=Id")).Order(StringComparer.Ordinal).ShouldBe(["Late", "Noon"]);
+        Titles(await List($"/auctions/between?until={Day(Base.AddDays(1))}")).ShouldBe(["Early"]);
+        Titles(await List($"/auctions/between?from={Day(Base)}&until={Day(Base)}")).ShouldBe(["Early"]);
+        Titles(await List($"/auctions/between?from={Day(Base.AddDays(3))}")).ShouldBeEmpty();
+        Titles(await List("/auctions/between?minBid=0")).Length.ShouldBe(3);
+        Titles(await List("/auctions/between?minBid=1")).ShouldBeEmpty();
+        Titles(await List("/auctions/between")).Length.ShouldBe(3);
+        (await List("/auctions/between?from=yesterday")).Status.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task The_document_describes_a_bound_as_inclusive()
+    {
+        var get = JsonElement.Parse(await _app.Client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken))
+            .GetProperty("paths").GetProperty("/auctions/between").GetProperty("get");
+
+        var parameters = get.GetProperty("parameters").EnumerateArray().ToDictionary(p => p.GetProperty("name").GetString()!);
+        parameters["from"].GetProperty("schema").GetProperty("format").GetString().ShouldBe("date");
+        parameters["from"].GetProperty("description").GetString().ShouldStartWith("At least the row's ends_on");
+        parameters["until"].GetProperty("description").GetString().ShouldStartWith("At most the row's ends_on");
+    }
 }

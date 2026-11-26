@@ -41,7 +41,7 @@ namespace Tarol.Persistence.Npgsql;
 /// (<see cref="NpgsqlSlimDataSourceBuilder"/>: <c>EnableArrays()</c>).
 /// </para>
 /// </remarks>
-public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempotencyKeyPurge, IDataProtectionStore
+public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempotencyKeyPurge, IDataProtectionStore, IStreamIds
 {
     private static readonly Guid NoTenant = Guid.Empty;
     private readonly NpgsqlDataSource _db;
@@ -275,7 +275,23 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
                 ? new StoredOutcome(reader.GetGuid(0), reader.GetInt64(1), reader.GetInt32(2),
                     reader.IsDBNull(3) ? Option.None : reader.GetString(3))
+                { Refusal = reader.IsDBNull(4) ? null : Refusals.Read(reader.GetString(4)) }
                 : Option.None;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Streams whose tenant was erased (<c>tenant_keys.erased_at</c>) are left out (TM-6).</remarks>
+    public async ValueTask<IReadOnlyList<Guid>> StreamIds(string streamType, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(streamType);
+        await using var command = _db.CreateCommand(_sql.StreamIds);
+        Add(command, streamType);
+        var ids = new List<Guid>();
+        var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using (reader.ConfigureAwait(false))
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                ids.Add(reader.GetGuid(0));
+        return ids;
     }
 
     // ----------------------------------------------------------------------------------------------------------- append
@@ -381,12 +397,18 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
         await using (batch.ConfigureAwait(false))
         {
             // 1. guard + state + events, one statement: the events go in only if the stream row was at the expected version
-            var events = Command(batch, expectedVersion == 0 ? _sql.CreateStream : _sql.AppendStream,
+            var captured = context.Capture is not null;
+            var events = Command(batch, expectedVersion == 0 ? _sql.CreateStream(captured) : _sql.AppendStream(captured),
                 tenant, type, id, at, actor.Kind.ToString(), actor.Id, actor.OnBehalfOf.TryGetValue(out string? onBehalfOf) ? onBehalfOf : null,
                 context.CorrelationId.Value, context.CausationId.TryGetValue(out Id<ICausation> causation) ? causation.Value : null,
                 Activity.Current is { IdFormat: ActivityIdFormat.W3C } activity ? activity.Id : null,
                 versions, eventIds, aliases, aliasVersions, entities, parents, Jsonb(payloads, NpgsqlDbType.Array | NpgsqlDbType.Jsonb),
                 version, schema, Jsonb(state, NpgsqlDbType.Jsonb), expectedVersion);
+            if (context.Capture is { } capture)
+            {
+                events.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)capture.Device ?? DBNull.Value });
+                events.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.TimestampTz, Value = capture.At is { } capturedAt ? capturedAt.ToUniversalTime() : DBNull.Value });
+            }
             if (_keys is not null)
             {
                 events.Parameters.Add(Jsonb(eventSubjects, NpgsqlDbType.Array | NpgsqlDbType.Text));
@@ -397,7 +419,8 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
             NpgsqlBatchCommand? keyCommand = null;
             if (key.TryGetValue(out IdempotencyKey idempotency))
                 keyCommand = Command(batch, _sql.StoreKey, TenantOf(idempotency.Tenant), idempotency.Scope, idempotency.Key, id, version, changes.Length, at, eventIds[0],
-                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = idempotency.Fingerprint.TryGetValue(out string? fingerprint) ? fingerprint : DBNull.Value });
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = idempotency.Fingerprint.TryGetValue(out string? fingerprint) ? fingerprint : DBNull.Value },
+                    new NpgsqlParameter { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text, Value = idempotency.Refusal is { } refusal ? Refusals.Write(refusal) : DBNull.Value });
             var lookupCommands = new List<(NpgsqlBatchCommand Command, string Lookup, string Key)>();
             foreach (var (lookup, lookupKey) in lookupKeys)
             {
@@ -1010,34 +1033,50 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
     {
         public string Schema => schema;
 
-        // $22: per event, its sealed subjects as a uuid[] literal (NULL when nothing of it is sealed); $23: the state's
-        private string Events => field ??= $"""
-            INSERT INTO {schema}.events (tenant, type, stream_id, version, event_id, alias, alias_version, entity_id, parent_id, payload,
-                                         recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, traceparent{(sealing ? ", subjects" : "")})
-            SELECT $1, $2, $3, v, e, a, av, en, NULLIF(p, '00000000-0000-0000-0000-000000000000'::uuid), pl, $4, $5, $6, $7, $8, $9, $10{(sealing ? ", sj::uuid[]" : "")}
-            FROM unnest($11::bigint[], $12::uuid[], $13::text[], $14::int[], $15::uuid[], $16::uuid[], $17::jsonb[]{(sealing ? ", $22::text[]" : "")}) AS u(v, e, a, av, en, p, pl{(sealing ? ", sj" : "")})
-            WHERE EXISTS (SELECT 1 FROM g)
-            """;
+        // Only a commit with a capture (TN-60b) writes device and captured_at ($22, $23), so a store keeps writing on a schema
+        // before version 5 while it is upgraded. Sealing: per event, its sealed subjects as a uuid[] literal (NULL when nothing
+        // of it is sealed), then the state's: $22, $23 without a capture, $24, $25 with one.
+        private string Events(bool capture)
+        {
+            var sj = capture ? "$24" : "$22";
+            return $"""
+                INSERT INTO {schema}.events (tenant, type, stream_id, version, event_id, alias, alias_version, entity_id, parent_id, payload,
+                                             recorded_at, actor_kind, actor_id, on_behalf_of, correlation_id, causation_id, traceparent{(capture ? ", device, captured_at" : "")}{(sealing ? ", subjects" : "")})
+                SELECT $1, $2, $3, v, e, a, av, en, NULLIF(p, '00000000-0000-0000-0000-000000000000'::uuid), pl, $4, $5, $6, $7, $8, $9, $10{(capture ? ", $22, $23" : "")}{(sealing ? ", sj::uuid[]" : "")}
+                FROM unnest($11::bigint[], $12::uuid[], $13::text[], $14::int[], $15::uuid[], $16::uuid[], $17::jsonb[]{(sealing ? $", {sj}::text[]" : "")}) AS u(v, e, a, av, en, p, pl{(sealing ? ", sj" : "")})
+                WHERE EXISTS (SELECT 1 FROM g)
+                """;
+        }
 
         private string Ours(string eventId) => $"EXISTS (SELECT 1 FROM {schema}.events WHERE event_id = {eventId})";
 
-        public string CreateStream => field ??= $"""
+        private string? _create, _createCaptured, _append, _appendCaptured;
+
+        public string CreateStream(bool capture) => capture
+            ? _createCaptured ??= Create(capture: true)
+            : _create ??= Create(capture: false);
+
+        public string AppendStream(bool capture) => capture
+            ? _appendCaptured ??= Append(capture: true)
+            : _append ??= Append(capture: false);
+
+        private string Create(bool capture) => $"""
             WITH g AS (INSERT INTO {schema}.streams (tenant, type, id, version, schema, state, updated_at{(sealing ? ", subjects" : "")})
-                       VALUES ($1, $2, $3, $18, $19, $20, $4{(sealing ? ", $23::uuid[]" : "")}) ON CONFLICT (tenant, type, id) DO NOTHING
+                       VALUES ($1, $2, $3, $18, $19, $20, $4{(sealing ? $", {(capture ? "$25" : "$23")}::uuid[]" : "")}) ON CONFLICT (tenant, type, id) DO NOTHING
                        RETURNING 1)
-            {Events} AND $21::bigint = 0
+            {Events(capture)} AND $21::bigint = 0
             """;
 
-        public string AppendStream => field ??= $"""
-            WITH g AS (UPDATE {schema}.streams SET version = $18, schema = $19, state = $20, updated_at = $4{(sealing ? ", subjects = $23::uuid[]" : "")}
+        private string Append(bool capture) => $"""
+            WITH g AS (UPDATE {schema}.streams SET version = $18, schema = $19, state = $20, updated_at = $4{(sealing ? $", subjects = {(capture ? "$25" : "$23")}::uuid[]" : "")}
                        WHERE tenant = $1 AND type = $2 AND id = $3 AND version = $21
                        RETURNING 1)
-            {Events}
+            {Events(capture)}
             """;
 
         public string StoreKey => field ??= $"""
-            INSERT INTO {schema}.idempotency_keys (tenant, scope, key, stream_id, version, events, stored_at, fingerprint)
-            SELECT $1, $2, $3, $4, $5, $6, $7, $9 WHERE {Ours("$8")}
+            INSERT INTO {schema}.idempotency_keys (tenant, scope, key, stream_id, version, events, stored_at, fingerprint, refusal)
+            SELECT $1, $2, $3, $4, $5, $6, $7, $9, $10::jsonb WHERE {Ours("$8")}
             ON CONFLICT (tenant, scope, key) DO NOTHING
             """;
 
@@ -1090,7 +1129,13 @@ public sealed class NpgsqlAggregateStore : IAggregateStore, IEventFeed, IIdempot
 
         public string Find => field ??= $"SELECT stream_id FROM {schema}.lookups WHERE tenant = $1 AND type = $2 AND lookup = $3 AND key = $4";
 
-        public string Seen => field ??= $"SELECT stream_id, version, events, fingerprint FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
+        public string StreamIds => field ??= $"""
+            SELECT DISTINCT s.id FROM {schema}.streams s
+            WHERE s.type = $1 AND NOT EXISTS (SELECT 1 FROM {schema}.tenant_keys k WHERE k.tenant = s.tenant AND k.erased_at IS NOT NULL)
+            ORDER BY s.id
+            """;
+
+        public string Seen => field ??= $"SELECT stream_id, version, events, fingerprint, refusal::text FROM {schema}.idempotency_keys WHERE tenant = $1 AND scope = $2 AND key = $3";
 
         // (tx_id, position) is the order; only transactions older than the oldest running one are final (P-14).
         // The text column needs its own name: ORDER BY tx_id would otherwise sort by the text output column.

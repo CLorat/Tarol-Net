@@ -7,6 +7,9 @@ public readonly record struct EventCatalogEntry(EventType Type, Type ClrType)
 {
     /// <summary>The event's <see cref="PersonalDataAttribute">[PersonalData]</see> members; <see langword="null"/> = none (stored as plain JSON).</summary>
     public PersonalShape? Personal { get; init; }
+
+    /// <summary>How the event is audited (TN-64); <see langword="null"/> = every member, as a change.</summary>
+    public EventAudit? Audit { get; init; }
 }
 
 /// <summary>

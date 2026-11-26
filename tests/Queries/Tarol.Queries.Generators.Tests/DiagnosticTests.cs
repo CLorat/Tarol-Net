@@ -60,6 +60,26 @@ public sealed class DiagnosticTests
             """, "TQRY002").ShouldContain("no static When creates the row");
 
     [Fact]
+    public void An_Empty_start_row_replaces_the_creating_When_and_a_wrong_one_is_reported()
+    {
+        // TN-54 (Tatalu FB-F01.2-2)
+        Diagnose("""
+            [Projection("rows")] public sealed partial record Row(Guid Id)
+            {
+                public static Row Empty(RecordedEvent r) => new(r.StreamId);
+                public Row When(Order.WasClosed e) => this with { };
+            }
+            """).ShouldBeEmpty();
+        Message("""
+            [Projection("rows")] public sealed partial record Row(Guid Id)
+            {
+                public static Row Empty(Guid id) => new(id);
+                public Row When(Order.WasClosed e) => this with { };
+            }
+            """, "TQRY003").ShouldContain("Empty(RecordedEvent r)");
+    }
+
+    [Fact]
     public void TQRY002_two_When_for_one_event()
         => Message("""
             [Projection("rows")] public sealed partial record Row(Guid Id)

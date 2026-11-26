@@ -32,6 +32,7 @@ public sealed class SkillExampleTests
         var result = await test.Search(new ListQuery(tenant.GetValueOrThrow().Value)
         {
             Filters = [new ColumnFilter("status", AuctionStatus.Open)],
+            Ranges = [new RangeFilter("ends_at", RangeBound.AtLeast, now)],   // >= / <=, inclusive; null never matches (TN-44)
             Sort = "ends_at",
             Limit = 20,
         });

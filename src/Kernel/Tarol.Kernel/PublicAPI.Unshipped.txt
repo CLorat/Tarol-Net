@@ -1,4 +1,13 @@
 #nullable enable
+Tarol.Kernel.Capture
+Tarol.Kernel.Capture.<Clone>$() -> Tarol.Kernel.Capture!
+Tarol.Kernel.Capture.At.get -> System.DateTimeOffset?
+Tarol.Kernel.Capture.At.init -> void
+Tarol.Kernel.Capture.Capture(string? Device, System.DateTimeOffset? At) -> void
+Tarol.Kernel.Capture.Deconstruct(out string? Device, out System.DateTimeOffset? At) -> void
+Tarol.Kernel.Capture.Device.get -> string?
+Tarol.Kernel.Capture.Device.init -> void
+Tarol.Kernel.Capture.Equals(Tarol.Kernel.Capture? other) -> bool
 Tarol.Kernel.ContractConstantAttribute
 Tarol.Kernel.ContractConstantAttribute.ContractConstantAttribute(string? name = null) -> void
 Tarol.Kernel.ContractConstantAttribute.Name.get -> string?
@@ -7,6 +16,13 @@ Tarol.Kernel.ContractTypeAttribute.ContractTypeAttribute() -> void
 Tarol.Kernel.OpenApiSchemaNameAttribute
 Tarol.Kernel.OpenApiSchemaNameAttribute.Name.get -> string!
 Tarol.Kernel.OpenApiSchemaNameAttribute.OpenApiSchemaNameAttribute(string! name) -> void
+Tarol.Kernel.OperationContext.Capture.get -> Tarol.Kernel.Capture?
+Tarol.Kernel.OperationContext.Capture.init -> void
 Tarol.Kernel.TimeZones
+override Tarol.Kernel.Capture.Equals(object? obj) -> bool
+override Tarol.Kernel.Capture.GetHashCode() -> int
+override Tarol.Kernel.Capture.ToString() -> string!
+static Tarol.Kernel.Capture.operator !=(Tarol.Kernel.Capture? left, Tarol.Kernel.Capture? right) -> bool
+static Tarol.Kernel.Capture.operator ==(Tarol.Kernel.Capture? left, Tarol.Kernel.Capture? right) -> bool
 static Tarol.Kernel.TimeZones.Find(string! id) -> System.TimeZoneInfo!
 static Tarol.Kernel.TimeZones.TryFind(string! id, out System.TimeZoneInfo? zone) -> bool

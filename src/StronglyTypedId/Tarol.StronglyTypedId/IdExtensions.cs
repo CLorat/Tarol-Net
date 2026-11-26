@@ -79,6 +79,17 @@ public static class IdExtensions
         }
 
         /// <summary>
+        ///     A deterministic id from a business key (TN-42, Tatalu FB-F04.1-3: a stream per child and month): the same
+        ///     <paramref name="scope"/> and parts always give the same id, on every machine and release (a UUIDv8 over
+        ///     SHA-256 of a typed, length-prefixed encoding). The scope is a free string (owner decision CR-4b): choose one per
+        ///     kind of stream and never change it, e.g. <c>Id&lt;AttendanceMonth&gt;.Derive("attendance-month", child, 2026, 11)</c>.
+        /// </summary>
+        /// <param name="scope">The key's namespace, e.g. <c>"attendance-month"</c>.</param>
+        /// <param name="parts">The key's parts (<see cref="Guid"/>, <see cref="string"/>, <see cref="int"/>, <see cref="long"/>, <see cref="DateOnly"/>).</param>
+        /// <returns>The derived id.</returns>
+        public static Id<T> Derive(string scope, params ReadOnlySpan<IdPart> parts) => new(IdPart.Derive(scope, parts));
+
+        /// <summary>
         ///     Creates an instance of <see cref="Id{T}" /> from an existing <see cref="Guid" />.
         /// </summary>
         /// <param name="value">The existing Guid.</param>

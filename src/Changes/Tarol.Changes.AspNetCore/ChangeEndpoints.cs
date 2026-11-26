@@ -156,7 +156,50 @@ public sealed partial class ChangeEndpoints
                 return (context, default, Invalid.Field("Tarol-Confirm", "Length"));
             confirmed = codes;
         }
+        if (Capture(http, out var refusedCapture) is { } capture)
+            context = context with { Capture = capture };
+        else if (refusedCapture is not null)
+            return (context, default, refusedCapture);
         return (context, new ChangeOptions(key, ifMatch, user) { Confirmed = confirmed }, null);
+    }
+
+    // TN-60: Tarol-Device and Tarol-Captured-At of an offline outbox; the time must lie within the skew and the age the options allow
+    private Capture? Capture(HttpContext http, out Violation? refused)
+    {
+        refused = null;
+        var device = http.Request.Headers[TarolHeaders.Device].ToString();
+        var at = http.Request.Headers[TarolHeaders.CapturedAt].ToString();
+        if (device.Length == 0 && at.Length == 0)
+            return null;
+        if (device.Length > 128 || device.Any(static ch => ch is < '!' or > '~'))
+        {
+            refused = Invalid.Field(TarolHeaders.Device, "Format");
+            return null;
+        }
+        DateTimeOffset? captured = null;
+        if (at.Length > 0)
+        {
+            if (!at.Contains('T', StringComparison.Ordinal) || !DateTimeOffset.TryParse(at, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)
+                || !(at.EndsWith('Z') || at.EndsWith('z') || at.LastIndexOfAny(['+', '-']) > at.IndexOf('T', StringComparison.Ordinal)))
+            {
+                refused = Invalid.Field(TarolHeaders.CapturedAt, "Format");                    // RFC 3339 with an offset
+                return null;
+            }
+            var now = _time.GetUtcNow();
+            if (parsed > now + Options.CaptureSkew)
+            {
+                refused = Invalid.Field(TarolHeaders.CapturedAt, "Future", $"more than {Options.CaptureSkew} ahead of the server's clock");
+                return null;
+            }
+            if (parsed < now - Options.CaptureMaxAge)
+            {
+                refused = Invalid.Field(TarolHeaders.CapturedAt, "TooOld", $"older than {Options.CaptureMaxAge}");
+                return null;
+            }
+            captured = parsed.ToUniversalTime();
+        }
+        return new Capture(device.Length == 0 ? null : device, captured);
     }
 
     private Actor ActorOf(ClaimsPrincipal user)
@@ -383,13 +426,15 @@ public sealed partial class ChangeEndpoints
             http.Response.Headers[Positions.PositionHeader] = Positions.Format(outcome.Position);
         if (outcome.Replayed)
             http.Response.Headers[TarolHeaders.IdempotentReplayed] = "true";
-        if (!created)
+        if (!created && !outcome.Created)
         {
             http.Response.StatusCode = StatusCodes.Status204NoContent;
             return;
         }
+        // TN-42 (owner decision CR-4a): every change that started its stream answers 201 {id, version}; Location for creations
         http.Response.StatusCode = outcome.Replayed ? StatusCodes.Status200OK : StatusCodes.Status201Created;
-        http.Response.Headers.Location = $"{http.Request.PathBase}{http.Request.Path.Value?.TrimEnd('/')}/{outcome.StreamId}";
+        if (created)
+            http.Response.Headers.Location = $"{http.Request.PathBase}{http.Request.Path.Value?.TrimEnd('/')}/{outcome.StreamId}";
         http.Response.ContentType = "application/json";
         var writer = new Utf8JsonWriter(http.Response.Body);
         await using (writer.ConfigureAwait(false))
@@ -550,7 +595,50 @@ public sealed partial class ChangeEndpoints
     /// <param name="http">The request.</param>
     /// <param name="id">The id from the route.</param>
     /// <returns>The aggregate to build the view from, or <see langword="null"/>.</returns>
-    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id)
+    public ValueTask<T?> Load<T>(HttpContext http, Id<T> id)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Load(http, id, null);
+
+    /// <summary>
+    /// GET of an <c>IStartable&lt;T&gt;</c> aggregate's view (TN-42, Tatalu FB-F13.4-2): as <see cref="Load{T}(HttpContext, Id{T})"/>,
+    /// but a stream without events answers the view of <paramref name="start"/>'s aggregate (uncommitted, <c>ETag "0"</c>)
+    /// instead of 404.
+    /// </summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="id">The aggregate's id.</param>
+    /// <param name="start">Starts it (<c>T.Start</c>); <see langword="null"/>: 404 when missing.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Load(http, id, start, contextual: false);
+
+    /// <summary>
+    /// As <see cref="Load{T}(HttpContext, Id{T}, Func{Id{T}, ChangeContext, T})"/>; with <paramref name="contextual"/> the ETag and
+    /// the 304 wait for <see cref="WriteContextView{TView}"/>, which hashes the written view (TN-43).
+    /// </summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="id">The aggregate's id.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start, bool contextual)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => Load(http, id, start, contextual, null);
+
+    /// <summary>As the other overloads, for the view <paramref name="scope"/> names (TN-43, VA-2: a restricted view needs its own grant).</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="id">The aggregate's id.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <param name="scope">The view and whether it is restricted; <see langword="null"/>: any read of <typeparamref name="T"/>.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> Load<T>(HttpContext http, Id<T> id, Func<Id<T>, ChangeContext, T>? start, bool contextual, ReadScope? scope)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -562,19 +650,30 @@ public sealed partial class ChangeEndpoints
         }
         if (!(await Reader.Load(id, context, http.RequestAborted).ConfigureAwait(false)).TryGetValue(out T? aggregate))
         {
-            await Problem(http, Error.NotFound($"{typeof(T).Name}.NotFound", id.ToString())).ConfigureAwait(false);
-            return null;
+            if (start is null)
+            {
+                await Problem(http, Error.NotFound($"{typeof(T).Name}.NotFound", id.ToString())).ConfigureAwait(false);
+                return null;
+            }
+            aggregate = start(id, new ChangeContext(context, _time.GetUtcNow()));               // not stored: the view's default
         }
-        var allowed = await _authorization.Check(Read<T>.Instance, aggregate, new ChangeContext(context, _time.GetUtcNow()),
-            options.Principal ?? NoOne, http.RequestAborted).ConfigureAwait(false);
+        var allowed = scope is { } read
+            ? await _authorization.Check(Read<T>.Instance, aggregate, new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, read, http.RequestAborted).ConfigureAwait(false)
+            : await _authorization.Check(Read<T>.Instance, aggregate, new ChangeContext(context, _time.GetUtcNow()), options.Principal ?? NoOne, http.RequestAborted).ConfigureAwait(false);
         if (allowed.TryGetValue(out Violation? denied))
         {
             await Problem(http, denied).ConfigureAwait(false);
             return null;
         }
-        var etag = $"\"{aggregate.Version}\"";
-        http.Response.Headers.ETag = etag;
         CacheHeaders.Apply(http);                                        // the view's 200 and 304
+        if (contextual)
+        {
+            http.Items[ViewVersionKey] = aggregate.Version - aggregate.UncommittedChanges.Length;
+            http.Items[ViewContextKey] = new ViewContext(context, _time.GetUtcNow());
+            return aggregate;
+        }
+        var etag = $"\"{aggregate.Version - aggregate.UncommittedChanges.Length}\"";      // "0" for a started, unstored one
+        http.Response.Headers.ETag = etag;
         if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
         {
             http.Response.StatusCode = StatusCodes.Status304NotModified;
@@ -585,13 +684,46 @@ public sealed partial class ChangeEndpoints
 
     /// <summary>
     /// GET of a <see cref="PerTenantAttribute"/> aggregate's view (TN-2): the caller's tenant's one, by the tenant's id; then as
-    /// <see cref="Load{T}"/>. Without a tenant: 403 <see cref="TenantAggregates.TenantRequiredCode"/>.
+    /// <see cref="Load{T}(HttpContext, Id{T})"/>. Without a tenant: 403 <see cref="TenantAggregates.TenantRequiredCode"/>.
     /// </summary>
     /// <typeparam name="T">The aggregate.</typeparam>
     /// <param name="http">The request.</param>
     /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public async ValueTask<T?> LoadTenant<T>(HttpContext http)
+    public ValueTask<T?> LoadTenant<T>(HttpContext http)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => LoadTenant<T>(http, null);
+
+    /// <summary>GET of a <c>[PerTenant]</c>, <c>IStartable&lt;T&gt;</c> aggregate's view (TN-2, TN-42): as <see cref="Load{T}(HttpContext, Id{T}, Func{Id{T}, ChangeContext, T})"/>.</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => LoadTenant(http, start, contextual: false);
+
+    /// <summary>As <see cref="LoadTenant{T}(HttpContext, Func{Id{T}, ChangeContext, T})"/> for a view built for its reader (TN-43).</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start, bool contextual)
+        where T : AggregateRoot<T>, IAggregateRoot<T>
+        => LoadTenant(http, start, contextual, null);
+
+    /// <summary>As the other overloads, for the view <paramref name="scope"/> names (TN-43).</summary>
+    /// <typeparam name="T">The aggregate.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="start">Starts it; <see langword="null"/>: 404 when missing.</param>
+    /// <param name="contextual">The view is built for its reader.</param>
+    /// <param name="scope">The view; <see langword="null"/>: any read of <typeparamref name="T"/>.</param>
+    /// <returns>The aggregate, or <see langword="null"/> when the answer is written.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async ValueTask<T?> LoadTenant<T>(HttpContext http, Func<Id<T>, ChangeContext, T>? start, bool contextual, ReadScope? scope)
         where T : AggregateRoot<T>, IAggregateRoot<T>
     {
         ArgumentNullException.ThrowIfNull(http);
@@ -606,7 +738,48 @@ public sealed partial class ChangeEndpoints
             await Problem(http, Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name)).ConfigureAwait(false);
             return null;
         }
-        return await Load(http, id).ConfigureAwait(false);
+        return await Load(http, id, start, contextual, scope).ConfigureAwait(false);
+    }
+
+    private const string ViewVersionKey = "Tarol.ViewVersion";
+    private const string ViewContextKey = "Tarol.ViewContext";
+
+    /// <summary>The reader's <see cref="ViewContext"/> of a contextual load (TN-43).</summary>
+    /// <param name="http">The request.</param>
+    /// <returns>The context.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static ViewContext ViewContextOf(HttpContext http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        return http.Items[ViewContextKey] is ViewContext context ? context : throw new InvalidOperationException("No contextual view load ran for this request.");
+    }
+
+    /// <summary>
+    /// Writes a view built for its reader (TN-43, VA-1b): <c>ETag "&lt;version&gt;-&lt;hash&gt;"</c> (the first 8 bytes of SHA-256 of
+    /// the written JSON), 304 for a matching <c>If-None-Match</c>, else 200 with the bytes.
+    /// </summary>
+    /// <typeparam name="TView">The view type.</typeparam>
+    /// <param name="http">The request.</param>
+    /// <param name="view">The view.</param>
+    /// <returns>The write.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public async Task WriteContextView<TView>(HttpContext http, TView view)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(view, Json.GetTypeInfo<TView>());
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes).AsSpan(0, 8));
+        var version = http.Items[ViewVersionKey] is long v ? v : 0;
+        var etag = "\"" + version.ToString(System.Globalization.CultureInfo.InvariantCulture) + "-" + hash + "\"";
+        http.Response.Headers.ETag = etag;
+        if (EntityTags.Matches(http.Request.Headers.IfNoneMatch, etag))
+        {
+            http.Response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+        http.Response.StatusCode = StatusCodes.Status200OK;
+        http.Response.ContentType = "application/json";
+        http.Response.ContentLength = bytes.Length;
+        await http.Response.Body.WriteAsync(bytes, http.RequestAborted).ConfigureAwait(false);
     }
 
     /// <summary>Writes a view (200, the application's JSON context).</summary>

@@ -41,6 +41,7 @@ public static class GeneratedEndpoints
                     Owner = typeof(GeneratedEndpoints).Assembly,
                     Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.CustomerOrders>(app.ServiceProvider, false),
                 });
+            global::Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(app.ServiceProvider, typeof(global::Tarol.Security.Read<global::Shop.Order>), new global::Tarol.Changes.ReadScope(typeof(global::Shop.CustomerOrders), false), "list CustomerOrders");   // nobody granted: an error in Development (VA-3)
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
         {
@@ -68,6 +69,7 @@ public static class GeneratedEndpoints
                     Owner = typeof(GeneratedEndpoints).Assembly,
                     Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.MyOrders>(app.ServiceProvider, true),
                 });
+            global::Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(app.ServiceProvider, typeof(global::Tarol.Security.Read<global::Shop.Order>), new global::Tarol.Changes.ReadScope(typeof(global::Shop.MyOrders), false), "list MyOrders");   // nobody granted: an error in Development (VA-3)
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint);                   // no Policy: the default policy (fail closed, C-11)
         }
         {
@@ -95,6 +97,7 @@ public static class GeneratedEndpoints
                     Owner = typeof(GeneratedEndpoints).Assembly,
                     Scoped = global::Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<global::Shop.OrderSearch>(app.ServiceProvider, false),
                 });
+            global::Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(app.ServiceProvider, typeof(global::Tarol.Security.Read<global::Shop.Order>), new global::Tarol.Changes.ReadScope(typeof(global::Shop.OrderSearch), false), "list OrderSearch");   // nobody granted: an error in Development (VA-3)
             global::Microsoft.AspNetCore.Builder.AuthorizationEndpointConventionBuilderExtensions.RequireAuthorization(endpoint, "orders:read");
         }
         return app;
@@ -104,7 +107,7 @@ public static class GeneratedEndpoints
     {
         var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
         var route_Customer = (http.Request.RouteValues["customer"] as string) ?? "";
-        var tenant = await web.ListAccess<global::Shop.Order>(http);
+        var tenant = await web.ListAccess<global::Shop.Order>(http, new global::Tarol.Changes.ReadScope(typeof(global::Shop.CustomerOrders), false));
         if (tenant is null)
             return;                                                     // 401, 403 or 404 written
         global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;
@@ -134,7 +137,7 @@ public static class GeneratedEndpoints
     private static async global::System.Threading.Tasks.Task List_Shop_MyOrders(global::Microsoft.AspNetCore.Http.HttpContext http)
     {
         var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
-        var tenant = await web.ListAccess<global::Shop.Order>(http);
+        var tenant = await web.ListAccess<global::Shop.Order>(http, new global::Tarol.Changes.ReadScope(typeof(global::Shop.MyOrders), false));
         if (tenant is null)
             return;                                                     // 401, 403 or 404 written
         global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;
@@ -184,7 +187,7 @@ public static class GeneratedEndpoints
     private static async global::System.Threading.Tasks.Task List_Shop_OrderSearch(global::Microsoft.AspNetCore.Http.HttpContext http)
     {
         var web = global::Tarol.Changes.AspNetCore.ChangeEndpoints.Of(http);
-        var tenant = await web.ListAccess<global::Shop.Order>(http);
+        var tenant = await web.ListAccess<global::Shop.Order>(http, new global::Tarol.Changes.ReadScope(typeof(global::Shop.OrderSearch), false));
         if (tenant is null)
             return;                                                     // 401, 403 or 404 written
         global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;

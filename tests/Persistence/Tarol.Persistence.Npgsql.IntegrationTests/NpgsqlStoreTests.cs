@@ -89,6 +89,68 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task A_refusal_is_stored_with_its_key_and_read_back()                       // TN-46
+    {
+        var store = postgres.Store(_time);
+        var context = NewTenant();
+        var member = Member.Join(Id<Member>.New(_time), "r@x");
+        var refusal = new Error(ErrorType.Conflict, "Invitation.WrongAnswer", "2 of 5") { Reasons = ["Invitation.Attempts"] };
+        var key = new IdempotencyKey(context.Tenant, "http", "refused-1") { Refusal = refusal };
+        var plain = new IdempotencyKey(context.Tenant, "http", "plain-1");
+        (await store.Append(member, 0, context, key, Ct)).IsSuccess.ShouldBeTrue();
+
+        var stored = (await store.Seen(key, Ct)).GetValueOrThrow();
+        (stored.Refusal as Error)!.Code.ShouldBe(refusal.Code);
+        ((Error)stored.Refusal!).Detail.ShouldBe("2 of 5");
+        ((Error)stored.Refusal!).Reasons.ShouldBe(["Invitation.Attempts"]);
+        (await postgres.Scalar($"SELECT refusal->>'code' FROM tarol.idempotency_keys WHERE key = 'refused-1'")).ShouldBe("Invitation.WrongAnswer");
+        (await store.Seen(plain, Ct)).IsSome.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task The_capture_of_an_offline_device_is_stored_and_read_back_with_the_event()   // TN-60b
+    {
+        var store = postgres.Store(_time);
+        var at = new DateTimeOffset(2026, 11, 26, 7, 31, 0, 250, TimeSpan.FromHours(1));
+        var captured = NewTenant() with { Capture = new Capture("tab-7", at) };
+        var direct = NewTenant();
+        var offline = Member.Join(Id<Member>.New(_time), "offline@x");
+        var online = Member.Join(Id<Member>.New(_time), "online@x");
+        await Committed(store, offline, captured);
+        await Committed(store, online, direct);
+
+        var events = new List<PositionedEvent>();
+        await foreach (var e in store.ReadAll(GlobalPosition.Start, 10_000, Ct))
+            if (e.Event.StreamId == offline.Id.Value || e.Event.StreamId == online.Id.Value)
+                events.Add(e);
+
+        var read = events.Single(e => e.Event.StreamId == offline.Id.Value).Event.Context.Capture.ShouldNotBeNull();
+        (read.Device, read.At).ShouldBe(("tab-7", at));
+        events.Single(e => e.Event.StreamId == online.Id.Value).Event.Context.Capture.ShouldBeNull();
+        (await postgres.Scalar($"SELECT device FROM tarol.events WHERE stream_id = '{offline.Id.Value}'")).ShouldBe("tab-7");
+    }
+
+    [Fact]
+    public async Task Stream_ids_list_one_type_without_erased_tenants()                       // TN-56
+    {
+        var store = postgres.Store(_time);
+        var (kept, erased) = (NewTenant(), NewTenant());
+        var keptMember = Member.Join(Id<Member>.New(_time), "kept@x");
+        var erasedMember = Member.Join(Id<Member>.New(_time), "erased@x");
+        var tally = Tally.Start(Id<Tally>.New(_time));
+        await Committed(store, keptMember, kept);
+        await Committed(store, erasedMember, erased);
+        await Committed(store, tally, kept);
+        await postgres.Execute($"INSERT INTO tarol.tenant_keys (tenant, key_id, wrapped, created_at, erased_at) VALUES ('{TenantOf(erased)}', NULL, NULL, now(), now())");
+
+        var ids = await store.StreamIds(Member.StreamType, Ct);
+
+        ids.ShouldContain(keptMember.Id.Value);
+        ids.ShouldNotContain(erasedMember.Id.Value);
+        ids.ShouldNotContain(tally.Id.Value);
+    }
+
+    [Fact]
     public async Task A_load_by_replay_aggregate_stores_no_state()
     {
         var store = postgres.Store(_time);

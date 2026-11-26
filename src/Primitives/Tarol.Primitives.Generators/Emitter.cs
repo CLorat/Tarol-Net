@@ -226,7 +226,14 @@ internal sealed partial class Emitter
         _indent++;
         for (var i = 0; i < events.Count; i++)
         {
-            var personal = events[i].Personal.Count == 0 ? "" : $" {{ Personal = {Shape(events[i].Personal, "")} }}";
+            var inits = new List<string>();
+            if (events[i].Personal.Count > 0)
+                inits.Add($"Personal = {Shape(events[i].Personal, "")}");
+            if (events[i].Audit is { } audit)                                   // TN-64: only when it differs from "every member"
+                inits.Add($"Audit = new {P}EventAudit({(audit.Excluded ? "true" : "false")}, {(audit.Removed ? "true" : "false")}, "
+                          + $"[{string.Join(", ", audit.NotAudited.Select(static m => $"new({Literal(m.Name)}, {Nullable(m.JsonName)})"))}]"
+                          + (audit.Time is { } time ? $", new({Literal(time.Name)}, {Nullable(time.JsonName)})" : "") + ")");
+            var personal = inits.Count == 0 ? "" : $" {{ {string.Join(", ", inits)} }}";
             Line($"new {P}EventCatalogEntry(new({Literal(events[i].Alias)}, {events[i].AliasVersion}), typeof({events[i].FullName})){personal}{(i == events.Count - 1 ? end : ",")}");
         }
         _indent--;

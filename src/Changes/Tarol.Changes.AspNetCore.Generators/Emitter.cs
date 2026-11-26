@@ -47,6 +47,8 @@ internal static class Emitter
                 View(sb, e);
             else if (e.Kind == EntryKind.List)
                 List(sb, e);
+            else if (e.Kind == EntryKind.Row)
+                Row(sb, e);
             else
                 Change(sb, e);
         }
@@ -59,6 +61,10 @@ internal static class Emitter
             sb.Append("        where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>\n");
             sb.Append("        where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>\n");
             sb.Append("        => TView.From(aggregate);\n");
+            sb.Append("\n    private static TView ViewOf<TAggregate, TView>(TAggregate aggregate, global::Tarol.Changes.AspNetCore.ViewContext context)\n");
+            sb.Append("        where TAggregate : global::Tarol.Primitives.AggregateRoot<TAggregate>, global::Tarol.Primitives.IAggregateRoot<TAggregate>\n");
+            sb.Append("        where TView : global::Tarol.Changes.AspNetCore.IView<TAggregate, TView>\n");
+            sb.Append("        => TView.From(aggregate, context);\n");
         }
         sb.Append("}\n");
         return sb.ToString();
@@ -67,7 +73,7 @@ internal static class Emitter
     private static void MapEntry(StringBuilder sb, EntryModel e)
     {
         var method = Method(e);
-        var kind = e.Kind switch { EntryKind.Creation => "creation", EntryKind.View => "view", EntryKind.List => "list", _ => "change" };
+        var kind = e.Kind switch { EntryKind.Creation => "creation", EntryKind.View => "view", EntryKind.List => "list", EntryKind.Row => "row", _ => "change" };
         var route = e.Members.Where(m => m.RouteKind is not null).ToArray();
         var body = e.Members.Where(m => m.RouteKind is null).ToArray();
         sb.Append("        {\n");
@@ -75,7 +81,7 @@ internal static class Emitter
           .Append(Pascal(e.Verb)).Append(", (").Append(Http).Append(".RequestDelegate)").Append(method).Append(");\n");
         sb.Append("            ").Append(Builder).Append(".RoutingEndpointConventionBuilderExtensions.WithName(endpoint, names + \"").Append(e.Name).Append("\");\n");
         sb.Append("            ").Append(Builder).Append(".RoutingEndpointConventionBuilderExtensions.WithMetadata(endpoint,\n");
-        if (e.Kind is not (EntryKind.View or EntryKind.List))
+        if (e.Kind is not (EntryKind.View or EntryKind.List or EntryKind.Row))
             sb.Append("                new ").Append(Http).Append(".Metadata.AcceptsMetadata(new[] { \"application/json\" }, typeof(").Append(e.FullName).Append("), isOptional: ")
               .Append(e.HasBody ? "false" : "true").Append("),\n");
         sb.Append("                new ").Append(Http).Append(".ProducesResponseTypeMetadata(").Append(e.Kind switch
@@ -83,21 +89,24 @@ internal static class Emitter
             EntryKind.Creation => "201",
             EntryKind.View => $"200, typeof({e.FullName}), new[] {{ \"application/json\" }}",
             EntryKind.List => $"200, typeof({e.Query!.Row}), new[] {{ \"application/json\" }}",     // the row; the OpenAPI transformer wraps it in the page
+            EntryKind.Row => $"200, typeof({e.Query!.Row}), new[] {{ \"application/json\" }}",
             _ => "204",
         }).Append("),\n");
         sb.Append("                ((").Append(Http).Append(".RequestDelegate)").Append(method).Append(").Method,                // OpenAPI describes endpoints that carry a MethodInfo\n");
         sb.Append("                new global::Tarol.Changes.AspNetCore.TarolEndpointMetadata(\"").Append(kind).Append("\", typeof(").Append(e.FullName).Append("),\n");
         sb.Append("                    new global::Tarol.Changes.AspNetCore.RouteValue[] { ")
           .Append(string.Join(", ", route.Select(m => $"new(\"{m.RouteName}\", \"{m.RouteKind}\", {NameOf(m)})"
-                                                      + (m.RouteKind == "id" ? $" {{ Aggregate = {Literal(IdAggregate(m.Type))} }}" : "")))).Append(" },\n");
+                                                      + (m.RouteKind == "id" ? $" {{ Aggregate = {Literal(IdAggregate(m.Type))} }}"
+                                                         : m.RouteKind == "enum" ? $" {{ Values = global::System.Enum.GetNames<{m.Type}>() }}" : "")))).Append(" },\n");
         sb.Append("                    new string[] { ").Append(string.Join(", ", body.Select(NameOf))).Append(" },\n");
         sb.Append("                    ").Append(e.Policy is null ? "null" : Literal(e.Policy));
-        if (e.Query is { } q)
+        if (e.Query is { } q && e.Kind == EntryKind.List)
         {
             sb.Append(",\n                    new global::Tarol.Changes.AspNetCore.QueryParameter[]\n                    {\n");
             foreach (var f in q.Filters.Where(f => f.Source == "query"))
                 sb.Append("                        new(web.Names((\"").Append(f.Member).Append("\", null))[0], \"").Append(f.OpenApiKind).Append("\", new string[] { ")
-                  .Append(string.Join(", ", f.Values.Select(Literal))).Append(" }, \"Equal to the row's ").Append(f.Column).Append("; absent: any\"),\n");
+                  .Append(string.Join(", ", f.Values.Select(Literal))).Append(" }, \"").Append(f.Bound switch { "AtLeast" => "At least", "AtMost" => "At most", _ => "Equal to" }).Append(" the row's ").Append(f.Column)
+                  .Append(f.Bound is null ? "; absent: any" : " (inclusive; a null never matches); absent: no bound").Append("\"),\n");
             if (q.SortMember is not null)
                 sb.Append("                        new(\"sort\", \"enum\", new string[] { ").Append(string.Join(", ", q.Sorts.Select(o => Literal(o.EnumMember))))
                   .Append(" }, \"The order (default ").Append(q.DefaultSort).Append("); the id breaks ties\"),\n");
@@ -109,10 +118,20 @@ internal static class Emitter
         }
         sb.Append(")\n                {\n                    Errors = new string[] { ").Append(string.Join(", ", e.Errors.Select(Literal))).Append(" },\n");
         sb.Append("                    Owner = typeof(GeneratedEndpoints).Assembly,\n");
-        if (e.Query is { } scoped)
+        if (e.MayCreate)
+            sb.Append("                    MayCreate = true,\n");
+        if (e.Query is { } scoped && e.Kind == EntryKind.List)
             sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
               .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");
         sb.Append("                });\n");
+        if (!e.Anonymous)
+        {
+            var read = e.Kind is EntryKind.View or EntryKind.List or EntryKind.Row;
+            var what = e.Kind switch { EntryKind.View => "view", EntryKind.List => "list", EntryKind.Row => "row query", EntryKind.Creation => "creation", _ => "change" };
+            sb.Append("            ").Append(Web).Append(".Granted(app.ServiceProvider, typeof(")
+              .Append(read ? "global::Tarol.Security.Read<" + e.Aggregate + ">" : e.FullName).Append("), ")
+              .Append(read ? Scope(e) : "null").Append(", ").Append(Literal(what + " " + e.Name)).Append(");   // nobody granted: an error in Development (VA-3)\n");
+        }
         sb.Append("            ").Append(Builder).Append(".AuthorizationEndpointConventionBuilderExtensions.")
           .Append(e.Anonymous ? "AllowAnonymous(endpoint)" : e.Policy is null ? "RequireAuthorization(endpoint)" : $"RequireAuthorization(endpoint, {Literal(e.Policy)})")
           .Append(';').Append(e.Anonymous || e.Policy is not null ? "" : "                   // no Policy: the default policy (fail closed, C-11)").Append('\n');
@@ -141,6 +160,8 @@ internal static class Emitter
         {
             "id" => $"{m.Type}.TryParse({raw}, null, out var route_{m.Name})",
             "guid" => $"global::System.Guid.TryParse({raw}, out var route_{m.Name})",
+            // a defined name, case-insensitive (the body's names, camelCase too); never a number
+            "enum" => $"global::Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnumName<{m.Type}>({raw}, out var route_{m.Name})",
             "int" => $"int.TryParse({raw}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out var route_{m.Name})",
             _ => $"long.TryParse({raw}, global::System.Globalization.NumberStyles.Integer, global::System.Globalization.CultureInfo.InvariantCulture, out var route_{m.Name})",
         };
@@ -149,20 +170,40 @@ internal static class Emitter
         sb.Append("            return;\n        }\n");
     }
 
+    // a row (TN-54): the list's access, then the one row of the route's id or of the caller's tenant
+    private static void Row(StringBuilder sb, EntryModel e)
+    {
+        var id = e.Members.FirstOrDefault();
+        sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
+        sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
+        if (id is not null)
+            Route(sb, id);
+        sb.Append("        if (await web.ListAccess<").Append(e.Aggregate).Append(">(http, ").Append(Scope(e)).Append(") is not { } tenant)\n            return;\n");
+        var key = id is null ? "tenant" : id.RouteKind == "id" ? "route_" + id.Name + ".Value" : "route_" + id.Name;
+        sb.Append("        await web.Row<").Append(e.Query!.Row).Append(">(http, tenant, ").Append(key).Append(", ")
+          .Append(Literal(e.Aggregate.Substring(e.Aggregate.LastIndexOf('.') + 1) + ".NotFound")).Append(");\n    }\n");
+    }
+
     private static void View(StringBuilder sb, EntryModel e)
     {
         var id = e.Members.FirstOrDefault();
         sb.Append("\n    private static async global::System.Threading.Tasks.Task ").Append(Method(e)).Append('(').Append(Http).Append(".HttpContext http)\n    {\n");
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
+        var start = e.Startable ? ", static (id, context) => " + e.Aggregate + ".Start(id, context)" : "";      // TN-42
+        var tail = (e.Startable ? "" : ", null") + (e.Contextual ? ", true" : ", false") + ", " + Scope(e);    // TN-43
         if (id is null)                                 // TN-2: a [PerTenant] aggregate, the caller's tenant's one
-            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http);\n");
+            sb.Append("        var aggregate = await web.LoadTenant<").Append(e.Aggregate).Append(">(http").Append(start).Append(tail).Append(");\n");
         else
         {
             Route(sb, id);
-            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(");\n");
+            sb.Append("        var aggregate = await web.Load<").Append(e.Aggregate).Append(">(http, route_").Append(id.Name).Append(start).Append(tail).Append(");\n");
         }
         sb.Append("        if (aggregate is null)\n            return;                                                     // 404, 403, 401 or 304 written\n");
-        sb.Append("        await web.WriteView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName).Append(">(aggregate));\n    }\n");
+        if (e.Contextual)
+            sb.Append("        await web.WriteContextView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName)
+              .Append(">(aggregate, ").Append(Web).Append(".ViewContextOf(http)));\n    }\n");
+        else
+            sb.Append("        await web.WriteView(http, ViewOf<").Append(e.Aggregate).Append(", ").Append(e.FullName).Append(">(aggregate));\n    }\n");
     }
 
     // a list (step 12C): access (tenant, Read<T>), filters from claims, route and query string, sort, paging, then the answer
@@ -176,10 +217,13 @@ internal static class Emitter
         sb.Append("        var web = ").Append(Web).Append(".Of(http);\n");
         foreach (var m in e.Members)
             Route(sb, m);
-        sb.Append("        var tenant = await web.ListAccess<").Append(e.Aggregate).Append(">(http);\n");
+        sb.Append("        var tenant = await web.ListAccess<").Append(e.Aggregate).Append(">(http, ").Append(Scope(e)).Append(");\n");
         sb.Append("        if (tenant is null)\n            return;                                                     // 401, 403 or 404 written\n");
         sb.Append("        global::System.Collections.Generic.List<global::Tarol.Results.FieldError>? errors = null;\n");
         sb.Append("        var filters = new global::System.Collections.Generic.List<global::Tarol.Queries.ColumnFilter>(").Append(q.Filters.Count).Append(");\n");
+        var ranged = q.Filters.Any(f => f.Bound is not null);
+        if (ranged)
+            sb.Append("        var ranges = new global::System.Collections.Generic.List<global::Tarol.Queries.RangeFilter>(2);\n");
         foreach (var f in q.Filters.Where(f => f.Source == "claim"))
         {
             sb.Append("        var claim_").Append(f.Member).Append(" = ").Append(Web).Append(".Claim(http, ").Append(Literal(f.Claim!)).Append(");\n");
@@ -200,13 +244,19 @@ internal static class Emitter
             sb.Append("        else if (q_").Append(f.Member).Append(" is not null)\n        {\n");
             if (f.Parse == "string")
             {
-                sb.Append("            filters.Add(new(").Append(Literal(f.Column)).Append(", q_").Append(f.Member).Append("));\n");
+                if (f.Bound is null)
+                    sb.Append("            filters.Add(new(").Append(Literal(f.Column)).Append(", q_").Append(f.Member).Append("));\n");
+                else
+                    sb.Append("            ranges.Add(new(").Append(Literal(f.Column)).Append(", global::Tarol.Queries.RangeBound.").Append(f.Bound).Append(", q_").Append(f.Member).Append("));\n");
             }
             else
             {
                 sb.Append("            if (").Append(Web).Append(f.Parse switch { "enum" => ".TryEnum<", "date" => ".TryDate(", "time" => ".TryTime(", _ => ".TryFilter<" })
                   .Append(f.Parse is "date" or "time" ? "" : f.Type + ">(").Append("q_").Append(f.Member).Append(", out var v_").Append(f.Member).Append("))\n");
-                sb.Append("                filters.Add(new(").Append(Literal(f.Column)).Append(", v_").Append(f.Member).Append("));\n");
+                if (f.Bound is null)
+                    sb.Append("                filters.Add(new(").Append(Literal(f.Column)).Append(", v_").Append(f.Member).Append("));\n");
+                else
+                    sb.Append("                ranges.Add(new(").Append(Literal(f.Column)).Append(", global::Tarol.Queries.RangeBound.").Append(f.Bound).Append(", v_").Append(f.Member).Append("));\n");
                 sb.Append("            else\n                (errors ??= new()).Add(new(\"").Append(f.Member).Append("\", \"Format\"));\n");
             }
             sb.Append("        }\n");
@@ -228,7 +278,8 @@ internal static class Emitter
             sb.Append(q.Sorts.Count > 0 ? "            else\n    " : "").Append("            (errors ??= new()).Add(new(\"sort\", \"Format\"));\n");
             sb.Append("        }\n");
         }
-        sb.Append("        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters, Sort = sort, Descending = descending }, ref errors);\n");
+        sb.Append("        var query = web.Paging(http, new global::Tarol.Queries.ListQuery(tenant.Value) { Filters = filters").Append(ranged ? ", Ranges = ranges" : "")
+          .Append(", Sort = sort, Descending = descending }, ref errors);\n");
         sb.Append("        if (errors is not null)\n        {\n            await web.Problem(http, new global::Tarol.Results.Invalid(errors));\n            return;\n        }\n");
         sb.Append("        query = await web.Scope<").Append(e.FullName).Append(">(http, query").Append(q.RequiresScope ? ", required: true" : "")
           .Append(");          // the caller's rows (IListScope, TN-6)\n");
@@ -355,7 +406,11 @@ internal static class Emitter
     /// <summary>The error path of a body member: its C# name (converted by the naming policy), or its own JSON name.</summary>
     private static string Field(Member m) => m.JsonName ?? m.Name;
 
-    private static string Method(EntryModel e) => (e.Kind switch { EntryKind.View => "View_", EntryKind.List => "List_", _ => "Run_" }) + Key(e);
+    /// <summary>The read's scope (TN-43, VA-2): the view or query record, and whether it needs its own grant.</summary>
+    private static string Scope(EntryModel e)
+        => "new global::Tarol.Changes.ReadScope(typeof(" + e.FullName + "), " + (e.Restricted ? "true" : "false") + ")" + (e.Sensitive ? " { Sensitive = true }" : "");
+
+    private static string Method(EntryModel e) => (e.Kind switch { EntryKind.View => "View_", EntryKind.List => "List_", EntryKind.Row => "Row_", _ => "Run_" }) + Key(e);
 
     /// <summary>Unique per input (two inputs may share a name in different namespaces), deterministic.</summary>
     private static string Key(EntryModel e) => Ident(e.FullName.StartsWith("global::", System.StringComparison.Ordinal) ? e.FullName.Substring(8) : e.FullName);

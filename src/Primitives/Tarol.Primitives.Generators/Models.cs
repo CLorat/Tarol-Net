@@ -74,6 +74,9 @@ internal sealed record StateField(
 /// A <c>[PersonalData]</c> member of an event or a state object: its C# name, its pinned JSON name (or <see langword="null"/>
 /// for the naming policy), and the member holding its subject (C# and pinned JSON name; <see langword="null"/> = the stream id).
 /// </summary>
+/// <summary>An event's audit marks (TN-64): excluded, removing, the members left out, the device-time member.</summary>
+internal sealed record AuditModel(bool Excluded, bool Removed, EquatableArray<PersonalModel> NotAudited, PersonalModel? Time);
+
 internal sealed record PersonalModel(string Name, string? JsonName, string? Subject, string? SubjectJsonName);
 
 /// <summary>An <c>On(TEvent)</c> handler; <paramref name="Assigns"/> are the lifecycle members it assigns.</summary>
@@ -119,7 +122,9 @@ internal sealed record TypeModel(
     // event: its [PersonalData] members; root: its [Retention(Days)] (0 = none)
     EquatableArray<PersonalModel> Personal = default,
     int RetentionDays = 0,
-    bool PerTenant = false)
+    bool PerTenant = false,
+    // event: its audit marks (TN-64); null = every member audited
+    AuditModel? Audit = null)
 {
     public TypeModel WithoutLocations() => this with
     {

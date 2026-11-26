@@ -1,9 +1,20 @@
 #nullable enable
+Tarol.Queries.AtLeastAttribute
+Tarol.Queries.AtLeastAttribute.AtLeastAttribute(string! member) -> void
+Tarol.Queries.AtLeastAttribute.Member.get -> string!
+Tarol.Queries.AtMostAttribute
+Tarol.Queries.AtMostAttribute.AtMostAttribute(string! member) -> void
+Tarol.Queries.AtMostAttribute.Member.get -> string!
 Tarol.Queries.ColumnType.Date = 9 -> Tarol.Queries.ColumnType
 Tarol.Queries.ColumnType.Time = 10 -> Tarol.Queries.ColumnType
+Tarol.Queries.IRowQuery<TRow>
+Tarol.Queries.ListQuery.Ranges.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.RangeFilter>!
+Tarol.Queries.ListQuery.Ranges.init -> void
 Tarol.Queries.ListQuery.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilter!>!
 Tarol.Queries.ListQuery.Sets.init -> void
 Tarol.Queries.ListQuery.Within(Tarol.Queries.ListScope! scope) -> Tarol.Queries.ListQuery!
+Tarol.Queries.ListQueryPlan<TRow>.Matches(Tarol.Queries.Versioned<TRow!>! row) -> bool
+Tarol.Queries.ListQueryPlan<TRow>.Ranges.get -> System.Collections.Generic.IReadOnlyList<(Tarol.Queries.ProjectionColumn<TRow!>! Column, Tarol.Queries.RangeBound Bound, object! Value)>!
 Tarol.Queries.ListQueryPlan<TRow>.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilterPlan<TRow!>!>!
 Tarol.Queries.ListScope
 Tarol.Queries.ListScope.AndIn<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.ListScope!
@@ -48,6 +59,20 @@ Tarol.Queries.ProjectionOptions.ErasureWait.set -> void
 Tarol.Queries.ProjectionsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Queries.ProjectionsBuilder!
 Tarol.Queries.ProjectionsBuilder.AddModules() -> Tarol.Queries.ProjectionsBuilder!
 Tarol.Queries.ProjectionsBuilder.ReadyWhenCurrent() -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.RangeBound
+Tarol.Queries.RangeBound.AtLeast = 0 -> Tarol.Queries.RangeBound
+Tarol.Queries.RangeBound.AtMost = 1 -> Tarol.Queries.RangeBound
+Tarol.Queries.RangeFilter
+Tarol.Queries.RangeFilter.Bound.get -> Tarol.Queries.RangeBound
+Tarol.Queries.RangeFilter.Bound.init -> void
+Tarol.Queries.RangeFilter.Column.get -> string!
+Tarol.Queries.RangeFilter.Column.init -> void
+Tarol.Queries.RangeFilter.Deconstruct(out string! Column, out Tarol.Queries.RangeBound Bound, out object! Value) -> void
+Tarol.Queries.RangeFilter.Equals(Tarol.Queries.RangeFilter other) -> bool
+Tarol.Queries.RangeFilter.RangeFilter() -> void
+Tarol.Queries.RangeFilter.RangeFilter(string! Column, Tarol.Queries.RangeBound Bound, object! Value) -> void
+Tarol.Queries.RangeFilter.Value.get -> object!
+Tarol.Queries.RangeFilter.Value.init -> void
 Tarol.Queries.SetFilter
 Tarol.Queries.SetFilter.<Clone>$() -> Tarol.Queries.SetFilter!
 Tarol.Queries.SetFilter.Column.get -> string!
@@ -73,6 +98,9 @@ override Tarol.Queries.ProjectionFailure.ToString() -> string!
 override Tarol.Queries.ProjectionModule.Equals(object? obj) -> bool
 override Tarol.Queries.ProjectionModule.GetHashCode() -> int
 override Tarol.Queries.ProjectionModule.ToString() -> string!
+~override Tarol.Queries.RangeFilter.Equals(object obj) -> bool
+override Tarol.Queries.RangeFilter.GetHashCode() -> int
+~override Tarol.Queries.RangeFilter.ToString() -> string
 override Tarol.Queries.SetFilter.Equals(object? obj) -> bool
 override Tarol.Queries.SetFilter.GetHashCode() -> int
 override Tarol.Queries.SetFilter.ToString() -> string!
@@ -87,6 +115,8 @@ static Tarol.Queries.ProjectionFailure.operator !=(Tarol.Queries.ProjectionFailu
 static Tarol.Queries.ProjectionFailure.operator ==(Tarol.Queries.ProjectionFailure? left, Tarol.Queries.ProjectionFailure? right) -> bool
 static Tarol.Queries.ProjectionModule.operator !=(Tarol.Queries.ProjectionModule? left, Tarol.Queries.ProjectionModule? right) -> bool
 static Tarol.Queries.ProjectionModule.operator ==(Tarol.Queries.ProjectionModule? left, Tarol.Queries.ProjectionModule? right) -> bool
+static Tarol.Queries.RangeFilter.operator !=(Tarol.Queries.RangeFilter left, Tarol.Queries.RangeFilter right) -> bool
+static Tarol.Queries.RangeFilter.operator ==(Tarol.Queries.RangeFilter left, Tarol.Queries.RangeFilter right) -> bool
 static Tarol.Queries.SetFilter.Of<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.SetFilter!
 static Tarol.Queries.SetFilter.operator !=(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool
 static Tarol.Queries.SetFilter.operator ==(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool

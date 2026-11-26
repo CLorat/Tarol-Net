@@ -11,6 +11,26 @@ namespace Tarol.Queries;
 /// <param name="Value">The value (an enum, a time, …: converted to the stored type).</param>
 public readonly record struct ColumnFilter(string Column, object? Value);
 
+/// <summary>Which side of a <see cref="RangeFilter"/> the value bounds (TN-44).</summary>
+public enum RangeBound
+{
+    /// <summary><c>column &gt;= value</c>.</summary>
+    AtLeast,
+
+    /// <summary><c>column &lt;= value</c>.</summary>
+    AtMost,
+}
+
+/// <summary>
+/// A range filter on a typed column (TN-44): <c>column &gt;= value</c> or <c>column &lt;= value</c>, in the order PostgreSQL
+/// sorts the stored type (<see cref="ColumnValues.Compare"/>). A row whose column is <see langword="null"/> never matches,
+/// as in SQL. Two filters on one column (<see cref="RangeBound.AtLeast"/> and <see cref="RangeBound.AtMost"/>) give a closed range.
+/// </summary>
+/// <param name="Column">The column name (<see cref="ProjectionColumn{TRow}.Name"/>, or the member name); not an array column.</param>
+/// <param name="Bound">The side.</param>
+/// <param name="Value">The bound (converted to the stored type; not <see langword="null"/>).</param>
+public readonly record struct RangeFilter(string Column, RangeBound Bound, object Value);
+
 /// <summary>
 /// A set filter (TN-6): <c>column IN (values)</c>, or, for an array column (<see cref="ProjectionColumn{TRow}.IsArray"/>), the
 /// array shares a value with the set (<c>column &amp;&amp; values</c>). <see cref="IdColumn"/> names the row id. An empty set
@@ -119,6 +139,9 @@ public sealed record ListQuery(Guid Tenant)
 
     /// <summary>The set filters (all must hold, with <see cref="Filters"/>); a list scope's (TN-6). An empty set matches no row.</summary>
     public IReadOnlyList<SetFilter> Sets { get; init; } = [];
+
+    /// <summary>The range filters (all must hold, with <see cref="Filters"/> and <see cref="Sets"/>; TN-44).</summary>
+    public IReadOnlyList<RangeFilter> Ranges { get; init; } = [];
 
     /// <summary>This query restricted by <paramref name="scope"/>: its filters and sets are added to the query's own.</summary>
     /// <param name="scope">The caller's scope.</param>
@@ -308,6 +331,8 @@ public static class Cursor
         return $"W/\"{h:x16}\"";
     }
 
+    internal static ulong Fold(ulong h, string part) => Fnv(Encoding.UTF8.GetBytes(part), Fnv("~"u8, h));
+
     private static ulong Fnv(ReadOnlySpan<byte> data, ulong h)
     {
         foreach (var b in data)
@@ -328,11 +353,12 @@ public sealed class ListQueryPlan<TRow>
     where TRow : class, IProjection<TRow>
 {
     private ListQueryPlan(ListQuery query, IReadOnlyList<(ProjectionColumn<TRow> Column, object? Value)> filters, IReadOnlyList<SetFilterPlan<TRow>> sets,
-        ProjectionColumn<TRow>? sort, string sortKey, ulong filterHash, int limit)
+        IReadOnlyList<(ProjectionColumn<TRow> Column, RangeBound Bound, object Value)> ranges, ProjectionColumn<TRow>? sort, string sortKey, ulong filterHash, int limit)
     {
         Query = query;
         Filters = filters;
         Sets = sets;
+        Ranges = ranges;
         Sort = sort;
         SortKey = sortKey;
         FilterHash = filterHash;
@@ -347,6 +373,31 @@ public sealed class ListQueryPlan<TRow>
 
     /// <summary>The set filters with their columns and distinct stored values (TN-6).</summary>
     public IReadOnlyList<SetFilterPlan<TRow>> Sets { get; }
+
+    /// <summary>The checked range filters: (column, bound, stored value).</summary>
+    public IReadOnlyList<(ProjectionColumn<TRow> Column, RangeBound Bound, object Value)> Ranges { get; }
+
+    /// <summary>Whether <paramref name="row"/> passes every filter, set and range of the plan (the in-memory evaluation).</summary>
+    /// <param name="row">The row.</param>
+    /// <returns>Whether it matches.</returns>
+    public bool Matches(Versioned<TRow> row)
+    {
+        foreach (var (column, value) in Filters)
+            if (column.CompareTo(row.Row, value) != 0)
+                return false;
+        foreach (var set in Sets)
+            if (!set.Matches(row))
+                return false;
+        foreach (var (column, bound, value) in Ranges)
+        {
+            if (column.CompareTo(row.Row, null) == 0)
+                return false; // null never matches a range, as in SQL
+            var order = column.CompareTo(row.Row, value);
+            if (bound == RangeBound.AtLeast ? order < 0 : order > 0)
+                return false;
+        }
+        return true;
+    }
 
     /// <summary>The sort column, or <see langword="null"/> for the id.</summary>
     public ProjectionColumn<TRow>? Sort { get; }
@@ -416,6 +467,18 @@ public sealed class ListQueryPlan<TRow>
                     distinct.Add(value);
             sets.Add(new SetFilterPlan<TRow>(column, type, distinct));
         }
+        var ranges = new List<(ProjectionColumn<TRow>, RangeBound, object)>(query.Ranges.Count);
+        foreach (var range in query.Ranges)
+        {
+            var column = Column(columns, range.Column)
+                ?? throw new ArgumentException($"The projection '{TRow.Name}' has no column '{range.Column}'.", nameof(query));
+            if (column.IsArray)
+                throw new ArgumentException($"The column '{column.Name}' of '{TRow.Name}' is an array: it takes set filters, not ranges.", nameof(query));
+            if (range.Bound is not (RangeBound.AtLeast or RangeBound.AtMost))
+                throw new ArgumentOutOfRangeException(nameof(query), range.Bound, "A range is bounded AtLeast or AtMost.");
+            ranges.Add((column, range.Bound, ColumnValues.Normalize(column.Type, range.Value
+                ?? throw new ArgumentException($"The range filter on '{range.Column}' has no value.", nameof(query)))!));
+        }
         ProjectionColumn<TRow>? sort = null;
         if (query.Sort is { } sortName && sortName != "id")
         {
@@ -427,7 +490,10 @@ public sealed class ListQueryPlan<TRow>
         var hash = sets.Count == 0
             ? Cursor.Hash(filters.Select(static f => (f.Item1.Name, f.Item1.Type, f.Item2)))
             : Cursor.Hash(filters.Select(static f => (f.Item1.Name, f.Item1.Type, f.Item2)), sets.Select(static s => (s.Name, s.Type, s.Values)));
-        var plan = new ListQueryPlan<TRow>(query, filters, sets, sort, sortKey, hash, query.Limit);
+        foreach (var part in ranges.Select(static r => r.Item1.Name + (r.Item2 == RangeBound.AtLeast ? ">=" : "<=") + ColumnValues.Format(r.Item1.Type, r.Item3))
+                     .Order(StringComparer.Ordinal))
+            hash = Cursor.Fold(hash, part); // no range: the hash (and every cursor) is the one of before TN-44
+        var plan = new ListQueryPlan<TRow>(query, filters, sets, ranges, sort, sortKey, hash, query.Limit);
         if (query.After is { } after)
         {
             if (!Cursor.TryDecode(after, sortKey, hash, out var text, out var id))

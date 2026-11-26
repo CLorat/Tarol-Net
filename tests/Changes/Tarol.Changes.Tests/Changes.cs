@@ -86,3 +86,18 @@ public sealed partial record CloseIfArtworkVerified(Id<Auction> Auction, [Read] 
     public Result Execute(Auction auction, ChangeContext context)
         => context.Read<Artwork>().IsVerified ? auction.Close(context.Now) : Error.Conflict("Artwork.NotVerified");
 }
+
+/// <summary>TN-46: a bid under the reserve is counted (its event commits) and refused (Result.Rejected).</summary>
+public sealed partial record CountedLowBid(Id<Auction> Auction, Amount Amount) : IChange<Auction>, IValidatable
+{
+    public Result Execute(Auction auction, ChangeContext context)
+        => auction.PlaceBid(context.Operation.Actor.Id, Amount, context.Now).ToResult()
+            .Bind(() => Result.Rejected(new Error(ErrorType.Conflict, "Auction.BelowReserve", "counted") { Reasons = ["Auction.Attempts"] }));
+}
+
+/// <summary>TN-46: the same refusal without Rejected discards the raised event.</summary>
+public sealed partial record DiscardedLowBid(Id<Auction> Auction, Amount Amount) : IChange<Auction>, IValidatable
+{
+    public Result Execute(Auction auction, ChangeContext context)
+        => auction.PlaceBid(context.Operation.Actor.Id, Amount, context.Now).ToResult().Bind(() => Result.Failure(Error.Conflict("Auction.BelowReserve")));
+}

@@ -119,8 +119,7 @@ public sealed class InMemoryReadModelStore<TRow> : IReadModelStore<TRow>
         lock (_gate)
         {
             checkpoint = _checkpoint;
-            matching = [.. _rows.Values.Where(r => r.Key.Tenant == query.Tenant && plan.Filters.All(f => f.Column.CompareTo(r.Row, f.Value) == 0)
-                                                       && plan.Sets.All(s => s.Matches(r)))];
+            matching = [.. _rows.Values.Where(r => r.Key.Tenant == query.Tenant && plan.Matches(r))];
         }
         var sign = query.Descending ? -1 : 1;
         matching.Sort((a, b) => sign * Compare(plan.Sort, a, b));

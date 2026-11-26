@@ -6,6 +6,40 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Tatalu feedback, round 3c (owner decisions 2026-11-26)
+
+#### Added
+
+* `ILoads<T, TData>` and `Loaded<T, TData>`: data from `Load` to `Execute` (TN-41).
+* `Id<T>.Derive(scope, parts)`, `IStartable<T>`/`IOrStart<T>` (load or start), `ChangeContext.LocalNow`/`Today` (TN-42).
+* `ViewContext` and `From(aggregate, ViewContext)`; `Restricted` views with `MayRead<T, TView>()` and `ViewHandler<TView, T>`;
+  `IChangeAuthorization.MayBeGranted` and the startup grant check; `IAccessObserver` and `Sensitive` entries (TN-43, TN-59).
+* Range filters: `RangeFilter`, `ListQuery.Ranges`, `[AtLeast]`/`[AtMost]` list members (TN-44).
+* `Result.Rejected`: a refusal that commits its events, stored with the idempotency key (TN-46).
+* `IStreamIds` and `UseStoreTenants<T>()` (TN-56).
+* `OperationContext.Capture` from `Tarol-Device`/`Tarol-Captured-At`, `IDeviceGate` and `UseDeviceGate()` (TN-60).
+* Skills `tarol-reactions` and `tarol-list-endpoints` (split from `tarol-changes` and `tarol-queries`).
+* `Tarol.Audit` and `Tarol.Audit.Npgsql`: the change log from the event feed, with sensitive reads and denials (TN-64); audit marks
+  `[NotAudited]`, `[AuditRemoved]`, `[AuditTime]` in the event catalog; non-generic `EventCodec.TryDescribe`/`Encode`/`SubjectsOf`/`SealStored`.
+* The capture of an offline device stored with PostgreSQL events (TN-60b); tarol-client sends the capture headers when a device is set (TS-41).
+
+#### Changed
+
+* A change whose commit started its stream answers 201 (an `ILoads` load-or-create answered 204) (TN-42).
+* An endpoint nobody may call stops the host in Development, warning 1003 elsewhere (TN-43).
+* PostgreSQL store schema version 5: `idempotency_keys.refusal` (additive) (TN-46).
+* The violation JSON writes `reasons` (TN-46).
+
+### Tatalu feedback, round 3b
+
+#### Added
+
+* `static TRow Empty(RecordedEvent r)` starts a projection row for any instance `When` (TN-54).
+* `IRowQuery<TRow>`: a GET answering one projection row, `x-tarol-kind: row` (TN-54).
+* Effects with a due time: `EffectSet.Add(name, handler, dueAt)`, `MessagingBuilder.Effect<TEvent, THandler>(name, dueAt)` (TN-63).
+* Enums as route values of changes and views, `RouteValue.Values` (TN-34).
+* `JobTest.BeforeEachRun` (TN-57).
+
 ### Tatalu feedback, round 3 (TN-69 … TN-83; [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md))
 
 #### Fixed

@@ -2,12 +2,10 @@
 name: tarol-changes
 description: >-
   Use when writing a Tarol change (the input record an actor sends to change an aggregate) or running one: IChange<T>,
-  ICreation<T>, ILoads<T>, [Read], ChangeContext (Operation, Now, Read<T>), ChangePipeline.Run, ChangeOptions
-  (idempotency key, expected version, principal), ChangeOutcome, IChangeAuthorization, AddTarol, Delivery.Classify, the
-  generated GeneratedChanges.Dispatch, the
-  ChangeTest helper, reactions to own events ([OnEvent<T>] factories, the generated GeneratedReactions.Set, ReactionSet),
-  scheduled changes ([Scheduled] factories, JobOccurrence, GeneratedJobs.Set, JobSet), and fixing TCHG001-TCHG011. Do not decompile or web-search, do not hand-write a load/commit handler or an event
-  handler class, do not call Raise from a change, do not retry inside Execute.
+  ICreation<T>, ILoads<T>, [Read], [Reads<T>], ChangeContext (Operation, Now, Read<T>, TryRead, Confirmed), ChangePipeline.Run,
+  ChangeOptions, ChangeOutcome, IChangeAuthorization, Error.ConfirmationRequired, ChangeTest and ChangeTestOptions, and fixing
+  TCHG001-TCHG005 and TCHG013. Reactions and scheduled changes are skill tarol-reactions. Do not decompile or web-search, do not
+  hand-write a load/commit handler or IHasReads, do not call Raise from a change, do not retry inside Execute.
 ---
 # Tarol.Changes
 
@@ -25,13 +23,17 @@ description: >-
 3. **Creation** = `ICreation<T>` whose `Execute(context)` returns the static factory's `Result<T>`. The factory makes the
    id (`Id<T>.New(now)`). No load. `ChangeOutcome.StreamId` is the new id.
 4. **Special changes**: another key or load-or-create → `ILoads<T>` with `Load(IAggregateReader reader, ChangeContext
-   context, CancellationToken ct)`. Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
+   context, CancellationToken ct)`; data for the decision (the actor's role, facts) → `ILoads<T, TData>`: `Load` returns
+   `new Loaded<T, TData>(aggregate, data)`, `Execute(T aggregate, TData data, ChangeContext context)` (never a field).
+   Load or start → the aggregate implements `IStartable<T>` (`static T Start(Id<T> id, ChangeContext c)`), the change
+   `IOrStart<T>`: a missing target is started, the answer is 201 `{id, version}` (`ChangeOutcome.Created`), and its view before
+   the first event shows the started state (ETag `"0"`). Ids from business keys: `Id<T>.Derive("scope", parts…)`. Another aggregate, read-only, for the decision → a `[Read] Id<X>` member and
    `context.Read<X>()` (missing → 422 `X.NotFound`; `[Read(Optional = true)]` + `context.TryRead(out X? x)`). Without an
    input member: `[Reads<X>]` on the change for a `[PerTenant]` X, `[Reads<X>(SameIdAs = nameof(Member))]` for the X under
    the same Guid (`Optional = true` allowed). Never implement `IHasReads` yourself (TCHG013). A `[Read]` of the target's
    type is fine next to the target member (a sibling). A rule that must *change* two aggregates is a saga, not a change.
 5. **Time and actor come from the context**: `context.Now` (read once from the pipeline's `TimeProvider`),
-   `context.Operation.Actor`. Never `DateTimeOffset.UtcNow` (TKRN001).
+   `context.Operation.Actor`; the tenant's day: `context.Today(zone)` / `LocalNow(zone)` (zone from `TimeZones.Find`). Never `DateTimeOffset.UtcNow` (TKRN001).
 6. **Inputs are `IValidatable`**, so value rules run before any read and return every field as `Invalid` (TCHG005 warns).
 7. **Run** with an explicit context: `await pipeline.Run(change, OperationContext.Start(actor, tenant, time), options, ct)`.
    `ChangeOptions(Key: new IdempotencyKey(tenant, scope, key))` for redeliverable work. `ExpectedVersion:` for If-Match.
@@ -40,22 +42,8 @@ description: >-
    `Stream.VersionConflict` (`StoreErrors.IsVersionConflict`) at once: it saw a state that is gone.
    The permission (`IChangeAuthorization`, skill `tarol-security`) runs only for runs with `ChangeOptions.Principal`,
    after the load and before the expected version; jobs and reactions pass no principal.
-9. **A reaction to an own event is a change with a factory**: `[OnEvent<Bid.Won>] public static X From(Bid.Won e,
-   RecordedEvent recorded) => new(…);` on the change (static, non-private, returns the change, `(TEvent)` or
-   `(TEvent, RecordedEvent)`; TCHG006). It only maps; `new ValueObject(…)` is allowed there (no TVAL006), the pipeline
-   validates. Per assembly the generator emits `GeneratedReactions.Set` (a `ReactionSet`): the store's table, the
-   schedule and the runner; `ReactionSet.Combine(a, b)` for several assemblies. A reaction runs as
-   `Actor.System("Reactions." + name)` on behalf of the user, caused by the event, keyed (reaction, event id): a
-   redelivery replays. Its **name** is the change's type name, stored in outbox rows and keys: pin
-   `[OnEvent<T>(Name = "OldName")]` before renaming (TCHG007 for duplicates; TCHG012 in the host when two context
-   assemblies declare one name: give one a unique `Name` before it ships). A timeout: `DueAt = nameof(Ns.Event.Member)`
-   (a `DateTimeOffset` of the event, TCHG008). Answer late, repeated or stale events with `Result.Success()`, never a
-   Conflict: workers retry every Conflict and then dead-letter it.
-10. **A recurring change is a scheduled factory**: `[Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")] public static X
-   From(JobOccurrence o) => new(…);` (static, returns the change, one `JobOccurrence`; TCHG009; 5-field Unix cron, TCHG010).
-   `GeneratedJobs.Set` goes to `AddJobs` (`Tarol.Jobs`, skill `tarol-jobs`). It runs as `Actor.System("Jobs." + name)` in a
-   new conversation, keyed (tenant, `job:<name>`, occurrence). `o.At` is UTC whole seconds; use `o.Local` for the zone's day.
-   `Name =` pins the stored name (TCHG011 for duplicates), `Missed =` and `PerTenant =` as in `tarol-jobs`.
+9. **Reactions and scheduled changes** (`[OnEvent<T>]`, `[Scheduled]` factories, `GeneratedReactions.Set`,
+   `GeneratedJobs.Set`, TCHG006–TCHG012): skill `tarol-reactions`.
 
 ## Example
 
@@ -92,20 +80,6 @@ var app = ChangeTest.At(start, new ChangeTestOptions { Codec = codec, Lookups = 
 
 // an internal run by hand (a scheduled job uses [Scheduled] or JobRun.Change of skill tarol-jobs, which key it)
 var result = await pipeline.Run(new SettleAuction(id), OperationContext.Start(Actor.System("Jobs.AuctionSettlement"), tenant, time), cancellationToken: ct);
-
-// a reaction to an own event
-public sealed partial record MarkPayoutDue(Guid Auction, decimal Amount) : ICreation<Payout>
-{
-    [OnEvent<Bid.Won>]
-    public static MarkPayoutDue From(Bid.Won e, RecordedEvent recorded) => new(recorded.StreamId, e.Amount);
-
-    public Result<Payout> Execute(ChangeContext context) => Payout.Due(Id<Payout>.New(context.Now), Amount);
-}
-
-// run it as the outbox worker does (store and worker take GeneratedReactions.Set)
-var won = test.Store.Recorded.Single(e => e.Event.Event is Bid.Won);
-var payout = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won, ct);
-var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won, ct);   // again.Value.Replayed
 ```
 
 ## Common mistakes
@@ -116,36 +90,22 @@ var again = await GeneratedReactions.Set.Run(test.Pipeline, "MarkPayoutDue", won
 | `new ChangeOptions(Principal: p)` in a `ChangeTest` without `Authorization` | `InvalidOperationException` (the pipeline would answer 403 `Auth.NotConfigured`) |
 | `Store.Recorded.Where(r => r.StreamId == id)` for a `[PerTenant]` aggregate | events of every singleton of the tenant; use `test.History(id)` |
 | `record Close(Auction Auction)` (the instance as input) | not serializable, not reloadable; take `Id<Auction>` |
-| two `Id<Auction>` members, no explicit `Target` | TCHG001 |
-| `record Close(…) : IChange<…>` not `partial` | TCHG002 |
 | `[Read] string Customer`, or `[Read]` on the own target id | TCHG004 |
 | `[Reads<X>]` of an X that is not `[PerTenant]`, or a hand-written `IHasReads` next to reads | TCHG013 (was CS8646 without a hint) |
 | value-object members but no `IValidatable` | TCHG005: rules do not run before the load |
 | loading or saving inside `Execute` | not possible: `Execute` gets no store; use `ILoads<T>` or `[Read]` |
-| `context.Read<Artwork>()` without a `[Read] Id<Artwork>` member | `InvalidOperationException` ("no [Read] members") |
-| a factory that returns a loaded aggregate from `ICreation<T>.Execute` | `InvalidOperationException` |
 | retrying `Stream.VersionConflict` around `Run` without an expected version | the pipeline did that already (3 attempts); with `If-Match` show the conflict instead |
 | an id member in a creation input | the factory chooses ids; send an `IdempotencyKey` to make retries safe |
-| `[OnEvent<T>]` on an instance, private or wrongly typed method | TCHG006 |
-| renaming a reaction's change without pinning `Name` | its waiting rows and keys use the old name: dead letters |
-| two changes with one reaction name, two factories of one change for one event | TCHG007 |
-| `DueAt = nameof(Settlement.DeadlineSet.DueAt)` in a change with a member `Settlement` | CS1061 (binds to the member): qualify the type |
+| a second change to store a failed attempt, then refuse | `Raise(…)` then `return Result.Rejected(Error.Conflict("X.WrongAnswer"));`: the events commit, the caller gets the refusal, a replay under the key gets it again (TN-46) |
 | a warning with an input flag (`bool ConfirmQuota`) and the data in `detail` | `if (!context.Confirmed("Absence.QuotaExceeded")) return Error.ConfirmationRequired("Absence.QuotaExceeded", args);` — the client resends with `Tarol-Confirm: Absence.QuotaExceeded` |
-| `Error.Conflict` for an event that arrives late or twice | retried, then a dead letter; return `Result.Success()` |
-| `[Scheduled]` factory with no or another parameter than `JobOccurrence` | TCHG009 |
-| `[Scheduled("0 0 2 * * *")]` (seconds), `L`, `W`, `#`, `?` | TCHG010 |
-| `DateTime.Now` or `o.At.Day` for "today" in a zone | `o.Local` (`At` is UTC) |
 
-## Operations (step 15)
+## Operations
 
-Every run is one `Internal` span `change <Name>` of the source `"Tarol.Changes"` (`ChangePipeline.ActivitySourceName`),
-a child of the request, reaction or job that runs it, and one count of `tarol.changes.runs` (`{change}`) plus
-`tarol.changes.duration` (`s`) on the meter `"Tarol.Changes"`, tagged `tarol.change` (the change's type name) and
-`tarol.outcome`: `committed`, `conflict`, `invalid` (also 422), `denied`, `not_found`, `error`. Logs: 7001 an error
-result (Warning), 7002 a conflict (Debug), 7003 an exception (Error). For your own numbers use your own meter, never
-`tarol.*` names, and never the tenant as a tag.
+Each run: span `change <Name>` (source `Tarol.Changes`), counter `tarol.changes.runs` and histogram `tarol.changes.duration`
+tagged `tarol.change` and `tarol.outcome` (`committed`, `conflict`, `invalid`, `denied`, `not_found`, `error`); logs 7001–7003,
+7006 (retry). Never the tenant as a tag; your own numbers go to your own meter.
 
 ## AOT
 
-No reflection: `Run<T>` is generic over the aggregate, `GeneratedChanges.Dispatch`, `GeneratedReactions` and `GeneratedJobs` are generated
-`switch`es over static arrays, `[Read]` loads are generated. List your aggregates' state member types in your `JsonSerializerContext` for the stored state.
+No reflection: `Run<T>` is generic, dispatch, reads and reaction/job tables are generated `switch`es. List the aggregates' state
+member types in your `JsonSerializerContext`.

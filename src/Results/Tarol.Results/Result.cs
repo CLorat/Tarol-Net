@@ -96,6 +96,19 @@ public readonly struct Result : IUnion, IEquatable<Result>
     /// <returns>A failure.</returns>
     public static Result Failure(Violation violation) => new(violation);
 
+    /// <summary>
+    /// A refusal that commits (TN-46): returned by a change's <c>Execute</c> after <c>Raise</c>, the raised events are stored and
+    /// the caller gets <paramref name="violation"/> (a failed attempt counted, then 400). Without raised events it is a plain refusal.
+    /// </summary>
+    /// <param name="violation">The refusal.</param>
+    /// <returns>A failed result whose violation has <see cref="Violation.Commits"/> set.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="violation"/> is <see langword="null"/>.</exception>
+    public static Result Rejected(Violation violation)
+    {
+        ArgumentNullException.ThrowIfNull(violation);
+        return new(violation with { Commits = true });
+    }
+
     /// <summary>Creates a successful <see cref="Result{T}"/>; the type argument is inferred.</summary>
     /// <typeparam name="T">The value type.</typeparam>
     /// <param name="value">The value.</param>

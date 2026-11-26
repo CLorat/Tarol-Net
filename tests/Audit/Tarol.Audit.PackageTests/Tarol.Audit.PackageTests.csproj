@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Consumer of the PACKED Tarol.Audit and Tarol.Audit.Npgsql packages (no ProjectReference). Proves that the packages work, that
+    the Primitives generator flows from their dependencies (the audit marks in the event catalog), and that the skills arrive.
+    Not part of Tarol.slnx: run by eng/verify-packages.sh, which passes TarolPackageVersion and an isolated packages folder.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TarolPackageVersion Condition="'$(TarolPackageVersion)' == ''">0.0.0-local</TarolPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tarol.Audit" VersionOverride="$(TarolPackageVersion)" />
+    <PackageReference Include="Tarol.Audit.Npgsql" VersionOverride="$(TarolPackageVersion)" />
+  </ItemGroup>
+</Project>

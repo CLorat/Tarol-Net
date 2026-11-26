@@ -26,6 +26,19 @@ public sealed class EndpointAttribute(string route) : Attribute
     /// depend on the caller can never answer unfiltered (TN-6). Without it, a registered scope still applies.
     /// </summary>
     public bool RequiresScope { get; init; }
+
+    /// <summary>
+    /// For a view, list or row query: it needs its own grant, <c>roles.Role(…).MayRead&lt;TAggregate, TView&gt;()</c>;
+    /// <c>Read&lt;TAggregate&gt;</c> alone does not grant it (TN-43, owner decision VA-2a: opt-in). Row rules still run.
+    /// </summary>
+    public bool Restricted { get; init; }
+
+    /// <summary>
+    /// For a view, list or row query: every granted read is reported to the registered <c>Tarol.Security.IAccessObserver</c>s
+    /// (TN-59, VA-4: a 304 counts, the person saw the data again); denials are reported for every endpoint. Ids, codes and
+    /// types only, never the view's data.
+    /// </summary>
+    public bool Sensitive { get; init; }
 }
 
 /// <summary>
@@ -67,11 +80,27 @@ public interface IView<TAggregate, TSelf>
     where TAggregate : AggregateRoot<TAggregate>, IAggregateRoot<TAggregate>
     where TSelf : IView<TAggregate, TSelf>
 {
-    /// <summary>Builds the view from the loaded (and authorized) aggregate.</summary>
+    /// <summary>Builds the view from the loaded (and authorized) aggregate. Implement this or the overload with a <see cref="ViewContext"/>.</summary>
     /// <param name="aggregate">The aggregate.</param>
     /// <returns>The view.</returns>
-    static abstract TSelf From(TAggregate aggregate);
+    static virtual TSelf From(TAggregate aggregate)
+        => throw new InvalidOperationException($"{typeof(TSelf).Name} implements From(aggregate, ViewContext); the endpoint calls that one.");
+
+    /// <summary>
+    /// Builds the view for the reader (TN-43, owner decision VA-1: the actor and the time, not the roles; Tatalu FB-E07-3 "the
+    /// substitute sees the last 14 days", FB-F01.1-6). Its ETag is <c>"&lt;version&gt;-&lt;hash&gt;"</c> (VA-1b): the view can
+    /// change without a new version (another day, another reader).
+    /// </summary>
+    /// <param name="aggregate">The aggregate.</param>
+    /// <param name="context">Who reads, and when.</param>
+    /// <returns>The view.</returns>
+    static virtual TSelf From(TAggregate aggregate, ViewContext context) => TSelf.From(aggregate);
 }
+
+/// <summary>What a view built for its reader gets (TN-43, VA-1): the operation (actor, tenant) and the request's time.</summary>
+/// <param name="Operation">Who reads, for which tenant.</param>
+/// <param name="Now">The time of the request, read once from the application's <see cref="TimeProvider"/>.</param>
+public readonly record struct ViewContext(Tarol.Kernel.OperationContext Operation, DateTimeOffset Now);
 
 /// <summary>What the generator knows about an entry, as endpoint metadata (read by the generated OpenAPI transformers).</summary>
 /// <param name="Kind">"change", "creation", "view", "list", "search" or "webhook" (the OpenAPI document's <c>x-tarol-kind</c>).</param>
@@ -87,6 +116,9 @@ public sealed record TarolEndpointMetadata(string Kind, Type Input, IReadOnlyLis
     /// <c>x-tarol-errors</c>): Tarol's own for the kind, and the literal codes of <c>Error.*("…")</c> calls in the input and the
     /// aggregate methods it calls. Codes built at run time are not listed.</summary>
     public IReadOnlyList<string> Errors { get; init; } = [];
+
+    /// <summary>A change that may start its stream (load-or-create, <c>IOrStart&lt;T&gt;</c>): 201 with <c>{id, version}</c> then (TN-42).</summary>
+    public bool MayCreate { get; init; }
 
     /// <summary>
     /// The assembly whose generated <c>MapChanges</c> mapped the entry; its generated OpenAPI transformer completes the operation
@@ -114,4 +146,7 @@ public sealed record RouteValue(string Name, string Kind, string Property)
     /// <summary>The aggregate of an <c>"id"</c> route value (<c>Id&lt;Auction&gt;</c>: <c>Auction</c>; the OpenAPI document's
     /// <c>x-tarol-id</c>), else <see langword="null"/>.</summary>
     public string? Aggregate { get; init; }
+
+    /// <summary>The names of an <c>"enum"</c> route value (TN-34; matched case-insensitively), else <see langword="null"/>.</summary>
+    public IReadOnlyList<string>? Values { get; init; }
 }

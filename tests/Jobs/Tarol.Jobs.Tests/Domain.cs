@@ -89,6 +89,25 @@ public sealed partial record OpenNotice(DateOnly Day) : ICreation<Notice>
     public Result<Notice> Execute(ChangeContext context) => Notice.Open(Day, context.Now);
 }
 
+/// <summary>A tenant's settings, one per tenant (its id is the tenant's): the tenants of UseStoreTenants (TN-56).</summary>
+[PerTenant]
+public partial class Branch : AggregateRoot<Branch>
+{
+    public string Name { get; private set; } = "";
+
+    public static Branch Open(Id<Branch> tenantId, string name)
+    {
+        var branch = new Branch(tenantId);
+        branch.Raise(new BranchOpened(name));
+        return branch;
+    }
+
+    public sealed record BranchOpened(string Name) : Event;
+
+    private void On(BranchOpened e) => Name = e.Name;
+}
+
+[JsonSerializable(typeof(Branch.BranchOpened))]
 [JsonSerializable(typeof(DayBook.Closed))]
 [JsonSerializable(typeof(Counter.Started))]
 [JsonSerializable(typeof(Counter.Ticked))]

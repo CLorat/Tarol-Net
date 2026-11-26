@@ -26,18 +26,20 @@ internal sealed class TestApp : IAsyncDisposable
 
     public WebApplication App { get; }
     public HttpClient Client { get; }
+    public AccessRecorder Access => App.Services.GetRequiredService<AccessRecorder>();
+
     public InMemoryAggregateStore Store => App.Services.GetRequiredService<InMemoryAggregateStore>();
 
     public static async Task<TestApp> Start(bool problemDetailsService = true, Action<ChangeEndpointOptions>? endpoints = null,
         Action<TarolBuilder>? store = null, bool projections = true, bool search = false, Tarol.Search.ISearchIndex? searchIndex = null,
-        string? corsOrigin = null, bool scopes = true)
+        string? corsOrigin = null, bool scopes = true, Action<DeviceGateOptions>? devices = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
         if (searchIndex is not null)
             builder.Services.AddSingleton(searchIndex);
-        var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>().Add<House>())
+        var tarol = builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>().Add<Memo>().Add<House>().Add<Shelf>())
             .WithReactions(GeneratedReactions.Set)
             .Store(store)
             .AddSecurity(roles =>
@@ -47,7 +49,8 @@ internal sealed class TestApp : IAsyncDisposable
                 roles.Role("reader").May<Read<Auction>>();
                 roles.Role("admin").May<CloseAuction>().May<Read<Auction>>();
                 roles.Authenticated().May<WatchAuction>();
-                roles.Role("seller").May<OpenHouse>().May<RenameHouse>().May<Read<House>>();
+                roles.Role("seller").May<OpenHouse>().May<RenameHouse>().May<Read<House>>().May<ShelveBook>().May<Read<Shelf>>();
+                roles.Role("bookkeeper").MayRead<House, HouseLedger>();
             })
             .AddEndpoints(endpoints)
             .Projections(projections);
@@ -59,6 +62,8 @@ internal sealed class TestApp : IAsyncDisposable
             }));
         foreach (var rule in new IAuthorizationHandler[] { new CloseAuctionRule(), new CreateAuctionRule(), new ReadOwnAuction() })
             builder.Services.AddSingleton(rule);
+        builder.Services.AddSingleton<IDeviceGate, EndedDevices>();
+        builder.Services.AddSingleton<AccessRecorder>().AddSingleton<Tarol.Security.IAccessObserver>(s => s.GetRequiredService<AccessRecorder>());
         if (scopes)
             builder.Services.AddSingleton<FamilyScope>().AddSingleton<IListScope<FamilyAuctions>>(s => s.GetRequiredService<FamilyScope>());
         if (problemDetailsService)
@@ -81,6 +86,7 @@ internal sealed class TestApp : IAsyncDisposable
         if (corsOrigin is not null)
             app.UseCors("browser");
         app.UseAuthentication();
+        app.UseDeviceGate(devices);                                                            // TN-60
         app.UseAuthorization();
         app.MapOpenApi();
         app.MapChanges();
@@ -165,6 +171,8 @@ internal sealed class TestApp : IAsyncDisposable
             claims.AddRange(Request.Headers["X-Scope"].ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(s => new Claim("scope", s)));
             if (Request.Headers["X-Tenant"].ToString() is { Length: > 0 } tenant)
                 claims.Add(new Claim("tenant", tenant));
+            if (Request.Headers["X-Device-Claim"].ToString() is { Length: > 0 } device)
+                claims.Add(new Claim("device_id", device));                                    // a device bound to the token (TN-60)
             if (Request.Headers["X-Client"].ToString() is { Length: > 0 } client)
                 claims.Add(new Claim("client_id", client));
             var identity = new ClaimsIdentity(claims, "test", "sub", "role");
@@ -180,7 +188,7 @@ internal static class TestStores
     {
         if (!builder.Services.Any(static d => d.ServiceType == typeof(Tarol.Queries.IReadModels)))
             Tarol.Queries.QueriesTarolBuilderExtensions.UseInMemoryReadModels(builder);
-        return hosted ? Tarol.Queries.QueriesTarolBuilderExtensions.AddProjections(builder, p => p.Add<AuctionRow>(o => o.Poll = TimeSpan.FromMilliseconds(5))) : builder;
+        return hosted ? Tarol.Queries.QueriesTarolBuilderExtensions.AddProjections(builder, p => p.Add<AuctionRow>(o => o.Poll = TimeSpan.FromMilliseconds(5)).Add<HouseRow>(o => o.Poll = TimeSpan.FromMilliseconds(5))) : builder;
     }
 
     public static TarolBuilder Store(this TarolBuilder builder, Action<TarolBuilder>? store)
@@ -197,4 +205,23 @@ internal sealed record Answer(HttpResponseMessage Response, string Body)
     public System.Net.HttpStatusCode Status => Response.StatusCode;
     public string? ETag => Response.Headers.ETag?.Tag;
     public override string ToString() => $"{(int)Status} {Body}";
+}
+
+/// <summary>Records what the access observers see (TN-59).</summary>
+public sealed class AccessRecorder : Tarol.Security.IAccessObserver
+{
+    public System.Collections.Concurrent.ConcurrentQueue<Tarol.Security.AccessRecord> Seen { get; } = new();
+
+    public ValueTask Observed(Tarol.Security.AccessRecord access, CancellationToken cancellationToken)
+    {
+        Seen.Enqueue(access);
+        return ValueTask.CompletedTask;
+    }
+}
+
+/// <summary>The device registry of the tests (TN-60): "lost-1" was ended.</summary>
+public sealed class EndedDevices : IDeviceGate
+{
+    public ValueTask<bool> IsActive(string device, System.Security.Claims.ClaimsPrincipal user, CancellationToken cancellationToken)
+        => ValueTask.FromResult(device != "lost-1");
 }

@@ -36,6 +36,31 @@ public sealed class ProjectionAttribute(string name) : Attribute
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter, Inherited = false)]
 public sealed class SortAttribute : Attribute;
 
+/// <summary>
+/// Makes a member of a list query record a lower bound (TN-44): the endpoint lists the rows whose
+/// <paramref name="member"/> is at least the value (<c>&gt;=</c>; a <see langword="null"/> column never matches). The member
+/// is nullable, its type is the column's, and absent means no bound: <c>[AtLeast(nameof(AttendanceRow.Day))] DateOnly? From</c>.
+/// </summary>
+/// <param name="member">The row member (<c>nameof(Row.Day)</c>).</param>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter, Inherited = false)]
+public sealed class AtLeastAttribute(string member) : Attribute
+{
+    /// <summary>The row member the bound applies to.</summary>
+    public string Member { get; } = member;
+}
+
+/// <summary>
+/// Makes a member of a list query record an upper bound (TN-44): the rows whose <paramref name="member"/> is at most the value
+/// (<c>&lt;=</c>, inclusive). With an <see cref="AtLeastAttribute"/> member on the same row member it is a closed range.
+/// </summary>
+/// <param name="member">The row member (<c>nameof(Row.Day)</c>).</param>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter, Inherited = false)]
+public sealed class AtMostAttribute(string member) : Attribute
+{
+    /// <summary>The row member the bound applies to.</summary>
+    public string Member { get; } = member;
+}
+
 /// <summary>Marks a member of a query record's sort enum as descending (the row id, the tie-break, descends with it).</summary>
 [AttributeUsage(AttributeTargets.Field, Inherited = false)]
 public sealed class DescendingAttribute : Attribute;
@@ -47,4 +72,17 @@ public sealed class DescendingAttribute : Attribute;
 /// <typeparam name="TRow">The projection's row record.</typeparam>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "A marker the endpoint generator reads; it names the projection a query record lists (queries.md §5).")]
 public interface IQuery<TRow>
+    where TRow : class, IProjection<TRow>;
+
+/// <summary>
+/// The marker of a query for <b>one</b> row of the projection <typeparamref name="TRow"/> (TN-54, Tatalu FB-F01.2-4: one row
+/// per tenant, a history row): <c>Tarol.Changes.AspNetCore</c> generates a GET endpoint answering the row as JSON (404 when
+/// the stream has none). The row is the one of the route member (a <see cref="Guid"/> or an <c>Id&lt;T&gt;</c>), or, with no
+/// member, the caller's tenant's row of a <c>[PerTenant]</c> aggregate. Access, <c>Tarol-Read-After</c> and 503 while building
+/// are a list's.
+/// </summary>
+/// <example><code>[Endpoint("GET /caregiver/changes")] public sealed record CaregiverChanges : IRowQuery&lt;CaregiverChangesRow&gt;;</code></example>
+/// <typeparam name="TRow">The projection's row record.</typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1040:Avoid empty interfaces", Justification = "A marker the endpoint generator reads; it names the projection whose row a query reads.")]
+public interface IRowQuery<TRow>
     where TRow : class, IProjection<TRow>;

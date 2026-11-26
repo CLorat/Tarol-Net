@@ -25,7 +25,7 @@ namespace Tarol.Persistence;
 public sealed class EventCodec
 {
     private readonly Lock _gate = new();
-    private volatile Tables _tables = new([], [], [], [], [], [], []);
+    private volatile Tables _tables = new([], [], [], [], [], [], [], []);
 
     /// <summary>Creates a codec over <paramref name="options"/> (made read-only).</summary>
     /// <param name="options">The JSON options of the payloads, with <c>ValueObjectJson.Resolver</c> first when events hold value objects.</param>
@@ -59,10 +59,12 @@ public sealed class EventCodec
             if (t.Streams.ContainsKey(catalog.StreamType))
                 throw new InvalidOperationException($"Stream type '{catalog.StreamType}' of {typeof(T).Name} is registered for another aggregate; pin a unique one with [StreamType].");
             var current = new Dictionary<(string, string), JsonTypeInfo>(t.Current);
+            var entries = new Dictionary<(string, Type), EventCatalogEntry>(t.Entries);
             var personal = new Dictionary<(string, string), ResolvedShape>(t.Personal);
             foreach (var e in catalog.Events)
             {
                 current[(catalog.StreamType, Key(e.Type))] = Options.GetTypeInfo(e.ClrType);
+                entries[(catalog.StreamType, e.ClrType)] = e;
                 if (e.Personal is { } shape)
                     personal[(catalog.StreamType, Key(e.Type))] = ResolvedShape.From(shape, Options.PropertyNamingPolicy);
             }
@@ -75,12 +77,78 @@ public sealed class EventCodec
                 Streams = new Dictionary<string, Type>(t.Streams) { [catalog.StreamType] = typeof(T) },
                 StreamTypes = new Dictionary<Type, string>(t.StreamTypes) { [typeof(T)] = catalog.StreamType },
                 Current = current,
+                Entries = entries,
                 Personal = personal,
                 States = states,
                 Retention = catalog.RetentionDays is { } days ? new Dictionary<string, int>(t.Retention) { [catalog.StreamType] = days } : t.Retention,
             };
         }
         return this;
+    }
+
+    /// <summary>
+    /// The catalog entry of an event of a registered stream type (TN-64): its stored type, personal shape and audit marks, for
+    /// consumers of the feed that know the stream type but not the aggregate type (the audit).
+    /// </summary>
+    /// <param name="streamType">The stream type.</param>
+    /// <param name="domainEvent">The event.</param>
+    /// <param name="entry">The entry.</param>
+    /// <returns>Whether the event belongs to a registered stream type.</returns>
+    public bool TryDescribe(string streamType, DomainEvent domainEvent, out EventCatalogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(streamType);
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        return _tables.Entries.TryGetValue((streamType, domainEvent.GetType()), out entry);
+    }
+
+    /// <summary>Writes an event of a registered stream type as it is stored, unsealed (TN-64; the non-generic <see cref="Encode{T}(DomainEvent, IBufferWriter{byte})"/>).</summary>
+    /// <param name="streamType">The stream type.</param>
+    /// <param name="domainEvent">The event.</param>
+    /// <param name="payload">Receives the UTF-8 JSON.</param>
+    /// <returns>The stored event type.</returns>
+    /// <exception cref="InvalidOperationException">The event is not one of <paramref name="streamType"/>.</exception>
+    public EventType Encode(string streamType, DomainEvent domainEvent, IBufferWriter<byte> payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (!TryDescribe(streamType, domainEvent, out var entry) || !_tables.Current.TryGetValue((streamType, Key(entry.Type)), out var info))
+            throw new InvalidOperationException($"{domainEvent.GetType().Name} is not an event of '{streamType}'.");
+        using var writer = new Utf8JsonWriter(payload);
+        JsonSerializer.Serialize(writer, domainEvent, info);
+        return entry.Type;
+    }
+
+    /// <summary>The subjects an event's personal members are sealed under (TN-64; the non-generic <c>SubjectsOf&lt;T&gt;</c>).</summary>
+    /// <param name="streamType">The stream type.</param>
+    /// <param name="type">The stored event type.</param>
+    /// <param name="payload">The unsealed payload.</param>
+    /// <param name="stream">The stream id (the subject of members without their own).</param>
+    /// <param name="subjects">Receives the subjects.</param>
+    public void SubjectsOf(string streamType, EventType type, ReadOnlySpan<byte> payload, Guid stream, ICollection<Guid> subjects)
+    {
+        ArgumentNullException.ThrowIfNull(subjects);
+        if (_tables.Personal.TryGetValue((streamType, Key(type)), out var shape))
+            PersonalJson.Subjects(shape, payload, stream, subjects);
+    }
+
+    /// <summary>
+    /// Seals the personal members of a payload as they are stored, an erased subject's as <see langword="null"/> (TN-64; the non-generic
+    /// <c>SealStored&lt;T&gt;</c>, for a store that keeps values beside the event store).
+    /// </summary>
+    /// <param name="streamType">The stream type.</param>
+    /// <param name="type">The stored event type.</param>
+    /// <param name="payload">The unsealed payload.</param>
+    /// <param name="stream">The stream id.</param>
+    /// <param name="keys">The subjects' keys.</param>
+    /// <param name="sealedPayload">Receives the sealed payload.</param>
+    /// <returns>Whether the event has personal members (else nothing is written).</returns>
+    public bool SealStored(string streamType, EventType type, ReadOnlySpan<byte> payload, Guid stream, KeyRing keys, IBufferWriter<byte> sealedPayload)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(sealedPayload);
+        if (!_tables.Personal.TryGetValue((streamType, Key(type)), out var shape))
+            return false;
+        PersonalJson.Seal(shape, payload, stream, keys, sealedPayload, nullErased: true);
+        return true;
     }
 
     /// <summary>Registers an upcaster for a stored (alias, version) of <typeparamref name="T"/>.</summary>
@@ -391,5 +459,6 @@ public sealed class EventCodec
         Dictionary<(string, string), IEventUpcaster> Upcasters,
         Dictionary<(string, string), ResolvedShape> Personal,
         Dictionary<string, ResolvedShape> States,
-        Dictionary<string, int> Retention);
+        Dictionary<string, int> Retention,
+        Dictionary<(string, Type), EventCatalogEntry> Entries);
 }

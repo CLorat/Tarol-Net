@@ -25,7 +25,7 @@ public sealed class MessagingSystemOptions
     /// <summary>The consumers (<c>GeneratedConsumers.Set</c>); default none.</summary>
     public ConsumerSet? Consumers { get; set; }
 
-    /// <summary>The effects (<see cref="EffectSet.Add{TEvent}"/> with test doubles); default none.</summary>
+    /// <summary>The effects (<see cref="EffectSet.Add{TEvent}(string, Func{IServiceProvider, IEffect{TEvent}})"/> with test doubles); default none.</summary>
     public EffectSet Effects { get; set; } = new();
 
     /// <summary>Attempts and backoff of rows and deliveries (default <see cref="DeliveryPolicy"/>).</summary>

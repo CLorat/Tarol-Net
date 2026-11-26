@@ -1,4 +1,46 @@
 #nullable enable
+Tarol.Primitives.AuditMember
+Tarol.Primitives.AuditMember.<Clone>$() -> Tarol.Primitives.AuditMember!
+Tarol.Primitives.AuditMember.AuditMember(string! Name, string? JsonName = null) -> void
+Tarol.Primitives.AuditMember.Deconstruct(out string! Name, out string? JsonName) -> void
+Tarol.Primitives.AuditMember.Equals(Tarol.Primitives.AuditMember? other) -> bool
+Tarol.Primitives.AuditMember.JsonName.get -> string?
+Tarol.Primitives.AuditMember.JsonName.init -> void
+Tarol.Primitives.AuditMember.Name.get -> string!
+Tarol.Primitives.AuditMember.Name.init -> void
+Tarol.Primitives.AuditRemovedAttribute
+Tarol.Primitives.AuditRemovedAttribute.AuditRemovedAttribute() -> void
+Tarol.Primitives.AuditTimeAttribute
+Tarol.Primitives.AuditTimeAttribute.AuditTimeAttribute() -> void
+Tarol.Primitives.EventAudit
+Tarol.Primitives.EventAudit.<Clone>$() -> Tarol.Primitives.EventAudit!
+Tarol.Primitives.EventAudit.Deconstruct(out bool Excluded, out bool Removed, out System.Collections.Generic.IReadOnlyList<Tarol.Primitives.AuditMember!>! NotAudited, out Tarol.Primitives.AuditMember? Time) -> void
+Tarol.Primitives.EventAudit.Equals(Tarol.Primitives.EventAudit? other) -> bool
+Tarol.Primitives.EventAudit.EventAudit(bool Excluded, bool Removed, System.Collections.Generic.IReadOnlyList<Tarol.Primitives.AuditMember!>! NotAudited, Tarol.Primitives.AuditMember? Time = null) -> void
+Tarol.Primitives.EventAudit.Excluded.get -> bool
+Tarol.Primitives.EventAudit.Excluded.init -> void
+Tarol.Primitives.EventAudit.NotAudited.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.AuditMember!>!
+Tarol.Primitives.EventAudit.NotAudited.init -> void
+Tarol.Primitives.EventAudit.Removed.get -> bool
+Tarol.Primitives.EventAudit.Removed.init -> void
+Tarol.Primitives.EventAudit.Time.get -> Tarol.Primitives.AuditMember?
+Tarol.Primitives.EventAudit.Time.init -> void
+Tarol.Primitives.EventCatalogEntry.Audit.get -> Tarol.Primitives.EventAudit?
+Tarol.Primitives.EventCatalogEntry.Audit.init -> void
 Tarol.Primitives.IAggregateRoot<TSelf>.PerTenant.get -> bool
+Tarol.Primitives.NotAuditedAttribute
+Tarol.Primitives.NotAuditedAttribute.NotAuditedAttribute() -> void
+Tarol.Primitives.NotAuditedAttribute.Reason.get -> string?
+Tarol.Primitives.NotAuditedAttribute.Reason.init -> void
 Tarol.Primitives.PerTenantAttribute
 Tarol.Primitives.PerTenantAttribute.PerTenantAttribute() -> void
+override Tarol.Primitives.AuditMember.Equals(object? obj) -> bool
+override Tarol.Primitives.AuditMember.GetHashCode() -> int
+override Tarol.Primitives.AuditMember.ToString() -> string!
+override Tarol.Primitives.EventAudit.Equals(object? obj) -> bool
+override Tarol.Primitives.EventAudit.GetHashCode() -> int
+override Tarol.Primitives.EventAudit.ToString() -> string!
+static Tarol.Primitives.AuditMember.operator !=(Tarol.Primitives.AuditMember? left, Tarol.Primitives.AuditMember? right) -> bool
+static Tarol.Primitives.AuditMember.operator ==(Tarol.Primitives.AuditMember? left, Tarol.Primitives.AuditMember? right) -> bool
+static Tarol.Primitives.EventAudit.operator !=(Tarol.Primitives.EventAudit? left, Tarol.Primitives.EventAudit? right) -> bool
+static Tarol.Primitives.EventAudit.operator ==(Tarol.Primitives.EventAudit? left, Tarol.Primitives.EventAudit? right) -> bool

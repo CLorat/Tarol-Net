@@ -41,6 +41,11 @@ public enum DaySort
 [Endpoint("GET /auctions/by-day")]
 public sealed record AuctionsByDay(DateOnly? EndsOn, TimeOnly? EndsAtTime, DaySort Sort = DaySort.EndsOn) : IQuery<AuctionRow>;
 
+/// <summary>The auctions ending between two days, both inclusive and both optional (TN-44: range filters).</summary>
+[Endpoint("GET /auctions/between")]
+public sealed record AuctionsBetween([AtLeast(nameof(AuctionRow.EndsOn))] DateOnly? From, [AtMost(nameof(AuctionRow.EndsOn))] DateOnly? Until,
+    [AtLeast(nameof(AuctionRow.HighestBid))] decimal? MinBid, DaySort Sort = DaySort.EndsOn) : IQuery<AuctionRow>;
+
 /// <summary>A seller's auctions from the route.</summary>
 [Endpoint("GET /sellers/{seller}/auctions")]
 public sealed record SellerAuctions(string Seller, AuctionSort Sort = AuctionSort.HighestBid) : IQuery<AuctionRow>;

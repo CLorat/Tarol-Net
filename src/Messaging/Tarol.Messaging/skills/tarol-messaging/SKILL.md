@@ -88,7 +88,8 @@ public sealed partial record RecordPayment(Id<Auction> Auction, string Invoice, 
     resolved from DI per row, run at least once: pass `context.IdempotencyKey` (the event id) to the receiver.
     `Unavailable` or an exception retries; `Invalid` goes to `outbox_dead`. The event's tenant is
     `context.Recorded.Context.Tenant`, its entity `context.Recorded.Event.EntityId`. Effects are registered in `AddMessaging`
-    even when the application has no bus.
+    even when the application has no bus. Later: `.Effect<TEvent, THandler>("name", e => e.NotBefore)` (a due time decided in
+    the change and stored on the event; `null` = at the commit), never a reaction that re-raises an event to defer it.
 12. **Test systems together with `MessagingTest`**: `.System(app, json, o => …)` (`Publications`, `Consumers`, `Effects`,
     `Trust`, `PublishThrough` for fault injection), `test[app].Given/When`, `Drain()`, `Later(span)`, `OutboxDead()`.
 

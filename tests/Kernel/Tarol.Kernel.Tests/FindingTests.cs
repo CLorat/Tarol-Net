@@ -26,7 +26,8 @@ public class FindingTests
     [Fact] // K-6: the recorded context holds no authorization input (the old IUserContext carried Roles)
     public void K6_Context_Should_HoldNoRoles()
     {
-        typeof(OperationContext).GetProperties(BindingFlags.Instance | BindingFlags.Public).Select(static p => p.Name).ShouldBe(["Actor", "Tenant", "CorrelationId", "CausationId"], ignoreOrder: true);
+        typeof(OperationContext).GetProperties(BindingFlags.Instance | BindingFlags.Public).Select(static p => p.Name).ShouldBe(["Actor", "Tenant", "CorrelationId", "CausationId", "Capture"], ignoreOrder: true);
+        typeof(Capture).GetProperties(BindingFlags.Instance | BindingFlags.Public).Select(static p => p.Name).ShouldBe(["Device", "At"], ignoreOrder: true);   // TN-60
         typeof(Actor).GetProperties(BindingFlags.Instance | BindingFlags.Public).Select(static p => p.Name).ShouldBe(["Kind", "Id", "OnBehalfOf"], ignoreOrder: true);
     }
 

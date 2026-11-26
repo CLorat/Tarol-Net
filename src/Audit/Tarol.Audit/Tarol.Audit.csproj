@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The change log of Tarol: one row per event and field with before and after, complete by construction (every member of every event of the audited aggregates, [NotAudited] to leave one out), erasure-proof (personal values stay sealed under their subject's key and read as null once erased), fed from the event feed by a projection host, with sensitive reads and denials from Tarol.Security in the same log, a list endpoint and its own retention. In-memory store here; PostgreSQL in Tarol.Audit.Npgsql. Native-AOT ready.</Description>
+    <PackageTags>tarol;ddd;event-sourcing;audit;change-log;gdpr;crypto-shredding;aot</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MapAudit is an ASP.NET Core endpoint (shared framework, never a package; AGENTS.md). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../Queries/Tarol.Queries/Tarol.Queries.csproj" />
+    <ProjectReference Include="../../Changes/Tarol.Changes.AspNetCore/Tarol.Changes.AspNetCore.csproj" />
+    <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
+    <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Results/Tarol.Results.Generators/Tarol.Results.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="../../Kernel/Tarol.Kernel.Generators/Tarol.Kernel.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <InternalsVisibleTo Include="$(AssemblyName).Tests" />
+  </ItemGroup>
+</Project>

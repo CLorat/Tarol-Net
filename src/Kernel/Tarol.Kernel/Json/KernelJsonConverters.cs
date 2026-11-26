@@ -101,9 +101,15 @@ public sealed class OperationContextJsonConverter : JsonConverter<OperationConte
         Option<Id<ITenant>> tenant = default;
         Id<ICorrelation>? correlation = null;
         Option<Id<ICausation>> causation = default;
+        Capture? capture = null;
         while (KernelJson.NextProperty(ref reader))
         {
-            if (reader.ValueTextEquals("actor"u8))
+            if (reader.ValueTextEquals("capture"u8))
+            {
+                reader.Read();
+                capture = reader.TokenType == JsonTokenType.Null ? null : ReadCapture(ref reader);
+            }
+            else if (reader.ValueTextEquals("actor"u8))
             {
                 reader.Read();
                 actor = ActorConverter.Read(ref reader, typeof(Actor), options);
@@ -134,7 +140,35 @@ public sealed class OperationContextJsonConverter : JsonConverter<OperationConte
             actor ?? throw new JsonException("An operation context needs an 'actor'."),
             tenant,
             correlation ?? throw new JsonException("An operation context needs a 'correlationId'."),
-            causation);
+            causation)
+        { Capture = capture };
+    }
+
+    private static Capture ReadCapture(ref Utf8JsonReader reader)
+    {
+        KernelJson.Expect(ref reader, JsonTokenType.StartObject);
+        string? device = null;
+        DateTimeOffset? at = null;
+        while (KernelJson.NextProperty(ref reader))
+        {
+            if (reader.ValueTextEquals("device"u8))
+            {
+                reader.Read();
+                device = reader.TokenType == JsonTokenType.Null ? null : reader.GetString();
+            }
+            else if (reader.ValueTextEquals("at"u8))
+            {
+                reader.Read();
+                at = reader.TokenType == JsonTokenType.Null ? null : reader.GetDateTimeOffset();
+            }
+            else
+            {
+                reader.Read();
+                reader.Skip();
+            }
+        }
+
+        return new Capture(device, at);
     }
 
     /// <inheritdoc />
@@ -162,6 +196,16 @@ public sealed class OperationContextJsonConverter : JsonConverter<OperationConte
         else
         {
             writer.WriteNull("causationId"u8);
+        }
+
+        if (value.Capture is { } capture)                                          // TN-60; absent for a direct request
+        {
+            writer.WriteStartObject("capture"u8);
+            if (capture.Device is { } device)
+                writer.WriteString("device"u8, device);
+            if (capture.At is { } at)
+                writer.WriteString("at"u8, at);
+            writer.WriteEndObject();
         }
 
         writer.WriteEndObject();

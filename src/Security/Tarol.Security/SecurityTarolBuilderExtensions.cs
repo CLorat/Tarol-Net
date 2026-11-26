@@ -48,6 +48,7 @@ public static class SecurityTarolBuilderExtensions
         services.AddAuthorizationCore();
         services.AddSingleton(map);
         services.AddSingleton<IAuthorizationHandler, RoleGrantHandler>();
+        services.AddSingleton<AccessObservers>();
         services.AddSingleton<IChangeAuthorization, ChangeAuthorization>();
         return services;
     }

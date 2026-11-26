@@ -191,7 +191,18 @@ public sealed partial class ChangePipeline
         var changeContext = new ChangeContext(context, _time.GetUtcNow(), loadedReads) { Confirmations = options.Confirmed };
 
         T? aggregate;
-        if (change is ILoads<T> loads)
+        object? data = null;
+        var withData = change as ILoadsWithData<T>;
+        if (withData is not null)
+        {
+            // TN-41: ILoads<T, TData>: the data reaches Execute, no field on the change
+            var own = await withData.LoadWithData(_store, changeContext, cancellationToken);
+            if (own.TryGetValue(out Violation? refused))
+                return refused;
+            (aggregate, data) = own.GetValueOrThrow();
+            ArgumentNullException.ThrowIfNull(aggregate, nameof(ILoads<>.Load));
+        }
+        else if (change is ILoads<T> loads)
         {
             var own = await loads.Load(_store, changeContext, cancellationToken);
             if (own.TryGetValue(out Violation? refused))
@@ -208,7 +219,14 @@ public sealed partial class ChangePipeline
             else if (!TenantAggregates.TryIdOf<T>(context, out target))
                 return Error.Forbidden(TenantAggregates.TenantRequiredCode, typeof(T).Name);
             if (!(await _store.Load(target, context, cancellationToken)).TryGetValue(out aggregate))
-                return Error.NotFound($"{typeof(T).Name}.NotFound", target.ToString());           // also another tenant's stream
+            {
+                if (change is not IStartsTarget<T> starts)
+                    return Error.NotFound($"{typeof(T).Name}.NotFound", target.ToString());       // also another tenant's stream
+                aggregate = starts.StartTarget(target, changeContext);                          // TN-42: load or start
+                ArgumentNullException.ThrowIfNull(aggregate, nameof(IStartable<>.Start));
+                if (aggregate.Id != target)
+                    throw new InvalidOperationException($"{typeof(T).Name}.Start returned {aggregate.Id}, not the target {target}.");
+            }
         }
 
         if (await Permission(change, aggregate, changeContext, options, cancellationToken) is { } denied)
@@ -217,9 +235,16 @@ public sealed partial class ChangePipeline
         if (options.ExpectedVersion.TryGetValue(out long seenVersion) && seenVersion != expected)
             return StoreErrors.VersionConflict(seenVersion, expected);
 
-        var decided = change.Execute(aggregate, changeContext);
+        var decided = withData is not null ? withData.ExecuteWithData(aggregate, data, changeContext) : change.Execute(aggregate, changeContext);
         if (decided.TryGetValue(out Violation? refusedByGuard))
-            return refusedByGuard;
+        {
+            // TN-46 (Result.Rejected): the raised events commit, the caller gets the refusal; stored with the key, a replay answers it again
+            if (!refusedByGuard.Commits || aggregate.UncommittedChanges.Length == 0)
+                return refusedByGuard;
+            var keyed = options.Key.TryGetValue(out IdempotencyKey key) ? options with { Key = key with { Refusal = refusedByGuard } } : options;
+            var committed = await Commit(aggregate, expected, context, keyed, cancellationToken);
+            return committed.TryGetValue(out Violation? failed) ? failed : refusedByGuard;
+        }
         return await Commit(aggregate, expected, context, options, cancellationToken);
     }
 
@@ -303,7 +328,7 @@ public sealed partial class ChangePipeline
         }
         var position = appended.TryGetValue(out GlobalPosition at) ? at : GlobalPosition.Start;
         AggregateChanges.Committed(aggregate);
-        return new ChangeOutcome(aggregate.Id.Value, aggregate.Version, events, Position: position);
+        return new ChangeOutcome(aggregate.Id.Value, aggregate.Version, events, Position: position) { Created = expected == 0 };
     }
 
     private async ValueTask<Violation?> Permission<T>(object change, T aggregate, ChangeContext context, ChangeOptions options,
@@ -332,7 +357,9 @@ public sealed partial class ChangePipeline
             KeyReused(_log, key.Scope, key.Key);                                                // the scope stays in the log (BC-17)
             return StoreErrors.KeyReused(key);                                                  // R-9: another request under the key
         }
-        return new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true);
+        if (stored.Refusal is { } refusal)
+            return refusal;                                                                     // TN-46: a committed refusal replays as itself
+        return new ChangeOutcome(stored.StreamId, stored.Version, stored.Events, Replayed: true) { Created = stored.Version == stored.Events };
     }
 
     private async ValueTask<(Violation? Missing, Reads? Reads)> LoadReads(object change, OperationContext context, CancellationToken cancellationToken)

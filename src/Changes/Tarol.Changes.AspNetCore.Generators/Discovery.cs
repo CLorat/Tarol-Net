@@ -39,12 +39,15 @@ internal static class Discovery
 
         if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IQuery<TRow>") is { } query)
             return List(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)query.TypeArguments[0], location, ct);
+        if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IRowQuery<TRow>") is { } rowQuery)
+            return Row(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)rowQuery.TypeArguments[0], location, ct);
         if (attribute.NamedArguments.Any(n => n.Key == "RequiresScope" && n.Value.Value is true))
             return Fail(Diagnostics.NotAnEntry, type.Name, "RequiresScope applies to list queries (IQuery<TRow>) only");
 
         string? aggregate = null;
         var kind = EntryKind.Change;
         var perTenant = false;
+        ITypeSymbol? aggregateSymbol = null;
         foreach (var i in type.AllInterfaces)
         {
             var definition = i.OriginalDefinition.ToDisplayString();
@@ -53,6 +56,7 @@ internal static class Discovery
             (aggregate, kind) = (i.TypeArguments[0].ToDisplayString(Fq),
                 definition.Contains("IView") ? EntryKind.View : definition.Contains("ICreation") ? EntryKind.Creation : EntryKind.Change);
             perTenant = i.TypeArguments[0].GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute");
+            aggregateSymbol = i.TypeArguments[0];
         }
         if (aggregate is null)
             return Fail(Diagnostics.NotAnEntry, type.Name, IsAggregate(type)
@@ -62,6 +66,10 @@ internal static class Discovery
             return Fail(Diagnostics.NotAnEntry, type.Name, "an entry is a public, non-generic type");
         if ((kind == EntryKind.View) != (verb == "GET"))
             return Fail(Diagnostics.NotAnEntry, type.Name, kind == EntryKind.View ? "a view is read with GET" : "a change is not read with GET; use POST, PUT, PATCH or DELETE");
+        if (kind == EntryKind.View && ViewFroms(type) is var froms && froms.Plain == froms.Contextual)
+            return Fail(Diagnostics.NotAnEntry, type.Name, froms.Plain
+                ? "a view declares one factory: From(aggregate) or From(aggregate, ViewContext), not both"
+                : "a view declares a static From(aggregate) or From(aggregate, ViewContext)");
 
         var members = new List<Member>();
         var valueObjects = new List<ValueObjectModel>();
@@ -106,7 +114,7 @@ internal static class Discovery
                     if (routeKind is null)
                     {
                         diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name,
-                            $"route member '{name}' is a {p.Type.ToDisplayString()}; route members are Id<T>, Guid, string, int or long"));
+                            $"route member '{name}' is a {p.Type.ToDisplayString()}; route members are Id<T>, Guid, string, int, long or an enum"));
                         continue;
                     }
                 }
@@ -135,6 +143,13 @@ internal static class Discovery
             new EquatableArray<Member>(members.ToImmutableArray()), location)
         {
             Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct, perTenant),
+            Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
+            Sensitive = attribute.NamedArguments.Any(static n => n.Key == "Sensitive" && n.Value.Value is true),
+            // TN-42: a load-or-create (ILoads<T>) or IOrStart<T> change may start its stream: 201 as well as 204
+            MayCreate = kind == EntryKind.Change && type.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() is "Tarol.Changes.ILoads<T>" or "Tarol.Changes.IOrStart<T>"),
+            Contextual = kind == EntryKind.View && ViewFroms(type).Contextual,
+            Startable = kind == EntryKind.View && aggregateSymbol is not null
+                        && aggregateSymbol.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() == "Tarol.Changes.IStartable<T>"),
         };
         warnings.AddRange(diagnostics);                                         // a view's warnings (an entry with errors returned earlier)
         return new(model, new EquatableArray<ValueObjectModel>(valueObjects.ToImmutableArray()), new EquatableArray<DiagnosticInfo>(warnings.ToImmutableArray()))
@@ -290,6 +305,58 @@ internal static class Discovery
 
     private static readonly HashSet<string> Reserved = new(StringComparer.Ordinal) { "tenant", "id", "version", "doc" };
 
+    /// <summary>
+    /// A row entry (TN-54): an IRowQuery&lt;TRow&gt; record read with GET; its one member is the row's stream id from the route,
+    /// or it has none and the aggregate is [PerTenant].
+    /// </summary>
+    private static EntryResult Row(INamedTypeSymbol type, AttributeData attribute, string verb, string pattern, List<string> placeholders,
+        INamedTypeSymbol row, LocationInfo? location, CancellationToken ct)
+    {
+        EntryResult Fail(DiagnosticDescriptor d, params string[] args)
+            => new(null, default, new EquatableArray<DiagnosticInfo>(ImmutableArray.Create(DiagnosticInfo.Create(d, location, args))));
+        if (verb != "GET")
+            return Fail(Diagnostics.NotAnEntry, type.Name, "a row query is read with GET");
+        if (type.IsGenericType || type.DeclaredAccessibility != Accessibility.Public)
+            return Fail(Diagnostics.NotAnEntry, type.Name, "an entry is a public, non-generic type");
+        var aggregate = RowAggregate(row);
+        if (aggregate is null)
+            return Fail(Diagnostics.NotAnEntry, type.Name, $"{row.Name} is not a [Projection] row record with When methods over an aggregate's events");
+        var ctor = type.InstanceConstructors
+            .Where(c => c.DeclaredAccessibility == Accessibility.Public && !(c.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(c.Parameters[0].Type, type)))
+            .OrderByDescending(c => c.Parameters.Length).FirstOrDefault();
+        if (ctor is null)
+            return Fail(Diagnostics.NoConstructor, type.Name);
+        var members = new List<Member>();
+        if (ctor.Parameters.Length == 0)
+        {
+            if (!(RowAggregateSymbol(row)?.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "Tarol.Primitives.PerTenantAttribute") ?? false))
+                return Fail(Diagnostics.RouteValue, type.Name, $"a row query without a member reads the tenant's row of a [PerTenant] aggregate; give it a route member Guid or Id<{Short(aggregate)}>");
+        }
+        else
+        {
+            var p = ctor.Parameters[0];
+            var kind = RouteKind(p.Type);
+            var placeholder = placeholders.FirstOrDefault(h => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase));
+            if (ctor.Parameters.Length > 1 || placeholder is null || kind is not ("guid" or "id"))
+                return Fail(Diagnostics.RouteValue, type.Name, "a row query has one member, the row's stream id from the route (a Guid or an Id<T>)");
+            members.Add(new Member(char.ToUpperInvariant(p.Name[0]) + p.Name.Substring(1), p.Type.ToDisplayString(Fq), null, placeholder, kind, false, null));
+        }
+        foreach (var h in placeholders.Where(h => !ctor.Parameters.Any(p => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase))))
+            return Fail(Diagnostics.RouteValue, type.Name, $"the route value '{{{h}}}' is not a member of the input");
+        var policy = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Policy").Value.Value as string;
+        var anonymous = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Anonymous").Value.Value is true;
+        var model = new EntryModel(type.Name, type.ToDisplayString(Fq), EntryKind.Row, aggregate, verb, pattern, policy, anonymous,
+            new EquatableArray<Member>(members.ToImmutableArray()), location,
+            new QueryModel(row.ToDisplayString(Fq), new EquatableArray<FilterModel>(ImmutableArray<FilterModel>.Empty), null,
+                new EquatableArray<SortModel>(ImmutableArray<SortModel>.Empty), null, false))
+        {
+            Errors = Codes(EntryKind.Row, aggregate, placeholders.Contains("tenant"), type, null, ct),
+            Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
+            Sensitive = attribute.NamedArguments.Any(static n => n.Key == "Sensitive" && n.Value.Value is true),
+        };
+        return new(model, default, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
+    }
+
     /// <summary>A list entry: an IQuery&lt;TRow&gt; record read with GET (step 12C, QR-4, QR-6).</summary>
     private static EntryResult List(INamedTypeSymbol type, AttributeData attribute, string verb, string pattern, List<string> placeholders,
         INamedTypeSymbol row, LocationInfo? location, CancellationToken ct)
@@ -358,9 +425,17 @@ internal static class Discovery
                 defaultSort ??= sorts.FirstOrDefault()?.EnumMember;
                 continue;
             }
-            if (!columns.TryGetValue(name, out var target))
+            var (bound, bounded) = BoundOf(p) ?? (property is null ? null : BoundOf(property)) ?? (null, name);
+            if (bound is not null && (claim is not null || placeholder is not null))
             {
-                Bad($"{row.Name} has no typed column '{name}' (filters compare equal to a scalar member of the row)");
+                Bad("an [AtLeast]/[AtMost] member is read from the query string, not a claim or the route");
+                continue;
+            }
+            if (!columns.TryGetValue(bounded, out var target))
+            {
+                Bad(bound is null
+                    ? $"{row.Name} has no typed column '{name}' (filters compare equal to a scalar member of the row)"
+                    : $"{row.Name} has no typed column '{bounded}' for the [{bound}] bound");
                 continue;
             }
             if (!SymbolEqualityComparer.Default.Equals(underlying, Underlying(target.Type)))
@@ -388,7 +463,7 @@ internal static class Discovery
             if (placeholder is not null)
             {
                 var routeKind = RouteKind(p.Type);
-                if (routeKind is null or "id")
+                if (routeKind is null or "id" or "enum")
                 {
                     diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name,
                         $"route member '{name}' of a list is a Guid, string, int or long"));
@@ -408,7 +483,7 @@ internal static class Discovery
                 Bad($"{underlying.ToDisplayString()} cannot be read from the query string");
                 continue;
             }
-            filters.Add(new FilterModel(name, typeName, target.Column, parse!, "query", null, openApi, new EquatableArray<string>(values)));
+            filters.Add(new FilterModel(name, typeName, target.Column, parse!, "query", null, openApi, new EquatableArray<string>(values), bound));
         }
         foreach (var h in placeholders.Where(h => !ctor.Parameters.Any(p => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase))))
             diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name, $"the route value '{{{h}}}' is not a member of the input"));
@@ -424,8 +499,22 @@ internal static class Discovery
                 attribute.NamedArguments.FirstOrDefault(n => n.Key == "RequiresScope").Value.Value is true))
         {
             Errors = Codes(EntryKind.List, aggregate, placeholders.Contains("tenant"), type, null, ct),
+            Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
+            Sensitive = attribute.NamedArguments.Any(static n => n.Key == "Sensitive" && n.Value.Value is true),
         };
         return new(model, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
+    }
+
+    // [AtLeast(member)] / [AtMost(member)] (TN-44): the bound and the row member it applies to
+    private static (string? Bound, string Member)? BoundOf(ISymbol symbol)
+    {
+        foreach (var a in symbol.GetAttributes())
+        {
+            var name = a.AttributeClass?.ToDisplayString();
+            if (name is "Tarol.Queries.AtLeastAttribute" or "Tarol.Queries.AtMostAttribute" && a.ConstructorArguments.Length == 1 && a.ConstructorArguments[0].Value is string member)
+                return (name == "Tarol.Queries.AtLeastAttribute" ? "AtLeast" : "AtMost", member);
+        }
+        return null;
     }
 
     private static string? ClaimOf(ISymbol symbol)
@@ -467,7 +556,25 @@ internal static class Discovery
          };
 
     /// <summary>The aggregate of a projection row: the root of its When methods' first event (AggregateRoot&lt;T&gt; or Entity&lt;TRoot, _&gt;).</summary>
-    private static string? RowAggregate(INamedTypeSymbol row)
+    private static string? RowAggregate(INamedTypeSymbol row) => RowAggregateSymbol(row)?.ToDisplayString(Fq);
+
+    /// <summary>Which factories a view declares (also explicit implementations of IView's From, TN-77): (aggregate) and (aggregate, ViewContext).</summary>
+    private static (bool Plain, bool Contextual) ViewFroms(INamedTypeSymbol view)
+    {
+        bool plain = false, contextual = false;
+        foreach (var method in view.GetMembers().OfType<IMethodSymbol>())
+        {
+            if (!method.IsStatic || !(method.Name == "From" || method.ExplicitInterfaceImplementations.Any(static i => i.Name == "From")))
+                continue;
+            if (method.Parameters.Length == 1)
+                plain = true;
+            else if (method.Parameters.Length == 2 && method.Parameters[1].Type.ToDisplayString() == "Tarol.Changes.AspNetCore.ViewContext")
+                contextual = true;
+        }
+        return (plain, contextual);
+    }
+
+    private static ITypeSymbol? RowAggregateSymbol(INamedTypeSymbol row)
     {
         foreach (var method in row.GetMembers("When").OfType<IMethodSymbol>())
         {
@@ -478,7 +585,7 @@ internal static class Discovery
                 if (current.ContainingType is not { } owner || owner.ContainingNamespace?.ToDisplayString() != "Tarol.Primitives")
                     continue;
                 if (owner.MetadataName is "AggregateRoot`1" or "Entity`2")
-                    return owner.TypeArguments[0].ToDisplayString(Fq);
+                    return owner.TypeArguments[0];
             }
         }
         return null;
@@ -619,6 +726,10 @@ internal static class Discovery
             case EntryKind.List:
                 codes.Add("Projection.Building");
                 break;
+            case EntryKind.Row:
+                codes.Add("Projection.Building");
+                codes.Add(name + ".NotFound");
+                break;
         }
         if (kind is EntryKind.Change or EntryKind.Creation)
         {
@@ -713,6 +824,7 @@ internal static class Discovery
 
     private static string? RouteKind(ITypeSymbol type)
         => type is INamedTypeSymbol { Name: "Id", TypeArguments.Length: 1 } id && id.ContainingNamespace.ToDisplayString() == "Tarol.StronglyTypedId" ? "id"
+         : type.TypeKind == TypeKind.Enum ? "enum"                           // TN-34 (Tatalu FB-F17.4-5): a name, like in the body
          : type.SpecialType switch
          {
              SpecialType.System_String => "string",

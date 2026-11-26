@@ -105,6 +105,13 @@ public sealed record AuctionSummary(Guid Id, string Title, string Seller, Auctio
         a.PaymentId is { } payment ? payment : Tarol.Options.Option.None);
 }
 
+/// <summary>A sensitive view (TN-59): every granted read, a 304 included, reaches the access observers.</summary>
+[Endpoint("GET /auctions/{auction}/dossier", Sensitive = true)]
+public sealed record AuctionDossier(Guid Id, string Seller, decimal Reserve) : IView<Auction, AuctionDossier>
+{
+    public static AuctionDossier From(Auction a) => new(a.Id.Value, a.Seller, a.Reserve);
+}
+
 /// <summary>The auction house's settings: one per tenant (TN-2), its id is the tenant's.</summary>
 [PerTenant]
 public partial class House : AggregateRoot<House>
@@ -141,6 +148,70 @@ public sealed record HouseSeasonView(string Name, DateOnly From, DateOnly Until)
     static HouseSeasonView IView<House, HouseSeasonView>.From(House h) => new(h.Name, new DateOnly(2026, 4, 1), new DateOnly(2026, 10, 31));
 }
 
+/// <summary>The tenant's house as one projection row (TN-54, Tatalu FB-F01.2-4: a history row per tenant).</summary>
+[Tarol.Queries.Projection("houses")]
+public sealed partial record HouseRow(Guid Id, string Name, int Renames)
+{
+    public static HouseRow When(House.Founded e, RecordedEvent r) => new(r.StreamId, e.Name, 0);
+
+    public HouseRow When(House.Retitled e) => this with { Name = e.Name, Renames = Renames + 1 };
+}
+
+/// <summary>GET /house/row: the caller's tenant's row (House is [PerTenant]).</summary>
+[Endpoint("GET /house/row")]
+public sealed record TenantHouseRow : Tarol.Queries.IRowQuery<HouseRow>;
+
+/// <summary>GET /house-rows/{house}: the row of a stream id.</summary>
+[Endpoint("GET /house-rows/{house}")]
+public sealed record HouseRowById(Guid House) : Tarol.Queries.IRowQuery<HouseRow>;
+
+/// <summary>A view for its reader (TN-43, Tatalu FB-E07-3): the content depends on who reads.</summary>
+[Endpoint("GET /house/greeting")]
+public sealed record HouseGreeting(string Name, string Reader) : IView<House, HouseGreeting>
+{
+    public static HouseGreeting From(House house, ViewContext context) => new(house.Name, context.Operation.Actor.Id);
+}
+
+/// <summary>A restricted view (TN-43, VA-2, Tatalu FB-F01.1-6: tax and bank only for the caregiver): its own grant.</summary>
+[Endpoint("GET /house/ledger", Restricted = true)]
+public sealed record HouseLedger(Guid Id, string Name) : IView<House, HouseLedger>
+{
+    public static HouseLedger From(House h) => new(h.Id.Value, h.Name);
+}
+
+/// <summary>A shelf that starts with its first book (TN-42, Tatalu FB-F02.5-2: HealthLoad.OrStart in every change).</summary>
+public partial class Shelf : AggregateRoot<Shelf>, IStartable<Shelf>
+{
+    public int Books { get; private set; }
+
+    public static Shelf Start(Id<Shelf> id, ChangeContext context)
+    {
+        var shelf = new Shelf(id);
+        shelf.Raise(new Started());
+        return shelf;
+    }
+
+    public Result Shelve(string title) => string.IsNullOrWhiteSpace(title) ? Error.Conflict("Shelf.Title") : Raise(new Shelved(title));
+
+    public sealed record Started : Event;
+    public sealed record Shelved(string Title) : Event;
+
+    private void On(Started e) => Books = 0;
+    private void On(Shelved e) => Books++;
+}
+
+[Endpoint("PUT /shelves/{shelf}/books")]
+public sealed partial record ShelveBook(Id<Shelf> Shelf, string Title) : IChange<Shelf>, IOrStart<Shelf>
+{
+    public Result Execute(Shelf shelf, ChangeContext context) => shelf.Shelve(Title);
+}
+
+[Endpoint("GET /shelves/{shelf}")]
+public sealed record ShelfView(Guid Id, int Books) : IView<Shelf, ShelfView>
+{
+    public static ShelfView From(Shelf s) => new(s.Id.Value, s.Books);
+}
+
 /// <summary>The payment provider's own contract (anti-corruption: its names stay here).</summary>
 public sealed record PaymentSucceededV2(string PaymentId, Guid Reference, decimal Amount, string Currency);
 public sealed record PaymentSucceededV1(string Id, Guid Order, long Cents);
@@ -152,7 +223,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(CreateAuction)), JsonSerializable(typeof(PlaceBid)), JsonSerializable(typeof(CloseAuction))]
 [JsonSerializable(typeof(WatchAuction)), JsonSerializable(typeof(TouchAuction)), JsonSerializable(typeof(RenameAuction)), JsonSerializable(typeof(MakeOffer))]
-[JsonSerializable(typeof(PaymentSucceededV2)), JsonSerializable(typeof(PaymentSucceededV1)), JsonSerializable(typeof(AuctionSummary))]
+[JsonSerializable(typeof(PaymentSucceededV2)), JsonSerializable(typeof(PaymentSucceededV1)), JsonSerializable(typeof(AuctionSummary)), JsonSerializable(typeof(AuctionDossier))]
 [JsonSerializable(typeof(decimal)), JsonSerializable(typeof(string)), JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]
 [JsonSerializable(typeof(Auction.Watched)), JsonSerializable(typeof(Bid.Placed)), JsonSerializable(typeof(Payout.Due))]
@@ -160,6 +231,13 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(House.Founded)), JsonSerializable(typeof(House.Retitled)), JsonSerializable(typeof(OpenHouse)), JsonSerializable(typeof(RenameHouse))]
 [JsonSerializable(typeof(HouseView))]
 [JsonSerializable(typeof(HouseSeasonView))]
+[JsonSerializable(typeof(HouseRow))]
+[JsonSerializable(typeof(HouseGreeting))]
+[JsonSerializable(typeof(HouseLedger))]
+[JsonSerializable(typeof(Shelf.Started))]
+[JsonSerializable(typeof(Shelf.Shelved))]
+[JsonSerializable(typeof(ShelveBook))]
+[JsonSerializable(typeof(ShelfView))]
 public sealed partial class AppJson : JsonSerializerContext;
 
 /// <summary>A note visible to its owner only (step 18D: the audience of a search hit).</summary>

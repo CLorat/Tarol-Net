@@ -20,6 +20,38 @@ it; everything else in this round was built without waiting. Ids are the design 
 arguments), CR-1 **(a)** (`[Reads<T>]`), SV-off-1 **(a)** (framework subpaths; device id from the app, SV-off-2 (b)). All
 other questions below are open; their items stay open with the recommendation as the proposed next step.
 
+**Decided by the owner (2026-11-26): every remaining question takes its recommendation** (the bold option in each "Recommendation"
+column below), and the three design questions of round 3b take the recommendations listed here:
+
+| # | Question | Decision |
+|---|---|---|
+| TN-46 | Commit and refuse (`Result` that keeps its events): what does a replay of the idempotency key answer? | The refusal is stored with the key (type, code, detail, reasons), so a replay answers the same refusal; committing without the key was rejected (a retry would count an attempt twice). |
+| TN-48 | The event id in an `On` handler | Not as an `On` parameter: an `On` also runs at `Raise`, before the store assigns ids. Entity ids reach ancestors' handlers through the event (`Deleted` with the entity id) and projections and reactions through `RecordedEvent`; a stable id for an entry inside the state is derived from the event's data (`Id<T>.Derive`, TN-42). |
+| TN-54 rest | Rows per entity, rows from the stored state, a read endpoint for a projection over several aggregate types | (a) `[Projection(PerEntity = typeof(TEntity))]`: the row key is the entity id. (b) Rows from the stored state: not built; a row folds events (one fold, shared by the aggregate and the row, is the documented way). (c) The join for billing: an `ISqlProjection` with an `IRowQuery`/`IQuery`-like read endpoint over its own table is the next design step, after per-entity rows. |
+
+**Decided by the owner (2026-11-26, second set): the follow-up questions of round 3c take their recommendations.**
+
+| # | Question | Decision |
+|---|---|---|
+| R-1 | One event for several targets (TN-47) | `From` may return `IEnumerable<X>`: one outbox row per element, keyed by event id and element target. |
+| R-2 | "Nothing to do" (TN-47) | `From` may return `null` (no outbox row); `Load` may answer `ChangeOutcome.Skipped` instead of a retried `NotFound`. |
+| R-3 | All events of an aggregate (TN-47, audit) | `[OnAnyEvent<TAggregate>]` with the `RecordedEvent`, built with `Tarol.Audit`. |
+| R-4 | Several events, one live topic (TN-83) | Several `[Publishes<…>]` on one topic and version are allowed when the contract type is the same (TMSG005 narrowed). |
+| P-1 | Rows per entity (TN-54) | The read table gets an indexed `stream_id` column; the row key is the entity id. |
+| P-2 | Read endpoint over an `ISqlProjection` (TN-54) | The SQL projection declares its row record; `IQuery`/`IRowQuery` work on it. |
+| C-1 | Where the capture is stored (TN-60b) | Two nullable `events` columns, `device text` and `captured_at timestamptz`, in schema version 5. |
+| C-2 | `Capture.SeenVersion` (FB-F04.6-1) | A `Tarol-Seen-Version` header and a "merge on replay" pattern, once Tatalu confirms the case. |
+| C-3 | tarol-client `captureHeaders` default | On whenever `device` is set, from preview.6. |
+| S-1 | Links without sign-in (TN-50) | `[Endpoint(…, Capability = true)]`: anonymous, tenant from the route, token through `ICapabilityCheck`. |
+| S-2 | Collection equality (TN-55) | `ValueArray<T>` with structural equality, a JSON array on the wire. |
+| S-3 | Reads in effects (TN-63) | `[Reads<T>]` on effects. |
+| S-4 | "The result of my request" (FB-E07-6) | Document and test the existing causation id. |
+| S-5 | Recurring domain dates (FB-F05.8-1) | The chain of due events plus a documented check for a broken chain; `IRecurring` with a second case. |
+| S-6 | Read your reactions (TN-51) | Documentation only. |
+| S-7 | List rules on filter values (TN-44) | `IListScope` only, until a case scopes cannot express. |
+| S-8 | Tarol-Svelte ThemeRoot budget | Raised to 3.25 kB (`c2f323d`). |
+| O-1 | Order | `Tarol.Audit` (with R-3, C-1); per-entity rows and the SQL read endpoint; `Tarol.Files`; DataProtection round 2; Web Push; Zitadel and TM-*. |
+
 ### Change reads ([change-reads.md](../architecture/change-reads.md); TN-40 … TN-42, TN-49)
 
 | # | Question | Options | Recommendation |
@@ -270,13 +302,254 @@ as an app test; it is no longer the only proof.
   `DiagnosticTests.TVAL004_A_Rule_That_Does_Not_Fit_The_Type` (Scale case). Client: tarol-codegen TS-29 reads `multipleOf`/`step`.
 * **Tatalu:** E08–E10 amounts as `[Scale(2)]` value objects; the integer minute × 700 arithmetic of the hours account stays until TN-54.
 
+## Round 3b (after the merge of #125)
+
+The items below were built after round 3 was merged, without waiting for a decision. Each has its test (red before) and the
+Tatalu file whose workaround goes.
+
+### TN-54 (part) `Empty(RecordedEvent)`: a start row for any instance `When` (FB-F01.2-2)
+
+* **Behaviour (`Tarol.Queries.Generators`):** a row may declare `public static TRow Empty(RecordedEvent r)`; every instance
+  `When` then starts from it on a new stream, so no static `When` is needed for a stream whose first event varies. A wrong
+  shape is TQRY003; TQRY002 names `Empty` as the other way.
+* **Tests [verified]:** `EmptyRowTests.A_stream_may_start_with_any_event_an_instance_When_handles` (did not compile before:
+  TQRY002), `DiagnosticTests.An_Empty_start_row_replaces_the_creating_When_and_a_wrong_one_is_reported`.
+* **Tatalu:** `Caregiver.Started` raised first by `Caregiver.Begin` (`backend/src/Tatalu.Einrichtung/Caregiver.cs`) only for the
+  projection may go; the row gets `Empty`.
+
+### TN-54 (part) One projection row: `IRowQuery<TRow>` (FB-F01.2-4)
+
+* **New API:** `Tarol.Queries.IRowQuery<TRow>` (marker); `ChangeEndpoints.Row<TRow>` (`EditorBrowsable(Never)`, generated code).
+* **Behaviour:** a record with `[Endpoint("GET …")]` implementing `IRowQuery<TRow>` answers one row: with no member the caller's
+  tenant's row of a `[PerTenant]` aggregate, else the row of its one route member (`Guid` or `Id<T>`). Access (`Read<T>`),
+  `Tarol-Read-After` and 503 while building are a list's; `ETag` is the row's version (304); a missing row is 404 `X.NotFound`.
+  Document: `x-tarol-kind: row`, the row's schema, `Tarol-Read-After`, 304, 503. TWEB003 for other shapes. tarol-codegen TS-39.
+* **Test [verified]:** `PerTenantTests.One_row_of_a_projection_is_read_for_the_tenant_or_by_id_with_ETag_read_after_and_404`.
+* **Tatalu:** `GET /tpp/aenderungen` as a list of one row (`backend/src/Tatalu.Einrichtung/CaregiverHistory.cs`) and `items[0]` in the
+  frontend become a row query (`IRowQuery<CaregiverHistoryRow>`) and a plain read.
+
+### TN-63 (part) Effects with a due time (FB-F17.4-3)
+
+* **New API (`Tarol.Messaging`):** `EffectSet.Add<TEvent>(name, handler, dueAt)`, `MessagingBuilder.Effect<TEvent, THandler>(name, dueAt)`.
+  `EffectSet.DueAt`/`IsScheduled` answer from it (they were always `null`/`false`).
+* **Test [verified]:** `PublicationTests.An_effect_with_a_due_time_runs_once_it_is_due_not_at_the_commit`.
+* **Tatalu:** the detour `Notification.Deferred` → `ReleaseNotification` → `Notification.Queued`
+  (`backend/src/Tatalu.Plattform/Benachrichtigungen/Notification.cs`, `Changes.cs`) becomes one effect with `dueAt: e => e.NotBefore`.
+
+### TN-34 Enums as route values (FB-F17.4-5)
+
+* **Behaviour:** a route member of a change or view may be an enum: a defined name, case-insensitive; a number or a
+  combination is 400 `Format`. The path parameter lists the names. Lists keep refusing enum route members (TWEB003).
+* **New API:** `RouteValue.Values`; `ChangeEndpoints.TryEnumName<TEnum>` (`EditorBrowsable(Never)`).
+* **Test [verified]:** `ModuleTests.An_enum_route_value_binds_a_name_case_insensitively_and_refuses_numbers_and_unknown_names`
+  (did not compile before: TWEB003).
+* **Tatalu:** the category in the body of `PUT /ich/benachrichtigungen/kanaele` (`backend/src/Tatalu.Plattform/Benachrichtigungen/Changes.cs`)
+  may move to the route (`…/kanaele/{category}`).
+
+### TN-57 `JobTest.BeforeEachRun` (FB-F03.4-6)
+
+* **New API (`Tarol.Jobs`):** `JobTest.BeforeEachRun(Func<Task>)`, e.g. a projection's `CatchUp` over `test.Store`.
+* **Test [verified]:** `JobProjectionTests.A_job_reads_a_projection_over_the_test_store_caught_up_before_every_run`.
+* **Tatalu:** the port `ICareFiles` with a fixed list in `backend/tests/Tatalu.Vertraege.Tests/ContractRulesTests.cs` may become
+  `ProjectionTest<CareFileRow>.Over(test.Store)` with `BeforeEachRun(rows.CatchUp)`; `ReadModelCareFiles` (`backend/src/Tatalu.Vertraege/Daily.cs`) may go.
+
+### Verification (3b)
+
+2026-11-25 **[verified]**: build 0 warnings; `dotnet format --verify-no-changes` clean (after `251b3ce`); `dotnet test --solution
+Tarol.slnx` with Docker 2265 of 2265; `eng/verify-packages.sh` exit 0; `eng/aot-smoke.sh` exit 0 (221 checks, 0 IL warnings).
+Tarol-Svelte `pnpm verify` exit 0 with TS-39.
+
+### Skills split (owner request 2026-11-26)
+
+`tarol-changes` (12.1 KB) and `tarol-queries` (12.0 KB) were over the 8 KB guide. New skills, shipped in their packages (the
+package check finds every `skills/*/SKILL.md`):
+
+* `tarol-reactions` (`Tarol.Changes`): `[OnEvent<T>]` and `[Scheduled]` factories, `ReactionSet`, TCHG006–TCHG012. `tarol-changes`
+  keeps changes, reads, confirmations and `ChangeTest` (8.3 KB). `tarol-sagas` and `tarol-jobs` now point to `tarol-reactions`.
+* `tarol-list-endpoints` (`Tarol.Changes.AspNetCore`): `IQuery<TRow>`, `IRowQuery<TRow>`, filters, `IListScope`, paging and
+  read-your-writes over HTTP. `tarol-queries` keeps projections, hosts, `ProjectionTest` and personal data (7.4 KB).
+
+Still over 8 KB, not split in this round: `tarol-primitives` (13.9 KB), `tarol-persistence` (11.7 KB), `tarol-persistence-npgsql`
+(10.7 KB), `tarol-messaging` (10.4 KB), `tarol-jobs` (9.5 KB).
+
+| Task | Expected skill and API | Mistakes to avoid |
+|---|---|---|
+| run a change when an event commits | `tarol-reactions`: `[OnEvent<T>] public static X From(T e, RecordedEvent r)` | an event handler class; a Conflict for a late event |
+| a timeout of a saga | `tarol-reactions`: `[OnEvent<T>(DueAt = nameof(Ns.T.Member))]` | a polling job |
+| a list for parents of their children only | `tarol-list-endpoints`: `IListScope<TQuery>`, `RequiresScope = true` | a `?parent=` parameter |
+| the tenant's one history row over HTTP | `tarol-list-endpoints`: `IRowQuery<TRow>` without members | a one-row list |
+
+### Not built in 3b, and why
+
+* **TN-46 commit and refuse:** a refusal that commits would store the idempotency key, and a replay would answer success. It
+  needed a decision (store the refusal with the key, or commit without the key); built in round 3c.
+* **TN-48 event id in `On`:** an `On` also runs at `Raise`, before the store assigns the event id. It needs a design note (an id at
+  `Raise`, or only for replay).
+* **TN-54 per entity / from the state / SQL read endpoint:** a row key per entity and a read endpoint for `ISqlProjection` (the
+  join for billing, FB-F04.5-1) need a design note; next for E08/E10.
+* **Skills over the 8 KB guide:** `tarol-changes` (12 KB) and `tarol-queries` (12 KB).
+
+## Round 3c (owner decisions of 2026-11-26)
+
+Built after every remaining question took its recommendation. Each item: the public API and behaviour change, the test that
+was red before (a new API's test did not compile before), and the Tatalu file whose workaround goes.
+
+### TN-41 `ILoads<T, TData>`: data from `Load` to `Execute` (CR-2 (a); FB-F13.3-6, FB-F15.1-5, FB-F05.1-1, FB-F06.3-3, FB-F06.4-4)
+
+* **New API (`Tarol.Changes`):** `Loaded<T, TData>`, `ILoads<T, TData>` (`Load` returns `Loaded<T, TData>`, `Execute(T, TData,
+  ChangeContext)` decides). The pipeline reaches it through `ILoadsWithData<T>` (`EditorBrowsable(Never)`), implemented by the
+  interface itself (default interface methods: no generator, no reflection). `IChange<T>.Execute` of such a change throws a clear
+  `InvalidOperationException` (a programming error).
+* **Tests [verified]:** `LoadsWithDataTests.The_data_read_in_Load_decides_in_Execute`,
+  `Execute_without_the_data_is_a_programming_error_with_a_clear_message`. Suppression: `CA1859` on one test helper of
+  `LoadsWithDataTests` (it tests the interface on purpose; `SuppressMessage` with a justification).
+* **Tatalu:** the private fields that carry facts from `Load` to `Execute` (`_facts` in `backend/src/Tatalu.Planung/Changes.cs`,
+  `ChildChanges.cs`, `Reactions.cs`, `backend/src/Tatalu.Dokumentation/MediaChanges.cs`, `InviteParent`).
+
+### TN-42 Load or start, 201, `Id<T>.Derive`, `LocalNow` (CR-4a (a), CR-4b (a); FB-F02.5-2, FB-F15.5-2, FB-F13.4-2, FB-F04.1-3, FB-F01.9-1)
+
+* **New API:** `Id<T>.Derive(scope, params ReadOnlySpan<IdPart>)`, `IdPart` (`Tarol.StronglyTypedId`; UUIDv8 over SHA-256 of a
+  typed, length-prefixed encoding; pinned test vector); `IStartable<T>` (`static abstract T Start(Id<T>, ChangeContext)`),
+  `IOrStart<T>`, `ChangeOutcome.Created`, `ChangeContext.LocalNow(zone)`/`Today(zone)`, `TarolEndpointMetadata.MayCreate`.
+* **Behaviour change:** every change whose commit started its stream answers **201** `{id, version}` (also an `ILoads`
+  load-or-create, which answered 204), `Location` only for creations; the document lists 201 for such entries. A view of a
+  startable aggregate without events shows the started state (ETag `"0"`).
+* **Tests [verified]:** `DeriveTests` (3), `PerTenantTests.A_change_starts_a_missing_target_answers_201_and_a_view_shows_the_started_state`,
+  `LoadsWithDataTests.LocalNow_and_Today_in_the_tenants_zone`; `SpecialChangeTests` now expects `Created = true` (intended).
+* **Tatalu:** `HealthLoad.OrStart` (`backend/src/Tatalu.Kinder/HealthChanges.cs`), `MonthLoad.OrBegin`
+  (`backend/src/Tatalu.Anwesenheit/Changes.cs`), the reaction `BeginConsentCatalog` and its catalogue text
+  (`backend/src/Tatalu.Einrichtung/Changes.cs`, `EinrichtungJson.cs`), the hand-hashed ids (`IdOf` in
+  `backend/src/Tatalu.Kommunikation/Broadcast.cs`, `ConversationChanges.cs`, `Board.cs`, `CommunicationSettings.cs`,
+  `AttendanceMonth.IdOf`), the time-zone conversions of `context.Now` per change.
+
+### TN-43 Views per reader and per right (VA-1a/b, VA-2a/b, VA-3, VA-4 (a); FB-F01.1-6, FB-F02.1-2, FB-F02.2-1, FB-F15.2-2, FB-F17.2-2, FB-E07-3)
+
+* **VA-A, new API:** `ViewContext(OperationContext Operation, DateTimeOffset Now)`; `IView<TAggregate, TView>.From(aggregate)` is
+  now `static virtual`, with `static virtual From(aggregate, ViewContext)`; a view declares exactly one (TWEB002 otherwise). Its
+  ETag is `"<version>-<hash>"` over the written bytes, so 304 stays correct when the content changes without a new version.
+  Parameter names must match the interface (CA1725).
+* **VA-B, new API:** `ReadScope(Type View, bool Restricted)` (`Tarol.Changes`), scoped overloads of `IChangeAuthorization.Check`/
+  `CheckList` (defaults call the old ones), `ChangeRequirement.View`, `RoleGrants.MayRead<TAggregate, TView>()`,
+  `ChangeRoles.Grants(user, read, scope)`, `ViewHandler<TView, TAggregate>`, `[Endpoint(…, Restricted = true)]`. A restricted view,
+  list or row query is granted only by `MayRead`; `Read<T>` row rules still run (a restricted view narrows, never widens).
+* **VA-C, behaviour change:** `IChangeAuthorization.MayBeGranted(intent, scope)` (default `null`: cannot tell);
+  `ChangeAuthorization` answers from the role map and the registered `ChangeHandler`/`ViewHandler` rules (new constructor with
+  `ChangeRoles`, the handlers and `AccessObservers`). The generated `MapChanges` calls `ChangeEndpoints.Granted` per authorized
+  entry: an entry nobody may call **throws at startup in Development** ("The change X needs X; no role and no row rule grants
+  it") and is warning **1003** elsewhere. Not built: the Development-only `requires` member of the 403 problem.
+* **VA-D / TN-59, new API (`Tarol.Security`):** `IAccessObserver`, `AccessRecord`, `AccessDecision`, `AccessObservers` (fan-out;
+  a failing observer is log 1004); `ReadScope.Sensitive`, `[Endpoint(…, Sensitive = true)]`. Every denial (change, view, list,
+  row query) and every granted read of a sensitive entry, a 304 included (authorization runs before the ETag comparison), is
+  reported. Not built: the policy-failure decorator and hub refusals.
+* **Tests [verified]:** `PerTenantTests.A_view_built_for_its_reader_differs_per_reader_with_an_ETag_by_content`,
+  `PerTenantTests.A_restricted_view_needs_its_own_grant_and_that_grant_reads_no_other_view`, `ViewAccessTests.Read_grants_unrestricted_views_MayRead_one_view_and_a_view_rule_runs_for_its_view_only`,
+  `GrantCoverageTests` (2), `GrantCheckTests` (2), `AccessObserverTests.Denials_and_granted_sensitive_reads_are_observed_other_grants_are_not`,
+  `AccessObserverEndpointTests.A_sensitive_view_reports_each_read_and_its_304_a_plain_view_only_its_denials`; generator snapshots
+  gained one `Granted(…)` line per entry (reviewed).
+* **Tatalu:** the second aggregate `Caregiver` next to `ChildDayCare` and the merge in `frontend/apps/web/src/lib/setup.ts`;
+  one view per level with its own policy (`KinderPolicies.ChildProfile`, `.Confidential` in `backend/src/Tatalu.Kinder/KinderSecurity.cs`);
+  the access-log middleware `backend/src/Tatalu.Host/AccessLog.cs` with its path lists (`SensitiveReads` in
+  `backend/src/Tatalu.Kommunikation/KommunikationSecurity.cs`, `Tatalu.Dokumentation/DokumentationSecurity.cs`, `MedicationSecurity.cs`,
+  `IncidentSecurity.cs`) and the requirement `ProtocolledRead` (`KinderSecurity.cs`) become an `IAccessObserver` and `Sensitive = true`.
+
+### TN-44 Range filters (FB-F04.1-1, FB-F13.3-1)
+
+* **New API (`Tarol.Queries`):** `RangeFilter(Column, RangeBound, Value)`, `RangeBound.AtLeast`/`AtMost`, `ListQuery.Ranges`,
+  `ListQueryPlan.Ranges`/`Matches`; `[AtLeast(nameof(Row.X))]`/`[AtMost(…)]` on list query members.
+* **Behaviour:** `>=`/`<=`, inclusive; a `null` column never matches (as in SQL), alike in memory and in PostgreSQL. A range
+  folds into the cursor hash only when present, so existing cursors stay valid. The OpenAPI parameter says "At least the row's
+  `<column>` (inclusive; a null never matches); absent: no bound". TQRY005 for a bound on a missing column or another type.
+* **Tests [verified]:** `DateColumnTests.A_range_of_days_lists_the_days_between_its_bounds_with_cursor_pages`,
+  `A_range_binds_the_cursor_and_rejects_arrays_and_nulls`; the Npgsql `DateColumnTests.Filters_sorts_and_cursors_answer_like_the_in_memory_store`
+  with three range queries; `DateFilterEndpointTests.A_range_of_days_lists_the_auctions_between_its_bounds`,
+  `The_document_describes_a_bound_as_inclusive`; `GeneratorTests.TQRY005_query_members_name_columns` (3 new cases).
+* **Not built:** refusing a list on its query's filters (the "list rules" half of TN-44): `IListScope<TQuery>` (TN-6) restricts
+  rows; a refusal by filter value waits for a concrete case.
+* **Tatalu:** the period filtered in the browser over a `List` wrapper (`frontend/apps/web/src/screens/datenschutz/AuditLog.svelte`); the
+  per-day set filters of the attendance and medication lists.
+
+### TN-46 Commit and refuse (TN-46 decision; FB-F15.1-4)
+
+* **New API:** `Result.Rejected(violation)`, `Violation.Commits` (`Tarol.Results`; not in the JSON); `IdempotencyKey.Refusal`,
+  `StoredOutcome.Refusal` (`Tarol.Persistence`).
+* **Behaviour:** a change returning `Result.Rejected(…)` after `Raise` commits its events and answers the refusal; a plain
+  failure still discards them. The refusal is stored with the idempotency key: a replay answers the same refusal, the attempt
+  counts once. **Schema version 5** (PostgreSQL, additive, compatible from 1): `idempotency_keys.refusal jsonb NULL`. The
+  violation JSON now carries `reasons` (it dropped them before).
+* **Tests [verified]:** `CommitAndRefuseTests` (3), `NpgsqlStoreTests.A_refusal_is_stored_with_its_key_and_read_back`,
+  `ResultJsonTests.Reasons_Should_RoundTrip_And_Commits_Should_StayOutOfTheJson`; `DataProtectionTests` count one more upgrade
+  step (intended).
+* **Tatalu:** `RecordFailedActivation` and the refusal written at the HTTP edge (`backend/src/Tatalu.Eltern/InvitationChanges.cs`,
+  `InvitationEndpoints.cs`, `ElternJson.cs`).
+
+### TN-56 `UseStoreTenants<T>()` (TM-6 (a); FB-F03.4-3)
+
+* **New API:** `IStreamIds` (`Tarol.Persistence`; in-memory and PostgreSQL stores), `UseStoreTenants<T>()` (`Tarol.Jobs`).
+* **Behaviour:** the tenants of per-tenant jobs are the stream ids of a `[PerTenant]` aggregate: one query on `streams` by type
+  (the retention index), no feed scan; the PostgreSQL store leaves out tenants erased by `EraseTenant`. A non-`[PerTenant]` type
+  throws.
+* **Tests [verified]:** `HostTests.UseStoreTenants_lists_the_streams_of_a_per_tenant_aggregate_and_refuses_another`,
+  `NpgsqlStoreTests.Stream_ids_list_one_type_without_erased_tenants`.
+* **Tatalu:** `backend/src/Tatalu.Host/TenantDirectory.cs` (reads the whole feed for `ChildDayCare.Opened`).
+* **Not built (TN-62 and the rest of TM-*):** the tenant per request, the register, `RequireSecondFactor`, refusing tenant-less
+  calls, Zitadel provisioning.
+
+### TN-60 Device and capture time (FB-F17.3-6, FB-F13.2-4)
+
+* **New API:** `Capture(Device, At)` and `OperationContext.Capture` (`Tarol.Kernel`); `TarolHeaders.Device`/`CapturedAt`,
+  `ChangeEndpointOptions.CaptureSkew` (5 min)/`CaptureMaxAge` (30 days), `IDeviceGate`, `UseDeviceGate()` (`Tarol.Changes.AspNetCore`).
+* **Behaviour:** `Tarol-Device` (printable ASCII, ≤ 128) and `Tarol-Captured-At` (RFC 3339 with an offset, stored in UTC) reach
+  `OperationContext.Capture`; out of bounds is 400 `Future`/`TooOld`/`Format`. Both headers are in `TarolHeaders.Allowed` (CORS).
+  The context's JSON carries `capture` when present (outbox, bus envelopes). `UseDeviceGate()` answers 401 with
+  `WWW-Authenticate: Bearer error="invalid_token", error_description="Device.Ended"` for an ended device (a 401 has no body).
+  **Hardened after CodeQL (`cs/user-controlled-bypass`):** a header alone is the client's word, so a lost device could leave it out.
+  `UseDeviceGate(o => …)` takes `DeviceGateOptions`: the device is the token's `Claim` (default `device_id`) when present, a header
+  naming another device is 401 `Device.Mismatch`, and `RequireDevice` refuses a signed-in request without any device (401
+  `Device.Required`). Tests [verified]: `CaptureTests.A_device_bound_to_the_token_is_checked_without_the_header_and_a_contradicting_header_is_refused`,
+  `RequireDevice_refuses_a_signed_in_request_that_names_no_device`.
+* **TN-60b (owner decision C-1):** the PostgreSQL store writes the capture to `events.device`/`captured_at` (schema version 5,
+  additive) and reads it back into `RecordedEvent.Context.Capture`, so projections and reactions fed from the store see it. Only a
+  commit with a capture names the columns, so a store keeps writing on an older schema while it is upgraded
+  (`SchemaUpgradeTests.A_populated_version_1_database_is_upgraded_while_writers_commit` pins that). Test [verified]:
+  `NpgsqlStoreTests.The_capture_of_an_offline_device_is_stored_and_read_back_with_the_event`. `Capture.SeenVersion` waits for
+  Tatalu's merge case (decision C-2).
+* **Tests [verified]:** `CaptureTests` (6 cases), `KernelJsonTests.Context_Should_CarryTheCapture` (4 modes); `FindingTests.K6_Context_Should_HoldNoRoles`
+  lists `Capture` (intended).
+* **Tatalu:** `Capture` in the inputs of `AddProbeNote`/`SetProbeValue` (`backend/src/Tatalu.Shared/Sync.cs`); the client-only
+  device end (`DeviceSession`, heartbeat `PUT /ich/geraete/{id}`). Tarol-Svelte: the outbox's `captureHeaders` may default to on.
+
+### TN-64 `Tarol.Audit` (AU-1 … AU-5; FB-F13.3-3, FB-F13.3-7, FB-F13.3-2, FB-F13.3-4)
+
+* **New packages:** `Tarol.Audit`, `Tarol.Audit.Npgsql`; the family note is [audit.md](audit.md) (public API, decisions as built,
+  tests). New API in `Tarol.Primitives` (`[NotAudited]`, `[AuditRemoved]`, `[AuditTime]`, `EventCatalogEntry.Audit`) and
+  `Tarol.Persistence` (non-generic `EventCodec` members).
+* **Behaviour:** one row per event and changed field with before and after, complete by construction; personal values sealed and
+  `null` after erasure; reads and denials of `Sensitive` entries in the same list; own retention.
+* **Tests [verified]:** `Tarol.Audit.Tests` (13), `Tarol.Audit.Npgsql.IntegrationTests` (4), `AuditCatalogTests`, two AOT smoke
+  apps (0 IL warnings; the database checks with `TAROL_PG`), the package consumer.
+* **Not built:** `[Audited("name")]`, `[AuditSubject]`, OpenAPI metadata of `MapAudit`; `[OnAnyEvent<T>]` (R-3) is not needed by the
+  audit (it reads the feed) and is not built.
+* **Tatalu:** the audit chain of `origin/integration/welle-2`: `Tatalu.Kinder/Audit.cs` (`AuditKinder`), `Tatalu.Einrichtung/Audit.cs`,
+  `Tatalu.Anwesenheit/Audit.cs`, `Tatalu.Vertraege/Audit.cs`, `AuditMembership` and `WriteAuditEntry` (`Tatalu.Datenschutz/Audit/Changes.cs`),
+  `AuditTrail.cs`, the `AuditRow` projection and `GET /protokoll` (`AuditSearch`), `RecordAccess` from `Tatalu.Host/AccessLog.cs`.
+
+### Verification (3c)
+
+2026-11-25 **[verified]** at `ed9434c`: build 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution
+Tarol.slnx` with Docker 2306 of 2306; `dotnet pack -c Release` + `eng/verify-packages.sh` exit 0 (the new skills are in their
+packages); `eng/aot-smoke.sh` exit 0 (221 checks, 0 IL warnings). Tarol-Svelte `pnpm verify` exit 0 with TS-40 (`533dc67`).
+Suppressions: `CA1859` on one test helper (`LoadsWithDataTests`, justified); `TVAL006` file-level in `CommitAndRefuseTests` as in
+the other pipeline tests.
+
 ## Open after round 3
 
-Not reached or waiting for a decision (next step in the register): TN-34 (enum route values), TN-41 (`ILoads<T, TData>`,
-decision CR-2), TN-42 (load or start; CR-4a/b), TN-43/44 (views and list rules; VA-*), TN-46, TN-47 with TN-83 (reactions:
-needs a design note), TN-48, TN-49 (ports; CR-3), TN-50, TN-51, TN-54 (projections for billing: next), TN-55, TN-56/62
-(TM-*), TN-57, TN-58 (DP2-*), TN-59/60, TN-63 (effects: `dueAt` next), TN-64 (AU-*), TN-65 (FI-*), TN-66 (WP-*), TN-67 rest.
-The skill `tarol-changes` is 12 KB, over the 8 KB guide: split it (reactions into `tarol-sagas`) in the next round.
+Not built yet (each with its owner decision taken, 2026-11-26): TN-47 with TN-83 (reactions: needs a design note), TN-49 /
+CR-3 (ports: document only), TN-50, TN-51, TN-54 rest (per-entity rows need a stream id column, since retention deletes rows by
+stream; the SQL read endpoint for billing), TN-55, TN-58 (DP2-*), TN-60b (capture in the event columns), TN-62 and the rest of
+TM-*, TN-63 rest (digest as a documented pattern, reads, correlation, recurring dates), TN-65
+`Tarol.Files` (FI-*), TN-66 Web Push (WP-*), TN-67 rest; VA-C's Development `requires` member; VA-D's policy-failure decorator
+and hub refusals; the "list rules" half of TN-44. Skills still over the 8 KB guide: `tarol-primitives`, `tarol-persistence`,
+`tarol-persistence-npgsql`, `tarol-messaging`, `tarol-jobs`, `tarol-changes` (8.9 KB after TN-46).
 
 ## Skill evaluation checklist (round 3)
 
@@ -292,6 +565,12 @@ The skill `tarol-changes` is 12 KB, over the 8 KB guide: split it (reactions int
 | a bus in the store's database | `m.UseNpgsqlBus(options)` | `UseNpgsqlBus(connectionString)` (a second pool) |
 | a view with a period | `static V IView<A, V>.From(A a)`, members `From`/`Until` | renaming the members |
 | an event member added later | `bool AlwaysEmail = false` (no new version) | a version and an upcaster for an optional member |
+| a change needs the actor's membership in `Execute` (3c) | `tarol-changes`: `ILoads<T, TData>`, `Execute(T, TData, ChangeContext)` | a private field on the change |
+| count a failed attempt and refuse (3c) | `tarol-changes`/`tarol-results`: `Raise(…)`, then `Result.Rejected(error)` | a second change written at the HTTP edge |
+| a list between two days (3c) | `tarol-list-endpoints`: `[AtLeast(nameof(Row.Day))] DateOnly? From`, `[AtMost(…)] DateOnly? Until` | a set of every day; filtering after the page |
+| tax data only for the caregiver (3c) | `tarol-security`: `[Endpoint(…, Restricted = true)]`, `roles.Role("tpp").MayRead<Facility, TaxView>()` | a second aggregate for the same facility |
+| log every read of health data (3c) | `tarol-security`: `Sensitive = true`, a singleton `IAccessObserver` | a path-matching middleware |
+| per-tenant jobs over every facility (3c) | `tarol-jobs`: `.UseStoreTenants<ChildDayCare>()` | an `ITenantDirectory` reading the feed |
 
 ## Verification
 
@@ -320,11 +599,25 @@ These add to the round-2 notes ([tatalu-round-2.md](tatalu-round-2.md#release-no
    process is not a runner (it was, on its own connection).
 5. **Problem details (TN-37):** a new optional member `confirm`; tarol-codegen `0.1.0-preview.6` types it.
 6. **`x-tarol-errors` (TN-40):** `X.NotFound` for `[Reads<X>]`, none for optional reads; the catalogue test asks for texts.
+7. **An endpoint nobody may call (TN-43 VA-C):** `MapChanges` throws at startup in Development, warning 1003 elsewhere. Grant
+   it in the role map (or add a row rule) before starting the host in Development.
+8. **201 for a started stream (TN-42):** an `ILoads` load-or-create answers 201 `{id, version}` instead of 204; regenerate the
+   client (tarol-codegen types the 201).
+9. **`IView.From` is `static virtual` (TN-43 VA-A):** an explicit implementation keeps working; a view declaring both factories
+   is TWEB002.
+10. **PostgreSQL schema version 5 (TN-46):** additive (`idempotency_keys.refusal`); `SchemaMode.Upgrade` adds it, a migration
+    tool runs `NpgsqlSchema.UpgradeScript(schema, 4)`.
+11. **Violation JSON (TN-46):** an error with reasons now writes `reasons`; a stored violation without them reads as before.
 
 **May remove (workarounds)**
 
 | Tatalu workaround | Replace with | Item |
 |---|---|---|
+| `Caregiver.Started` first event only for the projection (`backend/src/Tatalu.Einrichtung/Caregiver.cs`) | `static Empty(RecordedEvent r)` on the row | TN-54 |
+| `GET /tpp/aenderungen` as a one-row list, `items[0]` (`backend/src/Tatalu.Einrichtung/CaregiverHistory.cs`) | `IRowQuery<TRow>` | TN-54 |
+| `Deferred` → `ReleaseNotification` → `Queued` (`backend/src/Tatalu.Plattform/Benachrichtigungen/Notification.cs`, `Changes.cs`) | `Effect<…>(name, dueAt: e => e.NotBefore)` | TN-63 |
+| category in the body of `PUT /ich/benachrichtigungen/kanaele` | an enum route member | TN-34 |
+| port `ICareFiles` and its fixed list in tests (`backend/tests/Tatalu.Vertraege.Tests/ContractRulesTests.cs`, `backend/src/Tatalu.Vertraege/Daily.cs`) | `ProjectionTest.Over(test.Store)` + `JobTest.BeforeEachRun` | TN-57 |
 | `StartsOn`/`EndsOn` in `backend/src/Tatalu.Dokumentation/MedicationViews.cs` | `From`/`Until` | TN-69 |
 | UTC conversion in `AnnualPlan.Local` and the `Local` helpers (`backend/src/Tatalu.Planung/ChildAbsence.cs`, `Appointment.cs`, `Reminders.cs`) | a local `DateTimeOffset` as `DueAt` | TN-70 |
 | `max_connections=200` (`docker-compose.yml`, `backend/src/Tatalu.AppHost/AppHost.cs`), the bus's own connection string in `backend/src/Tatalu.Host/TataluApp.cs` | default `max_connections` after measuring; `UseNpgsqlBus(options)` | TN-72 |
@@ -337,6 +630,15 @@ These add to the round-2 notes ([tatalu-round-2.md](tatalu-round-2.md#release-no
 | `ConfirmQuota` and `Detail` "Jugendamt\|Tage" (`backend/src/Tatalu.Planung/Absences.cs`, `Changes.cs`), `WarningConfirmed` (`backend/src/Tatalu.Anwesenheit/Changes.cs`, `Handover.cs`, `AttendanceMonth.cs`), `frontend/apps/web/src/screens/planung/quota.ts` | `Error.ConfirmationRequired(code, args)`, `context.Confirmed(code)`, tarol-svelte's confirmation step | TN-37 |
 | hand-written `IHasReads` (`backend/src/Tatalu.Einrichtung/Changes.cs` + `Tenants.cs` `CaregiverRead`, `ProfileChanges.cs`, `backend/src/Tatalu.Kinder/MeaslesChanges.cs`, `backend/src/Tatalu.Plattform/Profile/Changes.cs`, `backend/src/Tatalu.Planung/ChildChanges.cs`, `AppointmentChanges.cs`); `RecordIncident` as load-or-start only for its reads (`backend/src/Tatalu.Dokumentation/IncidentChanges.cs`) | `[Reads<T>]`, `[Reads<T>(SameIdAs = …)]`, `Optional` | TN-40 |
 | integer arithmetic for amounts (E08–E10, planned) | `[Scale(2)]` value objects | TN-53 |
+| private `_facts` fields from `Load` to `Execute` (`backend/src/Tatalu.Planung/Changes.cs`, `ChildChanges.cs`, `Reactions.cs`, `backend/src/Tatalu.Dokumentation/MediaChanges.cs`) | `ILoads<T, TData>` | TN-41 |
+| `HealthLoad.OrStart` (`backend/src/Tatalu.Kinder/HealthChanges.cs`), `MonthLoad.OrBegin` (`backend/src/Tatalu.Anwesenheit/Changes.cs`), `BeginConsentCatalog` (`backend/src/Tatalu.Einrichtung/Changes.cs`), hand-hashed `IdOf` (`backend/src/Tatalu.Kommunikation/*.cs`), zone conversions of `context.Now` | `IStartable<T>` + `IOrStart<T>`, `Id<T>.Derive`, `context.LocalNow(zone)` | TN-42 |
+| `Caregiver` as a second aggregate and the merge in `frontend/apps/web/src/lib/setup.ts`; `KinderPolicies.ChildProfile`/`.Confidential` (`backend/src/Tatalu.Kinder/KinderSecurity.cs`) | `Restricted = true` + `MayRead<T, TView>()`, `From(a, ViewContext)` | TN-43 |
+| `backend/src/Tatalu.Host/AccessLog.cs`, `SensitiveReads` lists (`*Security.cs` in Kommunikation, Dokumentation), `ProtocolledRead` (`backend/src/Tatalu.Kinder/KinderSecurity.cs`) | `IAccessObserver`, `Sensitive = true` | TN-59 |
+| period filtered in the browser (`frontend/apps/web/src/screens/datenschutz/AuditLog.svelte`) | `[AtLeast]`/`[AtMost]` list members | TN-44 |
+| `RecordFailedActivation` + refusal at the edge (`backend/src/Tatalu.Eltern/InvitationChanges.cs`, `InvitationEndpoints.cs`) | `Result.Rejected(…)` after `Raise` | TN-46 |
+| `backend/src/Tatalu.Host/TenantDirectory.cs` (feed scan) | `.UseStoreTenants<ChildDayCare>()` | TN-56 |
+| the audit chain (`Tatalu.*/Audit.cs`, `Tatalu.Datenschutz/Audit/*`, `AuditRow`, `GET /protokoll`, `RecordAccess`) | `AddAudit(a => a.Add<…>())`, `UseNpgsqlAudit()`, `MapAudit("/protokoll", policy)` | TN-64 |
+| `Capture` in change inputs (`backend/src/Tatalu.Shared/Sync.cs`), client-only device end (`DeviceSession`) | `Tarol-Device`/`Tarol-Captured-At` → `OperationContext.Capture`, `IDeviceGate` + `UseDeviceGate()` | TN-60 |
 
 **Migration steps for Tatalu**
 

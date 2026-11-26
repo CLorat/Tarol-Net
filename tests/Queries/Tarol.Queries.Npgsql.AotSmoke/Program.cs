@@ -96,8 +96,8 @@ else
         var firstDay = seen[0].EndsOn;
         var days = Ok(await reads.Search(new ListQuery(Guid.Empty) { Sort = "ends_on", Descending = true, Filters = [new ColumnFilter("ends_on", firstDay)], Count = true }, default));
         Check("a DateOnly filter and sort, a TimeOnly column (TN-7)", days.Total > 0 && days.Items.All(r => r.EndsOn == firstDay)
-                                                                   && script.Contains("ends_on date NOT NULL", StringComparison.Ordinal)
-                                                                   && script.Contains("ends_at_time time NOT NULL", StringComparison.Ordinal));
+                                                                   && script.Contains("\"ends_on\" date NOT NULL", StringComparison.Ordinal)
+                                                                   && script.Contains("\"ends_at_time\" time NOT NULL", StringComparison.Ordinal));
         Check("set filter over a text[] column and an empty scope (TN-6)", scoped.Total > 0 && scoped.Items.All(r => r.Bidders.Contains("b1")) && none.Total == 0);
 
         var titles = new TitleCount(schema);

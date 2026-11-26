@@ -47,6 +47,13 @@ public sealed class ViolationJsonConverter : JsonConverter<Violation>
                 writer.WriteString("code"u8, error.Code);
                 if (error.Detail is { } detail)
                     writer.WriteString("detail"u8, detail);
+                if (error.Reasons is { } reasons)
+                {
+                    writer.WriteStartArray("reasons"u8);
+                    foreach (var reason in reasons)
+                        writer.WriteStringValue(reason);
+                    writer.WriteEndArray();
+                }
                 break;
         }
         writer.WriteEndObject();
@@ -59,6 +66,7 @@ public sealed class ViolationJsonConverter : JsonConverter<Violation>
         string? kind = null, code = null, detail = null;
         ErrorType? type = null;
         List<FieldError>? errors = null;
+        List<string>? reasons = null;
         while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
         {
             if (reader.TokenType != JsonTokenType.PropertyName)
@@ -90,6 +98,20 @@ public sealed class ViolationJsonConverter : JsonConverter<Violation>
                 reader.Read();
                 errors = ReadErrors(ref reader);
             }
+            else if (reader.ValueTextEquals("reasons"u8))
+            {
+                reader.Read();
+                if (reader.TokenType == JsonTokenType.StartArray)
+                {
+                    reasons = [];
+                    while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                        reasons.Add(reader.GetString() ?? throw new JsonException("A reason is a string."));
+                }
+                else if (reader.TokenType != JsonTokenType.Null)
+                {
+                    throw new JsonException("\"reasons\" is an array of codes.");
+                }
+            }
             else
             {
                 reader.Read();
@@ -102,7 +124,7 @@ public sealed class ViolationJsonConverter : JsonConverter<Violation>
             return kind switch
             {
                 "invalid" => new Invalid(errors ?? throw new JsonException("An invalid violation has \"errors\".")),
-                "error" => new Error(type ?? throw new JsonException("An error has a \"type\"."), code ?? throw new JsonException("An error has a \"code\"."), detail),
+                "error" => new Error(type ?? throw new JsonException("An error has a \"type\"."), code ?? throw new JsonException("An error has a \"code\"."), detail) { Reasons = reasons },
                 _ => throw new JsonException("A violation has a \"kind\"."),
             };
         }

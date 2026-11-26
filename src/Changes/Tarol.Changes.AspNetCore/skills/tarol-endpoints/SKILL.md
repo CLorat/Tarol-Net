@@ -11,7 +11,7 @@ description: >-
 ## Rules
 
 1. **An endpoint is an attribute on the change**: `[Endpoint("POST /auctions/{auction}/bids", Policy = "auctions:bid")]`
-   on the `partial record`. Route values bind the members of the same name (`Id<T>`, `Guid`, `string`, `int`, `long`); the
+   on the `partial record`. Route values bind the members of the same name (`Id<T>`, `Guid`, `string`, `int`, `long`, an enum by its name, case-insensitive); the
    others come from the JSON body, every missing (`Required`) or mistyped (`Json`) member reported at once. List the record
    in the app's `JsonSerializerContext`.
 2. **Register once, map once**: `AddTarol(…).UseNpgsqlStore(…).AddSecurity(roles => …).AddEndpoints()`, then
@@ -23,8 +23,10 @@ description: >-
 5. **Retries**: clients send `Idempotency-Key` (the same key with another body → 422) and `If-Match: "<version>"` from the
    `ETag` (stale → 409). Creations without a key are not deduplicated.
 6. **GET by id is a view**, never the aggregate: `[Endpoint("GET /auctions/{auction}")]` on a record implementing
-   `IView<Auction, TSelf>` with `static TSelf From(Auction)`; grant `Read<Auction>`.
-7. **Lists over projections** are `[Endpoint("GET …")]` on an `IQuery<TRow>` record: see the skill `tarol-queries`
+   `IView<Auction, TSelf>` with `static TSelf From(Auction)`; grant `Read<Auction>`. A view for its reader (the actor, the
+   day): `static TSelf From(Auction aggregate, ViewContext context)` (`context.Operation.Actor`, `context.Now`; ETag by content).
+   A member named `From`: implement the factory explicitly (`static V IView<A, V>.From(A a)`).
+7. **Lists over projections** are `[Endpoint("GET …")]` on an `IQuery<TRow>` record: see the skill `tarol-list-endpoints`
    (filters, `Sort` enum, `[FromClaim]`, `IListScope<TQuery>` with `RequiresScope = true` for rows the caller may see,
    cursor, `Tarol-Read-After`). Change answers carry `Tarol-Position` for it.
    List and view answers carry `Cache-Control: private, no-cache` and `Vary: Authorization` (`CacheHeaders`): browsers

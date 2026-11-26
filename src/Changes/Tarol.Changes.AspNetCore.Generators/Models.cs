@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Tarol.Changes.AspNetCore.Generators;
 
-internal enum EntryKind { Change, Creation, View, List }
+internal enum EntryKind { Change, Creation, View, List, Row }
 
 /// <summary>An input member: C# name, type, explicit JSON name, route value kind (null = body), optional, default literal.</summary>
 internal sealed record Member(string Name, string Type, string? JsonName, string? RouteName, string? RouteKind, bool Optional, string? DefaultLiteral)
@@ -20,7 +20,7 @@ internal sealed record RequiredModel(string Name, string? JsonName, bool Optiona
 
 /// <summary>A filter of a list: the member, its non-nullable type, the column, how it is parsed ("enum", "string", "date", "time" or "parsable"),
 /// where it comes from ("query", "route", "claim"), the claim type and the OpenAPI kind.</summary>
-internal sealed record FilterModel(string Member, string Type, string Column, string Parse, string Source, string? Claim, string OpenApiKind, EquatableArray<string> Values);
+internal sealed record FilterModel(string Member, string Type, string Column, string Parse, string Source, string? Claim, string OpenApiKind, EquatableArray<string> Values, string? Bound = null);
 
 /// <summary>A sort of a list: the enum member, the column (or "id") and the direction.</summary>
 internal sealed record SortModel(string EnumMember, string Column, bool Descending);
@@ -36,12 +36,27 @@ internal sealed record EntryModel(string Name, string FullName, EntryKind Kind, 
     /// <summary>The problem codes known at compile time (BC-3: <c>x-tarol-errors</c>), sorted.</summary>
     public EquatableArray<string> Errors { get; init; }
 
+    /// <summary>A change that may start its stream (TN-42): the document lists 201 next to 204.</summary>
+    public bool MayCreate { get; init; }
+
+    /// <summary>A view of an IStartable&lt;T&gt; aggregate (TN-42): a missing stream answers the started state.</summary>
+    public bool Startable { get; init; }
+
+    /// <summary>A view built for its reader, <c>From(aggregate, ViewContext)</c> (TN-43): ETag by content.</summary>
+    public bool Contextual { get; init; }
+
+    /// <summary>A read that needs its own grant (<c>Restricted = true</c>, TN-43).</summary>
+    public bool Restricted { get; init; }
+
+    /// <summary>A read whose granted reads are reported to the access observers (<c>Sensitive = true</c>, TN-59).</summary>
+    public bool Sensitive { get; init; }
+
     public bool HasBody => Kind is not (EntryKind.View or EntryKind.List) && Members.Count > 0 && System.Linq.Enumerable.Any(Members, m => m.RouteKind is null);
 
     // equality without the location, so a moved declaration regenerates nothing
     public bool Equals(EntryModel? other) => other is not null && Name == other.Name && FullName == other.FullName && Kind == other.Kind
         && Aggregate == other.Aggregate && Verb == other.Verb && Pattern == other.Pattern && Policy == other.Policy && Anonymous == other.Anonymous
-        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors);
+        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable && Contextual == other.Contextual && Restricted == other.Restricted && Sensitive == other.Sensitive;
 
     public override int GetHashCode() => (FullName, Verb, Pattern).GetHashCode();
 }

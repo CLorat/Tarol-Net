@@ -12,7 +12,7 @@ description: >-
 
 ## Rules
 
-1. **One change per occurrence = a scheduled factory** on the change (skill `tarol-changes`):
+1. **One change per occurrence = a scheduled factory** on the change (skill `tarol-reactions`):
    `[Scheduled("0 2 * * *", TimeZone = "Europe/Vienna")] public static CloseDay From(JobOccurrence o) => new(…);`
    The generator puts it in `GeneratedJobs.Set`. `o.At` is UTC whole seconds; `o.Local` gives the zone's day and time.
 2. **Many changes per occurrence (a fan-out, a report) = an `IJob` class** with DI:
@@ -43,7 +43,8 @@ description: >-
 8. **Per tenant**: `PerTenant = true` (attribute or `JobOptions`) and register your
    `ITenantDirectory` (`ValueTask<IReadOnlyList<Id<ITenant>>> Tenants(CancellationToken)`); the host reads it at startup and
    every `TenantSyncEvery` and keeps one row per tenant. The tenant is `o.Tenant` / `run.Occurrence.Tenant` and the change's
-   context tenant. Without a directory the host fails at startup.
+   context tenant. Without a directory the host fails at startup. When every tenant has a `[PerTenant]` aggregate (its
+   settings), `.UseStoreTenants<Settings>()` is the directory: its stream ids (TN-56).
 9. **Configuration** overrides by name: `Tarol:Jobs:<name>:Cron`, `:TimeZone`, `:Enabled` (`false` pauses; re-enabled it
    starts at its next occurrence). Read **at startup** (restart the workers to apply); names are case-sensitive. Invalid
    values, unknown zones and unknown names fail at startup. A changed schedule
@@ -77,7 +78,8 @@ var runs = await test.Advance(TimeSpan.FromHours(2));      // CloseDay at 01:00Z
 var missed = await test.Down(TimeSpan.FromDays(1)).Advance(TimeSpan.Zero);   // down a day: Ticks 24 (All), CloseDay 1 (Latest)
 ```
 
-`JobTest` uses an in-memory store and job rows on a standing clock. `Advance` stops at every due time up to the target
+`JobTest` uses an in-memory store and job rows on a standing clock. A job whose targets come from a projection gets one over the test's store:
+`var rows = ProjectionTest<CareFileRow>.Over(test.Store); test.Add(new RemindRenewals(rows.ReadModels), "0 6 * * *").BeforeEachRun(rows.CatchUp);`. `Advance` stops at every due time up to the target
 (cursors, retry backoffs) and returns all its runs as `IReadOnlyList<JobAttempt>` (`Job`, `Tenant`, `Occurrence` a UTC
 `DateTimeOffset`, `Attempt`, `Verdict` (`Done`/`Retry`/`Bury`), `Reason`, `Redrive`); `Runs` holds all of them. `Down` moves
 the clock with the workers stopped; `Store.Recorded`, `Load<T>(id, tenant)`, `DeadJobs()`, `Redrive(id)`, `WithTenants(…)`,
