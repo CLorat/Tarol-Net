@@ -54,5 +54,7 @@ public sealed class AuditCatalogTests
         opened.Time.ShouldBe(new AuditMember("At", "on"));
         Of<Sheet.Touched>().ShouldNotBeNull().Excluded.ShouldBeTrue();
         Of<Sheet.Closed>().ShouldNotBeNull().Removed.ShouldBeTrue();
+        Tarol.Primitives.Tests.Orders.Order.EventTypes.Events.Where(e => e.ClrType.BaseType?.Name == "Deleted")
+            .Select(e => e.Audit?.Removed).ShouldBe([true, true, true]);                            // an entity's Deleted event removes its object
     }
 }

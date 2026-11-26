@@ -43,11 +43,13 @@ internal static class PersonalDiscovery
         return new EquatableArray<PersonalModel>(found.OrderBy(static p => p.Name, System.StringComparer.Ordinal).ToImmutableArray());
     }
 
-    /// <summary>The audit marks of an event (TN-64): <c>[NotAudited]</c>/<c>[AuditRemoved]</c> on it, <c>[NotAudited]</c>/<c>[AuditTime]</c> on members; null when none.</summary>
-    public static AuditModel? AuditOf(INamedTypeSymbol type)
+    /// <summary>The audit marks of an event (TN-64): <c>[NotAudited]</c>/<c>[AuditRemoved]</c> on it (an entity's <c>Deleted</c> event removes
+    /// too), <c>[NotAudited]</c>/<c>[AuditTime]</c> on members; null when none.</summary>
+    public static AuditModel? AuditOf(INamedTypeSymbol type, bool deletes)
     {
         var excluded = type.GetAttributes().Any(static a => Symbols.Is(a.AttributeClass, "NotAuditedAttribute"));
-        var removed = type.GetAttributes().Any(static a => Symbols.Is(a.AttributeClass, "AuditRemovedAttribute"));
+        // an entity's Deleted event removes its object without a mark
+        var removed = deletes || type.GetAttributes().Any(static a => Symbols.Is(a.AttributeClass, "AuditRemovedAttribute"));
         var left = new List<PersonalModel>();
         PersonalModel? time = null;
         var seen = new HashSet<string>(System.StringComparer.Ordinal);

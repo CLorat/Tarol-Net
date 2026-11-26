@@ -1,4 +1,8 @@
 #nullable enable
+Tarol.Persistence.EventCodec.Encode(string! streamType, Tarol.Primitives.DomainEvent! domainEvent, System.Buffers.IBufferWriter<byte>! payload) -> Tarol.Primitives.EventType
+Tarol.Persistence.EventCodec.SealStored(string! streamType, Tarol.Primitives.EventType type, System.ReadOnlySpan<byte> payload, System.Guid stream, Tarol.Persistence.KeyRing! keys, System.Buffers.IBufferWriter<byte>! sealedPayload) -> bool
+Tarol.Persistence.EventCodec.SubjectsOf(string! streamType, Tarol.Primitives.EventType type, System.ReadOnlySpan<byte> payload, System.Guid stream, System.Collections.Generic.ICollection<System.Guid>! subjects) -> void
+Tarol.Persistence.EventCodec.TryDescribe(string! streamType, Tarol.Primitives.DomainEvent! domainEvent, out Tarol.Primitives.EventCatalogEntry entry) -> bool
 Tarol.Persistence.IStreamIds
 Tarol.Persistence.IStreamIds.StreamIds(string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<System.Guid>!>
 Tarol.Persistence.IdempotencyKey.Refusal.get -> Tarol.Results.Violation?
