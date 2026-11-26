@@ -212,6 +212,69 @@ public sealed class ReactionSet : IOutboxRowHandler
             recorded.EventId.ToString("N", System.Globalization.CultureInfo.InvariantCulture)));
     }
 
+    /// <summary>
+    /// The options of one element of a fan-out (R-1, TN-47): the key (tenant, <c>reaction:&lt;name&gt;</c>, event id and element), so a
+    /// retried row commits each element once and runs only the ones that did not commit.
+    /// </summary>
+    /// <param name="reaction">The reaction's name.</param>
+    /// <param name="recorded">The committed event.</param>
+    /// <param name="element">The element: its target (<see cref="Element"/>).</param>
+    /// <returns>The options.</returns>
+    public static ChangeOptions Options(string reaction, RecordedEvent recorded, string element)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reaction);
+        ArgumentNullException.ThrowIfNull(recorded);
+        ArgumentException.ThrowIfNullOrWhiteSpace(element);
+        return new(new IdempotencyKey(recorded.Context.Tenant, "reaction:" + reaction,
+            recorded.EventId.ToString("N", System.Globalization.CultureInfo.InvariantCulture) + ":" + element));
+    }
+
+    /// <summary>The element part of a fan-out key: the change's target, or its position for a change without one (a creation).</summary>
+    /// <param name="target">The change's target; <see cref="Guid.Empty"/> for none.</param>
+    /// <param name="index">The element's position in what the factory returned.</param>
+    /// <returns>The element.</returns>
+    public static string Element(Guid target, int index)
+        => target == Guid.Empty ? "#" + index.ToString(System.Globalization.CultureInfo.InvariantCulture) : target.ToString("N", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>A reaction that has nothing to do (R-2, TN-47): its factory returned <see langword="null"/>; the row is done.</summary>
+    /// <returns>A success with <see cref="ChangeOutcome.Skipped"/>.</returns>
+    public static ValueTask<Result<ChangeOutcome>> Skip() => ValueTask.FromResult<Result<ChangeOutcome>>(ChangeOutcome.Nothing);
+
+    /// <summary>
+    /// Runs every change a fan-out factory returned (R-1, TN-47), in order, each with its own key (<see cref="Options(string, RecordedEvent, string)"/>).
+    /// The first failure stops and fails the row; its retry replays the elements that committed. <see langword="null"/> elements are
+    /// skipped; none at all is <see cref="ChangeOutcome.Skipped"/>.
+    /// </summary>
+    /// <typeparam name="TChange">The change.</typeparam>
+    /// <param name="changes">What the factory returned.</param>
+    /// <param name="run">Runs one element (the element and its position).</param>
+    /// <returns>The first failure, or a success counting the events of all elements (replayed when every element was).</returns>
+    public static async ValueTask<Result<ChangeOutcome>> Each<TChange>(IEnumerable<TChange?>? changes, Func<TChange, int, ValueTask<Result<ChangeOutcome>>> run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        if (changes is null)
+            return ChangeOutcome.Nothing;
+        var (ran, events, replayed, position, index) = (0, 0, true, GlobalPosition.Start, -1);
+        foreach (var change in changes)
+        {
+            index++;
+            if (change is null)
+                continue;
+            var result = await run(change, index).ConfigureAwait(false);
+            if (result.TryGetValue(out Violation? failed))
+                return failed;
+            var outcome = result.GetValueOrThrow();
+            if (outcome.Skipped)
+                continue;
+            ran++;
+            events += outcome.Events;
+            replayed &= outcome.Replayed;
+            if (outcome.Position.CompareTo(position) > 0)
+                position = outcome.Position;
+        }
+        return ran == 0 ? ChangeOutcome.Nothing : new ChangeOutcome(Guid.Empty, 0, events, replayed, position);
+    }
+
     private ReadOnlySpan<string> Concatenated(DomainEvent domainEvent)
     {
         List<string>? all = null;

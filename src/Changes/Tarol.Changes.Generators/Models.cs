@@ -58,6 +58,7 @@ internal sealed record Discovered(ChangeModel? Model, EquatableArray<DiagnosticI
 }
 
 /// <summary>One [OnEvent&lt;T&gt;] factory: what the reaction set is emitted from (no locations).</summary>
+/// <summary>Returns: 0 the change, 1 the change or null (R-2), 2 several changes (R-1); Target: the aggregate of an <c>IChange&lt;T&gt;</c> (its key per element).</summary>
 internal sealed record ReactionModel(
     string Name,
     string Change,
@@ -65,7 +66,9 @@ internal sealed record ReactionModel(
     int EventDepth,
     string Factory,
     bool WithRecorded,
-    string? DueAt) : System.IComparable<ReactionModel>
+    string? DueAt,
+    int Returns = 0,
+    string? Target = null) : System.IComparable<ReactionModel>
 {
     public int CompareTo(ReactionModel? other)
     {

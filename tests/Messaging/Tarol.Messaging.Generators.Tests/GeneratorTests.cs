@@ -170,17 +170,47 @@ public sealed class PublicationDiagnosticTests
     }
 
     [Fact]
-    public void TMSG005_one_method_per_contract_version_is_an_error()
+    public void TMSG005_several_events_may_publish_one_contract_version_with_the_same_record()        // TN-83, owner decision R-4
     {
-        var found = Run("""
+        const string body = """
             public static class Publications
             {
                 [Publishes<Order.PaymentRecorded>("shop.paid", 1)] public static PaidV1 A(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);
                 [Publishes<Order.Opened>("shop.paid", 1)] public static PaidV1 B(Order.Opened e) => new(Guid.Empty, 0);
             }
+            """;
+        var compilation = GeneratorTestHost.Compile(GeneratorTestHost.Domain, GeneratorTestHost.Usings + Records + body);
+        var generated = string.Join("\n", GeneratorTestHost.Run(compilation).GetRunResult().GeneratedTrees.Select(t => t.ToString()));
+
+        Run(body).Where(d => d.Severity == DiagnosticSeverity.Error || d.Id == "TMSG005").ShouldBeEmpty();      // compiles, no collision
+        generated.Split("private const string P").Length.ShouldBe(2);                                   // one row: publish:shop.paid@1
+        generated.ShouldContain("EventTypes = new global::System.Type[] { typeof(global::Shop.Order.Opened), typeof(global::Shop.Order.PaymentRecorded) }");
+        generated.ShouldContain("(P0, global::Shop.Order.Opened e) =>");
+        generated.ShouldContain("(P0, global::Shop.Order.PaymentRecorded e) =>");
+    }
+
+    [Fact]
+    public void TMSG005_two_records_or_two_methods_for_one_event_still_collide()
+    {
+        var records = Run("""
+            public sealed record OtherPaidV1(Guid Order);
+            public static class Publications
+            {
+                [Publishes<Order.PaymentRecorded>("shop.paid", 1)] public static PaidV1 A(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);
+                [Publishes<Order.Opened>("shop.paid", 1)] public static OtherPaidV1 B(Order.Opened e) => new(Guid.Empty);
+            }
             """).Where(d => d.Id == "TMSG005").ShouldHaveSingleItem();
-        found.Severity.ShouldBe(DiagnosticSeverity.Error);
-        found.GetMessage(System.Globalization.CultureInfo.InvariantCulture).ShouldContain("shop.paid v1 is published by two methods, 'Publications.A' and 'Publications.B'");
+        var twice = Run("""
+            public static class Publications
+            {
+                [Publishes<Order.PaymentRecorded>("shop.paid", 1)] public static PaidV1 A(Order.PaymentRecorded e) => new(Guid.Empty, e.Amount);
+                [Publishes<Order.PaymentRecorded>("shop.paid", 1)] public static PaidV1 B(Order.PaymentRecorded e) => new(Guid.Empty, 0);
+            }
+            """).Where(d => d.Id == "TMSG005").ShouldHaveSingleItem();
+
+        records.Severity.ShouldBe(DiagnosticSeverity.Error);
+        records.GetMessage(System.Globalization.CultureInfo.InvariantCulture).ShouldContain("shop.paid v1 is published as two records, PaidV1 ('Publications.A') and OtherPaidV1 ('Publications.B')");
+        twice.GetMessage(System.Globalization.CultureInfo.InvariantCulture).ShouldContain("shop.paid v1 is published from PaymentRecorded by two methods, 'Publications.A' and 'Publications.B'");
     }
 
     [Fact]

@@ -40,9 +40,14 @@ internal static class Discovery
 
         var name = attribute.ConstructorArguments.Length == 1 ? attribute.ConstructorArguments[0].Value as string : null;
         var version = 1;
+        var perEntity = false;
         foreach (var argument in attribute.NamedArguments)
+        {
             if (argument.Key == "Version" && argument.Value.Value is int v)
                 version = v;
+            if (argument.Key == "PerEntity" && argument.Value.Value is bool e)
+                perEntity = e;
+        }
         if (name is null || !ValidName.IsMatch(name))
             return Fail(DiagnosticInfo.Create(Diagnostics.Declaration, location, type.Name,
                 $"the name '{name}' must be lowercase letters, digits and hyphens, at most 40, starting with a letter"));
@@ -139,7 +144,7 @@ internal static class Discovery
             new EquatableArray<WhenModel>(creators.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
             new EquatableArray<WhenModel>(updaters.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
             new EquatableArray<ColumnModel>(columns.ToImmutableArray()))
-        { HasEmpty = hasEmpty };
+        { HasEmpty = hasEmpty, PerEntity = perEntity };
         return new Discovered(model, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
     }
 

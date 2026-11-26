@@ -176,6 +176,8 @@ public sealed partial class ChangePipeline
         }
     }
 
+    private static bool Skipped(Violation refused) => refused is Error { Code: ChangeOutcome.SkippedCode };
+
     /// <summary>How often a change without an expected version is tried when it loses a race (TN-45): 3.</summary>
     public const int ConflictAttempts = 3;
 
@@ -198,7 +200,7 @@ public sealed partial class ChangePipeline
             // TN-41: ILoads<T, TData>: the data reaches Execute, no field on the change
             var own = await withData.LoadWithData(_store, changeContext, cancellationToken);
             if (own.TryGetValue(out Violation? refused))
-                return refused;
+                return Skipped(refused) ? ChangeOutcome.Nothing : refused;              // R-2: nothing to do
             (aggregate, data) = own.GetValueOrThrow();
             ArgumentNullException.ThrowIfNull(aggregate, nameof(ILoads<>.Load));
         }
@@ -206,7 +208,7 @@ public sealed partial class ChangePipeline
         {
             var own = await loads.Load(_store, changeContext, cancellationToken);
             if (own.TryGetValue(out Violation? refused))
-                return refused;
+                return Skipped(refused) ? ChangeOutcome.Nothing : refused;              // R-2: nothing to do
             aggregate = own.GetValueOrThrow();
             ArgumentNullException.ThrowIfNull(aggregate, nameof(ILoads<>.Load));
         }

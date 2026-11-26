@@ -78,6 +78,12 @@ internal static class Sources
             [OnEvent<Order.WasClosed>]
             internal static CloseOrderOnEvent Again(Order.WasClosed e) => new(Id<Order>.Empty);
 
+            [OnEvent<Customer.ReminderSet>(Name = "Orders.CloseIfAny")]
+            internal static CloseOrderOnEvent? Maybe(Customer.ReminderSet e) => null;
+
+            [OnEvent<Customer.ReminderSet>(Name = "Orders.CloseEach")]
+            internal static System.Collections.Generic.IEnumerable<CloseOrderOnEvent> Each(Customer.ReminderSet e) => [];
+
             public Result Execute(Order order, ChangeContext context) => order.Close();
         }
 

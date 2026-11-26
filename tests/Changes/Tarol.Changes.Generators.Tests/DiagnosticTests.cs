@@ -165,7 +165,8 @@ public sealed class DiagnosticTests
 
     [Theory]
     [InlineData("public CloseOn From(Customer.Registered e) => new(Id<Order>.Empty);", "the factory must be static")]
-    [InlineData("public static string From(Customer.Registered e) => \"\";", "the factory must return CloseOn")]
+    [InlineData("public static string From(Customer.Registered e) => \"\";", "the factory must return CloseOn, CloseOn? (nothing to do) or IEnumerable<CloseOn> (one run per element)")]
+    [InlineData("public static System.Collections.Generic.List<int> From(Customer.Registered e) => [];", "the factory must return CloseOn, CloseOn? (nothing to do) or IEnumerable<CloseOn> (one run per element)")]
     [InlineData("public static CloseOn From(Order.Opened e) => new(Id<Order>.Empty);", "the parameters must be (Registered) or (Registered, RecordedEvent)")]
     [InlineData("public static CloseOn From(Customer.Registered e, string s) => new(Id<Order>.Empty);", "the second parameter must be Tarol.Primitives.RecordedEvent, not string")]
     // Tatalu FB-F15.1-1: without 'using Tarol.Primitives;' the message read "must be RecordedEvent, not RecordedEvent"

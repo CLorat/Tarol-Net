@@ -110,11 +110,25 @@ internal static class Discovery
 
     public static IEnumerable<DiagnosticInfo> PublicationCollisions(ImmutableArray<PublicationModel> publications)
     {
+        // TN-83 (R-4): several events may publish one contract version when they all map to the same contract record; two
+        // methods for one event, or two records under one contract version, still collide
         foreach (var group in publications.GroupBy(p => (p.Contract, p.Version)).Where(g => g.Count() > 1))
         {
             var all = group.OrderBy(p => p.Type, StringComparer.Ordinal).ThenBy(p => p.Method, StringComparer.Ordinal).ToArray();
-            yield return DiagnosticInfo.Create(Diagnostics.PublicationCollision, all[1].Location,
-                $"{group.Key.Contract} v{group.Key.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)} is published by two methods, '{Simple(all[0].Type)}.{all[0].Method}' and '{Simple(all[1].Type)}.{all[1].Method}'; one publication per contract version");
+            var version = group.Key.Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (all.Select(p => p.Record).Distinct().Count() > 1)
+            {
+                var other = all.First(p => p.Record != all[0].Record);
+                yield return DiagnosticInfo.Create(Diagnostics.PublicationCollision, other.Location,
+                    $"{group.Key.Contract} v{version} is published as two records, {Simple(all[0].Record)} ('{Simple(all[0].Type)}.{all[0].Method}') and {Simple(other.Record)} ('{Simple(other.Type)}.{other.Method}'); one contract record per contract version");
+                continue;
+            }
+            foreach (var same in all.GroupBy(p => p.Event).Where(g => g.Count() > 1))
+            {
+                var twice = same.ToArray();
+                yield return DiagnosticInfo.Create(Diagnostics.PublicationCollision, twice[1].Location,
+                    $"{group.Key.Contract} v{version} is published from {Simple(same.Key)} by two methods, '{Simple(twice[0].Type)}.{twice[0].Method}' and '{Simple(twice[1].Type)}.{twice[1].Method}'; one method per event and contract version");
+            }
         }
     }
 

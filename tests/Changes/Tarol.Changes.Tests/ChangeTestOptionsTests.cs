@@ -91,7 +91,7 @@ public sealed class ChangeTestOptionsTests
         var then = await test.When(new SettleAuction(auction.Id), Actor.User("alice"));
 
         then.Result.IsSuccess.ShouldBeTrue(then.Result.ToString());
-        then.Reactions.Select(r => r.Reaction).Order(StringComparer.Ordinal).ShouldBe(["Auctions.RecordWinningAmount", "MarkPayoutDue", "SettleAfterClose"]);   // the close is due already
+        then.Reactions.Select(r => r.Reaction).Order(StringComparer.Ordinal).ShouldBe(["ArchiveOldAuction", "Auctions.RecordWinningAmount", "ForgetAuction", "MarkPayoutDue", "SettleAfterClose", "SplitPayout"]);   // the close is due already
         then.Reactions.Single(r => r.Reaction == "SettleAfterClose").Result.IsSuccess.ShouldBeFalse();   // a refusal is reported, not retried
         then.Reactions.Single(r => r.Reaction == "MarkPayoutDue").Recorded.Single().Event.Event.ShouldBeOfType<Payout.BecameDue>().Amount.ShouldBe(150);
         then.Events.ShouldNotContain(e => e is Payout.BecameDue);           // the change's own events stay apart

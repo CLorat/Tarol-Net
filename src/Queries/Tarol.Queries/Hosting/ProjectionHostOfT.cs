@@ -53,7 +53,7 @@ public sealed class ProjectionHost<TRow> : ProjectionHost
         var streamType = TRow.StreamType;
         var keys = new HashSet<RowKey>();
         foreach (var e in events)
-            if (e.StreamType == streamType)
+            if (e.StreamType == streamType && Applies(e))
                 keys.Add(KeyOf(e));
         var stored = keys.Count == 0
             ? (IReadOnlyDictionary<RowKey, Versioned<TRow>>)new Dictionary<RowKey, Versioned<TRow>>()
@@ -62,7 +62,7 @@ public sealed class ProjectionHost<TRow> : ProjectionHost
         var changed = new Dictionary<RowKey, Versioned<TRow>>();
         foreach (var e in events)
         {
-            if (e.StreamType != streamType)
+            if (e.StreamType != streamType || !Applies(e))
                 continue;
             var key = KeyOf(e);
             rows.TryGetValue(key, out var current);
@@ -72,7 +72,7 @@ public sealed class ProjectionHost<TRow> : ProjectionHost
             var next = TRow.Apply(current?.Row, e.Event);
             if (next is null || ReferenceEquals(next, current?.Row))
                 continue;                                                              // no row yet, or an event the projection ignores
-            var versioned = new Versioned<TRow>(key, version, next);
+            var versioned = new Versioned<TRow>(key, version, next) { Stream = e.Event.StreamId };
             rows[key] = versioned;
             changed[key] = versioned;
         }
@@ -82,6 +82,10 @@ public sealed class ProjectionHost<TRow> : ProjectionHost
         return (written, changed.Count);
     }
 
+    // TN-54 (P-1): a row per entity takes the entity's events only, keyed by the entity id
+    internal static bool Applies(PositionedEvent e) => !TRow.PerEntity || e.Event.Event.EntityId != Guid.Empty;
+
     internal static RowKey KeyOf(PositionedEvent e)
-        => new(e.Event.Context.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value : Guid.Empty, e.Event.StreamId);
+        => new(e.Event.Context.Tenant.TryGetValue(out Id<ITenant> tenant) ? tenant.Value : Guid.Empty,
+            TRow.PerEntity ? e.Event.Event.EntityId : e.Event.StreamId);
 }

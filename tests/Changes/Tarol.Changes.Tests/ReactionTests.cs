@@ -32,10 +32,10 @@ public sealed class ReactionTests
     {
         var set = GeneratedReactions.Set;
 
-        set.Names.ShouldBe(["Auctions.RecordWinningAmount", "MarkPayoutDue", "SettleAfterClose"]);
+        set.Names.ShouldBe(["ArchiveOldAuction", "Auctions.RecordWinningAmount", "ForgetAuction", "MarkPayoutDue", "SettleAfterClose", "SplitPayout"]);
         set.Table(new Bid.Won(150)).ToArray().ShouldBe(["Auctions.RecordWinningAmount", "MarkPayoutDue"]);
         set.Table(new Auction.Closed(Start)).ToArray().ShouldBe(["SettleAfterClose"]);
-        set.Table(new Auction.Settled(Start)).IsEmpty.ShouldBeTrue();
+        set.Table(new Auction.Settled(Start)).ToArray().ShouldBe(["ArchiveOldAuction", "ForgetAuction", "SplitPayout"]);
         set.IsScheduled("SettleAfterClose").ShouldBeTrue();
         set.IsScheduled("MarkPayoutDue").ShouldBeFalse();
         set.DueAt(new Auction.Closed(Start.AddHours(3)), "SettleAfterClose").ShouldBe(Start.AddHours(3));
@@ -135,7 +135,7 @@ public sealed class ReactionTests
 
         var combined = ReactionSet.Combine(GeneratedReactions.Set, other);
 
-        combined.Names.Count.ShouldBe(4);
+        combined.Names.Count.ShouldBe(7);
         combined.Table(new Bid.Won(1)).ToArray().ShouldBe(["Auctions.RecordWinningAmount", "MarkPayoutDue", "NotifyBuyer"]);
         combined.IsScheduled("SettleAfterClose").ShouldBeTrue();
         combined.IsScheduled("NotifyBuyer").ShouldBeTrue();
@@ -156,5 +156,45 @@ public sealed class ReactionTests
         context.Actor.Id.ShouldBe("Reactions.Second");
         context.Actor.OnBehalfOf.ShouldBe(Option.Some("alice"));
         context.CausationId.ShouldBe(Option.Some((Id<ICausation>)won.EventId));
+    }
+
+    [Fact]
+    public async Task A_fan_out_runs_one_change_per_element_each_under_its_own_key_and_a_retry_replays_them()
+    {
+        var (test, _, _) = await Settled();
+        var settled = test.Store.Recorded.Single(e => e.Event.Event is Auction.Settled);
+
+        var outcome = (await GeneratedReactions.Set.Run(test.Pipeline, "SplitPayout", settled, Ct)).GetValueOrThrow();
+
+        outcome.Events.ShouldBe(2);
+        outcome.Replayed.ShouldBeFalse();
+        test.Store.Recorded.Where(e => e.Event.Event is Payout.BecameDue).Select(e => ((Payout.BecameDue)e.Event.Event).Amount).ShouldBe([60m, 40m]);
+        foreach (var element in new[] { "#0", "#1" })
+            (await test.Store.Seen(ReactionSet.Options("SplitPayout", settled, element).Key.GetValueOrThrow(), Ct)).IsSome.ShouldBeTrue(element);
+        ReactionSet.Options("SplitPayout", settled, "#1").Key.GetValueOrThrow().Key.ShouldBe(settled.EventId.ToString("N") + ":#1");
+        ReactionSet.Element(Guid.Parse("0196f000-0000-7000-8000-0000000000aa"), 3).ShouldBe("0196f0000000700080000000000000aa");   // a target keys by itself, not its position
+
+        var again = (await GeneratedReactions.Set.Run(test.Pipeline, "SplitPayout", settled, Ct)).GetValueOrThrow();
+
+        again.Replayed.ShouldBeTrue();
+        test.Store.Recorded.Count(e => e.Event.Event is Payout.BecameDue).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_factory_answering_null_or_a_Load_answering_Skip_is_a_done_row_that_appends_nothing()
+    {
+        var (test, _, _) = await Settled();
+        var settled = test.Store.Recorded.Single(e => e.Event.Event is Auction.Settled);
+        var before = test.Store.Recorded.Count;
+
+        var nothing = (await GeneratedReactions.Set.Run(test.Pipeline, "ArchiveOldAuction", settled, Ct)).GetValueOrThrow();
+        var skipped = (await GeneratedReactions.Set.Run(test.Pipeline, "ForgetAuction", settled, Ct)).GetValueOrThrow();
+
+        nothing.ShouldBe(ChangeOutcome.Nothing);
+        skipped.Skipped.ShouldBeTrue();
+        (skipped.Events, skipped.StreamId).ShouldBe((0, Guid.Empty));
+        test.Store.Recorded.Count.ShouldBe(before);
+        (await ReactionSet.Each<SplitPayout>(null, (_, _) => throw new InvalidOperationException())).GetValueOrThrow().Skipped.ShouldBeTrue();
+        (await ReactionSet.Each<SplitPayout>([], (_, _) => throw new InvalidOperationException())).GetValueOrThrow().Skipped.ShouldBeTrue();
     }
 }

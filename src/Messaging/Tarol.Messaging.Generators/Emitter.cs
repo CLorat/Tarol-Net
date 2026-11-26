@@ -69,10 +69,13 @@ internal static class Emitter
     /// </summary>
     public static string Publications(ImmutableArray<PublicationModel> publications, string? assemblyName)
     {
-        var sorted = publications.OrderBy(p => p.Contract, System.StringComparer.Ordinal).ThenBy(p => p.Version).ToList();
+        var sorted = publications.OrderBy(p => p.Contract, System.StringComparer.Ordinal).ThenBy(p => p.Version)
+            .ThenBy(p => p.Event, System.StringComparer.Ordinal).ToList();
+        // TN-83 (R-4): several events may feed one contract version; they share its row (one name, one outbox row per event)
+        var names = sorted.GroupBy(p => p.Name).Select(g => g.ToList()).ToList();
         var constant = new Dictionary<string, string>();
-        for (var i = 0; i < sorted.Count; i++)
-            constant[sorted[i].Name] = "P" + i.ToString(CultureInfo.InvariantCulture);
+        for (var i = 0; i < names.Count; i++)
+            constant[names[i][0].Name] = "P" + i.ToString(CultureInfo.InvariantCulture);
         var events = sorted.GroupBy(p => p.Event).Select(g => (Event: g.Key, Depth: g.First().EventBases.Count))
             .OrderByDescending(e => e.Depth).ThenBy(e => e.Event, System.StringComparer.Ordinal).ToList();
 
@@ -82,23 +85,27 @@ internal static class Emitter
         sb.Append("/// or combine it with other assemblies' sets (<see cref=\"global::Tarol.Messaging.PublicationSet.Combine\"/>).\n/// </summary>\n");
         sb.Append("[global::System.CodeDom.Compiler.GeneratedCode(\"Tarol.Messaging.Generators\", \"1.0\")]\n");
         sb.Append("public static class GeneratedPublications\n{\n");
-        foreach (var p in sorted)
-            sb.Append("    private const string ").Append(constant[p.Name]).Append(" = ").Append(Literal(p.Name)).Append(";\n");
+        foreach (var group in names)
+            sb.Append("    private const string ").Append(constant[group[0].Name]).Append(" = ").Append(Literal(group[0].Name)).Append(";\n");
         for (var i = 0; i < events.Count; i++)
         {
             var e = events[i];
-            var rows = sorted.Where(p => p.Event == e.Event || sorted.First(q => q.Event == e.Event).EventBases.Contains(p.Event)).Select(p => constant[p.Name]);
+            var rows = sorted.Where(p => p.Event == e.Event || sorted.First(q => q.Event == e.Event).EventBases.Contains(p.Event)).Select(p => constant[p.Name]).Distinct();
             sb.Append("    private static readonly string[] On").Append(i.ToString(CultureInfo.InvariantCulture)).Append(" = { ")
                 .Append(string.Join(", ", rows)).Append(" };\n");
         }
         sb.Append("\n    private static readonly global::Tarol.Messaging.PublicationInfo[] All =\n    {\n");
-        foreach (var p in sorted)
+        foreach (var group in names)
         {
+            var p = group[0];
             sb.Append("        new(").Append(constant[p.Name]).Append(", ").Append(Literal(p.Contract)).Append(", ")
                 .Append(p.Version.ToString(CultureInfo.InvariantCulture)).Append(") { ContractType = typeof(").Append(p.Record).Append("), EventType = typeof(")
                 .Append(p.Event).Append(')');
-            if (p.Stream is not null)
-                sb.Append(", Stream = ").Append(Literal(p.Stream));
+            if (group.Count > 1)
+                sb.Append(", EventTypes = new global::System.Type[] { ").Append(string.Join(", ", group.Select(q => "typeof(" + q.Event + ")"))).Append(" }");
+            var streams = group.Select(q => q.Stream).Distinct().ToList();
+            if (streams.Count == 1 && streams[0] is { } stream)
+                sb.Append(", Stream = ").Append(Literal(stream));
             sb.Append(" },\n");
         }
         sb.Append("    };\n\n");

@@ -13,7 +13,15 @@ public readonly record struct RowKey(Guid Tenant, Guid Id);
 /// <param name="Key">The key.</param>
 /// <param name="Version">The version of the last event applied.</param>
 /// <param name="Row">The row.</param>
-public sealed record Versioned<TRow>(RowKey Key, long Version, TRow Row);
+public sealed record Versioned<TRow>(RowKey Key, long Version, TRow Row)
+{
+    /// <summary>The row's stream: the key's id for a row per stream; the aggregate's stream for a row per entity (TN-54).</summary>
+    public Guid Stream
+    {
+        get => field == Guid.Empty ? Key.Id : field;
+        init;
+    }
+}
 
 /// <summary>Whether a projection version is still catching up with the feed (QR-3: lists answer 503 while it builds).</summary>
 public enum ProjectionState
@@ -99,6 +107,15 @@ public interface IReadModelStore<TRow>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>How many rows were deleted.</returns>
     ValueTask<int> Remove(IReadOnlyCollection<RowKey> keys, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes every row of the given streams (erasure and retention, TN-54): a row per stream is its key; rows per entity are found by
+    /// their stream. The default removes by key, which is right for rows per stream.
+    /// </summary>
+    /// <param name="streams">(tenant, stream id) of each stream.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>How many rows were deleted.</returns>
+    ValueTask<int> RemoveStreams(IReadOnlyCollection<RowKey> streams, CancellationToken cancellationToken) => Remove(streams, cancellationToken);
 }
 
 /// <summary>The read stores of an application, one per projection version (<c>UseInMemoryReadModels</c>, <c>UseNpgsqlReadModels</c>).</summary>

@@ -61,6 +61,8 @@ public static partial class NpgsqlReadModelSchema
         sb.Append(CultureInfo.InvariantCulture, $"INSERT INTO {schema}.projections (name, version) VALUES ('{TRow.Name}', {TRow.Version}) ON CONFLICT DO NOTHING;\n");
         sb.Append(CultureInfo.InvariantCulture, $"CREATE TABLE IF NOT EXISTS {table} (\n");
         sb.Append("    tenant      uuid        NOT NULL,\n    id          uuid        NOT NULL,\n    version     bigint      NOT NULL,\n");
+        if (TRow.PerEntity)
+            sb.Append("    stream_id   uuid        NOT NULL,\n");                         // TN-54: a row per entity keeps its stream
         foreach (var column in TRow.Columns)
             sb.Append(CultureInfo.InvariantCulture, $"    {Quote(column.Name)} {SqlType(column)}{(column.Nullable ? "" : " NOT NULL")},\n");
         sb.Append("    doc         jsonb       NOT NULL,\n    PRIMARY KEY (tenant, id));\n");
@@ -73,6 +75,8 @@ public static partial class NpgsqlReadModelSchema
     {
         var table = $"{schema}.{Projections.TableOf<TRow>()}";
         var sb = new StringBuilder();
+        if (TRow.PerEntity)
+            sb.Append(CultureInfo.InvariantCulture, $"CREATE INDEX IF NOT EXISTS {Projections.TableOf<TRow>()}_stream ON {table} (tenant, stream_id);\n");
         var i = 0;
         foreach (var column in TRow.Columns)
         {

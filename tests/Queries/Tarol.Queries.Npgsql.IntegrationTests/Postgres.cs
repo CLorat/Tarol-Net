@@ -44,7 +44,7 @@ public sealed class Postgres : IAsyncLifetime
     public async Task<Setup> Create(bool notifyFeed = false, bool pushCheckpoints = false)
     {
         var schema = $"q{Interlocked.Increment(ref _schemas)}_{Environment.ProcessId}";
-        var codec = new EventCodec(Json).Add<Auction>().Add<Lot>().Add<LogEntry>().Add<Attendance>().Add<MedicationOrder>();
+        var codec = new EventCodec(Json).Add<Auction>().Add<Lot>().Add<LogEntry>().Add<Attendance>().Add<MedicationOrder>().Add<Kennel>();
         var store = new NpgsqlAggregateStore(DataSource, codec, TimeProvider.System, new NpgsqlStoreOptions { Schema = schema, NotifyFeed = notifyFeed });
         await store.EnsureSchema(default);
         return new Setup(this, store, new NpgsqlReadModels(DataSource, Json, schema, pushCheckpoints));
