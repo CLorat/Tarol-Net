@@ -19,6 +19,8 @@ Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).IsE
 Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).ThrowIfEmpty(string? paramName = null) -> Tarol.StronglyTypedId.Id<T>
 Tarol.StronglyTypedId.IdJsonConverter<T>
 Tarol.StronglyTypedId.IdJsonConverter<T>.IdJsonConverter() -> void
+Tarol.StronglyTypedId.IdPart
+Tarol.StronglyTypedId.IdPart.IdPart() -> void
 Tarol.StronglyTypedId.IdTypeConverter<T>
 Tarol.StronglyTypedId.IdTypeConverter<T>.IdTypeConverter() -> void
 ~override Tarol.StronglyTypedId.Id<T>.Equals(object obj) -> bool
@@ -47,6 +49,7 @@ static Tarol.StronglyTypedId.Id<T>.operator ==(Tarol.StronglyTypedId.Id<T> left,
 static Tarol.StronglyTypedId.Id<T>.operator >(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
 static Tarol.StronglyTypedId.Id<T>.operator >=(Tarol.StronglyTypedId.Id<T> left, Tarol.StronglyTypedId.Id<T> right) -> bool
 static Tarol.StronglyTypedId.IdConverterRegistry.Register<T>() -> void
+static Tarol.StronglyTypedId.IdExtensions.Derive<T>(string! scope, params System.ReadOnlySpan<Tarol.StronglyTypedId.IdPart> parts) -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.From<T>(System.Guid value) -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.New<T>() -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.New<T>(System.DateTimeOffset timestamp) -> Tarol.StronglyTypedId.Id<T>
@@ -54,6 +57,7 @@ static Tarol.StronglyTypedId.IdExtensions.New<T>(System.TimeProvider! timeProvid
 static Tarol.StronglyTypedId.IdExtensions.Parse<T>(string! value) -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.ThrowIfEmpty<T>(this Tarol.StronglyTypedId.Id<T> id, string? paramName = null) -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.TryParse<T>(string? value, out Tarol.StronglyTypedId.Id<T> id) -> bool
+static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).Derive(string! scope, params System.ReadOnlySpan<Tarol.StronglyTypedId.IdPart> parts) -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).From(System.Guid value) -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).New() -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).New(System.DateTimeOffset timestamp) -> Tarol.StronglyTypedId.Id<T>
@@ -61,4 +65,14 @@ static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<
 static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).Parse(string! value) -> Tarol.StronglyTypedId.Id<T>
 static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).TryParse(string? value, out Tarol.StronglyTypedId.Id<T> id) -> bool
 static Tarol.StronglyTypedId.IdExtensions.get_IsEmpty<T>(Tarol.StronglyTypedId.Id<T> id) -> bool
+static Tarol.StronglyTypedId.IdPart.FromDateOnly(System.DateOnly value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.FromGuid(System.Guid value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.FromInt32(int value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.FromInt64(long value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.FromString(string! value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(System.DateOnly value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(System.Guid value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(int value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(long value) -> Tarol.StronglyTypedId.IdPart
+static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(string! value) -> Tarol.StronglyTypedId.IdPart
 static readonly Tarol.StronglyTypedId.Id<T>.Empty -> Tarol.StronglyTypedId.Id<T>

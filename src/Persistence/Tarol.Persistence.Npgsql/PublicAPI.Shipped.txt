@@ -24,6 +24,7 @@ Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Schema.get -> string!
 Tarol.Persistence.Npgsql.NpgsqlAggregateStore.SealHistory<T>(int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<(long Events, long States)>!
 Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Seen(Tarol.Persistence.IdempotencyKey key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Options.Option<Tarol.Persistence.StoredOutcome>>
 Tarol.Persistence.Npgsql.NpgsqlAggregateStore.StateOf(Tarol.Persistence.StreamRef stream, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]?>!
+Tarol.Persistence.Npgsql.NpgsqlAggregateStore.StreamIds(string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<System.Guid>!>
 Tarol.Persistence.Npgsql.NpgsqlAggregateStore.Streams(System.Guid tenant, string! streamType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
 Tarol.Persistence.Npgsql.NpgsqlAggregateStore.StreamsOf(System.Guid tenant, System.Guid subject, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.StreamRef>!>!
 Tarol.Persistence.Npgsql.NpgsqlJobRows
@@ -157,6 +158,7 @@ Tarol.Persistence.Npgsql.UpgradeStep.Version.get -> int
 Tarol.Persistence.Npgsql.UpgradeStep.Version.init -> void
 const Tarol.Persistence.Npgsql.NpgsqlSchema.DefaultSchema = "tarol" -> string!
 const Tarol.Persistence.Npgsql.NpgsqlSchema.SealingVersion = 3 -> int
+const Tarol.Persistence.Npgsql.NpgsqlSchema.Version = 5 -> int
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.Equals(object? obj) -> bool
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.GetHashCode() -> int
 override Tarol.Persistence.Npgsql.NpgsqlKeyStoreOptions.ToString() -> string!

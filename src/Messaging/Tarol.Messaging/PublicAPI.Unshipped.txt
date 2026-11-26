@@ -1,3 +1,1 @@
 #nullable enable
-Tarol.Messaging.EffectSet.Add<TEvent>(string! name, System.Func<System.IServiceProvider!, Tarol.Messaging.IEffect<TEvent!>!>! handler, System.Func<TEvent!, System.DateTimeOffset?>? dueAt) -> Tarol.Messaging.EffectSet!
-Tarol.Messaging.MessagingBuilder.Effect<TEvent, THandler>(string! name, System.Func<TEvent!, System.DateTimeOffset?>! dueAt) -> Tarol.Messaging.MessagingBuilder!

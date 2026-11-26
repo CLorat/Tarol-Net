@@ -18,3 +18,5 @@ TCHG008 | Tarol.Changes | Error | Diagnostics
 TCHG009 | Tarol.Changes | Error | Diagnostics
 TCHG010 | Tarol.Changes | Error | Diagnostics
 TCHG011 | Tarol.Changes | Error | Diagnostics
+TCHG012 | Tarol.Changes | Error | Diagnostics
+TCHG013 | Tarol.Changes | Error | Diagnostics

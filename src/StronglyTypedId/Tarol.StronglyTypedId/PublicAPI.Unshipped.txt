@@ -1,15 +1,1 @@
 #nullable enable
-Tarol.StronglyTypedId.IdPart
-Tarol.StronglyTypedId.IdPart.IdPart() -> void
-static Tarol.StronglyTypedId.IdExtensions.Derive<T>(string! scope, params System.ReadOnlySpan<Tarol.StronglyTypedId.IdPart> parts) -> Tarol.StronglyTypedId.Id<T>
-static Tarol.StronglyTypedId.IdExtensions.extension<T>(Tarol.StronglyTypedId.Id<T>).Derive(string! scope, params System.ReadOnlySpan<Tarol.StronglyTypedId.IdPart> parts) -> Tarol.StronglyTypedId.Id<T>
-static Tarol.StronglyTypedId.IdPart.FromDateOnly(System.DateOnly value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.FromGuid(System.Guid value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.FromInt32(int value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.FromInt64(long value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.FromString(string! value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(System.DateOnly value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(System.Guid value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(int value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(long value) -> Tarol.StronglyTypedId.IdPart
-static Tarol.StronglyTypedId.IdPart.implicit operator Tarol.StronglyTypedId.IdPart(string! value) -> Tarol.StronglyTypedId.IdPart

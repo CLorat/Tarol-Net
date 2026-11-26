@@ -1,9 +1,15 @@
 #nullable enable
 Tarol.Results.Error
+Tarol.Results.Error.Arguments.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
+Tarol.Results.Error.Arguments.init -> void
 Tarol.Results.Error.Code.get -> string!
+Tarol.Results.Error.Confirmable.get -> bool
+Tarol.Results.Error.Confirmable.init -> void
 Tarol.Results.Error.Detail.get -> string?
 Tarol.Results.Error.Equals(Tarol.Results.Error? other) -> bool
 Tarol.Results.Error.Error(Tarol.Results.ErrorType type, string! code, string? detail = null) -> void
+Tarol.Results.Error.Reasons.get -> System.Collections.Generic.IReadOnlyList<string!>?
+Tarol.Results.Error.Reasons.init -> void
 Tarol.Results.Error.Type.get -> Tarol.Results.ErrorType
 Tarol.Results.ErrorType
 Tarol.Results.ErrorType.Conflict = 2 -> Tarol.Results.ErrorType
@@ -92,6 +98,8 @@ Tarol.Results.Success
 Tarol.Results.Success.Equals(Tarol.Results.Success other) -> bool
 Tarol.Results.Success.Success() -> void
 Tarol.Results.Violation
+Tarol.Results.Violation.Commits.get -> bool
+Tarol.Results.Violation.Commits.init -> void
 Tarol.Results.Violation.Violation() -> void
 Tarol.Results.Violation.Violation(Tarol.Results.Violation! original) -> void
 abstract Tarol.Results.Violation.<Clone>$() -> Tarol.Results.Violation!
@@ -129,6 +137,8 @@ override Tarol.Results.Violation.GetHashCode() -> int
 override Tarol.Results.Violation.ToString() -> string!
 override sealed Tarol.Results.Error.Equals(Tarol.Results.Violation? other) -> bool
 override sealed Tarol.Results.Invalid.Equals(Tarol.Results.Violation? other) -> bool
+static Tarol.Results.Error.ConfirmationRequired(string! code, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? arguments = null, string? detail = null) -> Tarol.Results.Error!
+static Tarol.Results.Error.Conflict(string! code, System.Collections.Generic.IReadOnlyList<string!>! reasons, string? detail = null) -> Tarol.Results.Error!
 static Tarol.Results.Error.Conflict(string! code, string? detail = null) -> Tarol.Results.Error!
 static Tarol.Results.Error.Forbidden(string! code = "Auth.Forbidden", string? detail = null) -> Tarol.Results.Error!
 static Tarol.Results.Error.Gone(string! code, string? detail = null) -> Tarol.Results.Error!
@@ -156,6 +166,7 @@ static Tarol.Results.Result.Combine(params System.ReadOnlySpan<Tarol.Results.Res
 static Tarol.Results.Result.Combine<T1, T2, T3>(Tarol.Results.Result<T1> first, Tarol.Results.Result<T2> second, Tarol.Results.Result<T3> third) -> Tarol.Results.Result<(T1, T2, T3)>
 static Tarol.Results.Result.Combine<T1, T2>(Tarol.Results.Result<T1> first, Tarol.Results.Result<T2> second) -> Tarol.Results.Result<(T1, T2)>
 static Tarol.Results.Result.Failure(Tarol.Results.Violation! violation) -> Tarol.Results.Result
+static Tarol.Results.Result.Rejected(Tarol.Results.Violation! violation) -> Tarol.Results.Result
 static Tarol.Results.Result.Success() -> Tarol.Results.Result
 static Tarol.Results.Result.Success<T>(T value) -> Tarol.Results.Result<T>
 static Tarol.Results.Result.implicit operator Tarol.Results.Result(Tarol.Results.Success success) -> Tarol.Results.Result

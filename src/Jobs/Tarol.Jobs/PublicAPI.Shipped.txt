@@ -65,6 +65,7 @@ Tarol.Jobs.JobTest.Add(Tarol.Jobs.IJob! job, Tarol.Jobs.Schedule! schedule, Syst
 Tarol.Jobs.JobTest.Add(Tarol.Jobs.IJob! job, string! cron, System.Action<Tarol.Jobs.JobOptions!>? configure = null) -> Tarol.Jobs.JobTest!
 Tarol.Jobs.JobTest.Advance(System.TimeSpan delta) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Jobs.JobAttempt!>!>!
 Tarol.Jobs.JobTest.AdvanceTo(System.DateTimeOffset target) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Jobs.JobAttempt!>!>!
+Tarol.Jobs.JobTest.BeforeEachRun(System.Func<System.Threading.Tasks.Task!>! step) -> Tarol.Jobs.JobTest!
 Tarol.Jobs.JobTest.Clock.get -> System.TimeProvider!
 Tarol.Jobs.JobTest.DeadJobs() -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.DeadJob!>!>!
 Tarol.Jobs.JobTest.Down(System.TimeSpan delta) -> Tarol.Jobs.JobTest!
@@ -82,11 +83,14 @@ Tarol.Jobs.JobTest.Sync() -> System.Threading.Tasks.Task<System.Collections.Gene
 Tarol.Jobs.JobTest.WithConfiguration(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Tarol.Jobs.JobTest!
 Tarol.Jobs.JobTest.WithTenants(params Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>[]! tenants) -> Tarol.Jobs.JobTest!
 Tarol.Jobs.JobsBuilder
+Tarol.Jobs.JobsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Jobs.JobsBuilder!
 Tarol.Jobs.JobsBuilder.Add(Tarol.Changes.JobSet! jobs) -> Tarol.Jobs.JobsBuilder!
 Tarol.Jobs.JobsBuilder.Add<TJob>(Tarol.Jobs.Schedule! schedule, System.Action<Tarol.Jobs.JobOptions!>? configure = null) -> Tarol.Jobs.JobsBuilder!
 Tarol.Jobs.JobsBuilder.Add<TJob>(string! cron, System.Action<Tarol.Jobs.JobOptions!>? configure = null) -> Tarol.Jobs.JobsBuilder!
+Tarol.Jobs.JobsBuilder.AddModules() -> Tarol.Jobs.JobsBuilder!
 Tarol.Jobs.JobsBuilder.Configure(string! name, System.Action<Tarol.Jobs.JobOptions!>! configure) -> Tarol.Jobs.JobsBuilder!
 Tarol.Jobs.Schedule
+Tarol.Jobs.StoreTenantsTarolBuilderExtensions
 abstract Tarol.Jobs.Schedule.After(System.DateTimeOffset after, System.TimeZoneInfo! zone) -> System.DateTimeOffset
 abstract Tarol.Jobs.Schedule.Text.get -> string!
 const Tarol.Jobs.JobHost.ActivitySourceName = "Tarol.Jobs" -> string!
@@ -103,3 +107,4 @@ static Tarol.Jobs.JobAttempt.operator ==(Tarol.Jobs.JobAttempt? left, Tarol.Jobs
 static Tarol.Jobs.JobServiceCollectionExtensions.AddJobs(this Tarol.Persistence.TarolBuilder! builder, System.Action<Tarol.Jobs.JobsBuilder!>! jobs, System.Action<Tarol.Jobs.JobHostOptions!>? configure = null) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Jobs.JobTest.At(System.DateTimeOffset now, Tarol.Changes.JobSet! jobs, System.Action<Tarol.Jobs.JobsBuilder!>? configure = null, Tarol.Changes.ReactionSet? reactions = null, System.Text.Json.JsonSerializerOptions? stateOptions = null) -> Tarol.Jobs.JobTest!
 static Tarol.Jobs.Schedule.Every(System.TimeSpan interval) -> Tarol.Jobs.Schedule!
+static Tarol.Jobs.StoreTenantsTarolBuilderExtensions.UseStoreTenants<T>(this Tarol.Persistence.TarolBuilder! builder) -> Tarol.Persistence.TarolBuilder!

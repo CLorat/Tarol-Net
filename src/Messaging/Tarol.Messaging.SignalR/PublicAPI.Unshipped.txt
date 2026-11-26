@@ -1,3 +1,1 @@
 #nullable enable
-Tarol.Messaging.SignalR.TopicRules.Publish(string! topic, params string![]! roles) -> Tarol.Messaging.SignalR.TopicRules!
-Tarol.Messaging.SignalR.TopicRules.Subscribe(string! topic, params string![]! roles) -> Tarol.Messaging.SignalR.TopicRules!

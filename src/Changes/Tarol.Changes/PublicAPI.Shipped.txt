@@ -2,8 +2,12 @@
 Tarol.Changes.ChangeContext
 Tarol.Changes.ChangeContext.ChangeContext() -> void
 Tarol.Changes.ChangeContext.ChangeContext(Tarol.Kernel.OperationContext! Operation, System.DateTimeOffset Now, Tarol.Changes.Reads? Reads = null) -> void
+Tarol.Changes.ChangeContext.Confirmations.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Changes.ChangeContext.Confirmations.init -> void
+Tarol.Changes.ChangeContext.Confirmed(string! code) -> bool
 Tarol.Changes.ChangeContext.Deconstruct(out Tarol.Kernel.OperationContext! Operation, out System.DateTimeOffset Now, out Tarol.Changes.Reads? Reads) -> void
 Tarol.Changes.ChangeContext.Equals(Tarol.Changes.ChangeContext other) -> bool
+Tarol.Changes.ChangeContext.LocalNow(System.TimeZoneInfo! zone) -> System.DateTimeOffset
 Tarol.Changes.ChangeContext.Now.get -> System.DateTimeOffset
 Tarol.Changes.ChangeContext.Now.init -> void
 Tarol.Changes.ChangeContext.Operation.get -> Tarol.Kernel.OperationContext!
@@ -12,9 +16,13 @@ Tarol.Changes.ChangeContext.Read<T>() -> T!
 Tarol.Changes.ChangeContext.Read<T>(string! member) -> T!
 Tarol.Changes.ChangeContext.Reads.get -> Tarol.Changes.Reads?
 Tarol.Changes.ChangeContext.Reads.init -> void
+Tarol.Changes.ChangeContext.Today(System.TimeZoneInfo! zone) -> System.DateOnly
+Tarol.Changes.ChangeContext.TryRead<T>(out T? aggregate) -> bool
 Tarol.Changes.ChangeOptions
 Tarol.Changes.ChangeOptions.ChangeOptions() -> void
 Tarol.Changes.ChangeOptions.ChangeOptions(Tarol.Options.Option<Tarol.Persistence.IdempotencyKey> Key = default(Tarol.Options.Option<Tarol.Persistence.IdempotencyKey>), Tarol.Options.Option<long> ExpectedVersion = default(Tarol.Options.Option<long>), System.Security.Claims.ClaimsPrincipal? Principal = null) -> void
+Tarol.Changes.ChangeOptions.Confirmed.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
+Tarol.Changes.ChangeOptions.Confirmed.init -> void
 Tarol.Changes.ChangeOptions.Deconstruct(out Tarol.Options.Option<Tarol.Persistence.IdempotencyKey> Key, out Tarol.Options.Option<long> ExpectedVersion, out System.Security.Claims.ClaimsPrincipal? Principal) -> void
 Tarol.Changes.ChangeOptions.Equals(Tarol.Changes.ChangeOptions other) -> bool
 Tarol.Changes.ChangeOptions.ExpectedVersion.get -> Tarol.Options.Option<long>
@@ -26,6 +34,8 @@ Tarol.Changes.ChangeOptions.Principal.init -> void
 Tarol.Changes.ChangeOutcome
 Tarol.Changes.ChangeOutcome.ChangeOutcome() -> void
 Tarol.Changes.ChangeOutcome.ChangeOutcome(System.Guid StreamId, long Version, int Events, bool Replayed = false, Tarol.Persistence.GlobalPosition Position = default(Tarol.Persistence.GlobalPosition)) -> void
+Tarol.Changes.ChangeOutcome.Created.get -> bool
+Tarol.Changes.ChangeOutcome.Created.init -> void
 Tarol.Changes.ChangeOutcome.Deconstruct(out System.Guid StreamId, out long Version, out int Events, out bool Replayed, out Tarol.Persistence.GlobalPosition Position) -> void
 Tarol.Changes.ChangeOutcome.Equals(Tarol.Changes.ChangeOutcome other) -> bool
 Tarol.Changes.ChangeOutcome.Events.get -> int
@@ -48,13 +58,31 @@ Tarol.Changes.ChangeTest.At(System.DateTimeOffset now) -> Tarol.Changes.ChangeTe
 Tarol.Changes.ChangeTest.Clock.get -> System.TimeProvider!
 Tarol.Changes.ChangeTest.Context(Tarol.Kernel.Actor? actor = null) -> Tarol.Kernel.OperationContext!
 Tarol.Changes.ChangeTest.Given<T>(T! aggregate) -> Tarol.Changes.ChangeTest!
+Tarol.Changes.ChangeTest.History<T>(Tarol.StronglyTypedId.Id<T!> id) -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>!
 Tarol.Changes.ChangeTest.InTenant(Tarol.Options.Option<Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>> tenant) -> Tarol.Changes.ChangeTest!
 Tarol.Changes.ChangeTest.Later(System.TimeSpan delta) -> Tarol.Changes.ChangeTest!
 Tarol.Changes.ChangeTest.Load<T>(Tarol.StronglyTypedId.Id<T!> id) -> T!
 Tarol.Changes.ChangeTest.Pipeline.get -> Tarol.Changes.ChangePipeline!
 Tarol.Changes.ChangeTest.Store.get -> Tarol.Persistence.InMemoryAggregateStore!
+Tarol.Changes.ChangeTest.StoredStateMatchesReplay<T>(Tarol.StronglyTypedId.Id<T!> id, System.Text.Json.JsonSerializerOptions! options) -> T!
 Tarol.Changes.ChangeTest.When<T>(Tarol.Changes.IChange<T!>! change, Tarol.Kernel.Actor? actor = null, Tarol.Changes.ChangeOptions options = default(Tarol.Changes.ChangeOptions)) -> System.Threading.Tasks.Task<Tarol.Changes.ChangeTestOutcome!>!
 Tarol.Changes.ChangeTest.When<T>(Tarol.Changes.ICreation<T!>! creation, Tarol.Kernel.Actor? actor = null, Tarol.Changes.ChangeOptions options = default(Tarol.Changes.ChangeOptions)) -> System.Threading.Tasks.Task<Tarol.Changes.ChangeTestOutcome!>!
+Tarol.Changes.ChangeTestOptions
+Tarol.Changes.ChangeTestOptions.<Clone>$() -> Tarol.Changes.ChangeTestOptions!
+Tarol.Changes.ChangeTestOptions.Authorization.get -> Tarol.Changes.IChangeAuthorization?
+Tarol.Changes.ChangeTestOptions.Authorization.init -> void
+Tarol.Changes.ChangeTestOptions.ChangeTestOptions() -> void
+Tarol.Changes.ChangeTestOptions.Codec.get -> Tarol.Persistence.EventCodec?
+Tarol.Changes.ChangeTestOptions.Codec.init -> void
+Tarol.Changes.ChangeTestOptions.Equals(Tarol.Changes.ChangeTestOptions? other) -> bool
+Tarol.Changes.ChangeTestOptions.Lookups.get -> Tarol.Persistence.StoreLookups?
+Tarol.Changes.ChangeTestOptions.Lookups.init -> void
+Tarol.Changes.ChangeTestOptions.Reactions.get -> Tarol.Changes.ReactionSet?
+Tarol.Changes.ChangeTestOptions.Reactions.init -> void
+Tarol.Changes.ChangeTestOptions.RunReactions.get -> bool
+Tarol.Changes.ChangeTestOptions.RunReactions.init -> void
+Tarol.Changes.ChangeTestOptions.StateOptions.get -> System.Text.Json.JsonSerializerOptions?
+Tarol.Changes.ChangeTestOptions.StateOptions.init -> void
 Tarol.Changes.ChangeTestOutcome
 Tarol.Changes.ChangeTestOutcome.<Clone>$() -> Tarol.Changes.ChangeTestOutcome!
 Tarol.Changes.ChangeTestOutcome.ChangeTestOutcome(Tarol.Results.Result<Tarol.Changes.ChangeOutcome> Result, System.Collections.Generic.IReadOnlyList<Tarol.Primitives.DomainEvent!>! Events, System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>! Recorded) -> void
@@ -62,28 +90,70 @@ Tarol.Changes.ChangeTestOutcome.Deconstruct(out Tarol.Results.Result<Tarol.Chang
 Tarol.Changes.ChangeTestOutcome.Equals(Tarol.Changes.ChangeTestOutcome? other) -> bool
 Tarol.Changes.ChangeTestOutcome.Events.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.DomainEvent!>!
 Tarol.Changes.ChangeTestOutcome.Events.init -> void
+Tarol.Changes.ChangeTestOutcome.Reactions.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.ReactionRun!>!
+Tarol.Changes.ChangeTestOutcome.Reactions.init -> void
 Tarol.Changes.ChangeTestOutcome.Recorded.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>!
 Tarol.Changes.ChangeTestOutcome.Recorded.init -> void
 Tarol.Changes.ChangeTestOutcome.Result.get -> Tarol.Results.Result<Tarol.Changes.ChangeOutcome>
 Tarol.Changes.ChangeTestOutcome.Result.init -> void
+Tarol.Changes.ContractTopic
+Tarol.Changes.ContractTopic.<Clone>$() -> Tarol.Changes.ContractTopic!
+Tarol.Changes.ContractTopic.ContractTopic(string! Name, int? Version, string? Stream, System.Type? ContractType, bool? Subscribe, bool? Publish) -> void
+Tarol.Changes.ContractTopic.ContractType.get -> System.Type?
+Tarol.Changes.ContractTopic.ContractType.init -> void
+Tarol.Changes.ContractTopic.Deconstruct(out string! Name, out int? Version, out string? Stream, out System.Type? ContractType, out bool? Subscribe, out bool? Publish) -> void
+Tarol.Changes.ContractTopic.Equals(Tarol.Changes.ContractTopic? other) -> bool
+Tarol.Changes.ContractTopic.Name.get -> string!
+Tarol.Changes.ContractTopic.Name.init -> void
+Tarol.Changes.ContractTopic.Publish.get -> bool?
+Tarol.Changes.ContractTopic.Publish.init -> void
+Tarol.Changes.ContractTopic.Stream.get -> string?
+Tarol.Changes.ContractTopic.Stream.init -> void
+Tarol.Changes.ContractTopic.Subscribe.get -> bool?
+Tarol.Changes.ContractTopic.Subscribe.init -> void
+Tarol.Changes.ContractTopic.Version.get -> int?
+Tarol.Changes.ContractTopic.Version.init -> void
+Tarol.Changes.DeclaredNamesAttribute
+Tarol.Changes.DeclaredNamesAttribute.DeclaredNamesAttribute(string! kind, params string![]! names) -> void
+Tarol.Changes.DeclaredNamesAttribute.Kind.get -> string!
+Tarol.Changes.DeclaredNamesAttribute.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Tarol.Changes.Delivery
+Tarol.Changes.GenerateTarolModuleAttribute
+Tarol.Changes.GenerateTarolModuleAttribute.GenerateTarolModuleAttribute(string? name = null) -> void
+Tarol.Changes.GenerateTarolModuleAttribute.Name.get -> string?
 Tarol.Changes.IChange<T>
 Tarol.Changes.IChange<T>.Execute(T! aggregate, Tarol.Changes.ChangeContext context) -> Tarol.Results.Result
 Tarol.Changes.IChange<T>.Target.get -> Tarol.StronglyTypedId.Id<T!>
 Tarol.Changes.IChangeAuthorization
 Tarol.Changes.IChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Changes.IChangeAuthorization.Check<T>(object! change, T! aggregate, Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
 Tarol.Changes.IChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Changes.IChangeAuthorization.CheckList<T>(Tarol.Changes.ChangeContext context, System.Security.Claims.ClaimsPrincipal! principal, Tarol.Changes.ReadScope scope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result>
+Tarol.Changes.IChangeAuthorization.MayBeGranted(System.Type! intent, Tarol.Changes.ReadScope? scope) -> bool?
+Tarol.Changes.IContractTopics
+Tarol.Changes.IContractTopics.ContractTopics.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.ContractTopic!>!
 Tarol.Changes.ICreation<T>
 Tarol.Changes.ICreation<T>.Execute(Tarol.Changes.ChangeContext context) -> Tarol.Results.Result<T!>
 Tarol.Changes.IHasReads
 Tarol.Changes.IHasReads.LoadReads(Tarol.Persistence.IAggregateReader! reader, Tarol.Kernel.OperationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.Reads!>>
+Tarol.Changes.ILoads<T, TData>
+Tarol.Changes.ILoads<T, TData>.Execute(T! aggregate, TData data, Tarol.Changes.ChangeContext context) -> Tarol.Results.Result
+Tarol.Changes.ILoads<T, TData>.Load(Tarol.Persistence.IAggregateReader! reader, Tarol.Changes.ChangeContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.Loaded<T!, TData>>>
 Tarol.Changes.ILoads<T>
 Tarol.Changes.ILoads<T>.Load(Tarol.Persistence.IAggregateReader! reader, Tarol.Changes.ChangeContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<T!>>
+Tarol.Changes.ILoadsWithData<T>
+Tarol.Changes.ILoadsWithData<T>.ExecuteWithData(T! aggregate, object? data, Tarol.Changes.ChangeContext context) -> Tarol.Results.Result
+Tarol.Changes.ILoadsWithData<T>.LoadWithData(Tarol.Persistence.IAggregateReader! reader, Tarol.Changes.ChangeContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.Loaded<T!, object?>>>
+Tarol.Changes.IOrStart<T>
 Tarol.Changes.IOutboxRowHandler
 Tarol.Changes.IOutboxRowHandler.ActivityName(string! reaction) -> string!
 Tarol.Changes.IOutboxRowHandler.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
 Tarol.Changes.IOutboxRowHandler.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 Tarol.Changes.IOutboxRowHandler.RunPositioned(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Persistence.PositionedEvent! positioned, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Changes.IStartable<T>
+Tarol.Changes.IStartable<T>.Start(Tarol.StronglyTypedId.Id<T!> id, Tarol.Changes.ChangeContext context) -> T!
+Tarol.Changes.IStartsTarget<T>
+Tarol.Changes.IStartsTarget<T>.StartTarget(Tarol.StronglyTypedId.Id<T!> id, Tarol.Changes.ChangeContext context) -> T!
 Tarol.Changes.JobDefinition
 Tarol.Changes.JobDefinition.<Clone>$() -> Tarol.Changes.JobDefinition!
 Tarol.Changes.JobDefinition.Cron.get -> string!
@@ -115,6 +185,15 @@ Tarol.Changes.JobSet.Contains(string! name) -> bool
 Tarol.Changes.JobSet.Definitions.get -> System.Collections.Generic.IReadOnlyList<Tarol.Changes.JobDefinition!>!
 Tarol.Changes.JobSet.JobSet(System.Collections.Generic.IReadOnlyList<Tarol.Changes.JobDefinition!>! definitions, Tarol.Changes.JobRunner! runner) -> void
 Tarol.Changes.JobSet.Run(Tarol.Changes.ChangePipeline! pipeline, Tarol.Changes.JobOccurrence! occurrence, System.TimeProvider! clock, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Changes.Loaded<T, TData>
+Tarol.Changes.Loaded<T, TData>.Aggregate.get -> T
+Tarol.Changes.Loaded<T, TData>.Aggregate.init -> void
+Tarol.Changes.Loaded<T, TData>.Data.get -> TData
+Tarol.Changes.Loaded<T, TData>.Data.init -> void
+Tarol.Changes.Loaded<T, TData>.Deconstruct(out T Aggregate, out TData Data) -> void
+Tarol.Changes.Loaded<T, TData>.Equals(Tarol.Changes.Loaded<T, TData> other) -> bool
+Tarol.Changes.Loaded<T, TData>.Loaded() -> void
+Tarol.Changes.Loaded<T, TData>.Loaded(T Aggregate, TData Data) -> void
 Tarol.Changes.Missed
 Tarol.Changes.Missed.All = 1 -> Tarol.Changes.Missed
 Tarol.Changes.Missed.Latest = 0 -> Tarol.Changes.Missed
@@ -134,6 +213,19 @@ Tarol.Changes.OutboxRows.Parts.get -> System.Collections.Generic.IReadOnlyList<T
 Tarol.Changes.OutboxRows.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent) -> System.ReadOnlySpan<string!>
 Tarol.Changes.OutboxRows.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 Tarol.Changes.OutboxRows.RunPositioned(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Persistence.PositionedEvent! positioned, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
+Tarol.Changes.ReactionRun
+Tarol.Changes.ReactionRun.<Clone>$() -> Tarol.Changes.ReactionRun!
+Tarol.Changes.ReactionRun.Cause.get -> Tarol.Primitives.RecordedEvent!
+Tarol.Changes.ReactionRun.Cause.init -> void
+Tarol.Changes.ReactionRun.Deconstruct(out string! Reaction, out Tarol.Primitives.RecordedEvent! Cause, out Tarol.Results.Result<Tarol.Changes.ChangeOutcome> Result, out System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>! Recorded) -> void
+Tarol.Changes.ReactionRun.Equals(Tarol.Changes.ReactionRun? other) -> bool
+Tarol.Changes.ReactionRun.Reaction.get -> string!
+Tarol.Changes.ReactionRun.Reaction.init -> void
+Tarol.Changes.ReactionRun.ReactionRun(string! Reaction, Tarol.Primitives.RecordedEvent! Cause, Tarol.Results.Result<Tarol.Changes.ChangeOutcome> Result, System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>! Recorded) -> void
+Tarol.Changes.ReactionRun.Recorded.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.RecordedEvent!>!
+Tarol.Changes.ReactionRun.Recorded.init -> void
+Tarol.Changes.ReactionRun.Result.get -> Tarol.Results.Result<Tarol.Changes.ChangeOutcome>
+Tarol.Changes.ReactionRun.Result.init -> void
 Tarol.Changes.ReactionRunner
 Tarol.Changes.ReactionSchedule
 Tarol.Changes.ReactionSet
@@ -146,11 +238,31 @@ Tarol.Changes.ReactionSet.ReactionsTo(Tarol.Primitives.DomainEvent! domainEvent)
 Tarol.Changes.ReactionSet.Run(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 Tarol.Changes.ReactionSet.Table.get -> Tarol.Persistence.ReactionTable!
 Tarol.Changes.ReadAttribute
+Tarol.Changes.ReadAttribute.Optional.get -> bool
+Tarol.Changes.ReadAttribute.Optional.init -> void
 Tarol.Changes.ReadAttribute.ReadAttribute() -> void
+Tarol.Changes.ReadScope
+Tarol.Changes.ReadScope.Deconstruct(out System.Type! View, out bool Restricted) -> void
+Tarol.Changes.ReadScope.Equals(Tarol.Changes.ReadScope other) -> bool
+Tarol.Changes.ReadScope.ReadScope() -> void
+Tarol.Changes.ReadScope.ReadScope(System.Type! View, bool Restricted) -> void
+Tarol.Changes.ReadScope.Restricted.get -> bool
+Tarol.Changes.ReadScope.Restricted.init -> void
+Tarol.Changes.ReadScope.Sensitive.get -> bool
+Tarol.Changes.ReadScope.Sensitive.init -> void
+Tarol.Changes.ReadScope.View.get -> System.Type!
+Tarol.Changes.ReadScope.View.init -> void
 Tarol.Changes.Reads
+Tarol.Changes.Reads.Find<T>() -> T?
 Tarol.Changes.Reads.Get<T>() -> T!
 Tarol.Changes.Reads.Get<T>(string! member) -> T!
 Tarol.Changes.Reads.Reads(System.Collections.Generic.IReadOnlyDictionary<string!, object!>! byMember) -> void
+Tarol.Changes.ReadsAttribute<T>
+Tarol.Changes.ReadsAttribute<T>.Optional.get -> bool
+Tarol.Changes.ReadsAttribute<T>.Optional.init -> void
+Tarol.Changes.ReadsAttribute<T>.ReadsAttribute() -> void
+Tarol.Changes.ReadsAttribute<T>.SameIdAs.get -> string?
+Tarol.Changes.ReadsAttribute<T>.SameIdAs.init -> void
 Tarol.Changes.ScheduledAttribute
 Tarol.Changes.ScheduledAttribute.Cron.get -> string!
 Tarol.Changes.ScheduledAttribute.Missed.get -> Tarol.Changes.Missed
@@ -163,13 +275,16 @@ Tarol.Changes.ScheduledAttribute.ScheduledAttribute(string! cron) -> void
 Tarol.Changes.ScheduledAttribute.TimeZone.get -> string?
 Tarol.Changes.ScheduledAttribute.TimeZone.init -> void
 Tarol.Changes.TarolServiceCollectionExtensions
+Tarol.Changes.TenantAggregates
 Tarol.Changes.Verdict
 Tarol.Changes.Verdict.Bury = 2 -> Tarol.Changes.Verdict
 Tarol.Changes.Verdict.Done = 0 -> Tarol.Changes.Verdict
 Tarol.Changes.Verdict.Retry = 1 -> Tarol.Changes.Verdict
 const Tarol.Changes.ChangePipeline.ActivitySourceName = "Tarol.Changes" -> string!
+const Tarol.Changes.ChangePipeline.ConflictAttempts = 3 -> int
 const Tarol.Changes.ChangePipeline.MeterName = "Tarol.Changes" -> string!
 const Tarol.Changes.ChangePipeline.NotConfiguredCode = "Auth.NotConfigured" -> string!
+const Tarol.Changes.TenantAggregates.TenantRequiredCode = "Tenant.Required" -> string!
 ~override Tarol.Changes.ChangeContext.Equals(object obj) -> bool
 override Tarol.Changes.ChangeContext.GetHashCode() -> int
 ~override Tarol.Changes.ChangeContext.ToString() -> string
@@ -179,15 +294,30 @@ override Tarol.Changes.ChangeOptions.GetHashCode() -> int
 ~override Tarol.Changes.ChangeOutcome.Equals(object obj) -> bool
 override Tarol.Changes.ChangeOutcome.GetHashCode() -> int
 ~override Tarol.Changes.ChangeOutcome.ToString() -> string
+override Tarol.Changes.ChangeTestOptions.Equals(object? obj) -> bool
+override Tarol.Changes.ChangeTestOptions.GetHashCode() -> int
+override Tarol.Changes.ChangeTestOptions.ToString() -> string!
 override Tarol.Changes.ChangeTestOutcome.Equals(object? obj) -> bool
 override Tarol.Changes.ChangeTestOutcome.GetHashCode() -> int
 override Tarol.Changes.ChangeTestOutcome.ToString() -> string!
+override Tarol.Changes.ContractTopic.Equals(object? obj) -> bool
+override Tarol.Changes.ContractTopic.GetHashCode() -> int
+override Tarol.Changes.ContractTopic.ToString() -> string!
 override Tarol.Changes.JobDefinition.Equals(object? obj) -> bool
 override Tarol.Changes.JobDefinition.GetHashCode() -> int
 override Tarol.Changes.JobDefinition.ToString() -> string!
 override Tarol.Changes.JobOccurrence.Equals(object? obj) -> bool
 override Tarol.Changes.JobOccurrence.GetHashCode() -> int
 override Tarol.Changes.JobOccurrence.ToString() -> string!
+~override Tarol.Changes.Loaded<T, TData>.Equals(object obj) -> bool
+override Tarol.Changes.Loaded<T, TData>.GetHashCode() -> int
+~override Tarol.Changes.Loaded<T, TData>.ToString() -> string
+override Tarol.Changes.ReactionRun.Equals(object? obj) -> bool
+override Tarol.Changes.ReactionRun.GetHashCode() -> int
+override Tarol.Changes.ReactionRun.ToString() -> string!
+~override Tarol.Changes.ReadScope.Equals(object obj) -> bool
+override Tarol.Changes.ReadScope.GetHashCode() -> int
+~override Tarol.Changes.ReadScope.ToString() -> string
 static Tarol.Changes.ChangeContext.operator !=(Tarol.Changes.ChangeContext left, Tarol.Changes.ChangeContext right) -> bool
 static Tarol.Changes.ChangeContext.operator ==(Tarol.Changes.ChangeContext left, Tarol.Changes.ChangeContext right) -> bool
 static Tarol.Changes.ChangeOptions.operator !=(Tarol.Changes.ChangeOptions left, Tarol.Changes.ChangeOptions right) -> bool
@@ -195,8 +325,13 @@ static Tarol.Changes.ChangeOptions.operator ==(Tarol.Changes.ChangeOptions left,
 static Tarol.Changes.ChangeOutcome.operator !=(Tarol.Changes.ChangeOutcome left, Tarol.Changes.ChangeOutcome right) -> bool
 static Tarol.Changes.ChangeOutcome.operator ==(Tarol.Changes.ChangeOutcome left, Tarol.Changes.ChangeOutcome right) -> bool
 static Tarol.Changes.ChangeTest.At(System.DateTimeOffset now, System.Text.Json.JsonSerializerOptions? stateOptions = null, Tarol.Changes.IChangeAuthorization? authorization = null) -> Tarol.Changes.ChangeTest!
+static Tarol.Changes.ChangeTest.At(System.DateTimeOffset now, Tarol.Changes.ChangeTestOptions! options) -> Tarol.Changes.ChangeTest!
+static Tarol.Changes.ChangeTestOptions.operator !=(Tarol.Changes.ChangeTestOptions? left, Tarol.Changes.ChangeTestOptions? right) -> bool
+static Tarol.Changes.ChangeTestOptions.operator ==(Tarol.Changes.ChangeTestOptions? left, Tarol.Changes.ChangeTestOptions? right) -> bool
 static Tarol.Changes.ChangeTestOutcome.operator !=(Tarol.Changes.ChangeTestOutcome? left, Tarol.Changes.ChangeTestOutcome? right) -> bool
 static Tarol.Changes.ChangeTestOutcome.operator ==(Tarol.Changes.ChangeTestOutcome? left, Tarol.Changes.ChangeTestOutcome? right) -> bool
+static Tarol.Changes.ContractTopic.operator !=(Tarol.Changes.ContractTopic? left, Tarol.Changes.ContractTopic? right) -> bool
+static Tarol.Changes.ContractTopic.operator ==(Tarol.Changes.ContractTopic? left, Tarol.Changes.ContractTopic? right) -> bool
 static Tarol.Changes.Delivery.Classify(Tarol.Results.Result<Tarol.Changes.ChangeOutcome> result) -> Tarol.Changes.Verdict
 static Tarol.Changes.JobDefinition.operator !=(Tarol.Changes.JobDefinition? left, Tarol.Changes.JobDefinition? right) -> bool
 static Tarol.Changes.JobDefinition.operator ==(Tarol.Changes.JobDefinition? left, Tarol.Changes.JobDefinition? right) -> bool
@@ -207,12 +342,23 @@ static Tarol.Changes.JobSet.Context(Tarol.Changes.JobOccurrence! occurrence, Sys
 static Tarol.Changes.JobSet.Empty.get -> Tarol.Changes.JobSet!
 static Tarol.Changes.JobSet.Key(Tarol.Changes.JobOccurrence! occurrence, string? part = null) -> Tarol.Persistence.IdempotencyKey
 static Tarol.Changes.JobSet.Options(Tarol.Changes.JobOccurrence! occurrence, string? part = null) -> Tarol.Changes.ChangeOptions
+static Tarol.Changes.Loaded<T, TData>.operator !=(Tarol.Changes.Loaded<T, TData> left, Tarol.Changes.Loaded<T, TData> right) -> bool
+static Tarol.Changes.Loaded<T, TData>.operator ==(Tarol.Changes.Loaded<T, TData> left, Tarol.Changes.Loaded<T, TData> right) -> bool
 static Tarol.Changes.OutboxRows.Combine(params Tarol.Changes.IOutboxRowHandler![]! handlers) -> Tarol.Changes.OutboxRows!
+static Tarol.Changes.ReactionRun.operator !=(Tarol.Changes.ReactionRun? left, Tarol.Changes.ReactionRun? right) -> bool
+static Tarol.Changes.ReactionRun.operator ==(Tarol.Changes.ReactionRun? left, Tarol.Changes.ReactionRun? right) -> bool
 static Tarol.Changes.ReactionSet.Combine(params Tarol.Changes.ReactionSet![]! sets) -> Tarol.Changes.ReactionSet!
 static Tarol.Changes.ReactionSet.Context(string! reaction, Tarol.Primitives.RecordedEvent! recorded) -> Tarol.Kernel.OperationContext!
 static Tarol.Changes.ReactionSet.Empty.get -> Tarol.Changes.ReactionSet!
 static Tarol.Changes.ReactionSet.Options(string! reaction, Tarol.Primitives.RecordedEvent! recorded) -> Tarol.Changes.ChangeOptions
+static Tarol.Changes.ReadScope.operator !=(Tarol.Changes.ReadScope left, Tarol.Changes.ReadScope right) -> bool
+static Tarol.Changes.ReadScope.operator ==(Tarol.Changes.ReadScope left, Tarol.Changes.ReadScope right) -> bool
+static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! json, System.Action<Tarol.Persistence.EventCodec!>! aggregates) -> Tarol.Persistence.TarolBuilder!
 static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Text.Json.Serialization.JsonSerializerContext! json, System.Action<Tarol.Persistence.EventCodec!>! aggregates) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Changes.TarolServiceCollectionExtensions.AddTarol(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, params Tarol.Persistence.TarolModule![]! modules) -> Tarol.Persistence.TarolBuilder!
+static Tarol.Changes.TenantAggregates.IdOf<T>(Tarol.Kernel.OperationContext! operation) -> Tarol.StronglyTypedId.Id<T!>
+static Tarol.Changes.TenantAggregates.IdOf<T>(Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!> tenant) -> Tarol.StronglyTypedId.Id<T!>
+static Tarol.Changes.TenantAggregates.TryIdOf<T>(Tarol.Kernel.OperationContext! operation, out Tarol.StronglyTypedId.Id<T!> id) -> bool
 virtual Tarol.Changes.JobRunner.Invoke(Tarol.Changes.ChangePipeline! pipeline, Tarol.Changes.JobOccurrence! occurrence, System.TimeProvider! clock, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 virtual Tarol.Changes.ReactionRunner.Invoke(Tarol.Changes.ChangePipeline! pipeline, string! reaction, Tarol.Primitives.RecordedEvent! recorded, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Changes.ChangeOutcome>>
 virtual Tarol.Changes.ReactionSchedule.Invoke(Tarol.Primitives.DomainEvent! domainEvent, string! reaction) -> System.DateTimeOffset?
