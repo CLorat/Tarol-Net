@@ -63,6 +63,7 @@ internal sealed class TestApp : IAsyncDisposable
         foreach (var rule in new IAuthorizationHandler[] { new CloseAuctionRule(), new CreateAuctionRule(), new ReadOwnAuction() })
             builder.Services.AddSingleton(rule);
         builder.Services.AddSingleton<IDeviceGate, EndedDevices>();
+        builder.Services.AddSingleton<ICapabilityCheck, LinkCheck>();
         builder.Services.AddSingleton<AccessRecorder>().AddSingleton<Tarol.Security.IAccessObserver>(s => s.GetRequiredService<AccessRecorder>());
         if (scopes)
             builder.Services.AddSingleton<FamilyScope>().AddSingleton<IListScope<FamilyAuctions>>(s => s.GetRequiredService<FamilyScope>());

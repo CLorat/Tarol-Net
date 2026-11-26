@@ -609,10 +609,34 @@ the other pipeline tests.
 * **Tatalu:** billing and the hours account (a join over two aggregate types) become an `ISqlProjection<BillingRow>` with a list
   endpoint, instead of a hand-written port.
 
+### TN-50 Capability links (owner decision S-1; FB-F15.1-2)
+
+* **New API (`Tarol.Changes.AspNetCore`):** `EndpointAttribute.Capability`, `ICapabilityCheck`, `CapabilityRequest(Entry, Input,
+  Tenant, Token)`, `ChangeEndpoints.CapabilityInvalidCode`; for the generated code `ChangeEndpoints.CapabilityEdge` and
+  `RequireCapabilityCheck` (hidden from IntelliSense).
+* **Behaviour:** a capability entry is anonymous (`AllowAnonymous`, no grant check at startup). Its edge takes the tenant from
+  `{tenant}` (mapped like the claim, `ChangeEndpointOptions.Tenant`) and the token from `{token}` (1 to 512 characters; otherwise
+  404 `Capability.Invalid`), asks `ICapabilityCheck.Check`, and runs the change as the actor it returns, in the route's tenant,
+  with no principal: the pipeline does not ask the role map (the token is the authorization). A refusal of the check is the
+  answer. `Idempotency-Key` is scoped to `capability:<entry>:<method> <path>`; `If-Match`, `Tarol-Confirm` and the capture headers
+  work as on every entry. A signed-in caller changes nothing: the link's tenant and the check's actor apply. A host that maps a
+  capability entry without a registered check fails at startup.
+* **Refactoring:** `ChangeEndpoints.Edge` reads its headers through the same private method as `CapabilityEdge`; no behaviour change.
+* **Diagnostics:** TWEB002 for a capability entry on a read or with a `Policy`; TWEB003 without `{tenant}` and `{token}` in the route.
+* **Not in this step:** rate limiting is the application's (`RequireRateLimiting` on the mapped group); a read behind a link
+  (Tatalu's `GET /einladung/{tenant}/{token}`) stays a hand-written endpoint. The tarol-svelte client generator is unchanged:
+  the entry is in the OpenAPI document like every other.
+* **Tests [verified]:** `CapabilityTests` (AspNetCore, 4: an open link runs anonymously as the check's actor in the route's
+  tenant; unknown, expired and malformed links answer the refusal and run nothing; another tenant's link finds nothing and a
+  signed-in caller changes nothing; the idempotent retry replays, the route is in the document);
+  `A_capability_link_is_a_change_without_a_policy_with_the_tenant_and_the_token_in_its_route` (generator).
+* **Tatalu:** `InvitationEndpoints.Activate` becomes an `AcceptInvitation` change with `Capability = true` and a check over the
+  invitation's lookup hash; `eltern.ts` comes from the document.
+
 ## Open after round 3
 
 Not built yet (each with its owner decision taken, 2026-11-26): TN-49 /
-CR-3 (ports: document only), TN-50, TN-51, TN-54 rest (rows from the stored state), TN-55, TN-58 (DP2-*), TN-62 and the rest of
+CR-3 (ports: document only), TN-51, TN-54 rest (rows from the stored state), TN-55, TN-58 (DP2-*), TN-62 and the rest of
 TM-*, TN-63 rest (digest as a documented pattern, reads, correlation, recurring dates), TN-65
 `Tarol.Files` (FI-*), TN-66 Web Push (WP-*), TN-67 rest; VA-C's Development `requires` member; VA-D's policy-failure decorator
 and hub refusals; the "list rules" half of TN-44. Skills still over the 8 KB guide: `tarol-primitives`, `tarol-persistence`,
@@ -622,6 +646,7 @@ and hub refusals; the "list rules" half of TN-44. Skills still over the 8 KB gui
 
 | Task | Expected API | Mistakes to avoid |
 |---|---|---|
+| accept an invitation without signing in | `[Endpoint("POST /invitations/{tenant}/{token}/accept", Capability = true)]`, `ICapabilityCheck` | a Minimal API endpoint calling `ChangePipeline.Run`; the token stored unhashed; `Anonymous = true` (the role map then refuses the anonymous caller) |
 | billing rows computed in SQL, listed over HTTP | `[Projection("billing", Sql = true, Aggregate = typeof(Facility))]`, `ISqlProjection<BillingRow>`, `NpgsqlRows<BillingRow>.Write` | `Add<BillingRow>()`; own tables behind a hand-written port; a second connection in `Apply` |
 | a change needs the tenant's facility | `[Reads<ChildDayCare>]`, `context.Read<ChildDayCare>()` | a hand-written `IHasReads` (TCHG013) |
 | a change of a care file needs the child under the same Guid | `[Reads<Child>(SameIdAs = nameof(CareFile))]` | an extra `Id<Child>` member the client must send |

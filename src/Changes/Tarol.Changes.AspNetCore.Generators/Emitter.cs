@@ -124,7 +124,9 @@ internal static class Emitter
             sb.Append("                    Scoped = ").Append(Web).Append(".HasScope<").Append(e.FullName).Append(">(app.ServiceProvider, ")
               .Append(scoped.RequiresScope ? "true" : "false").Append("),\n");
         sb.Append("                });\n");
-        if (!e.Anonymous)
+        if (e.Capability)
+            sb.Append("            ").Append(Web).Append(".RequireCapabilityCheck(app.ServiceProvider, ").Append(Literal(e.Name)).Append(");   // TN-50: fail at startup without one\n");
+        else if (!e.Anonymous)
         {
             var read = e.Kind is EntryKind.View or EntryKind.List or EntryKind.Row;
             var what = e.Kind switch { EntryKind.View => "view", EntryKind.List => "list", EntryKind.Row => "row query", EntryKind.Creation => "creation", _ => "change" };
@@ -299,12 +301,16 @@ internal static class Emitter
             sb.Append("        if (bytes is null)\n        {\n            http.Response.StatusCode = status;                          // 413, 415\n            return;\n        }\n");
             sb.Append("        var invalid = Bind_").Append(Key(e)).Append("(web, bytes").Append(string.Concat(route.Select(m => ", route_" + m.Name))).Append(", out var input);\n");
             sb.Append("        if (invalid is not null)\n        {\n            await web.Problem(http, invalid);\n            return;\n        }\n");
-            sb.Append("        var (context, options, refused) = web.Edge(http, bytes);\n");
+            sb.Append(e.Capability
+                ? "        var (context, options, refused) = await web.CapabilityEdge(http, " + Literal(e.Name) + ", typeof(" + e.FullName + "), bytes);\n"
+                : "        var (context, options, refused) = web.Edge(http, bytes);\n");
         }
         else
         {
             sb.Append("        var input = new ").Append(e.FullName).Append('(').Append(string.Join(", ", e.Members.Select(m => "route_" + m.Name))).Append(");\n");
-            sb.Append("        var (context, options, refused) = web.Edge(http);\n");
+            sb.Append(e.Capability
+                ? "        var (context, options, refused) = await web.CapabilityEdge(http, " + Literal(e.Name) + ", typeof(" + e.FullName + "));\n"
+                : "        var (context, options, refused) = web.Edge(http);\n");
         }
         sb.Append("        if (refused is not null)\n        {\n            await web.Problem(http, refused);\n            return;\n        }\n");
         sb.Append("        var result = await web.Pipeline.Run(input").Append(e.HasBody ? "!" : "").Append(", context, options, http.RequestAborted);\n");

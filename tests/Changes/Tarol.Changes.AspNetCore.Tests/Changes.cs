@@ -127,3 +127,27 @@ public sealed class ReadOwnAuction : ChangeHandler<Read<Auction>, Auction>
         return Task.CompletedTask;
     }
 }
+
+/// <summary>TN-50 (S-1): a capability link, anonymous; the tenant and the token are the route's.</summary>
+[Endpoint("POST /links/{tenant}/{token}/close", Capability = true)]
+public sealed partial record CloseAuctionByLink(Id<Auction> Auction) : IChange<Auction>
+{
+    public Result Execute(Auction auction, ChangeContext context) => auction.Close(context.Now);
+}
+
+/// <summary>The links of the tests: "open-sesame" opens, "used" is unknown, "late" has expired.</summary>
+public sealed class LinkCheck : ICapabilityCheck
+{
+    public System.Collections.Concurrent.ConcurrentQueue<CapabilityRequest> Asked { get; } = new();
+
+    public ValueTask<Result<Tarol.Kernel.Actor>> Check(CapabilityRequest request, CancellationToken cancellationToken)
+    {
+        Asked.Enqueue(request);
+        return ValueTask.FromResult<Result<Tarol.Kernel.Actor>>(request.Token switch
+        {
+            "open-sesame" => Tarol.Kernel.Actor.System("Links"),
+            "late" => Error.Gone("Link.Expired"),
+            _ => Error.NotFound("Link.NotFound"),
+        });
+    }
+}

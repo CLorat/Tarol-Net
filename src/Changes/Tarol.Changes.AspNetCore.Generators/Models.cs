@@ -51,12 +51,15 @@ internal sealed record EntryModel(string Name, string FullName, EntryKind Kind, 
     /// <summary>A read whose granted reads are reported to the access observers (<c>Sensitive = true</c>, TN-59).</summary>
     public bool Sensitive { get; init; }
 
+    /// <summary>A capability link (<c>Capability = true</c>, TN-50): anonymous, tenant and token from the route, ICapabilityCheck.</summary>
+    public bool Capability { get; init; }
+
     public bool HasBody => Kind is not (EntryKind.View or EntryKind.List) && Members.Count > 0 && System.Linq.Enumerable.Any(Members, m => m.RouteKind is null);
 
     // equality without the location, so a moved declaration regenerates nothing
     public bool Equals(EntryModel? other) => other is not null && Name == other.Name && FullName == other.FullName && Kind == other.Kind
         && Aggregate == other.Aggregate && Verb == other.Verb && Pattern == other.Pattern && Policy == other.Policy && Anonymous == other.Anonymous
-        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable && Contextual == other.Contextual && Restricted == other.Restricted && Sensitive == other.Sensitive;
+        && Members.Equals(other.Members) && Equals(Query, other.Query) && Errors.Equals(other.Errors) && MayCreate == other.MayCreate && Startable == other.Startable && Contextual == other.Contextual && Restricted == other.Restricted && Sensitive == other.Sensitive && Capability == other.Capability;
 
     public override int GetHashCode() => (FullName, Verb, Pattern).GetHashCode();
 }

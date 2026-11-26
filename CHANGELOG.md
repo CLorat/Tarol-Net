@@ -8,6 +8,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* Capability links (TN-50, owner decision S-1): `[Endpoint("POST /…/{tenant}/{token}/…", Capability = true)]` on a change or
+  a creation is anonymous, takes the tenant from the route and asks the registered `ICapabilityCheck` (`CapabilityRequest`) for
+  the actor; no principal reaches the pipeline. `ChangeEndpoints.CapabilityInvalidCode` (`Capability.Invalid`, 404). TWEB002 and
+  TWEB003 report a capability entry on a read, with a `Policy`, or without `{tenant}` and `{token}`; a host that maps one without
+  a check does not start.
+
+### Added
+
 * Rows of an SQL projection that list and row queries read (TN-54, owner decision P-2): `[Projection(…, Sql = true, Aggregate =
   typeof(X))]` (columns only, no `When`; `X` is the aggregate whose `Read<X>` grant the endpoints need), `IProjection<TRow>.Sql`, `ISqlProjection<TRow>` (name and version from the row), `NpgsqlRows<TRow>` (`Prepare`,
   `Write`, `Remove`, `Table` in the batch transaction); `ProjectionsBuilder.Add<TRow>()` refuses such a row, and a module does not

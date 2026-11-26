@@ -36,7 +36,15 @@ internal static class Discovery
             return Fail(Diagnostics.BadRoute, route, type.Name, $"'{verb}' is not GET, POST, PUT, PATCH or DELETE");
         var pattern = route.Substring(space + 1);
         var placeholders = Placeholders(pattern);
+        var capability = attribute.NamedArguments.Any(static n => n.Key == "Capability" && n.Value.Value is true);
 
+        if (capability && (type.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() is "Tarol.Queries.IQuery<TRow>" or "Tarol.Queries.IRowQuery<TRow>"
+                                                              or "Tarol.Changes.AspNetCore.IView<TAggregate, TSelf>")))
+            return Fail(Diagnostics.NotAnEntry, type.Name, "a capability link is a change or a creation, not a read");
+        if (capability && attribute.NamedArguments.Any(static n => n.Key == "Policy" && n.Value.Value is not null))
+            return Fail(Diagnostics.NotAnEntry, type.Name, "a capability link has no Policy: the caller is not signed in, the token is the authorization");
+        if (capability && !(placeholders.Contains("tenant") && placeholders.Contains("token")))
+            return Fail(Diagnostics.RouteValue, type.Name, "a capability link names the tenant and the token in its route: \"POST /…/{tenant}/{token}…\"");
         if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IQuery<TRow>") is { } query)
             return List(type, attribute, verb, pattern, placeholders, (INamedTypeSymbol)query.TypeArguments[0], location, ct);
         if (type.AllInterfaces.FirstOrDefault(i => i.OriginalDefinition.ToDisplayString() == "Tarol.Queries.IRowQuery<TRow>") is { } rowQuery)
@@ -133,18 +141,20 @@ internal static class Discovery
                     warnings.Add(DiagnosticInfo.Create(Diagnostics.OptionDefault, location, type.Name, name));
             }
             foreach (var h in placeholders.Where(h => !ctor.Parameters.Any(p => string.Equals(h, p.Name, StringComparison.OrdinalIgnoreCase))))
-                diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name, $"the route value '{{{h}}}' is not a member of the input"));
+                if (!(capability && h is "tenant" or "token"))                          // TN-50: the edge reads them
+                    diagnostics.Add(DiagnosticInfo.Create(Diagnostics.RouteValue, location, type.Name, $"the route value '{{{h}}}' is not a member of the input"));
             if (diagnostics.Count > 0)
                 return new(null, default, new EquatableArray<DiagnosticInfo>(diagnostics.ToImmutableArray()));
         }
         var policy = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Policy").Value.Value as string;
-        var anonymous = attribute.NamedArguments.FirstOrDefault(n => n.Key == "Anonymous").Value.Value is true;
+        var anonymous = capability || attribute.NamedArguments.FirstOrDefault(n => n.Key == "Anonymous").Value.Value is true;
         var model = new EntryModel(type.Name, type.ToDisplayString(Fq), kind, aggregate, verb, pattern, policy, anonymous,
             new EquatableArray<Member>(members.ToImmutableArray()), location)
         {
             Errors = Codes(kind, aggregate, placeholders.Contains("tenant"), type, context.SemanticModel.Compilation, ct, perTenant),
             Restricted = attribute.NamedArguments.Any(static n => n.Key == "Restricted" && n.Value.Value is true),
             Sensitive = attribute.NamedArguments.Any(static n => n.Key == "Sensitive" && n.Value.Value is true),
+            Capability = capability,
             // TN-42: a load-or-create (ILoads<T>) or IOrStart<T> change may start its stream: 201 as well as 204
             MayCreate = kind == EntryKind.Change && type.AllInterfaces.Any(static i => i.OriginalDefinition.ToDisplayString() is "Tarol.Changes.ILoads<T>" or "Tarol.Changes.IOrStart<T>"),
             Contextual = kind == EntryKind.View && ViewFroms(type).Contextual,
