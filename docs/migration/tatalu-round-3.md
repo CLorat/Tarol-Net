@@ -502,8 +502,12 @@ was red before (a new API's test did not compile before), and the Tatalu file wh
   `OperationContext.Capture`; out of bounds is 400 `Future`/`TooOld`/`Format`. Both headers are in `TarolHeaders.Allowed` (CORS).
   The context's JSON carries `capture` when present (outbox, bus envelopes). `UseDeviceGate()` answers 401 with
   `WWW-Authenticate: Bearer error="invalid_token", error_description="Device.Ended"` for an ended device (a 401 has no body).
-* **Not built (TN-60b):** the PostgreSQL event columns for the capture: events read back from PostgreSQL (projections, reactions
-  fed from the store) do not carry it yet; it comes with the audit of TN-64 (AU-3). `Capture.SeenVersion` (FB-F04.6-1) is open.
+* **TN-60b (owner decision C-1):** the PostgreSQL store writes the capture to `events.device`/`captured_at` (schema version 5,
+  additive) and reads it back into `RecordedEvent.Context.Capture`, so projections and reactions fed from the store see it. Only a
+  commit with a capture names the columns, so a store keeps writing on an older schema while it is upgraded
+  (`SchemaUpgradeTests.A_populated_version_1_database_is_upgraded_while_writers_commit` pins that). Test [verified]:
+  `NpgsqlStoreTests.The_capture_of_an_offline_device_is_stored_and_read_back_with_the_event`. `Capture.SeenVersion` waits for
+  Tatalu's merge case (decision C-2).
 * **Tests [verified]:** `CaptureTests` (6 cases), `KernelJsonTests.Context_Should_CarryTheCapture` (4 modes); `FindingTests.K6_Context_Should_HoldNoRoles`
   lists `Capture` (intended).
 * **Tatalu:** `Capture` in the inputs of `AddProbeNote`/`SetProbeValue` (`backend/src/Tatalu.Shared/Sync.cs`); the client-only

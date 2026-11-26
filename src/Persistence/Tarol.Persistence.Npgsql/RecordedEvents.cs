@@ -13,9 +13,9 @@ internal static class RecordedEvents
     public static string Columns(string alias) =>
         $"{alias}.tx_id::text AS tx_text, {alias}.position, {alias}.type, {alias}.stream_id, {alias}.version, {alias}.entity_id, {alias}.parent_id, "
         + $"{alias}.alias, {alias}.alias_version, {alias}.payload, {alias}.event_id, {alias}.recorded_at, {alias}.actor_kind, {alias}.actor_id, "
-        + $"{alias}.on_behalf_of, {alias}.correlation_id, {alias}.causation_id, {alias}.tenant";
+        + $"{alias}.on_behalf_of, {alias}.correlation_id, {alias}.causation_id, {alias}.tenant, {alias}.device, {alias}.captured_at";
 
-    public const int Count = 18;
+    public const int Count = 20;
 
     /// <summary>A recorded event as read, its payload still stored (sealed fields sealed).</summary>
     public sealed record Raw(GlobalPosition Position, string StreamType, Guid Tenant, Guid StreamId, long Version, Guid EntityId, Guid ParentId,
@@ -27,7 +27,13 @@ internal static class RecordedEvents
         var actor = new Actor(Enum.Parse<ActorKind>(reader.GetString(offset + 12)), reader.GetString(offset + 13),
             reader.IsDBNull(offset + 14) ? Option.None : reader.GetString(offset + 14));
         var context = new OperationContext(actor, tenant == Guid.Empty ? Option.None : (Id<ITenant>)tenant,
-            (Id<ICorrelation>)reader.GetGuid(offset + 15), reader.IsDBNull(offset + 16) ? Option.None : (Id<ICausation>)reader.GetGuid(offset + 16));
+            (Id<ICorrelation>)reader.GetGuid(offset + 15), reader.IsDBNull(offset + 16) ? Option.None : (Id<ICausation>)reader.GetGuid(offset + 16))
+        {
+            // TN-60b: the capture of an offline device, when the commit had one
+            Capture = reader.IsDBNull(offset + 18) && reader.IsDBNull(offset + 19) ? null
+                : new Capture(reader.IsDBNull(offset + 18) ? null : reader.GetString(offset + 18),
+                    reader.IsDBNull(offset + 19) ? null : reader.GetFieldValue<DateTimeOffset>(offset + 19)),
+        };
         return new Raw(
             new GlobalPosition(ulong.Parse(reader.GetString(offset), CultureInfo.InvariantCulture), reader.GetInt64(offset + 1)),
             reader.GetString(offset + 2), tenant, reader.GetGuid(offset + 3), reader.GetInt64(offset + 4), reader.GetGuid(offset + 5),

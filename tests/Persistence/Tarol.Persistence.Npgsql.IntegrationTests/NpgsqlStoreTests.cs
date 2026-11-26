@@ -108,6 +108,29 @@ public sealed class NpgsqlStoreTests(Postgres postgres)
     }
 
     [Fact]
+    public async Task The_capture_of_an_offline_device_is_stored_and_read_back_with_the_event()   // TN-60b
+    {
+        var store = postgres.Store(_time);
+        var at = new DateTimeOffset(2026, 11, 26, 7, 31, 0, 250, TimeSpan.FromHours(1));
+        var captured = NewTenant() with { Capture = new Capture("tab-7", at) };
+        var direct = NewTenant();
+        var offline = Member.Join(Id<Member>.New(_time), "offline@x");
+        var online = Member.Join(Id<Member>.New(_time), "online@x");
+        await Committed(store, offline, captured);
+        await Committed(store, online, direct);
+
+        var events = new List<PositionedEvent>();
+        await foreach (var e in store.ReadAll(GlobalPosition.Start, 10_000, Ct))
+            if (e.Event.StreamId == offline.Id.Value || e.Event.StreamId == online.Id.Value)
+                events.Add(e);
+
+        var read = events.Single(e => e.Event.StreamId == offline.Id.Value).Event.Context.Capture.ShouldNotBeNull();
+        (read.Device, read.At).ShouldBe(("tab-7", at));
+        events.Single(e => e.Event.StreamId == online.Id.Value).Event.Context.Capture.ShouldBeNull();
+        (await postgres.Scalar($"SELECT device FROM tarol.events WHERE stream_id = '{offline.Id.Value}'")).ShouldBe("tab-7");
+    }
+
+    [Fact]
     public async Task Stream_ids_list_one_type_without_erased_tenants()                       // TN-56
     {
         var store = postgres.Store(_time);

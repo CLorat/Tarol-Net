@@ -164,7 +164,8 @@ public static partial class NpgsqlSchema
     /// <c>subject_keys</c>, the nullable <c>subjects</c> columns of <c>events</c> and <c>streams</c>, and the GIN index
     /// <c>events_subjects</c> built concurrently (data protection, step 16). Version 4 (compatible from 1): the index
     /// <c>streams_retention</c> on <c>streams (type, updated_at)</c> built concurrently (the retention's scan). Version 5 (compatible
-    /// from 1): the nullable <c>refusal</c> column of <c>idempotency_keys</c> (TN-46, a committing refusal replays as itself).
+    /// from 1): the nullable <c>refusal</c> column of <c>idempotency_keys</c> (TN-46, a committing refusal replays as itself) and the nullable
+    /// <c>device</c> and <c>captured_at</c> columns of <c>events</c> (TN-60b, the capture of an offline device).
     /// </summary>
     /// <param name="schema">The PostgreSQL schema name.</param>
     /// <returns>The steps, in order.</returns>
@@ -205,6 +206,8 @@ public static partial class NpgsqlSchema
             new(4, 1, $"CREATE INDEX CONCURRENTLY IF NOT EXISTS streams_retention ON {s}.streams (type, updated_at)", Concurrently: true, Index: "streams_retention"),
             // version 5 (TN-46): the refusal a committing change answered, stored with its idempotency key; additive
             new(5, 1, $"ALTER TABLE {s}.idempotency_keys ADD COLUMN IF NOT EXISTS refusal jsonb NULL"),
+            // version 5 (TN-60b): the device and time an offline outbox captured a commit at; additive
+            new(5, 1, $"ALTER TABLE {s}.events ADD COLUMN IF NOT EXISTS device text NULL, ADD COLUMN IF NOT EXISTS captured_at timestamptz NULL"),
         ];
     }
 
