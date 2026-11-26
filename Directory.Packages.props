@@ -40,7 +40,7 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
     <!-- FakeTimeProvider: the test clock Tarol recommends instead of an ambient clock (docs/architecture/time.md). -->
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="11.0.0" />
     <PackageVersion Include="Testcontainers" Version="4.17.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.17.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
