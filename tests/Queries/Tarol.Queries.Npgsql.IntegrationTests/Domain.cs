@@ -161,7 +161,55 @@ public sealed partial record MedicationOrderRow(Guid Id, Guid Child, [Sort] Date
     public static MedicationOrderRow When(MedicationOrder.Ordered e, RecordedEvent r) => new(r.StreamId, e.Child, e.From, e.Until, e.Order, e.Limit);
 }
 
+/// <summary>A kennel and its dogs: entities of the kennel's stream (TN-54, P-1).</summary>
+public partial class Kennel : AggregateRoot<Kennel>
+{
+    public EntitySet<Dog> Dogs { get; } = [];
+    public string Name { get; private set; } = "";
+
+    public static Kennel Open(string name)
+    {
+        var kennel = new Kennel(Id<Kennel>.New(Postgres.Now));
+        kennel.Raise(new Opened(name));
+        return kennel;
+    }
+
+    public Dog Add(string name) => Raise(new Dog.Added(name));
+
+    public sealed record Opened(string Name) : Event;
+
+    private void On(Opened e) => Name = e.Name;
+}
+
+public partial class Dog : Entity<Kennel, Dog>
+{
+    public string Name { get; private set; } = "";
+
+    public Success Rename(string name) => Raise(new Renamed(name));
+
+    public sealed record Added(string Name) : Created;
+
+    public sealed record Renamed(string Name) : Event;
+
+    private void On(Added e) => Name = e.Name;
+
+    private void On(Renamed e) => Name = e.Name;
+}
+
+/// <summary>One row per dog (TN-54, P-1).</summary>
+[Projection("dog-list", PerEntity = true)]
+public sealed partial record DogRow(Guid Id, Guid Kennel, [Sort] string Name)
+{
+    public static DogRow When(Dog.Added e, RecordedEvent r) => new(r.Event.EntityId, r.StreamId, e.Name);
+
+    public DogRow When(Dog.Renamed e) => this with { Name = e.Name };
+}
+
 [System.Text.Json.Serialization.JsonSourceGenerationOptions(PropertyNamingPolicy = System.Text.Json.Serialization.JsonKnownNamingPolicy.CamelCase)]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Kennel.Opened), TypeInfoPropertyName = "KennelOpened")]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Dog.Added))]
+[System.Text.Json.Serialization.JsonSerializable(typeof(Dog.Renamed), TypeInfoPropertyName = "DogRenamed")]
+[System.Text.Json.Serialization.JsonSerializable(typeof(DogRow))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.Opened))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.BidPlaced))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(Auction.Closed))]

@@ -26,6 +26,9 @@ internal sealed record ProjectionModel(
     /// <summary>The row has <c>static TRow Empty(RecordedEvent r)</c>: the start of an instance <c>When</c> on a new stream (TN-54).</summary>
     public bool HasEmpty { get; init; }
 
+    /// <summary><c>[Projection(…, PerEntity = true)]</c>: one row per entity (TN-54, P-1).</summary>
+    public bool PerEntity { get; init; }
+
     public string HintName => (Namespace is null ? "" : Namespace + ".") + string.Join(".", ContainingTypes.Select(static c => c.Substring(c.LastIndexOf(' ') + 1))) + (ContainingTypes.IsEmpty ? "" : ".") + Name + ".Projection.g.cs";
 }
 

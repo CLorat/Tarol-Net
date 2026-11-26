@@ -1,1 +1,132 @@
 #nullable enable
+<<<<<<< HEAD
+=======
+Tarol.Queries.AtLeastAttribute
+Tarol.Queries.AtLeastAttribute.AtLeastAttribute(string! member) -> void
+Tarol.Queries.AtLeastAttribute.Member.get -> string!
+Tarol.Queries.AtMostAttribute
+Tarol.Queries.AtMostAttribute.AtMostAttribute(string! member) -> void
+Tarol.Queries.AtMostAttribute.Member.get -> string!
+Tarol.Queries.ColumnType.Date = 9 -> Tarol.Queries.ColumnType
+Tarol.Queries.ColumnType.Time = 10 -> Tarol.Queries.ColumnType
+Tarol.Queries.IProjection<TRow>.PerEntity.get -> bool
+Tarol.Queries.IReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.IRowQuery<TRow>
+Tarol.Queries.InMemoryReadModelStore<TRow>.RemoveStreams(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! streams, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.ListQuery.Ranges.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.RangeFilter>!
+Tarol.Queries.ListQuery.Ranges.init -> void
+Tarol.Queries.ListQuery.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilter!>!
+Tarol.Queries.ListQuery.Sets.init -> void
+Tarol.Queries.ListQuery.Within(Tarol.Queries.ListScope! scope) -> Tarol.Queries.ListQuery!
+Tarol.Queries.ListQueryPlan<TRow>.Matches(Tarol.Queries.Versioned<TRow!>! row) -> bool
+Tarol.Queries.ListQueryPlan<TRow>.Ranges.get -> System.Collections.Generic.IReadOnlyList<(Tarol.Queries.ProjectionColumn<TRow!>! Column, Tarol.Queries.RangeBound Bound, object! Value)>!
+Tarol.Queries.ListQueryPlan<TRow>.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilterPlan<TRow!>!>!
+Tarol.Queries.ListScope
+Tarol.Queries.ListScope.AndIn<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.ListScope!
+Tarol.Queries.ListScope.AndWhere(string! column, object? value) -> Tarol.Queries.ListScope!
+Tarol.Queries.ListScope.Filters.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ColumnFilter>!
+Tarol.Queries.ListScope.IsAll.get -> bool
+Tarol.Queries.ListScope.Sets.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.SetFilter!>!
+Tarol.Queries.ProjectionArrayColumn<TRow, TElement>
+Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.ProjectionArrayColumn(string! name, string! member, Tarol.Queries.ColumnType type, bool nullable, System.Func<TRow, TElement[]?>! get) -> void
+Tarol.Queries.ProjectionAttribute.PerEntity.get -> bool
+Tarol.Queries.ProjectionAttribute.PerEntity.set -> void
+Tarol.Queries.ProjectionColumn<TRow>.IsArray.get -> bool
+Tarol.Queries.ProjectionColumn<TRow>.Matches(TRow row, System.Collections.Generic.IReadOnlySet<object!>! values) -> bool
+Tarol.Queries.ProjectionFailure
+Tarol.Queries.ProjectionFailure.<Clone>$() -> Tarol.Queries.ProjectionFailure!
+Tarol.Queries.ProjectionFailure.At.get -> System.DateTimeOffset
+Tarol.Queries.ProjectionFailure.At.init -> void
+Tarol.Queries.ProjectionFailure.Deconstruct(out string! Message, out int Failures, out System.DateTimeOffset At, out bool Prepared) -> void
+Tarol.Queries.ProjectionFailure.Equals(Tarol.Queries.ProjectionFailure? other) -> bool
+Tarol.Queries.ProjectionFailure.Failures.get -> int
+Tarol.Queries.ProjectionFailure.Failures.init -> void
+Tarol.Queries.ProjectionFailure.Message.get -> string!
+Tarol.Queries.ProjectionFailure.Message.init -> void
+Tarol.Queries.ProjectionFailure.Prepared.get -> bool
+Tarol.Queries.ProjectionFailure.Prepared.init -> void
+Tarol.Queries.ProjectionFailure.ProjectionFailure(string! Message, int Failures, System.DateTimeOffset At, bool Prepared) -> void
+Tarol.Queries.ProjectionHost.LastFailure.get -> Tarol.Queries.ProjectionFailure?
+Tarol.Queries.ProjectionHost.WaitUntilCurrent(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Tarol.Queries.ProjectionHosts
+Tarol.Queries.ProjectionHosts.All.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ProjectionHost!>!
+Tarol.Queries.ProjectionHosts.Building.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Queries.ProjectionHosts.Failing.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Tarol.Queries.ProjectionHosts.ProjectionHosts(System.Collections.Generic.IEnumerable<Tarol.Queries.ProjectionHost!>! hosts) -> void
+Tarol.Queries.ProjectionHosts.WaitUntilCurrent(System.TimeSpan timeout, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+Tarol.Queries.ProjectionModule
+Tarol.Queries.ProjectionModule.<Clone>$() -> Tarol.Queries.ProjectionModule!
+Tarol.Queries.ProjectionModule.Add.get -> System.Action<Tarol.Queries.ProjectionsBuilder!>!
+Tarol.Queries.ProjectionModule.Add.init -> void
+Tarol.Queries.ProjectionModule.Deconstruct(out System.Action<Tarol.Queries.ProjectionsBuilder!>! Add) -> void
+Tarol.Queries.ProjectionModule.Equals(Tarol.Queries.ProjectionModule? other) -> bool
+Tarol.Queries.ProjectionModule.ProjectionModule(System.Action<Tarol.Queries.ProjectionsBuilder!>! Add) -> void
+Tarol.Queries.ProjectionOptions.ErasureWait.get -> System.TimeSpan
+Tarol.Queries.ProjectionOptions.ErasureWait.set -> void
+Tarol.Queries.ProjectionsBuilder.Add(System.Collections.Generic.IEnumerable<Tarol.Persistence.TarolModule!>! modules) -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.ProjectionsBuilder.AddModules() -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.ProjectionsBuilder.ReadyWhenCurrent() -> Tarol.Queries.ProjectionsBuilder!
+Tarol.Queries.RangeBound
+Tarol.Queries.RangeBound.AtLeast = 0 -> Tarol.Queries.RangeBound
+Tarol.Queries.RangeBound.AtMost = 1 -> Tarol.Queries.RangeBound
+Tarol.Queries.RangeFilter
+Tarol.Queries.RangeFilter.Bound.get -> Tarol.Queries.RangeBound
+Tarol.Queries.RangeFilter.Bound.init -> void
+Tarol.Queries.RangeFilter.Column.get -> string!
+Tarol.Queries.RangeFilter.Column.init -> void
+Tarol.Queries.RangeFilter.Deconstruct(out string! Column, out Tarol.Queries.RangeBound Bound, out object! Value) -> void
+Tarol.Queries.RangeFilter.Equals(Tarol.Queries.RangeFilter other) -> bool
+Tarol.Queries.RangeFilter.RangeFilter() -> void
+Tarol.Queries.RangeFilter.RangeFilter(string! Column, Tarol.Queries.RangeBound Bound, object! Value) -> void
+Tarol.Queries.RangeFilter.Value.get -> object!
+Tarol.Queries.RangeFilter.Value.init -> void
+Tarol.Queries.SetFilter
+Tarol.Queries.SetFilter.<Clone>$() -> Tarol.Queries.SetFilter!
+Tarol.Queries.SetFilter.Column.get -> string!
+Tarol.Queries.SetFilter.Column.init -> void
+Tarol.Queries.SetFilter.Deconstruct(out string! Column, out System.Collections.Generic.IReadOnlyCollection<object!>! Values) -> void
+Tarol.Queries.SetFilter.Equals(Tarol.Queries.SetFilter? other) -> bool
+Tarol.Queries.SetFilter.SetFilter(string! Column, System.Collections.Generic.IReadOnlyCollection<object!>! Values) -> void
+Tarol.Queries.SetFilter.Values.get -> System.Collections.Generic.IReadOnlyCollection<object!>!
+Tarol.Queries.SetFilter.Values.init -> void
+Tarol.Queries.SetFilterPlan<TRow>
+Tarol.Queries.SetFilterPlan<TRow>.Column.get -> Tarol.Queries.ProjectionColumn<TRow!>?
+Tarol.Queries.SetFilterPlan<TRow>.Matches(Tarol.Queries.Versioned<TRow!>! row) -> bool
+Tarol.Queries.SetFilterPlan<TRow>.Name.get -> string!
+Tarol.Queries.SetFilterPlan<TRow>.Type.get -> Tarol.Queries.ColumnType
+Tarol.Queries.SetFilterPlan<TRow>.Values.get -> System.Collections.Generic.IReadOnlyList<object!>!
+Tarol.Queries.Versioned<TRow>.Stream.get -> System.Guid
+Tarol.Queries.Versioned<TRow>.Stream.init -> void
+const Tarol.Queries.SetFilter.IdColumn = "id" -> string!
+override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.CompareTo(TRow row, object? value) -> int
+override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.Value(TRow row) -> object?
+override Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.Values(System.Collections.Generic.IReadOnlyList<TRow>! rows) -> System.Array!
+override Tarol.Queries.ProjectionFailure.Equals(object? obj) -> bool
+override Tarol.Queries.ProjectionFailure.GetHashCode() -> int
+override Tarol.Queries.ProjectionFailure.ToString() -> string!
+override Tarol.Queries.ProjectionModule.Equals(object? obj) -> bool
+override Tarol.Queries.ProjectionModule.GetHashCode() -> int
+override Tarol.Queries.ProjectionModule.ToString() -> string!
+~override Tarol.Queries.RangeFilter.Equals(object obj) -> bool
+override Tarol.Queries.RangeFilter.GetHashCode() -> int
+~override Tarol.Queries.RangeFilter.ToString() -> string
+override Tarol.Queries.SetFilter.Equals(object? obj) -> bool
+override Tarol.Queries.SetFilter.GetHashCode() -> int
+override Tarol.Queries.SetFilter.ToString() -> string!
+static Tarol.Queries.ColumnValues.Time(System.TimeOnly value) -> System.TimeOnly
+static Tarol.Queries.ColumnValues.Time(System.TimeOnly? value) -> System.TimeOnly?
+static Tarol.Queries.Cursor.Hash(System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, object? Value)>! filters, System.Collections.Generic.IEnumerable<(string! Column, Tarol.Queries.ColumnType Type, System.Collections.Generic.IReadOnlyList<object!>! Values)>! sets) -> ulong
+static Tarol.Queries.ListScope.All.get -> Tarol.Queries.ListScope!
+static Tarol.Queries.ListScope.In<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.ListScope!
+static Tarol.Queries.ListScope.None.get -> Tarol.Queries.ListScope!
+static Tarol.Queries.ListScope.Where(string! column, object? value) -> Tarol.Queries.ListScope!
+static Tarol.Queries.ProjectionFailure.operator !=(Tarol.Queries.ProjectionFailure? left, Tarol.Queries.ProjectionFailure? right) -> bool
+static Tarol.Queries.ProjectionFailure.operator ==(Tarol.Queries.ProjectionFailure? left, Tarol.Queries.ProjectionFailure? right) -> bool
+static Tarol.Queries.ProjectionModule.operator !=(Tarol.Queries.ProjectionModule? left, Tarol.Queries.ProjectionModule? right) -> bool
+static Tarol.Queries.ProjectionModule.operator ==(Tarol.Queries.ProjectionModule? left, Tarol.Queries.ProjectionModule? right) -> bool
+static Tarol.Queries.RangeFilter.operator !=(Tarol.Queries.RangeFilter left, Tarol.Queries.RangeFilter right) -> bool
+static Tarol.Queries.RangeFilter.operator ==(Tarol.Queries.RangeFilter left, Tarol.Queries.RangeFilter right) -> bool
+static Tarol.Queries.SetFilter.Of<T>(string! column, System.Collections.Generic.IEnumerable<T>! values) -> Tarol.Queries.SetFilter!
+static Tarol.Queries.SetFilter.operator !=(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool
+static Tarol.Queries.SetFilter.operator ==(Tarol.Queries.SetFilter? left, Tarol.Queries.SetFilter? right) -> bool
+>>>>>>> 6928289 (queries: projection rows per entity (TN-54, owner decision P-1))

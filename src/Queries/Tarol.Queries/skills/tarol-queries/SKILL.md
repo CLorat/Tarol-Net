@@ -25,7 +25,9 @@ description: >-
    A calendar day (attendance, a closing day, `ValidUntil`) is a `DateOnly`, never a `DateTimeOffset` at midnight.
    Query string: `?day=2026-11-24` (`yyyy-MM-dd` only), `?at=08:15` or `08:15:30` (no zone); other forms are `Format`. Members named `Id`, `Tenant`, `Version`, `Doc` and non-scalars live only in the row's JSON.
    `[Sort]` marks a non-nullable column as a sort (an index per sort).
-4. Rows are per stream and keyed (tenant, stream id). For totals across streams write an `ISqlProjection`.
+4. Rows are per stream and keyed (tenant, stream id). `[Projection("dog-list", PerEntity = true)]` keys them by the entity id
+   instead (root events are not applied; `When(Dog.Added e, RecordedEvent r)` takes `r.Event.EntityId`); erasure and retention
+   still find them by stream. For totals across streams write an `ISqlProjection`.
 5. To change a row's shape or logic, raise `Version`: the new version builds from the start of the feed next to the
    old one (`ProjectionState.Building` until it is `Current`). Never alter or truncate a read table.
 6. Host projections in the worker: `builder.UseInMemoryReadModels()` (or `UseNpgsqlReadModels()`) in every process that

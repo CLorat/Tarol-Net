@@ -23,6 +23,9 @@ public interface IProjection<TRow>
     /// <summary>The typed columns: every scalar member of the row except <c>Tenant</c>, <c>Id</c>, <c>Version</c> and <c>Doc</c>.</summary>
     static abstract IReadOnlyList<ProjectionColumn<TRow>> Columns { get; }
 
+    /// <summary>Whether the rows are per entity (<see cref="ProjectionAttribute.PerEntity"/>): keyed by the event's entity id (TN-54).</summary>
+    static virtual bool PerEntity => false;
+
     /// <summary>
     /// Applies one event: the new row (a static <c>When</c> when <paramref name="row"/> is <see langword="null"/>, an instance
     /// <c>When</c> otherwise), the same instance when no <c>When</c> handles the event, or <see langword="null"/> when there is

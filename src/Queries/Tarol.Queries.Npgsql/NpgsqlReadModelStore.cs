@@ -59,6 +59,16 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         var select = new StringBuilder("c1, c2, c3");
         var updates = new StringBuilder("version = excluded.version");
         var p = 3;
+        if (TRow.PerEntity)
+        {
+            // TN-54: the row's stream, for erasure and retention by stream
+            p++;
+            names.Append(", stream_id");
+            arrays.Append(", $4::uuid[]");
+            aliases.Append(", c4");
+            select.Append(", c4");
+            updates.Append(", stream_id = excluded.stream_id");
+        }
         foreach (var column in _columns)
         {
             p++;
@@ -92,7 +102,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
             WHERE name = $1 AND version = $2 AND tx = $6::text::xid8 AND pos = $7
             """;
         _checkpoint = $"SELECT tx::text, pos, state FROM {schema}.projections WHERE name = $1 AND version = $2";
-        _load = $"SELECT tenant, id, version, doc::text FROM {Table} WHERE (tenant, id) IN (SELECT * FROM unnest($1::uuid[], $2::uuid[]))";
+        _load = $"SELECT tenant, id, version, doc::text{(TRow.PerEntity ? ", stream_id" : "")} FROM {Table} WHERE (tenant, id) IN (SELECT * FROM unnest($1::uuid[], $2::uuid[]))";
     }
 
     /// <summary>The error code of <see cref="Search"/> before any host prepared the table (<see cref="ErrorType.Unavailable"/>: HTTP 503).</summary>
@@ -234,7 +244,7 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             var key = new RowKey(reader.GetGuid(0), reader.GetGuid(1));
-            found[key] = new Versioned<TRow>(key, reader.GetInt64(2), Deserialize(reader.GetString(3)));
+            found[key] = new Versioned<TRow>(key, reader.GetInt64(2), Deserialize(reader.GetString(3))) { Stream = TRow.PerEntity ? reader.GetGuid(4) : key.Id };
         }
         return found;
     }
@@ -302,6 +312,27 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         await using var command = _db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.id = k.id");
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Tenant).ToArray() });
         command.Parameters.Add(new NpgsqlParameter { Value = keys.Select(static k => k.Id).ToArray() });
+        try
+        {
+            return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            return 0;                                                             // TN-25: no table, no rows
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> RemoveStreams(IReadOnlyCollection<RowKey> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        if (!TRow.PerEntity)
+            return await Remove(streams, cancellationToken).ConfigureAwait(false);
+        if (streams.Count == 0)
+            return 0;
+        await using var command = _db.CreateCommand($"DELETE FROM {Table} t USING unnest($1::uuid[], $2::uuid[]) AS k(tenant, id) WHERE t.tenant = k.tenant AND t.stream_id = k.id");
+        command.Parameters.Add(new NpgsqlParameter { Value = streams.Select(static k => k.Tenant).ToArray() });
+        command.Parameters.Add(new NpgsqlParameter { Value = streams.Select(static k => k.Id).ToArray() });
         try
         {
             return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -452,6 +483,8 @@ public sealed class NpgsqlReadModelStore<TRow> : IReadModelStore<TRow>
         parameters.Add(new NpgsqlParameter { Value = tenants });
         parameters.Add(new NpgsqlParameter { Value = ids });
         parameters.Add(new NpgsqlParameter { Value = versions });
+        if (TRow.PerEntity)
+            parameters.Add(new NpgsqlParameter { Value = rows.Select(static r => r.Stream).ToArray() });
         foreach (var column in _columns)
             parameters.Add(ColumnParameter(column, values));
         parameters.Add(new NpgsqlParameter { Value = docs, NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Jsonb });

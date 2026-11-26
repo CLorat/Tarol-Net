@@ -95,6 +95,14 @@ public sealed class CachedReadModels : IReadModels
             return removed;
         }
 
+        public async ValueTask<int> RemoveStreams(IReadOnlyCollection<RowKey> streams, CancellationToken cancellationToken)
+        {
+            var removed = await inner.RemoveStreams(streams, cancellationToken).ConfigureAwait(false);
+            foreach (var tenant in streams.Select(static k => k.Tenant).Distinct())
+                models.Cache.Clear(tenant);
+            return removed;
+        }
+
         public async ValueTask<Result<Page<TRow>>> Search(ListQuery query, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(query);

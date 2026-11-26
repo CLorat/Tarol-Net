@@ -99,6 +99,19 @@ public sealed class InMemoryReadModelStore<TRow> : IReadModelStore<TRow>
     }
 
     /// <inheritdoc />
+    public ValueTask<int> RemoveStreams(IReadOnlyCollection<RowKey> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        cancellationToken.ThrowIfCancellationRequested();
+        var wanted = streams.ToHashSet();
+        var removed = 0;
+        lock (_gate)
+            foreach (var key in _rows.Values.Where(r => wanted.Contains(new RowKey(r.Key.Tenant, r.Stream))).Select(static r => r.Key).ToList())
+                removed += _rows.Remove(key) ? 1 : 0;
+        return ValueTask.FromResult(removed);
+    }
+
+    /// <inheritdoc />
     public ValueTask<Versioned<TRow>?> Find(RowKey key, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

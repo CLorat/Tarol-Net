@@ -27,6 +27,13 @@ public sealed class ProjectionAttribute(string name) : Attribute
     /// the start of the feed next to the old one, which keeps serving the code that reads it.
     /// </summary>
     public int Version { get; set; } = 1;
+
+    /// <summary>
+    /// One row per entity instead of per stream (TN-54, owner decision P-1): the row key is the event's entity id, events of the
+    /// aggregate root are not applied, and the row keeps its stream for erasure and retention (an indexed <c>stream_id</c> column
+    /// in PostgreSQL). The <c>When</c> methods take the entity's events, e.g. <c>static AllergyRow When(Allergy.Noted e, RecordedEvent r)</c>.
+    /// </summary>
+    public bool PerEntity { get; set; }
 }
 
 /// <summary>

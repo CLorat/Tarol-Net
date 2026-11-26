@@ -68,7 +68,7 @@ public sealed class ProjectionEraser<TRow> : ErasureParticipant
         ArgumentNullException.ThrowIfNull(streams);
         var keys = streams.Where(static s => s.StreamType == TRow.StreamType).Select(static s => new RowKey(s.Tenant, s.Id)).ToArray();
         if (keys.Length > 0)
-            await Rows.Remove(keys, cancellationToken).ConfigureAwait(false);
+            await Rows.RemoveStreams(keys, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Folds each stream from its first event, as the host does, and replaces or removes its row.</summary>
@@ -80,6 +80,8 @@ public sealed class ProjectionEraser<TRow> : ErasureParticipant
         ArgumentNullException.ThrowIfNull(streams);
         var replaced = new List<Versioned<TRow>>();
         var removed = new List<RowKey>();
+        if (TRow.PerEntity)
+            return await RefoldPerEntity(streams, cancellationToken).ConfigureAwait(false);
         foreach (var stream in streams)
         {
             var events = await Store.ReadStream(stream, cancellationToken).ConfigureAwait(false);
@@ -104,5 +106,31 @@ public sealed class ProjectionEraser<TRow> : ErasureParticipant
             await Rows.Replace(replaced, cancellationToken).ConfigureAwait(false);
         var gone = removed.Count > 0 ? await Rows.Remove(removed, cancellationToken).ConfigureAwait(false) : 0;
         return (replaced.Count, gone);
+    }
+
+    // TN-54 (P-1): the rows of a stream are its entities' rows: drop them, then write what the stream folds to now
+    private async Task<(int Replaced, int Removed)> RefoldPerEntity(IReadOnlyList<StreamRef> streams, CancellationToken cancellationToken)
+    {
+        var replaced = new List<Versioned<TRow>>();
+        foreach (var stream in streams)
+        {
+            var rows = new Dictionary<Guid, (TRow? Row, long Version)>();
+            foreach (var e in await Store.ReadStream(stream, cancellationToken).ConfigureAwait(false))
+            {
+                var entity = e.Event.Event.EntityId;
+                if (entity == Guid.Empty)
+                    continue;
+                rows.TryGetValue(entity, out var current);
+                var next = TRow.Apply(current.Row, e.Event);
+                rows[entity] = (next, next is not null && !ReferenceEquals(next, current.Row) ? e.Event.Event.Version : current.Version);
+            }
+            foreach (var (entity, (row, version)) in rows)
+                if (row is not null)
+                    replaced.Add(new Versioned<TRow>(new RowKey(stream.Tenant, entity), version, row) { Stream = stream.Id });
+        }
+        var gone = await Rows.RemoveStreams([.. streams.Select(static s => new RowKey(s.Tenant, s.Id))], cancellationToken).ConfigureAwait(false);
+        if (replaced.Count > 0)
+            await Rows.Replace(replaced, cancellationToken).ConfigureAwait(false);
+        return (replaced.Count, Math.Max(0, gone - replaced.Count));
     }
 }

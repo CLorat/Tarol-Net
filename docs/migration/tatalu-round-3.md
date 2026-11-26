@@ -541,6 +541,19 @@ packages); `eng/aot-smoke.sh` exit 0 (221 checks, 0 IL warnings). Tarol-Svelte `
 Suppressions: `CA1859` on one test helper (`LoadsWithDataTests`, justified); `TVAL006` file-level in `CommitAndRefuseTests` as in
 the other pipeline tests.
 
+## After 0.1.0-preview.6
+
+### TN-54 Rows per entity (owner decision P-1; FB-F01.2-3)
+
+* **New API (`Tarol.Queries`):** `ProjectionAttribute.PerEntity`, `IProjection<TRow>.PerEntity` (static virtual, default `false`,
+  generated), `Versioned<TRow>.Stream`, `IReadModelStore<TRow>.RemoveStreams` (default: by key, right for rows per stream).
+* **Behaviour:** a per-entity projection keys its rows (tenant, entity id), applies only entity events (root events are skipped),
+  and keeps the stream on the row: in PostgreSQL an indexed `stream_id` column (only in per-entity tables; existing tables are
+  unchanged). Erasure re-folds per entity and removes by stream; retention removes by stream.
+* **Tests [verified]:** `PerEntityTests` (Queries.Tests, 2; Npgsql integration, 1: SQL answers like the in-memory store, the
+  `stream_id` index, removal by stream).
+* **Tatalu:** projections that flattened entity lists into one row per stream (allergies, contacts) may become one row per entity.
+
 ## Open after round 3
 
 Not built yet (each with its owner decision taken, 2026-11-26): TN-47 with TN-83 (reactions: needs a design note), TN-49 /

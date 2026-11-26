@@ -6,6 +6,11 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* Projection rows per entity: `[Projection(…, PerEntity = true)]`, `IProjection<TRow>.PerEntity`, `Versioned<TRow>.Stream`,
+  `IReadModelStore<TRow>.RemoveStreams`; a per-entity read table has an indexed `stream_id` column (TN-54, owner decision P-1).
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
