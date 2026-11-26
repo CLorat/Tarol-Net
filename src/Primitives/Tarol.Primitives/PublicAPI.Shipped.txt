@@ -36,6 +36,19 @@ Tarol.Primitives.AggregateTest<TSelf>.And(System.Func<TSelf!, Tarol.Results.Resu
 Tarol.Primitives.AggregateTest<TSelf>.History.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.StreamEvent>!
 Tarol.Primitives.AggregateTest<TSelf>.When(System.Func<TSelf!, Tarol.Results.Result>! behaviour) -> Tarol.Primitives.AggregateOutcome<TSelf!>!
 Tarol.Primitives.AggregateTest<TSelf>.When<T>(System.Func<TSelf!, Tarol.Results.Result<T>>! behaviour) -> Tarol.Primitives.AggregateOutcome<TSelf!>!
+Tarol.Primitives.AuditMember
+Tarol.Primitives.AuditMember.<Clone>$() -> Tarol.Primitives.AuditMember!
+Tarol.Primitives.AuditMember.AuditMember(string! Name, string? JsonName = null) -> void
+Tarol.Primitives.AuditMember.Deconstruct(out string! Name, out string? JsonName) -> void
+Tarol.Primitives.AuditMember.Equals(Tarol.Primitives.AuditMember? other) -> bool
+Tarol.Primitives.AuditMember.JsonName.get -> string?
+Tarol.Primitives.AuditMember.JsonName.init -> void
+Tarol.Primitives.AuditMember.Name.get -> string!
+Tarol.Primitives.AuditMember.Name.init -> void
+Tarol.Primitives.AuditRemovedAttribute
+Tarol.Primitives.AuditRemovedAttribute.AuditRemovedAttribute() -> void
+Tarol.Primitives.AuditTimeAttribute
+Tarol.Primitives.AuditTimeAttribute.AuditTimeAttribute() -> void
 Tarol.Primitives.DomainEvent
 Tarol.Primitives.DomainEvent.DomainEvent() -> void
 Tarol.Primitives.DomainEvent.DomainEvent(Tarol.Primitives.DomainEvent! original) -> void
@@ -72,6 +85,19 @@ Tarol.Primitives.EntitySet<TEntity>.GetEnumerator() -> System.Collections.Generi
 Tarol.Primitives.EntitySet<TEntity>.TryGet(Tarol.StronglyTypedId.Id<TEntity> id, out TEntity entity) -> bool
 Tarol.Primitives.EntitySet<TEntity>.this[Tarol.StronglyTypedId.Id<TEntity> id].get -> TEntity
 Tarol.Primitives.EntitySet<TEntity>.this[int index].get -> TEntity
+Tarol.Primitives.EventAudit
+Tarol.Primitives.EventAudit.<Clone>$() -> Tarol.Primitives.EventAudit!
+Tarol.Primitives.EventAudit.Deconstruct(out bool Excluded, out bool Removed, out System.Collections.Generic.IReadOnlyList<Tarol.Primitives.AuditMember!>! NotAudited, out Tarol.Primitives.AuditMember? Time) -> void
+Tarol.Primitives.EventAudit.Equals(Tarol.Primitives.EventAudit? other) -> bool
+Tarol.Primitives.EventAudit.EventAudit(bool Excluded, bool Removed, System.Collections.Generic.IReadOnlyList<Tarol.Primitives.AuditMember!>! NotAudited, Tarol.Primitives.AuditMember? Time = null) -> void
+Tarol.Primitives.EventAudit.Excluded.get -> bool
+Tarol.Primitives.EventAudit.Excluded.init -> void
+Tarol.Primitives.EventAudit.NotAudited.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.AuditMember!>!
+Tarol.Primitives.EventAudit.NotAudited.init -> void
+Tarol.Primitives.EventAudit.Removed.get -> bool
+Tarol.Primitives.EventAudit.Removed.init -> void
+Tarol.Primitives.EventAudit.Time.get -> Tarol.Primitives.AuditMember?
+Tarol.Primitives.EventAudit.Time.init -> void
 Tarol.Primitives.EventCatalog
 Tarol.Primitives.EventCatalog.EventCatalog(string! streamType, params Tarol.Primitives.EventCatalogEntry[]! events) -> void
 Tarol.Primitives.EventCatalog.Events.get -> System.Collections.Generic.IReadOnlyList<Tarol.Primitives.EventCatalogEntry>!
@@ -82,6 +108,8 @@ Tarol.Primitives.EventCatalog.State.get -> Tarol.Primitives.PersonalShape?
 Tarol.Primitives.EventCatalog.State.init -> void
 Tarol.Primitives.EventCatalog.StreamType.get -> string!
 Tarol.Primitives.EventCatalogEntry
+Tarol.Primitives.EventCatalogEntry.Audit.get -> Tarol.Primitives.EventAudit?
+Tarol.Primitives.EventCatalogEntry.Audit.init -> void
 Tarol.Primitives.EventCatalogEntry.ClrType.get -> System.Type!
 Tarol.Primitives.EventCatalogEntry.ClrType.init -> void
 Tarol.Primitives.EventCatalogEntry.Deconstruct(out Tarol.Primitives.EventType Type, out System.Type! ClrType) -> void
@@ -109,6 +137,7 @@ Tarol.Primitives.IAggregateRoot
 Tarol.Primitives.IAggregateRoot<TSelf>
 Tarol.Primitives.IAggregateRoot<TSelf>.EventTypeOf(Tarol.Primitives.DomainEvent! domainEvent) -> Tarol.Primitives.EventType
 Tarol.Primitives.IAggregateRoot<TSelf>.EventTypes.get -> Tarol.Primitives.EventCatalog!
+Tarol.Primitives.IAggregateRoot<TSelf>.PerTenant.get -> bool
 Tarol.Primitives.IAggregateRoot<TSelf>.ReadState(Tarol.StronglyTypedId.Id<TSelf!> id, ref System.Text.Json.Utf8JsonReader reader, System.Text.Json.JsonSerializerOptions! options) -> Tarol.Options.Option<TSelf!>
 Tarol.Primitives.IAggregateRoot<TSelf>.Rehydrate(Tarol.StronglyTypedId.Id<TSelf!> id, System.ReadOnlySpan<Tarol.Primitives.StreamEvent> history) -> TSelf!
 Tarol.Primitives.IAggregateRoot<TSelf>.StateSchema.get -> int
@@ -141,6 +170,12 @@ Tarol.Primitives.LifecycleViolation.To.init -> void
 Tarol.Primitives.LifecycleViolation.ToError() -> Tarol.Results.Error!
 Tarol.Primitives.LoadByReplayAttribute
 Tarol.Primitives.LoadByReplayAttribute.LoadByReplayAttribute() -> void
+Tarol.Primitives.NotAuditedAttribute
+Tarol.Primitives.NotAuditedAttribute.NotAuditedAttribute() -> void
+Tarol.Primitives.NotAuditedAttribute.Reason.get -> string?
+Tarol.Primitives.NotAuditedAttribute.Reason.init -> void
+Tarol.Primitives.PerTenantAttribute
+Tarol.Primitives.PerTenantAttribute.PerTenantAttribute() -> void
 Tarol.Primitives.PersonalChild
 Tarol.Primitives.PersonalChild.<Clone>$() -> Tarol.Primitives.PersonalChild!
 Tarol.Primitives.PersonalChild.Deconstruct(out string! JsonName, out Tarol.Primitives.PersonalShape! Shape) -> void
@@ -232,6 +267,9 @@ override Tarol.Primitives.AggregateRoot<TSelf>.Event.Equals(object? obj) -> bool
 override Tarol.Primitives.AggregateRoot<TSelf>.Event.GetHashCode() -> int
 override Tarol.Primitives.AggregateRoot<TSelf>.Event.PrintMembers(System.Text.StringBuilder! builder) -> bool
 override Tarol.Primitives.AggregateRoot<TSelf>.Event.ToString() -> string!
+override Tarol.Primitives.AuditMember.Equals(object? obj) -> bool
+override Tarol.Primitives.AuditMember.GetHashCode() -> int
+override Tarol.Primitives.AuditMember.ToString() -> string!
 override Tarol.Primitives.DomainEvent.Equals(object? obj) -> bool
 override Tarol.Primitives.DomainEvent.GetHashCode() -> int
 override Tarol.Primitives.DomainEvent.ToString() -> string!
@@ -256,6 +294,9 @@ override Tarol.Primitives.Entity<TRoot, TSelf>.Event.GetHashCode() -> int
 override Tarol.Primitives.Entity<TRoot, TSelf>.Event.PrintMembers(System.Text.StringBuilder! builder) -> bool
 override Tarol.Primitives.Entity<TRoot, TSelf>.Event.ToString() -> string!
 override Tarol.Primitives.EntityRef<TEntity>.ToString() -> string!
+override Tarol.Primitives.EventAudit.Equals(object? obj) -> bool
+override Tarol.Primitives.EventAudit.GetHashCode() -> int
+override Tarol.Primitives.EventAudit.ToString() -> string!
 ~override Tarol.Primitives.EventCatalogEntry.Equals(object obj) -> bool
 override Tarol.Primitives.EventCatalogEntry.GetHashCode() -> int
 ~override Tarol.Primitives.EventCatalogEntry.ToString() -> string
@@ -300,6 +341,8 @@ static Tarol.Primitives.AggregateState.Write<TSelf>(TSelf! aggregate, System.Tex
 static Tarol.Primitives.AggregateTest.Given<TSelf>(TSelf! aggregate) -> Tarol.Primitives.AggregateTest<TSelf!>!
 static Tarol.Primitives.AggregateTest.StoredStateMatchesReplay<TSelf>(TSelf! aggregate, System.ReadOnlySpan<Tarol.Primitives.StreamEvent> history, System.Text.Json.JsonSerializerOptions! options) -> TSelf!
 static Tarol.Primitives.AggregateTest.StoredStateMatchesReplay<TSelf>(TSelf! aggregate, System.Text.Json.JsonSerializerOptions! options) -> TSelf!
+static Tarol.Primitives.AuditMember.operator !=(Tarol.Primitives.AuditMember? left, Tarol.Primitives.AuditMember? right) -> bool
+static Tarol.Primitives.AuditMember.operator ==(Tarol.Primitives.AuditMember? left, Tarol.Primitives.AuditMember? right) -> bool
 static Tarol.Primitives.DomainEvent.operator !=(Tarol.Primitives.DomainEvent? left, Tarol.Primitives.DomainEvent? right) -> bool
 static Tarol.Primitives.DomainEvent.operator ==(Tarol.Primitives.DomainEvent? left, Tarol.Primitives.DomainEvent? right) -> bool
 ~static Tarol.Primitives.Entity<TRoot, TSelf>.Created.operator !=(Tarol.Primitives.Entity<TRoot, TSelf>.Created? left, Tarol.Primitives.Entity<TRoot, TSelf>.Created? right) -> bool
@@ -311,6 +354,8 @@ static Tarol.Primitives.DomainEvent.operator ==(Tarol.Primitives.DomainEvent? le
 ~static Tarol.Primitives.Entity<TRoot, TSelf>.Event.operator !=(Tarol.Primitives.Entity<TRoot, TSelf>.Event? left, Tarol.Primitives.Entity<TRoot, TSelf>.Event? right) -> bool
 ~static Tarol.Primitives.Entity<TRoot, TSelf>.Event.operator ==(Tarol.Primitives.Entity<TRoot, TSelf>.Event? left, Tarol.Primitives.Entity<TRoot, TSelf>.Event? right) -> bool
 static Tarol.Primitives.EntitySet.Create<TEntity>(System.ReadOnlySpan<TEntity> items) -> Tarol.Primitives.EntitySet<TEntity>!
+static Tarol.Primitives.EventAudit.operator !=(Tarol.Primitives.EventAudit? left, Tarol.Primitives.EventAudit? right) -> bool
+static Tarol.Primitives.EventAudit.operator ==(Tarol.Primitives.EventAudit? left, Tarol.Primitives.EventAudit? right) -> bool
 static Tarol.Primitives.EventCatalogEntry.operator !=(Tarol.Primitives.EventCatalogEntry left, Tarol.Primitives.EventCatalogEntry right) -> bool
 static Tarol.Primitives.EventCatalogEntry.operator ==(Tarol.Primitives.EventCatalogEntry left, Tarol.Primitives.EventCatalogEntry right) -> bool
 static Tarol.Primitives.EventType.operator !=(Tarol.Primitives.EventType left, Tarol.Primitives.EventType right) -> bool

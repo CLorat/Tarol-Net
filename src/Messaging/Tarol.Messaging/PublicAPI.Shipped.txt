@@ -85,6 +85,7 @@ Tarol.Messaging.EffectContext.Recorded.init -> void
 Tarol.Messaging.EffectSet
 Tarol.Messaging.EffectSet.ActivityName(string! reaction) -> string!
 Tarol.Messaging.EffectSet.Add<TEvent>(string! name, System.Func<System.IServiceProvider!, Tarol.Messaging.IEffect<TEvent!>!>! handler) -> Tarol.Messaging.EffectSet!
+Tarol.Messaging.EffectSet.Add<TEvent>(string! name, System.Func<System.IServiceProvider!, Tarol.Messaging.IEffect<TEvent!>!>! handler, System.Func<TEvent!, System.DateTimeOffset?>? dueAt) -> Tarol.Messaging.EffectSet!
 Tarol.Messaging.EffectSet.DueAt(Tarol.Primitives.DomainEvent! domainEvent, string! reaction) -> System.DateTimeOffset?
 Tarol.Messaging.EffectSet.EffectSet(System.IServiceProvider? services = null) -> void
 Tarol.Messaging.EffectSet.IsScheduled(string! reaction) -> bool
@@ -236,6 +237,7 @@ Tarol.Messaging.MessageTest.Trust(string! source, System.Action<Tarol.Messaging.
 Tarol.Messaging.MessagingBuilder
 Tarol.Messaging.MessagingBuilder.Consume(Tarol.Messaging.ConsumerSet! consumers) -> Tarol.Messaging.MessagingBuilder!
 Tarol.Messaging.MessagingBuilder.Effect<TEvent, THandler>(string! name) -> Tarol.Messaging.MessagingBuilder!
+Tarol.Messaging.MessagingBuilder.Effect<TEvent, THandler>(string! name, System.Func<TEvent!, System.DateTimeOffset?>! dueAt) -> Tarol.Messaging.MessagingBuilder!
 Tarol.Messaging.MessagingBuilder.Effect<TEvent>(string! name, System.Func<System.IServiceProvider!, Tarol.Messaging.IEffect<TEvent!>!>! handler) -> Tarol.Messaging.MessagingBuilder!
 Tarol.Messaging.MessagingBuilder.Options.get -> Tarol.Messaging.MessagingOptions!
 Tarol.Messaging.MessagingBuilder.Publish(Tarol.Messaging.PublicationSet! publications) -> Tarol.Messaging.MessagingBuilder!

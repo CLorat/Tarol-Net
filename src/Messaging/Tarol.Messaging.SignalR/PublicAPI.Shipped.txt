@@ -60,7 +60,9 @@ Tarol.Messaging.SignalR.TopicOperation.Subscribe = 0 -> Tarol.Messaging.SignalR.
 Tarol.Messaging.SignalR.TopicRules
 Tarol.Messaging.SignalR.TopicRules.Allow(Tarol.Messaging.SignalR.TopicOperation operation, string! topic, string? role = null) -> Tarol.Messaging.SignalR.TopicRules!
 Tarol.Messaging.SignalR.TopicRules.Authorize(System.Security.Claims.ClaimsPrincipal! principal, Tarol.Messaging.SignalR.TopicOperation operation, string! topic, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Messaging.SignalR.TopicRules.Publish(string! topic, params string![]! roles) -> Tarol.Messaging.SignalR.TopicRules!
 Tarol.Messaging.SignalR.TopicRules.Publish(string! topic, string? role = null) -> Tarol.Messaging.SignalR.TopicRules!
+Tarol.Messaging.SignalR.TopicRules.Subscribe(string! topic, params string![]! roles) -> Tarol.Messaging.SignalR.TopicRules!
 Tarol.Messaging.SignalR.TopicRules.Subscribe(string! topic, string? role = null) -> Tarol.Messaging.SignalR.TopicRules!
 Tarol.Messaging.SignalR.TopicRules.TopicRules() -> void
 Tarol.Messaging.SignalR.UiPushExtensions

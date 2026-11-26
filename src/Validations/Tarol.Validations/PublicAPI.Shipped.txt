@@ -36,6 +36,9 @@ Tarol.Validations.RangeAttribute.RangeAttribute(double min, double max) -> void
 Tarol.Validations.RangeAttribute.RangeAttribute(long min, long max) -> void
 Tarol.Validations.RangeAttribute.RangeAttribute(string! min, string! max) -> void
 Tarol.Validations.Rules
+Tarol.Validations.ScaleAttribute
+Tarol.Validations.ScaleAttribute.Digits.get -> int
+Tarol.Validations.ScaleAttribute.ScaleAttribute(int digits) -> void
 Tarol.Validations.ValidatableExtensions
 Tarol.Validations.ValidationCodes
 Tarol.Validations.ValidationErrors
@@ -57,14 +60,17 @@ const Tarol.Validations.ValidationCodes.Length = "Length" -> string!
 const Tarol.Validations.ValidationCodes.Pattern = "Pattern" -> string!
 const Tarol.Validations.ValidationCodes.Range = "Range" -> string!
 const Tarol.Validations.ValidationCodes.Required = "Required" -> string!
+const Tarol.Validations.ValidationCodes.Scale = "Scale" -> string!
 static Tarol.Validations.Rules.Email(System.ReadOnlySpan<char> value) -> bool
 static Tarol.Validations.Rules.InRange<T>(T value, T min, T max) -> bool
 static Tarol.Validations.Rules.Length(string? value, int min, int max) -> bool
 static Tarol.Validations.Rules.Matches(System.Text.RegularExpressions.Regex! regex, string? value) -> bool
 static Tarol.Validations.Rules.NotBlank(string? value) -> bool
+static Tarol.Validations.Rules.Scale(decimal value, int digits) -> bool
 static Tarol.Validations.ValidatableExtensions.Validated<T>(this T value) -> Tarol.Results.Result<T>
 static Tarol.Validations.ValueObjectJson.AddValueObjects(this System.Text.Json.JsonSerializerOptions! options) -> System.Text.Json.JsonSerializerOptions!
 static Tarol.Validations.ValueObjectJson.IsRegistered(System.Type! type) -> bool
+static Tarol.Validations.ValueObjectJson.Options(System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! resolvers) -> System.Text.Json.JsonSerializerOptions!
 static Tarol.Validations.ValueObjectJson.Options(System.Text.Json.Serialization.JsonSerializerContext! context) -> System.Text.Json.JsonSerializerOptions!
 static Tarol.Validations.ValueObjectJson.Register<T>(System.Text.Json.Serialization.JsonConverter<T>! converter) -> void
 static Tarol.Validations.ValueObjectJson.Resolver.get -> System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!

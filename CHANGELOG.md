@@ -6,7 +6,17 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
-### Tatalu feedback, round 3c (owner decisions 2026-11-26)
+## [0.1.0]
+
+The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
+(`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
+"in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
+`0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version. `0.1.0-preview.6`
+ships 31 packages (30 and the meta-package) and 93 diagnostics: it adds `Tarol.Audit` and `Tarol.Audit.Npgsql` and the rounds 2
+and 3 of the Tatalu feedback (upgrade: PostgreSQL store schema
+version 5, additive; see [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md#release-notes-010-preview6-round-3-for-tatalu)).
+
+### In 0.1.0-preview.6: Tatalu feedback, round 3c (owner decisions 2026-11-26)
 
 #### Added
 
@@ -30,7 +40,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * PostgreSQL store schema version 5: `idempotency_keys.refusal` (additive) (TN-46).
 * The violation JSON writes `reasons` (TN-46).
 
-### Tatalu feedback, round 3b
+### In 0.1.0-preview.6: Tatalu feedback, round 3b
 
 #### Added
 
@@ -40,7 +50,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * Enums as route values of changes and views, `RouteValue.Values` (TN-34).
 * `JobTest.BeforeEachRun` (TN-57).
 
-### Tatalu feedback, round 3 (TN-69 … TN-83; [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md))
+### In 0.1.0-preview.6: Tatalu feedback, round 3 (TN-69 … TN-83; [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md))
 
 #### Fixed
 
@@ -69,7 +79,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * `ChangeTest.When` with a principal but no authorization throws instead of answering `Auth.NotConfigured` (TN-76).
 * A view's factory is called through `IView`, so it may be implemented explicitly (TN-77).
 
-### Tatalu feedback, round 2 (TN-19 … TN-68; [docs/migration/tatalu-round-2.md](docs/migration/tatalu-round-2.md))
+### In 0.1.0-preview.6: Tatalu feedback, round 2 (TN-19 … TN-68; [docs/migration/tatalu-round-2.md](docs/migration/tatalu-round-2.md))
 
 #### Fixed
 
@@ -105,12 +115,12 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * A change without an expected version is loaded and decided again when it loses a race, up to 3 times
   (`ChangePipeline.ConflictAttempts`, TN-45). Before, the conflict was always returned.
 
-### Documentation
+### Documentation in 0.1.0-preview.6
 
 * README: consuming the packages from GitHub Packages with `<auditSources>` (nuget.org) against NU1900 (TN-18); the
   `tarol-overview` skill names the error.
 
-### Added
+### Added in 0.1.0-preview.6
 
 * List scopes (TN-6, from Tatalu): `IListScope<TQuery>` (`Tarol.Changes.AspNetCore`) restricts a list to the rows the
   caller may see, from domain data; `[Endpoint(…, RequiresScope = true)]` makes it mandatory (startup fails without it).
@@ -133,7 +143,7 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   `modules.ConfigureOpenApi(o)`. `AddTarol(IReadOnlyList<IJsonTypeInfoResolver>, …)` and
   `ValueObjectJson.Options(IReadOnlyList<IJsonTypeInfoResolver>)` take several JSON contexts (TN-10).
 
-### Changed
+### Changed in 0.1.0-preview.6
 
 * The generated OpenAPI operation transformer completes only its own assembly's operations, once (TN-9): with two
   assemblies no parameter or "Policy" paragraph appears twice.
@@ -143,13 +153,6 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   read table and fills them from the stored rows (no rebuild). `[Sort]` on an array member reports "takes set filters
   only" (TQRY004).
 * `Tarol.Caching`'s `PageKey` includes the set filters.
-
-## [0.1.0]
-
-The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
-(`PublicAPI.Shipped.txt`) and 90 diagnostics (below). `0.1.0-preview.1` shipped 25 packages and 83 diagnostics; the
-"in 0.1.0-preview.2" sections list what came after it. `0.1.0-preview.3` (2026-11-21) is the same commit as
-`0.1.0-preview.2`, cut so that tarol-svelte's `0.1.0-preview.3` has a Tarol-Net release of the same version.
 
 ### Added in 0.1.0-preview.5
 

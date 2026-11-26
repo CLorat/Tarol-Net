@@ -1,1 +1,15 @@
 #nullable enable
+Tarol.Audit.Npgsql.NpgsqlAuditStore
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Checkpoint(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
+Tarol.Audit.Npgsql.NpgsqlAuditStore.ForgetTenant(System.Guid tenant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Audit.Npgsql.NpgsqlAuditStore.NpgsqlAuditStore(Npgsql.NpgsqlDataSource! dataSource, string! schema = "tarol") -> void
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Prepare(int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Purge(System.DateTimeOffset olderThan, int batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Query(int version, System.Guid tenant, Tarol.Audit.AuditQuery! query, (System.DateTimeOffset At, System.Guid Id)? after, int take, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Tarol.Audit.AuditEntry!>!>
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Record(Tarol.Audit.AuditEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Schema.get -> string!
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Script(int version) -> string!
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Values(int version, System.Collections.Generic.IReadOnlyCollection<(System.Guid Tenant, System.Guid Target)>! objects, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<Tarol.Audit.AuditValueKey, string?>!>
+Tarol.Audit.Npgsql.NpgsqlAuditStore.Write(int version, Tarol.Audit.AuditBatch! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Tarol.Audit.Npgsql.NpgsqlAuditTarolBuilderExtensions
+static Tarol.Audit.Npgsql.NpgsqlAuditTarolBuilderExtensions.UseNpgsqlAudit(this Tarol.Persistence.TarolBuilder! builder, string? schema = null, System.Func<System.IServiceProvider!, Npgsql.NpgsqlDataSource!>? dataSource = null) -> Tarol.Persistence.TarolBuilder!

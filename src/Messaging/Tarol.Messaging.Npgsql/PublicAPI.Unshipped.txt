@@ -1,2 +1,1 @@
 #nullable enable
-static Tarol.Messaging.Npgsql.NpgsqlMessagingBuilderExtensions.UseNpgsqlBus(this Tarol.Messaging.MessagingBuilder! messaging, Tarol.Messaging.Npgsql.NpgsqlBusOptions? options = null) -> Tarol.Messaging.MessagingBuilder!

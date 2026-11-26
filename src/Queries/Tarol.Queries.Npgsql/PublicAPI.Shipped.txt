@@ -7,7 +7,9 @@ Tarol.Queries.Npgsql.NpgsqlFeedSignal.Wait(System.TimeSpan max, System.Threading
 Tarol.Queries.Npgsql.NpgsqlProjectionGate
 Tarol.Queries.Npgsql.NpgsqlProjectionGate.CheckEvery.get -> System.TimeSpan
 Tarol.Queries.Npgsql.NpgsqlProjectionGate.CheckEvery.init -> void
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Tarol.Queries.Npgsql.NpgsqlProjectionGate.Key(string! name, int version) -> string!
+Tarol.Queries.Npgsql.NpgsqlProjectionGate.Locks.get -> int
 Tarol.Queries.Npgsql.NpgsqlProjectionGate.NpgsqlProjectionGate(Npgsql.NpgsqlDataSource! dataSource, string! schema = "tarol", System.TimeProvider? time = null) -> void
 Tarol.Queries.Npgsql.NpgsqlProjectionGate.RetryEvery.get -> System.TimeSpan
 Tarol.Queries.Npgsql.NpgsqlProjectionGate.RetryEvery.init -> void
@@ -78,3 +80,4 @@ static Tarol.Queries.Npgsql.NpgsqlReadModelOptions.operator ==(Tarol.Queries.Npg
 static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.ProjectionsTable(string! schema = "tarol") -> string!
 static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.Script<TRow>(string! schema = "tarol") -> string!
 static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.SqlType(Tarol.Queries.ColumnType type) -> string!
+static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.SqlType<TRow>(Tarol.Queries.ProjectionColumn<TRow>! column) -> string!

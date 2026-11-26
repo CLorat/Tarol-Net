@@ -1,7 +1,1 @@
 #nullable enable
-Tarol.Validations.ScaleAttribute
-Tarol.Validations.ScaleAttribute.Digits.get -> int
-Tarol.Validations.ScaleAttribute.ScaleAttribute(int digits) -> void
-const Tarol.Validations.ValidationCodes.Scale = "Scale" -> string!
-static Tarol.Validations.Rules.Scale(decimal value, int digits) -> bool
-static Tarol.Validations.ValueObjectJson.Options(System.Collections.Generic.IReadOnlyList<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver!>! resolvers) -> System.Text.Json.JsonSerializerOptions!

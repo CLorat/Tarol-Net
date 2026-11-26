@@ -1,4 +1,1 @@
 #nullable enable
-Tarol.Queries.Npgsql.NpgsqlProjectionGate.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Tarol.Queries.Npgsql.NpgsqlProjectionGate.Locks.get -> int
-static Tarol.Queries.Npgsql.NpgsqlReadModelSchema.SqlType<TRow>(Tarol.Queries.ProjectionColumn<TRow>! column) -> string!
