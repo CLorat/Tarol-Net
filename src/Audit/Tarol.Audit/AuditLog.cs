@@ -19,6 +19,20 @@ public interface IAuditLog
     ValueTask<Result<AuditPage>> Query(AuditQuery query, OperationContext context, CancellationToken cancellationToken);
 }
 
+/// <summary>Creates an <see cref="IAuditLog"/> without the container (tests, tools); <c>AddAudit</c> registers one.</summary>
+public static class AuditLogs
+{
+    /// <summary>The log that <paramref name="host"/> feeds.</summary>
+    /// <param name="host">The host.</param>
+    /// <param name="keys">The key store that opens personal values; <see langword="null"/> = they read as <c>null</c>.</param>
+    /// <returns>The log.</returns>
+    public static IAuditLog Over(AuditHost host, IKeyStore? keys)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        return new AuditLog(host, keys);
+    }
+}
+
 internal sealed class AuditLog(AuditHost host, IKeyStore? keys) : IAuditLog
 {
     public async ValueTask<Result<AuditPage>> Query(AuditQuery query, OperationContext context, CancellationToken cancellationToken)

@@ -46,7 +46,7 @@ namespace Museum
             new global::Tarol.Primitives.EventCatalogEntry(new("gallery.artwork.repriced", 1), typeof(global::Museum.Artwork.Repriced)),
             new global::Tarol.Primitives.EventCatalogEntry(new("gallery.opened", 1), typeof(global::Museum.Gallery.Opened)),
             new global::Tarol.Primitives.EventCatalogEntry(new("gallery.room.added", 1), typeof(global::Museum.Room.Added)),
-            new global::Tarol.Primitives.EventCatalogEntry(new("gallery.room.closed", 1), typeof(global::Museum.Room.Closed)));
+            new global::Tarol.Primitives.EventCatalogEntry(new("gallery.room.closed", 1), typeof(global::Museum.Room.Closed)) { Audit = new global::Tarol.Primitives.EventAudit(false, true, []) });
 
         /// <inheritdoc />
         protected override void Dispatch(in global::Tarol.Primitives.StreamEvent stream)

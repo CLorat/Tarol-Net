@@ -19,6 +19,9 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 * `IStreamIds` and `UseStoreTenants<T>()` (TN-56).
 * `OperationContext.Capture` from `Tarol-Device`/`Tarol-Captured-At`, `IDeviceGate` and `UseDeviceGate()` (TN-60).
 * Skills `tarol-reactions` and `tarol-list-endpoints` (split from `tarol-changes` and `tarol-queries`).
+* `Tarol.Audit` and `Tarol.Audit.Npgsql`: the change log from the event feed, with sensitive reads and denials (TN-64); audit marks
+  `[NotAudited]`, `[AuditRemoved]`, `[AuditTime]` in the event catalog; non-generic `EventCodec.TryDescribe`/`Encode`/`SubjectsOf`/`SealStored`.
+* The capture of an offline device stored with PostgreSQL events (TN-60b); tarol-client sends the capture headers when a device is set (TS-41).
 
 #### Changed
 

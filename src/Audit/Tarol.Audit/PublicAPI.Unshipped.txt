@@ -64,6 +64,7 @@ Tarol.Audit.AuditKind.Created = 0 -> Tarol.Audit.AuditKind
 Tarol.Audit.AuditKind.Denied = 4 -> Tarol.Audit.AuditKind
 Tarol.Audit.AuditKind.Read = 3 -> Tarol.Audit.AuditKind
 Tarol.Audit.AuditKind.Removed = 2 -> Tarol.Audit.AuditKind
+Tarol.Audit.AuditLogs
 Tarol.Audit.AuditPage
 Tarol.Audit.AuditPage.<Clone>$() -> Tarol.Audit.AuditPage!
 Tarol.Audit.AuditPage.AuditPage(System.Collections.Generic.IReadOnlyList<Tarol.Audit.AuditEntry!>! Items, string? Next) -> void
@@ -161,6 +162,7 @@ static Tarol.Audit.AuditBatch.operator ==(Tarol.Audit.AuditBatch? left, Tarol.Au
 static Tarol.Audit.AuditEndpoints.MapAudit(this Microsoft.AspNetCore.Routing.IEndpointRouteBuilder! app, string! pattern, string! policy) -> Microsoft.AspNetCore.Builder.IEndpointConventionBuilder!
 static Tarol.Audit.AuditEntry.operator !=(Tarol.Audit.AuditEntry? left, Tarol.Audit.AuditEntry? right) -> bool
 static Tarol.Audit.AuditEntry.operator ==(Tarol.Audit.AuditEntry? left, Tarol.Audit.AuditEntry? right) -> bool
+static Tarol.Audit.AuditLogs.Over(Tarol.Audit.AuditHost! host, Tarol.Persistence.IKeyStore? keys) -> Tarol.Audit.IAuditLog!
 static Tarol.Audit.AuditPage.operator !=(Tarol.Audit.AuditPage? left, Tarol.Audit.AuditPage? right) -> bool
 static Tarol.Audit.AuditPage.operator ==(Tarol.Audit.AuditPage? left, Tarol.Audit.AuditPage? right) -> bool
 static Tarol.Audit.AuditQuery.operator !=(Tarol.Audit.AuditQuery? left, Tarol.Audit.AuditQuery? right) -> bool

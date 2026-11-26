@@ -117,7 +117,7 @@ round-2 branch (PR links follow the PRs).
 | TN-61 | P1 | `TopicRules.Subscribe(topic, params roles)` | FB-F17.3-9 | built `c4cd608` |
 | TN-62 | P1 | Zitadel: `RequireSecondFactor`, `EndAll`, organisation ↔ tenant, accounts in several tenants | FB-F13.2-1, FB-F13.2-2, FB-F15.1-3 | designed (tenant-membership.md), owner decisions, open |
 | TN-63 | P1 | Effects with `dueAt`, `Digest<TKey>`; `AddEffects()` without transport | FB-F15.8-1, FB-F17.4-3, FB-F13.2-5 | designed ([web-push.md](../architecture/web-push.md)), open; skill note built `28db79b` |
-| TN-64 | P2 | `Tarol.Audit` | FB-F13.3-3, FB-F13.3-7 | designed ([audit.md](../architecture/audit.md)), open |
+| TN-64 | P2 | `Tarol.Audit` | FB-F13.3-3, FB-F13.3-7 | built: `Tarol.Audit`, `Tarol.Audit.Npgsql` (round 3c; [audit.md](../migration/audit.md)) |
 | TN-65 | P2 | `Tarol.Files` | FB-F02.1-9, FB-F17.5-3 | designed ([files.md](../architecture/files.md)), open |
 | TN-66 | P2 | `Tarol.Messaging.WebPush` | FB-F17.4-1 | designed ([web-push.md](../architecture/web-push.md)), open |
 | TN-67 | P2 | Test helpers: `Given(factory).And`, `ChangeTest.History`, camelCase paths, several JSON contexts | FB-F17.3-7 (= TN-13), FB-F01.1-7, FB-F01.1-8, FB-F13.3-7 | open |
@@ -173,4 +173,4 @@ listed with those items (table below). The Tarol-Svelte side is `TS-34 …` in `
 | TN-46 | commit and refuse (FB-F15.1-4) | built `b6d3716` (round 3c) |
 | TN-48 | event id in `On`, entity id in `Deleted` (FB-F04.4-1, FB-F02.3-1) | open: an `On` also runs at `Raise`, before the store assigns the event id; needs a design note |
 | TN-56, TN-59, TN-60 | as in round 2 | built in round 3c (see the rows above and the round-3 note) |
-| TN-49, TN-50, TN-51, TN-55, TN-64, TN-66 | as in round 2 | open: decided 2026-11-26 (recommendations), not built yet; see the round-3 note |
+| TN-49, TN-50, TN-51, TN-55, TN-66 | as in round 2 | open: decided 2026-11-26 (recommendations), not built yet; see the round-3 note |

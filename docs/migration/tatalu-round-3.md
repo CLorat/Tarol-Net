@@ -513,6 +513,21 @@ was red before (a new API's test did not compile before), and the Tatalu file wh
 * **Tatalu:** `Capture` in the inputs of `AddProbeNote`/`SetProbeValue` (`backend/src/Tatalu.Shared/Sync.cs`); the client-only
   device end (`DeviceSession`, heartbeat `PUT /ich/geraete/{id}`). Tarol-Svelte: the outbox's `captureHeaders` may default to on.
 
+### TN-64 `Tarol.Audit` (AU-1 … AU-5; FB-F13.3-3, FB-F13.3-7, FB-F13.3-2, FB-F13.3-4)
+
+* **New packages:** `Tarol.Audit`, `Tarol.Audit.Npgsql`; the family note is [audit.md](audit.md) (public API, decisions as built,
+  tests). New API in `Tarol.Primitives` (`[NotAudited]`, `[AuditRemoved]`, `[AuditTime]`, `EventCatalogEntry.Audit`) and
+  `Tarol.Persistence` (non-generic `EventCodec` members).
+* **Behaviour:** one row per event and changed field with before and after, complete by construction; personal values sealed and
+  `null` after erasure; reads and denials of `Sensitive` entries in the same list; own retention.
+* **Tests [verified]:** `Tarol.Audit.Tests` (13), `Tarol.Audit.Npgsql.IntegrationTests` (4), `AuditCatalogTests`, two AOT smoke
+  apps (0 IL warnings; the database checks with `TAROL_PG`), the package consumer.
+* **Not built:** `[Audited("name")]`, `[AuditSubject]`, OpenAPI metadata of `MapAudit`; `[OnAnyEvent<T>]` (R-3) is not needed by the
+  audit (it reads the feed) and is not built.
+* **Tatalu:** the audit chain of `origin/integration/welle-2`: `Tatalu.Kinder/Audit.cs` (`AuditKinder`), `Tatalu.Einrichtung/Audit.cs`,
+  `Tatalu.Anwesenheit/Audit.cs`, `Tatalu.Vertraege/Audit.cs`, `AuditMembership` and `WriteAuditEntry` (`Tatalu.Datenschutz/Audit/Changes.cs`),
+  `AuditTrail.cs`, the `AuditRow` projection and `GET /protokoll` (`AuditSearch`), `RecordAccess` from `Tatalu.Host/AccessLog.cs`.
+
 ### Verification (3c)
 
 2026-11-25 **[verified]** at `ed9434c`: build 0 warnings; `dotnet format --verify-no-changes` clean; `dotnet test --solution
@@ -526,7 +541,7 @@ the other pipeline tests.
 Not built yet (each with its owner decision taken, 2026-11-26): TN-47 with TN-83 (reactions: needs a design note), TN-49 /
 CR-3 (ports: document only), TN-50, TN-51, TN-54 rest (per-entity rows need a stream id column, since retention deletes rows by
 stream; the SQL read endpoint for billing), TN-55, TN-58 (DP2-*), TN-60b (capture in the event columns), TN-62 and the rest of
-TM-*, TN-63 rest (digest as a documented pattern, reads, correlation, recurring dates), TN-64 `Tarol.Audit` (AU-*), TN-65
+TM-*, TN-63 rest (digest as a documented pattern, reads, correlation, recurring dates), TN-65
 `Tarol.Files` (FI-*), TN-66 Web Push (WP-*), TN-67 rest; VA-C's Development `requires` member; VA-D's policy-failure decorator
 and hub refusals; the "list rules" half of TN-44. Skills still over the 8 KB guide: `tarol-primitives`, `tarol-persistence`,
 `tarol-persistence-npgsql`, `tarol-messaging`, `tarol-jobs`, `tarol-changes` (8.9 KB after TN-46).
@@ -617,6 +632,7 @@ These add to the round-2 notes ([tatalu-round-2.md](tatalu-round-2.md#release-no
 | period filtered in the browser (`frontend/apps/web/src/screens/datenschutz/AuditLog.svelte`) | `[AtLeast]`/`[AtMost]` list members | TN-44 |
 | `RecordFailedActivation` + refusal at the edge (`backend/src/Tatalu.Eltern/InvitationChanges.cs`, `InvitationEndpoints.cs`) | `Result.Rejected(…)` after `Raise` | TN-46 |
 | `backend/src/Tatalu.Host/TenantDirectory.cs` (feed scan) | `.UseStoreTenants<ChildDayCare>()` | TN-56 |
+| the audit chain (`Tatalu.*/Audit.cs`, `Tatalu.Datenschutz/Audit/*`, `AuditRow`, `GET /protokoll`, `RecordAccess`) | `AddAudit(a => a.Add<…>())`, `UseNpgsqlAudit()`, `MapAudit("/protokoll", policy)` | TN-64 |
 | `Capture` in change inputs (`backend/src/Tatalu.Shared/Sync.cs`), client-only device end (`DeviceSession`) | `Tarol-Device`/`Tarol-Captured-At` → `OperationContext.Capture`, `IDeviceGate` + `UseDeviceGate()` | TN-60 |
 
 **Migration steps for Tatalu**

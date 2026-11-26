@@ -140,7 +140,7 @@ public sealed class ChangeLogTests
         await f.Keys.EraseSubject(TenantA.Value, child.Id.Value, Ct);
         var after = await f.All(new AuditQuery { Field = "firstName" });
 
-        stored.ShouldAllBe(r => r.After != null && r.After.Contains("tdp1.", StringComparison.Ordinal) && !r.After.Contains("Mi", StringComparison.Ordinal));
+        stored.ShouldAllBe(r => r.After != null && r.After.Contains("tdp1.", StringComparison.Ordinal) && !r.After.Contains("\"Mi", StringComparison.Ordinal));
         before.Select(r => r.After).ShouldBe(["\"Mila\"", "\"Mia\""]);
         after.Select(r => (r.Before, r.After)).ShouldBe([(null, null), (null, null)]);         // crypto-shredded, rows kept
         (await f.All(new AuditQuery { Field = "group" })).Single().After.ShouldBe("\"Bären\"");

@@ -13,6 +13,7 @@
   <Folder Name="/src/" />
   <Folder Name="/src/Audit/">
     <Project Path="src/Audit/Tarol.Audit/Tarol.Audit.csproj" />
+    <Project Path="src/Audit/Tarol.Audit.Npgsql/Tarol.Audit.Npgsql.csproj" />
   </Folder>
   <Folder Name="/src/Caching/">
     <Project Path="src/Caching/Tarol.Caching/Tarol.Caching.csproj" />
@@ -92,6 +93,9 @@
   </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/Audit/">
+    <Project Path="tests/Audit/Tarol.Audit.AotSmoke/Tarol.Audit.AotSmoke.csproj" />
+    <Project Path="tests/Audit/Tarol.Audit.Npgsql.AotSmoke/Tarol.Audit.Npgsql.AotSmoke.csproj" />
+    <Project Path="tests/Audit/Tarol.Audit.Npgsql.IntegrationTests/Tarol.Audit.Npgsql.IntegrationTests.csproj" />
     <Project Path="tests/Audit/Tarol.Audit.Tests/Tarol.Audit.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/Caching/">

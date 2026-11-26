@@ -47,11 +47,11 @@ namespace Shop
         /// <summary>The stream type and every concrete event with its stored alias, version and CLR type.</summary>
         public static global::Tarol.Primitives.EventCatalog EventTypes { get; } = new("order",
             new global::Tarol.Primitives.EventCatalogEntry(new("order.line.added", 1), typeof(global::Shop.Line.Added)),
-            new global::Tarol.Primitives.EventCatalogEntry(new("shop.order.line_removed", 2), typeof(global::Shop.Line.Removed)),
+            new global::Tarol.Primitives.EventCatalogEntry(new("shop.order.line_removed", 2), typeof(global::Shop.Line.Removed)) { Audit = new global::Tarol.Primitives.EventAudit(false, true, []) },
             new global::Tarol.Primitives.EventCatalogEntry(new("order.note.on_line", 1), typeof(global::Shop.Note.OnLine)),
             new global::Tarol.Primitives.EventCatalogEntry(new("order.note.on_order", 1), typeof(global::Shop.Note.OnOrder)),
             new global::Tarol.Primitives.EventCatalogEntry(new("order.shipping.assigned", 1), typeof(global::Shop.Shipping.Assigned)),
-            new global::Tarol.Primitives.EventCatalogEntry(new("order.shipping.cancelled", 1), typeof(global::Shop.Shipping.Cancelled)));
+            new global::Tarol.Primitives.EventCatalogEntry(new("order.shipping.cancelled", 1), typeof(global::Shop.Shipping.Cancelled)) { Audit = new global::Tarol.Primitives.EventAudit(false, true, []) });
 
         /// <inheritdoc />
         protected override void Dispatch(in global::Tarol.Primitives.StreamEvent stream)
