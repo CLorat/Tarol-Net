@@ -64,6 +64,37 @@ public sealed class BuilderTests
     }
 
     [Fact]
+    public void An_sql_projections_row_is_not_hosted_as_a_row_projection_and_names_its_projection()
+    {
+        var services = new ServiceCollection();
+        Should.Throw<InvalidOperationException>(() => Builder(services).UseInMemoryReadModels().AddProjections(p => p.Add<SellerCountRow>()))
+            .Message.ShouldContain("ISqlProjection<SellerCountRow>");
+        Rows<SellerCountRow>.Sql.ShouldBeTrue();
+        Rows<SellerCountRow>.StreamType.ShouldBe("");
+        Rows<AuctionRow>.Sql.ShouldBeFalse();
+        ISqlProjection named = new SellerCounts();
+        (named.Name, named.Version).ShouldBe(("seller-counts", 2));
+    }
+
+    private static class Rows<TRow>
+        where TRow : class, IProjection<TRow>
+    {
+        public static bool Sql => TRow.Sql;
+
+        public static string StreamType => TRow.StreamType;
+    }
+
+    private sealed class SellerCounts : ISqlProjection<SellerCountRow>
+    {
+        public IReadOnlyCollection<string>? StreamTypes => null;
+
+        public ValueTask Prepare(DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+        public ValueTask<int> Apply(IReadOnlyList<PositionedEvent> events, DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)
+            => ValueTask.FromResult(0);
+    }
+
+    [Fact]
     public async Task A_sql_projection_needs_a_store_that_runs_sql()
     {
         var services = new ServiceCollection();
@@ -113,3 +144,7 @@ public sealed class BuilderTests
 [System.Text.Json.Serialization.JsonSerializable(typeof(Lot.Registered))]
 [System.Text.Json.Serialization.JsonSerializable(typeof(AuctionRow))]
 internal sealed partial class TestJson : System.Text.Json.Serialization.JsonSerializerContext;
+
+/// <summary>TN-54 (P-2): the rows of an SQL projection: columns only, no When.</summary>
+[Projection("seller-counts", Version = 2, Sql = true)]
+public sealed partial record SellerCountRow(Guid Id, string Seller, [Sort] int Auctions);

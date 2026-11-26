@@ -227,7 +227,7 @@ public sealed record BidPlacedV1(Guid Auction, decimal Amount, DateTimeOffset At
 [JsonSerializable(typeof(decimal)), JsonSerializable(typeof(string)), JsonSerializable(typeof(DateTimeOffset))]
 [JsonSerializable(typeof(Auction.Opened)), JsonSerializable(typeof(Auction.Closed)), JsonSerializable(typeof(Auction.PaymentRecorded))]
 [JsonSerializable(typeof(Auction.Watched)), JsonSerializable(typeof(Bid.Placed)), JsonSerializable(typeof(Payout.Due))]
-[JsonSerializable(typeof(AuctionRow)), JsonSerializable(typeof(Memo.Written)), JsonSerializable(typeof(BidPlacedV1))]
+[JsonSerializable(typeof(AuctionRow)), JsonSerializable(typeof(SellerTotalRow)), JsonSerializable(typeof(Memo.Written)), JsonSerializable(typeof(BidPlacedV1))]
 [JsonSerializable(typeof(House.Founded)), JsonSerializable(typeof(House.Retitled)), JsonSerializable(typeof(OpenHouse)), JsonSerializable(typeof(RenameHouse))]
 [JsonSerializable(typeof(HouseView))]
 [JsonSerializable(typeof(HouseSeasonView))]

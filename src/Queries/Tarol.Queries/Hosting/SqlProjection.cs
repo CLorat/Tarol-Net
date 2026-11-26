@@ -38,6 +38,24 @@ public interface ISqlProjection
     ValueTask<int> Apply(IReadOnlyList<PositionedEvent> events, DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// An <see cref="ISqlProjection"/> whose rows are the <c>[Projection(…, Sql = true)]</c> record <typeparamref name="TRow"/> (TN-54,
+/// owner decision P-2): its name and version are the row's, its table is the row's read table (<c>rm_&lt;name&gt;_v&lt;version&gt;</c>), so
+/// <see cref="IQuery{TRow}"/> and <see cref="IRowQuery{TRow}"/> endpoints list and read what it writes, with the read-after and
+/// building answers of a row projection. With PostgreSQL, <c>NpgsqlRows&lt;TRow&gt;</c> creates the table and writes rows in the batch
+/// transaction.
+/// </summary>
+/// <typeparam name="TRow">The row record.</typeparam>
+public interface ISqlProjection<TRow> : ISqlProjection
+    where TRow : class, IProjection<TRow>
+{
+    /// <inheritdoc />
+    string ISqlProjection.Name => TRow.Name;
+
+    /// <inheritdoc />
+    int ISqlProjection.Version => TRow.Version;
+}
+
 /// <summary>A store that runs <see cref="ISqlProjection"/>s: checkpoints in its projections table and the batch transaction.</summary>
 public interface ISqlProjectionStore
 {

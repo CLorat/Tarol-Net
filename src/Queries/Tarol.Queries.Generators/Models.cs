@@ -29,6 +29,9 @@ internal sealed record ProjectionModel(
     /// <summary><c>[Projection(…, PerEntity = true)]</c>: one row per entity (TN-54, P-1).</summary>
     public bool PerEntity { get; init; }
 
+    /// <summary><c>[Projection(…, Sql = true)]</c>: an <c>ISqlProjection&lt;TRow&gt;</c> writes the rows (TN-54, P-2).</summary>
+    public bool Sql { get; init; }
+
     public string HintName => (Namespace is null ? "" : Namespace + ".") + string.Join(".", ContainingTypes.Select(static c => c.Substring(c.LastIndexOf(' ') + 1))) + (ContainingTypes.IsEmpty ? "" : ".") + Name + ".Projection.g.cs";
 }
 

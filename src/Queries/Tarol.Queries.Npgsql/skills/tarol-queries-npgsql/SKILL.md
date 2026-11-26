@@ -39,7 +39,8 @@ description: >-
    (`tarol.projections.events`, `.batches`, `.batch.duration`, outcome written | refused). A data source the application
    provides to `UseNpgsqlStore(Func)` is registered as `NpgsqlDataSource` for the read models.
 10. An `ISqlProjection` runs its statements on the `connection` and `transaction` it is given, keys its rows by tenant
-   first, and creates its tables in `Prepare` with `CREATE TABLE IF NOT EXISTS`.
+   first, and creates its tables in `Prepare` with `CREATE TABLE IF NOT EXISTS`. Queryable rows: `ISqlProjection<TRow>` with
+   `new NpgsqlRows<TRow>(json, schema)`; its `Prepare`/`Write`/`Remove` take the given connection and transaction.
 
 ## Example
 

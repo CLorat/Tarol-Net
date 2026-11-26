@@ -26,6 +26,9 @@ public interface IProjection<TRow>
     /// <summary>Whether the rows are per entity (<see cref="ProjectionAttribute.PerEntity"/>): keyed by the event's entity id (TN-54).</summary>
     static virtual bool PerEntity => false;
 
+    /// <summary>Whether an <see cref="ISqlProjection{TRow}"/> writes the rows (<see cref="ProjectionAttribute.Sql"/>, TN-54): no row host applies events.</summary>
+    static virtual bool Sql => false;
+
     /// <summary>
     /// Applies one event: the new row (a static <c>When</c> when <paramref name="row"/> is <see langword="null"/>, an instance
     /// <c>When</c> otherwise), the same instance when no <c>When</c> handles the event, or <see langword="null"/> when there is

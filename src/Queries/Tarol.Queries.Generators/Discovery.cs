@@ -41,18 +41,28 @@ internal static class Discovery
         var name = attribute.ConstructorArguments.Length == 1 ? attribute.ConstructorArguments[0].Value as string : null;
         var version = 1;
         var perEntity = false;
+        var sql = false;
+        var guarded = false;
         foreach (var argument in attribute.NamedArguments)
         {
             if (argument.Key == "Version" && argument.Value.Value is int v)
                 version = v;
             if (argument.Key == "PerEntity" && argument.Value.Value is bool e)
                 perEntity = e;
+            if (argument.Key == "Sql" && argument.Value.Value is bool q)
+                sql = q;
+            if (argument.Key == "Aggregate" && argument.Value.Value is not null)
+                guarded = true;
         }
         if (name is null || !ValidName.IsMatch(name))
             return Fail(DiagnosticInfo.Create(Diagnostics.Declaration, location, type.Name,
                 $"the name '{name}' must be lowercase letters, digits and hyphens, at most 40, starting with a letter"));
         if (version < 1)
             return Fail(DiagnosticInfo.Create(Diagnostics.Declaration, location, type.Name, $"the Version {version} must be 1 or more"));
+        if (guarded && !sql)
+            return Fail(DiagnosticInfo.Create(Diagnostics.Declaration, location, type.Name, "Aggregate names the read grant of an SQL projection's rows (Sql = true); a row projection's aggregate is its events'"));
+        if (sql && perEntity)
+            return Fail(DiagnosticInfo.Create(Diagnostics.Declaration, location, type.Name, "an SQL projection (Sql = true) keys its rows itself; it cannot be PerEntity"));
 
         // the When methods
         var creators = new List<(WhenModel Model, LocationInfo? Location)>();
@@ -65,6 +75,13 @@ internal static class Discovery
                 continue;
             var at = LocationInfo.From(method.Locations.FirstOrDefault() ?? Location.None);
             var shown = string.Join(", ", method.Parameters.Select(p => p.Type.Name));
+            if (sql)
+            {
+                // TN-54 (P-2): its ISqlProjection<TRow> writes the rows; a When would never run
+                diagnostics.Add(DiagnosticInfo.Create(Diagnostics.When, at, type.Name, shown,
+                    $"an SQL projection (Sql = true) has no When methods: its ISqlProjection<{type.Name}> writes the rows"));
+                continue;
+            }
             var (why, eventAggregate, when) = When(method, type);
             if (why is null && aggregate is not null && eventAggregate != aggregate)
                 why = $"all events of a projection come from one aggregate; this one is of {Simple(eventAggregate!)}, the first of {Simple(aggregate)}";
@@ -92,10 +109,10 @@ internal static class Discovery
                 diagnostics.Add(DiagnosticInfo.Create(Diagnostics.When, LocationInfo.From(empty.Locations.FirstOrDefault() ?? Location.None), type.Name,
                     string.Join(", ", empty.Parameters.Select(p => p.Type.Name)), $"the start row is 'public static {type.Name} Empty(RecordedEvent r)'"));
         }
-        if (creators.Count == 0 && !hasEmpty && diagnostics.Count == 0)
+        if (!sql && creators.Count == 0 && !hasEmpty && diagnostics.Count == 0)
             diagnostics.Add(DiagnosticInfo.Create(Diagnostics.Creation, location, type.Name,
                 $"no static When creates the row; add 'public static {type.Name} When(<event> e, RecordedEvent r)' for the stream's first event, or 'public static {type.Name} Empty(RecordedEvent r)' to start every instance When"));
-        if (aggregate is null && diagnostics.Count == 0)
+        if (!sql && aggregate is null && diagnostics.Count == 0)
             diagnostics.Add(DiagnosticInfo.Create(Diagnostics.Creation, location, type.Name, "no When names an event, so the stream is unknown"));
 
         // the columns
@@ -140,11 +157,11 @@ internal static class Discovery
             type.ToDisplayString(Qualified),
             name,
             version,
-            aggregate!,
+            aggregate ?? "",
             new EquatableArray<WhenModel>(creators.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
             new EquatableArray<WhenModel>(updaters.Select(c => c.Model).OrderByDescending(w => w.Depth).ThenBy(w => w.Event, System.StringComparer.Ordinal).ToImmutableArray()),
             new EquatableArray<ColumnModel>(columns.ToImmutableArray()))
-        { HasEmpty = hasEmpty, PerEntity = perEntity };
+        { HasEmpty = hasEmpty, PerEntity = perEntity, Sql = sql };
         return new Discovered(model, new EquatableArray<DiagnosticInfo>(ImmutableArray<DiagnosticInfo>.Empty));
     }
 

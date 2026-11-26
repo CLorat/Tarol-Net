@@ -46,8 +46,12 @@ internal static class Emitter
         sb.Append(b).Append("static int ").Append(face).Append(".Version => ").Append(model.Version).Append(";\n\n");
         if (model.PerEntity)
             sb.Append(b).Append("static bool ").Append(face).Append(".PerEntity => true;\n\n");
-        sb.Append(b).Append("static string ").Append(face).Append(".StreamType => global::Tarol.Queries.Projections.StreamTypeOf<")
-            .Append(model.Aggregate).Append(">();\n\n");
+        if (model.Sql)
+            sb.Append(b).Append("static bool ").Append(face).Append(".Sql => true;\n\n")
+                .Append(b).Append("static string ").Append(face).Append(".StreamType => \"\";\n\n");
+        else
+            sb.Append(b).Append("static string ").Append(face).Append(".StreamType => global::Tarol.Queries.Projections.StreamTypeOf<")
+                .Append(model.Aggregate).Append(">();\n\n");
         sb.Append(b).Append("static global::System.Collections.Generic.IReadOnlyList<").Append(column).Append(">> ").Append(face)
             .Append(".Columns => __TarolColumns;\n\n");
 

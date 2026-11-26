@@ -22,10 +22,12 @@ public sealed class ProjectionsBuilder
     /// <typeparam name="TRow">The <see cref="ProjectionAttribute"/> row record.</typeparam>
     /// <param name="configure">Options of this projection, after <see cref="Defaults"/>.</param>
     /// <returns>This builder.</returns>
-    /// <exception cref="InvalidOperationException">The projection is hosted already.</exception>
+    /// <exception cref="InvalidOperationException">The projection is hosted already, or its rows are an SQL projection's (<see cref="ProjectionAttribute.Sql"/>).</exception>
     public ProjectionsBuilder Add<TRow>(Action<ProjectionOptions>? configure = null)
         where TRow : class, IProjection<TRow>
     {
+        if (TRow.Sql)
+            throw new InvalidOperationException($"The rows of '{TRow.Name}' v{TRow.Version} are written by an ISqlProjection<{typeof(TRow).Name}> (Sql = true): add that projection, not the row.");
         Once(TRow.Name, TRow.Version);
         Services.AddSingleton(provider => new ProjectionHost<TRow>(
             provider.GetRequiredService<IEventFeed>(),

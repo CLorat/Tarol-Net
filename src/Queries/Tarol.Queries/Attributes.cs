@@ -34,6 +34,21 @@ public sealed class ProjectionAttribute(string name) : Attribute
     /// in PostgreSQL). The <c>When</c> methods take the entity's events, e.g. <c>static AllergyRow When(Allergy.Noted e, RecordedEvent r)</c>.
     /// </summary>
     public bool PerEntity { get; set; }
+
+    /// <summary>
+    /// The rows are written by an <see cref="ISqlProjection{TRow}"/> (TN-54, owner decision P-2): a read model computed in SQL (a
+    /// join over two aggregate types, a monthly sum) that list and row queries (<see cref="IQuery{TRow}"/>,
+    /// <see cref="IRowQuery{TRow}"/>) read like any other. The record declares the columns only: no <c>When</c> methods (TQRY002),
+    /// not <see cref="PerEntity"/>, and no row host (<c>Add&lt;TRow&gt;()</c> refuses it; register the SQL projection instead).
+    /// </summary>
+    public bool Sql { get; set; }
+
+    /// <summary>
+    /// The aggregate whose <c>Read&lt;T&gt;</c> grant the list and row endpoints of an SQL projection's rows need (<see cref="Sql"/>;
+    /// a row projection's is the aggregate of its events): <c>[Projection("billing", Sql = true, Aggregate = typeof(Facility))]</c>.
+    /// Without it the rows have no endpoint (TWEB001).
+    /// </summary>
+    public Type? Aggregate { get; set; }
 }
 
 /// <summary>
