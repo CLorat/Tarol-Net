@@ -18,7 +18,7 @@ HEADER = "#nullable enable"
 
 def projects():
     for csproj in sorted(glob.glob(os.path.join(ROOT, "src", "*", "*", "*.csproj"))):
-        if not csproj.endswith(".Generators.csproj"):
+        if not csproj.endswith((".Generators.csproj", ".CodeFixes.csproj")):
             yield os.path.splitext(os.path.basename(csproj))[0], os.path.dirname(csproj)
 
 

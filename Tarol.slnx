@@ -72,6 +72,7 @@
   </Folder>
   <Folder Name="/src/Primitives/">
     <Project Path="src/Primitives/Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" />
+    <Project Path="src/Primitives/Tarol.Primitives.CodeFixes/Tarol.Primitives.CodeFixes.csproj" />
     <Project Path="src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
   </Folder>
   <Folder Name="/src/Queries/">

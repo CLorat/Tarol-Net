@@ -190,6 +190,7 @@ in your `JsonSerializerContext` with a unique name each, or System.Text.Json's g
 | `Subject` naming a `string`, a `Guid?`, a missing member or itself | TPRM031 |
 | `[PersonalData]` inside a value object, on a `[Transient]`/static/computed member, in a `[LoadByReplay]` state | TPRM032: mark the member that holds the value |
 | `[Retention]` on an entity or with `Days = 0` | TPRM033 |
+| an event, a JSON state member or an endpoint input missing from the `JsonSerializerContext` | TPRM035 (code fix adds it); an entry reached anyway: TPRM036 |
 | a computed public property (`=> …`) on an event or projection row with `[PersonalData]` members | TPRM034: it would be stored unsealed; a method or `[JsonIgnore]` |
 | the order's own id as the subject of the customer's address | erasing the customer misses it: `Subject = nameof(Placed.Customer)` |
 

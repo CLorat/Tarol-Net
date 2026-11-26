@@ -27,18 +27,9 @@ internal static class StateDiscovery
             return;
         }
 
-        if (member is not IFieldSymbol { IsStatic: false, IsConst: false } field)
+        if (Stored(member) is not { } field)
             return;
-        if (Symbols.ContainerChild(field.Type).Child is not null)
-            return; // an EntitySet/EntityRef: its children are nested, not a field
-
         var property = field.AssociatedSymbol as IPropertySymbol;
-        if (field.IsImplicitlyDeclared && property is null)
-            return; // compiler-generated (a captured primary-constructor parameter is reported by TPRM013's rules, not stored)
-        if (field.Name.StartsWith("__", System.StringComparison.Ordinal))
-            return; // generated plumbing (__map, __Parent)
-        if (Symbols.HasAttribute(field, "TransientAttribute") || (property is not null && Symbols.HasAttribute(property, "TransientAttribute")))
-            return;
 
         var memberName = property?.Name ?? field.Name;
         var location = Discovery.LocationOf((ISymbol?)property ?? field);
@@ -54,6 +45,34 @@ internal static class StateDiscovery
             field.Name, memberName, NameOf(property?.Name ?? field.Name, (ISymbol?)property ?? field, field),
             field.Type.ToDisplayString(TypeFormat), kind, wrap, value, read, underlying,
             new EquatableArray<string>(members), Describe(field.Type, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0), location));
+    }
+
+    /// <summary>The instance field <paramref name="member"/> stores in the state, or <see langword="null"/> (not a field, a child container, plumbing, transient).</summary>
+    private static IFieldSymbol? Stored(ISymbol member)
+    {
+        if (member is not IFieldSymbol { IsStatic: false, IsConst: false } field)
+            return null;
+        if (Symbols.ContainerChild(field.Type).Child is not null)
+            return null; // an EntitySet/EntityRef: its children are nested, not a field
+        var property = field.AssociatedSymbol as IPropertySymbol;
+        if (field.IsImplicitlyDeclared && property is null)
+            return null; // compiler-generated (a captured primary-constructor parameter is reported by TPRM013's rules, not stored)
+        if (field.Name.StartsWith("__", System.StringComparison.Ordinal))
+            return null; // generated plumbing (__map, __Parent)
+        if (Symbols.HasAttribute(field, "TransientAttribute") || (property is not null && Symbols.HasAttribute(property, "TransientAttribute")))
+            return null;
+        return field;
+    }
+
+    /// <summary>
+    /// The type the stored state reads and writes through the JSON options for <paramref name="member"/> (TPRM035): a stored field that is
+    /// not written directly (string, number, Guid, Id&lt;T&gt;, enum, their Nullable/Option), e.g. <c>List&lt;Block&gt;</c>; else <see langword="null"/>.
+    /// </summary>
+    public static (ITypeSymbol Type, ISymbol Member)? JsonStateType(ISymbol member)
+    {
+        if (Stored(member) is not { } field || Uncapturable(field.Type, 0) is not null || Classify(field.Type).Kind != StateKind.Json)
+            return null;
+        return (field.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated), (ISymbol?)(field.AssociatedSymbol as IPropertySymbol) ?? field);
     }
 
     /// <summary>The JSON name of a member: <c>[StateName]</c>, else the name without leading <c>_</c> in camelCase.</summary>

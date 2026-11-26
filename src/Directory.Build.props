@@ -2,7 +2,9 @@
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
   <PropertyGroup>
-    <TarolIsGenerator>$(MSBuildProjectName.EndsWith('.Generators'))</TarolIsGenerator>
+    <!-- Generators and analyzers, and their code fixes (Tarol.<Family>.CodeFixes: the IDE's half, which needs the Workspaces API the
+         compiler does not load; RS1038). -->
+    <TarolIsGenerator>$([System.Text.RegularExpressions.Regex]::IsMatch($(MSBuildProjectName), '\.(Generators|CodeFixes)$'))</TarolIsGenerator>
   </PropertyGroup>
 
   <!-- Runtime libraries: packable, AOT-compatible by default, versioned by MinVer from git tags. -->

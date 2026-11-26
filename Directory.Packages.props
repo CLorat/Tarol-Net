@@ -20,6 +20,7 @@
     <!-- The compiler of SDK 11.0.100 (Roslyn 5.12, results.md §8); a consumer's compiler must be at least this. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.12.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.12.0" />
   </ItemGroup>
 
   <ItemGroup Label="Messaging brokers (step 11D)">

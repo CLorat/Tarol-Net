@@ -6,5 +6,8 @@
     <ProjectReference Include="../../../src/Primitives/Tarol.Primitives/Tarol.Primitives.csproj" />
     <ProjectReference Include="../../Shared/Tarol.Testing.Generators/Tarol.Testing.Generators.csproj" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <!-- the code fixes of TPRM035/TPRM036, driven through a workspace -->
+    <ProjectReference Include="../../../src/Primitives/Tarol.Primitives.CodeFixes/Tarol.Primitives.CodeFixes.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
 </Project>

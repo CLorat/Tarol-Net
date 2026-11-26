@@ -59,6 +59,7 @@ Tarol-Net/
 | Satellite package | `Tarol.<Family>.<Part>` | `Tarol.Persistence.Npgsql` |
 | Meta-package (the one exception) | `Tarol`, in family folder `Meta`; no code, `IncludeBuildOutput=false` | `src/Meta/Tarol/Tarol.csproj` |
 | Generator | `Tarol.<Family>.Generators`, namespace the same | `Tarol.StronglyTypedId.Generators` |
+| Code fixes of a generator's analyzers | `Tarol.<Family>.CodeFixes` (packed next to the generator; the Workspaces API the compiler does not load, RS1038) | `Tarol.Primitives.CodeFixes` |
 | Unit tests | `<Project>.Tests` | `Tarol.StronglyTypedId.Tests` |
 | Integration tests | `<Project>.IntegrationTests` | `Tarol.Persistence.Npgsql.IntegrationTests` |
 | AOT smoke app | `Tarol.<Family>.AotSmoke` | |

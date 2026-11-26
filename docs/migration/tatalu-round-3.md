@@ -50,6 +50,7 @@ column below), and the three design questions of round 3b take the recommendatio
 | S-6 | Read your reactions (TN-51) | Documentation only. |
 | S-7 | List rules on filter values (TN-44) | `IListScope` only, until a case scopes cannot express. |
 | S-8 | Tarol-Svelte ThemeRoot budget | Raised to 3.25 kB (`c2f323d`). |
+| J-1 | Hand-kept JSON contexts (asked 2026-11-26) | **(b)** TPRM035/TPRM036 with code fixes (a generator cannot add `[JsonSerializable]` entries). |
 | O-1 | Order | `Tarol.Audit` (with R-3, C-1); per-entity rows and the SQL read endpoint; `Tarol.Files`; DataProtection round 2; Web Push; Zitadel and TM-*. |
 
 ### Change reads ([change-reads.md](../architecture/change-reads.md); TN-40 … TN-42, TN-49)
@@ -632,6 +633,41 @@ the other pipeline tests.
   `A_capability_link_is_a_change_without_a_policy_with_the_tenant_and_the_token_in_its_route` (generator).
 * **Tatalu:** `InvitationEndpoints.Activate` becomes an `AcceptInvitation` change with `Capability = true` and a check over the
   invitation's lookup hash; `eltern.ts` comes from the document.
+
+### JSON contexts: TPRM035, TPRM036 and their code fixes (owner decision J-1 (b), 2026-11-26)
+
+The owner asked whether a generator could replace Tatalu's hand-kept contexts (`AnwesenheitJson`: 70 entries). It cannot add
+the entries: the System.Text.Json generator never sees another generator's output. Options were (a) shorten the contexts by
+hand, (b) an analyzer with code fixes; the owner chose **(b)**.
+
+* **TPRM035 (warning, compilation end):** a type Tarol reads or writes through the application's JSON options that no context
+  of the assembly generates (its entries plus everything the System.Text.Json generator reaches through them: properties,
+  `[JsonInclude]` members, elements, dictionary keys and values, `Nullable<T>`, `[JsonDerivedType]`; not into a type with its own
+  `[JsonConverter]`). Required: the events and the JSON state members (`StateJson.Info<T>`, the state generator's own rule) of
+  aggregates registered with `EventCodec.Add<T>()` (also in a generated module), `[Endpoint]` inputs with a body member, views,
+  the rows of `IQuery<TRow>`/`IRowQuery<TRow>`, `[Webhook]` payloads. Not required: a projection row without an endpoint (the
+  in-memory store keeps objects; the Npgsql store names a missing row at startup), contracts (TMSG's own check). Reported only
+  when the assembly declares a context. The diagnostic names the context (the one whose namespace shares most with the type)
+  and, when the type's generated name is taken (`Started` of two aggregates), the `TypeInfoPropertyName` (`SettingsStarted`).
+* **TPRM036 (info):** an entry that an entry which stays reaches (one no other entry reaches, or one with a
+  `TypeInfoPropertyName`), so removing every reported entry at once keeps them all; entries that only reach each other stay.
+* **Code fixes (`Tarol.Primitives.CodeFixes`, new, packed into `Tarol.Primitives` next to the analyzer):** "Add to <context>"
+  (fix all: one edit per context, each type once, names simplified) and "Remove the entry" (an attribute with its separator; a
+  list whose every entry goes, keeping its comment). A separate assembly because a code fix needs the Workspaces API, which the
+  compiler does not load (RS1038); `src/Directory.Build.props` treats `*.CodeFixes` like `*.Generators` (conventions.md §2).
+* **Measured on Tatalu [verified]** (its backend built against this branch in a scratch copy; Tatalu's repository unchanged): 12
+  modules, about 1,100 entries; TPRM035: **0** (nothing missing, no false reports); TPRM036: **160** entries (Anwesenheit 23 of 70,
+  Planung 32, Dokumentation 23, Kommunikation 19). With all 160 removed the backend builds without errors or new warnings, and the
+  generated code of each module still holds a `JsonTypeInfo` for every one of the 139 types.
+* **Tests [verified]:** `JsonContextDiagnosticTests` (6: what is required, a type reached through an entry, a not-needed entry and a
+  pinned one, a chain and a cycle, a colliding name, no context) and `JsonContextCodeFixTests` (3, through the public code-fix
+  API in a workspace: one fix, fix all with pinned names, removal of an attribute and of a whole list; the analyzer reports
+  nothing afterwards). In this repository the analyzer found one real gap: `CloseAuctionByLink` was missing from the
+  endpoint tests' context (they passed only because the tests allow reflection).
+* **Tatalu, when it moves to preview.6 or later:** two of its type names now clash with Tarol's: `Tatalu.Shared.Capture` with
+  `Tarol.Kernel.Capture` (TN-60) and `Tatalu.Shared.AccessDecision` with `Tarol.Security.AccessDecision` (VA-D), CS0104 in
+  `AuditTrail.cs`, `KinderSecurity.cs` and in `Tatalu.Dokumentation`, `Tatalu.Kommunikation`. Rename them or alias them per
+  module (`global using Capture = Tatalu.Shared.Capture;`).
 
 ## Open after round 3
 

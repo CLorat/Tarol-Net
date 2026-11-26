@@ -6,6 +6,14 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* JSON context checks (owner decision J-1 (b)): TPRM035 (warning) reports a type Tarol serializes (events and JSON state members
+  of codec-registered aggregates, endpoint inputs with a body, views, list and row query rows, webhook payloads) that no
+  `JsonSerializerContext` of the assembly generates; TPRM036 (info) reports an entry the context generates anyway through
+  another entry. Code fixes in the new `Tarol.Primitives.CodeFixes` assembly (packed into `Tarol.Primitives`) add and remove
+  the entries.
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline

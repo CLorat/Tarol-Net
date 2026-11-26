@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The code fixes of the Tarol.Primitives analyzers (TPRM035, TPRM036). Settings inherited from src/Directory.Build.props
+       (TarolIsGenerator): netstandard2.0, packed into Tarol.Primitives next to the analyzer, never on its own. Apart from the
+       analyzer because it needs the Workspaces API, which the compiler does not load (RS1038). -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+    <ProjectReference Include="../Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
