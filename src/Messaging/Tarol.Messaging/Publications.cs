@@ -65,6 +65,12 @@ public sealed record PublicationInfo(string Name, string Contract, int Version)
     public Type? EventType { get; init; }
 
     /// <summary>
+    /// Every domain event that feeds this contract version (TN-83, owner decision R-4: several events may publish one contract, e.g.
+    /// "this conversation changed"); <see cref="EventType"/> is the first. Empty when not stated.
+    /// </summary>
+    public IReadOnlyList<Type> EventTypes { get; init; } = [];
+
+    /// <summary>
     /// The simple name of the aggregate whose stream the event belongs to, e.g. <c>Auction</c> for <c>Bid.Placed</c> of
     /// <c>Bid : Entity&lt;Auction, Bid&gt;</c>: the message's subject is that aggregate's id. <see langword="null"/> when the
     /// generator cannot know it (an event that derives from neither <c>AggregateRoot&lt;T&gt;.Event</c> nor an entity's events).

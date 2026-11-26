@@ -78,7 +78,8 @@ public sealed partial record RecordPayment(Id<Auction> Auction, string Invoice, 
 
 9. **Publish with a mapping method**: `[Publishes<TEvent>("<own system>.<name>", v)]` on a `static` method `(TEvent)` or
    `(TEvent, RecordedEvent)` returning the contract record (a class in the JSON context; `null` = not published). Never
-   publish the domain event itself. One method per contract version (TMSG005); v2 is a second method.
+   publish the domain event itself. One record per contract version (TMSG005); v2 is a second method. Several events may
+   feed one contract version with the same record (a live "this conversation changed" topic): one method per event.
 10. **Rows, not sends**: the commit writes `publish:<contract>@<version>` rows; the reaction worker publishes them at
     least once, in version order per stream, so `AddReactionWorker()` must run (it needs no reactions). Message id =
     event id: a duplicate is dropped by the transport or replayed by the consumer's key. `Message.StreamVersion`
@@ -141,7 +142,7 @@ test["billing"].Store.Recorded.Count(r => r.Event.Event is Invoice.Issued).Shoul
 | a `Conflict` for a message that was already handled | retried until it is a dead letter: return `Result.Success()` |
 | I/O, a clock read or a lookup in `From` | not deterministic on redelivery: load in the change (`ILoads<T>`, `[Read]`) |
 | `[Publishes<T>]` on an instance or private method, a parameter that is not the event or `RecordedEvent`, returning a struct or string | TMSG004 |
-| two methods for one contract version; contracts of two prefixes in one assembly | TMSG005 (error; warning) |
+| two records for one contract version, or two methods for one event; contracts of two prefixes in one assembly | TMSG005 (error; warning) |
 | `Publish(…)` without `AddReactionWorker()` in any process | rows pile up in the outbox, nothing leaves |
 | sending an e-mail or calling an API in `Execute` or a reaction | not effect-once: use an `IEffect<T>` with its key |
 

@@ -554,6 +554,18 @@ the other pipeline tests.
   `stream_id` index, removal by stream).
 * **Tatalu:** projections that flattened entity lists into one row per stream (allergies, contacts) may become one row per entity.
 
+### TN-83 Several events, one topic (owner decision R-4; FB-E07-7)
+
+* **Behaviour change (`Tarol.Messaging.Generators`):** TMSG005 no longer reports several `[Publishes<…>]` of one contract version
+  when they return the same contract record; they share the publication row `publish:<contract>@<version>` (one outbox row per
+  event). Two records for one contract version, or two methods for one event, are still TMSG005.
+* **New API:** `PublicationInfo.EventTypes` (every event of the contract version; `EventType` stays the first).
+* **Tests [verified]:** `PublicationDiagnosticTests.TMSG005_several_events_may_publish_one_contract_version_with_the_same_record`
+  (red before: TMSG005; the generated set compiles with one row and both mapping arms),
+  `TMSG005_two_records_or_two_methods_for_one_event_still_collide`.
+* **Tatalu:** one topic per event for "this conversation changed" (`backend/src/Tatalu.Kommunikation`, the UI subscribing to each)
+  becomes one topic fed by every event.
+
 ## Open after round 3
 
 Not built yet (each with its owner decision taken, 2026-11-26): TN-47 with TN-83 (reactions: needs a design note), TN-49 /

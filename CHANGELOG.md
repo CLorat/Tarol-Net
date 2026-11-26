@@ -10,6 +10,8 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 * Projection rows per entity: `[Projection(…, PerEntity = true)]`, `IProjection<TRow>.PerEntity`, `Versioned<TRow>.Stream`,
   `IReadModelStore<TRow>.RemoveStreams`; a per-entity read table has an indexed `stream_id` column (TN-54, owner decision P-1).
+* Several events may publish one contract version with the same record (TN-83, owner decision R-4): TMSG005 reports only two
+  records per contract version or two methods for one event; `PublicationInfo.EventTypes`.
 
 ## [0.1.0]
 
