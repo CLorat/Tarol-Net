@@ -43,6 +43,42 @@ internal static class PersonalDiscovery
         return new EquatableArray<PersonalModel>(found.OrderBy(static p => p.Name, System.StringComparer.Ordinal).ToImmutableArray());
     }
 
+    /// <summary>The audit marks of an event (TN-64): <c>[NotAudited]</c>/<c>[AuditRemoved]</c> on it, <c>[NotAudited]</c>/<c>[AuditTime]</c> on members; null when none.</summary>
+    public static AuditModel? AuditOf(INamedTypeSymbol type)
+    {
+        var excluded = type.GetAttributes().Any(static a => Symbols.Is(a.AttributeClass, "NotAuditedAttribute"));
+        var removed = type.GetAttributes().Any(static a => Symbols.Is(a.AttributeClass, "AuditRemovedAttribute"));
+        var left = new List<PersonalModel>();
+        PersonalModel? time = null;
+        var seen = new HashSet<string>(System.StringComparer.Ordinal);
+        for (var current = type; current is not null && Symbols.LibraryEventBase(current).Kind == EventKind.None && !Symbols.Is(current, "DomainEvent"); current = current.BaseType)
+        {
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (property.IsStatic || property.IsIndexer || property.GetMethod is null || !seen.Add(property.Name))
+                    continue;
+                if (Marked(property, "NotAuditedAttribute"))
+                    left.Add(new PersonalModel(property.Name, JsonPropertyName(property), null, null));
+                if (time is null && Marked(property, "AuditTimeAttribute"))
+                    time = new PersonalModel(property.Name, JsonPropertyName(property), null, null);
+            }
+        }
+
+        if (!excluded && !removed && left.Count == 0 && time is null)
+            return null;
+        return new AuditModel(excluded, removed,
+            new EquatableArray<PersonalModel>(left.OrderBy(static p => p.Name, System.StringComparer.Ordinal).ToImmutableArray()), time);
+    }
+
+    // a mark on a property or, for a positional record, on its primary-constructor parameter
+    private static bool Marked(IPropertySymbol property, string attribute)
+    {
+        if (property.GetAttributes().Any(a => Symbols.Is(a.AttributeClass, attribute)))
+            return true;
+        return property.ContainingType is { IsRecord: true } record && record.InstanceConstructors.Any(c =>
+            c.Parameters.FirstOrDefault(p => p.Name == property.Name) is { } parameter && parameter.GetAttributes().Any(a => Symbols.Is(a.AttributeClass, attribute)));
+    }
+
     /// <summary>The <c>[PersonalData]</c> on a property (or, for a positional record, on its primary-constructor parameter).</summary>
     public static AttributeData? Mark(ISymbol member)
     {

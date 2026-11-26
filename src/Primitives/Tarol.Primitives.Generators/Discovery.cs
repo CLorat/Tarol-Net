@@ -182,7 +182,7 @@ internal static class Discovery
                     default, true, default, default, default, false, default, false, default,
                     kind, Symbols.FullName(target!), parent is null ? null : Symbols.FullName(parent), type.IsAbstract,
                     new EquatableArray<string>(bases.ToImmutableArray()), alias, version, LocationOf(type), default,
-                    Personal: PersonalDiscovery.OfEvent(type));
+                    Personal: PersonalDiscovery.OfEvent(type), Audit: PersonalDiscovery.AuditOf(type));
             }
 
             if (Symbols.Is(current, "DomainEvent"))
