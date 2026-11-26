@@ -29,6 +29,29 @@ column below), and the three design questions of round 3b take the recommendatio
 | TN-48 | The event id in an `On` handler | Not as an `On` parameter: an `On` also runs at `Raise`, before the store assigns ids. Entity ids reach ancestors' handlers through the event (`Deleted` with the entity id) and projections and reactions through `RecordedEvent`; a stable id for an entry inside the state is derived from the event's data (`Id<T>.Derive`, TN-42). |
 | TN-54 rest | Rows per entity, rows from the stored state, a read endpoint for a projection over several aggregate types | (a) `[Projection(PerEntity = typeof(TEntity))]`: the row key is the entity id. (b) Rows from the stored state: not built; a row folds events (one fold, shared by the aggregate and the row, is the documented way). (c) The join for billing: an `ISqlProjection` with an `IRowQuery`/`IQuery`-like read endpoint over its own table is the next design step, after per-entity rows. |
 
+**Decided by the owner (2026-11-26, second set): the follow-up questions of round 3c take their recommendations.**
+
+| # | Question | Decision |
+|---|---|---|
+| R-1 | One event for several targets (TN-47) | `From` may return `IEnumerable<X>`: one outbox row per element, keyed by event id and element target. |
+| R-2 | "Nothing to do" (TN-47) | `From` may return `null` (no outbox row); `Load` may answer `ChangeOutcome.Skipped` instead of a retried `NotFound`. |
+| R-3 | All events of an aggregate (TN-47, audit) | `[OnAnyEvent<TAggregate>]` with the `RecordedEvent`, built with `Tarol.Audit`. |
+| R-4 | Several events, one live topic (TN-83) | Several `[Publishes<…>]` on one topic and version are allowed when the contract type is the same (TMSG005 narrowed). |
+| P-1 | Rows per entity (TN-54) | The read table gets an indexed `stream_id` column; the row key is the entity id. |
+| P-2 | Read endpoint over an `ISqlProjection` (TN-54) | The SQL projection declares its row record; `IQuery`/`IRowQuery` work on it. |
+| C-1 | Where the capture is stored (TN-60b) | Two nullable `events` columns, `device text` and `captured_at timestamptz`, in schema version 5. |
+| C-2 | `Capture.SeenVersion` (FB-F04.6-1) | A `Tarol-Seen-Version` header and a "merge on replay" pattern, once Tatalu confirms the case. |
+| C-3 | tarol-client `captureHeaders` default | On whenever `device` is set, from preview.6. |
+| S-1 | Links without sign-in (TN-50) | `[Endpoint(…, Capability = true)]`: anonymous, tenant from the route, token through `ICapabilityCheck`. |
+| S-2 | Collection equality (TN-55) | `ValueArray<T>` with structural equality, a JSON array on the wire. |
+| S-3 | Reads in effects (TN-63) | `[Reads<T>]` on effects. |
+| S-4 | "The result of my request" (FB-E07-6) | Document and test the existing causation id. |
+| S-5 | Recurring domain dates (FB-F05.8-1) | The chain of due events plus a documented check for a broken chain; `IRecurring` with a second case. |
+| S-6 | Read your reactions (TN-51) | Documentation only. |
+| S-7 | List rules on filter values (TN-44) | `IListScope` only, until a case scopes cannot express. |
+| S-8 | Tarol-Svelte ThemeRoot budget | Raised to 3.25 kB (`c2f323d`). |
+| O-1 | Order | `Tarol.Audit` (with R-3, C-1); per-entity rows and the SQL read endpoint; `Tarol.Files`; DataProtection round 2; Web Push; Zitadel and TM-*. |
+
 ### Change reads ([change-reads.md](../architecture/change-reads.md); TN-40 … TN-42, TN-49)
 
 | # | Question | Options | Recommendation |
