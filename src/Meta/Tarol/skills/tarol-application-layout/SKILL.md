@@ -15,9 +15,11 @@ description: >-
    Generators ignore folders and file names, so the layout is free inside a project. Never move code to another project as
    part of a layout change: that is another module.
 2. **One folder per aggregate**, named as its plural (`MediaItems/`). `Shared/` holds types no single aggregate owns;
-   `Contracts/` holds what other contexts compile against. At the root: `<Context>.Module.cs`, `<Context>.Json.cs`,
+   `Contracts/` holds what exists for other contexts (published topics, ports they call, helpers no aggregate owns);
+   `Projections/` rows built only from other contexts' events. At the root: `<Context>.Module.cs`, `<Context>.Json.cs`,
    `<Context>.Security.cs`.
-3. **Folders are not namespaces.** Every file of the project keeps the context's one namespace (`namespace Billing;`).
+3. **Folders are not namespaces.** Every file keeps the context's one namespace (`namespace Billing;`); existing
+   sub-namespaces that others import stay, each file keeping the namespace of its declarations.
 4. **File name = `Name.Role.cs`**, PascalCase. Single roles are named after their type, group roles after the aggregate:
 
    | Single (one type per file) | Group (one file per aggregate) |
@@ -30,6 +32,8 @@ description: >-
    event starts it.
 7. **Events stay nested** in their root or entity; put the root's events in `X.Events.cs` (`public partial class X`).
 8. **File names follow types, never the reverse.** Renaming a type changes stored or published names (table below).
+9. **A large root splits by topic, topic after the role:** `X.Aggregate.<Topic>.cs`, `X.Values.<Topic>.cs`. The generated
+   state writer follows the file order of the parts; keep it (check `obj/**/generated` after naming a part).
 
 ## Example: an aggregate folder with one entity and one change
 
