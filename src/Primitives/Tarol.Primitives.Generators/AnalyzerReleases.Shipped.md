@@ -41,3 +41,5 @@ TPRM031 | Tarol.Primitives | Error | PersonalDataAnalyzer
 TPRM032 | Tarol.Primitives | Error | PersonalDataAnalyzer
 TPRM033 | Tarol.Primitives | Error | PersonalDataAnalyzer
 TPRM034 | Tarol.Primitives | Error | PersonalDataAnalyzer
+TPRM035 | Tarol.Primitives | Warning | JsonContextAnalyzer
+TPRM036 | Tarol.Primitives | Info | JsonContextAnalyzer
