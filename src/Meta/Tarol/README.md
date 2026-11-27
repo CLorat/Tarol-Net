@@ -19,3 +19,5 @@ page cache, reactions and sagas, messaging, jobs, security, operations and data 
 * `Tarol.Changes.AspNetCore`, `Tarol.Security` and `Tarol.Operations` bring the ASP.NET Core shared framework. A worker service
   that wants none of it references the packages it uses instead of `Tarol`.
 * Each package has its own README and agent skill. The skill `tarol-overview` says which package to use for what.
+  The skill `tarol-application-layout` says where each file of an application goes (one folder per aggregate, `Name.Role.cs`)
+  and which moves keep stored names; the convention is [docs/architecture/application-layout.md](https://github.com/CLorat/Tarol-Net/blob/main/docs/architecture/application-layout.md).

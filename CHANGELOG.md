@@ -8,6 +8,10 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ### Added
 
+* Application layout (owner decisions AL-1 … AL-9, [docs/migration/application-layout.md](docs/migration/application-layout.md)): the
+  convention [docs/architecture/application-layout.md](docs/architecture/application-layout.md) (one folder per aggregate, file names
+  `Name.Role.cs`, the safe and unsafe moves with their sources) and the agent skill `tarol-application-layout` in the meta-package
+  `Tarol`; `tarol-overview` points to it. Documentation only: no API or behaviour change.
 * JSON context checks (owner decision J-1 (b)): TPRM035 (warning) reports a type Tarol serializes (events and JSON state members
   of codec-registered aggregates, endpoint inputs with a body, views, list and row query rows, webhook payloads) that no
   `JsonSerializerContext` of the assembly generates; TPRM036 (info) reports an entry the context generates anyway through
