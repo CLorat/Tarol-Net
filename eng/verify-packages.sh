@@ -32,7 +32,7 @@ for nupkg in glob.glob(os.path.join(feed, "*.nupkg")):
 expected = []
 for csproj in sorted(glob.glob("src/*/*/*.csproj")):
     pid = os.path.splitext(os.path.basename(csproj))[0]
-    if pid.endswith(".Generators"):
+    if pid.endswith((".Generators", ".CodeFixes")):                  # packed into their runtime package (D-10)
         continue
     expected.append((pid, csproj))
 

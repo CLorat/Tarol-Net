@@ -90,6 +90,11 @@ var loaded = AggregateState.Read(gallery.Id, state, options);   // Option<Galler
   states, unreachable states, redundant edges, enums that cannot be lifecycles, `[To]` without `[Lifecycle]`, a
   `[Transition]` that is no edge, states no `On` assigns, an `On` that does not perform its `[Transition]`; fields the
   state cannot hold, state names used twice, state attributes without effect, `[Transient]` members filled in `On`.
+* **JSON contexts** (Native AOT has no reflection fallback): TPRM035 (warning) names a type Tarol serializes that no
+  `JsonSerializerContext` of the assembly generates: an event or a JSON state member of an aggregate registered with
+  `codec.Add<T>()`, an `[Endpoint]` input with a body, a view, the row of a list or row query, a webhook payload. TPRM036
+  (info) names an entry the context generates anyway, through another entry's members. The code fixes add and remove the
+  entries (fix all in one edit per context); list only what Tarol reads and the generator cannot reach.
   Suppressor `TPRMSPR01`: CS8524 on a complete `switch` over a `[Lifecycle]` enum.
 
 ## Personal data and retention (step 16)

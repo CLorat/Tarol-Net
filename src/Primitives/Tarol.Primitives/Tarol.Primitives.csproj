@@ -12,6 +12,9 @@
     <!-- D-10: the aggregate generator and the domain analyzers (TPRM001-TPRM027) and the CS8524 suppressor (TPRMSPR01) ship inside this package. -->
     <ProjectReference Include="../Tarol.Primitives.Generators/Tarol.Primitives.Generators.csproj"
                       ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
+    <!-- The code fixes of TPRM035/TPRM036 (the IDE loads them; the compiler never does). -->
+    <ProjectReference Include="../Tarol.Primitives.CodeFixes/Tarol.Primitives.CodeFixes.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" TarolGenerator="true" />
     <!-- The Options, Results and Kernel analyzers on this package's own code (analyzer references do not flow; kernel.md §8). -->
     <ProjectReference Include="../../Options/Tarol.Options.Generators/Tarol.Options.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />

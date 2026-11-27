@@ -247,6 +247,22 @@ internal static class Diagnostics
         Category, DiagnosticSeverity.Error, isEnabledByDefault: true,
         description: "Events and projection rows are stored as System.Text.Json writes them. A public get-only property without a backing field is written too, although nothing reads it back; when it derives its value from a [PersonalData] member, that value is stored in plaintext and survives the subject's erasure. The rule applies to types with personal data: declare the computation as a method, or mark the property [JsonIgnore].");
 
+    /// <summary>TPRM035: a type Tarol reads or writes through the application's JSON options that no JsonSerializerContext of the assembly generates (analyzer).</summary>
+    public static readonly DiagnosticDescriptor JsonContextMissing = new(
+        "TPRM035", "Type is missing from the JSON context",
+        "'{0}' is serialized by Tarol ({1}), but no JsonSerializerContext of this assembly generates it; add [JsonSerializable(typeof({0}))] to {2}",
+        Category, DiagnosticSeverity.Warning, isEnabledByDefault: true,
+        description: "Native AOT has no reflection fallback: the type fails at run time. The code fix adds the entry (with a TypeInfoPropertyName where the name would collide). A type reached through another entry's members is generated already and is not reported.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>TPRM036: a [JsonSerializable] entry whose type the context generates anyway, through another entry (analyzer).</summary>
+    public static readonly DiagnosticDescriptor JsonContextRedundant = new(
+        "TPRM036", "JSON context entry is generated anyway",
+        "[JsonSerializable(typeof({0}))] is not needed: the context generates it through {1}",
+        Category, DiagnosticSeverity.Info, isEnabledByDefault: true,
+        description: "The System.Text.Json generator also generates every type reached through the members of a listed type (properties, elements, derived types). The code fix removes the entry; one with a TypeInfoPropertyName is never reported.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
     public static DiagnosticDescriptor ById(string id) => id switch
     {
         "TPRM001" => GeneratorFailure,
@@ -277,6 +293,8 @@ internal static class Diagnostics
         "TPRM032" => PersonalPlacement,
         "TPRM033" => RetentionPlacement,
         "TPRM034" => PersonalComputed,
+        "TPRM035" => JsonContextMissing,
+        "TPRM036" => JsonContextRedundant,
         _ => GeneratorFailure,
     };
 }

@@ -11,7 +11,7 @@ internal static class GeneratorTestHost
     // Roslyn 5.9 treats unions (Tarol.Results, Tarol.Options) as preview (results.md §8).
     public static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
 
-    private static readonly IReadOnlyList<MetadataReference> References =
+    internal static readonly IReadOnlyList<MetadataReference> References =
     [
         .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
@@ -47,7 +47,7 @@ internal static class GeneratorTestHost
     {
         var compilation = Compile(sources);
         _ = Run(compilation).RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
-        var analyzer = output.WithAnalyzers([new DomainAnalyzer(), new PersonalDataAnalyzer()]).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
+        var analyzer = output.WithAnalyzers([new DomainAnalyzer(), new PersonalDataAnalyzer(), new JsonContextAnalyzer()]).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
         var compiler = output.GetDiagnostics().Where(static d => d.Severity >= DiagnosticSeverity.Warning);
         return [.. generatorDiagnostics, .. analyzer, .. compiler];
     }
