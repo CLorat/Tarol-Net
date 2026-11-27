@@ -27,6 +27,7 @@ public sealed class ZitadelOidcTests(Zitadel zitadel) : IAsyncLifetime
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton<Tarol.Changes.AspNetCore.ICapabilityCheck, Tarol.Changes.AspNetCore.Tests.LinkCheck>();   // the shared endpoints include a capability link (TN-50)
         builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>())
             .WithReactions(GeneratedReactions.Set)
             .UseInMemoryStore()

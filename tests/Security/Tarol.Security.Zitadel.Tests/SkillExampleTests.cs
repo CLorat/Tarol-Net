@@ -15,6 +15,7 @@ public sealed class SkillExampleTests
     {
         // ── verbatim ──
         var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<Tarol.Changes.AspNetCore.ICapabilityCheck, Tarol.Changes.AspNetCore.Tests.LinkCheck>();   // the shared endpoints include a capability link (TN-50)
         builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>())
             .UseInMemoryStore()                                    // .UseNpgsqlStore(connectionString) in production
             .AddSecurity(roles => roles.Role("seller").May<CreateAuction>().May<CloseAuction>())   // Zitadel project roles
