@@ -30,6 +30,7 @@ public sealed class ZitadelHubTests(Zitadel zitadel) : IAsyncLifetime
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddSingleton<Tarol.Changes.AspNetCore.ICapabilityCheck, Tarol.Changes.AspNetCore.Tests.LinkCheck>();   // the shared endpoints include a capability link (TN-50)
         builder.Services.AddTarol(AppJson.Default, codec => codec.Add<Auction>().Add<Payout>())
             .UseInMemoryStore()
             .AddEndpoints()
