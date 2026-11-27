@@ -12,11 +12,6 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
   convention [docs/architecture/application-layout.md](docs/architecture/application-layout.md) (one folder per aggregate, file names
   `Name.Role.cs`, the safe and unsafe moves with their sources) and the agent skill `tarol-application-layout` in the meta-package
   `Tarol`; `tarol-overview` points to it. Documentation only: no API or behaviour change.
-* JSON context checks (owner decision J-1 (b)): TPRM035 (warning) reports a type Tarol serializes (events and JSON state members
-  of codec-registered aggregates, endpoint inputs with a body, views, list and row query rows, webhook payloads) that no
-  `JsonSerializerContext` of the assembly generates; TPRM036 (info) reports an entry the context generates anyway through
-  another entry. Code fixes in the new `Tarol.Primitives.CodeFixes` assembly (packed into `Tarol.Primitives`) add and remove
-  the entries.
 
 ## [0.1.0]
 
@@ -30,7 +25,18 @@ version 5, additive; see [docs/migration/tatalu-round-3.md](docs/migration/tatal
 adds rows per entity, one topic for several events, and reaction fan-out and skip (upgrade: additive; a per-entity
 projection's table gets a `stream_id` column when it is created). `0.1.0-preview.8` adds the read endpoints over
 an SQL projection's rows and capability links (upgrade: additive; `0.1.0-preview.7` was tagged but not published, its
-integration job failed on a test fixed here).
+integration job failed on a test fixed here). `0.1.0-preview.9` adds TPRM035 and TPRM036 (95 diagnostics) with
+their code fixes, `Tarol.Primitives.CodeFixes` inside `Tarol.Primitives` (upgrade: an incomplete JSON context now warns).
+
+### In 0.1.0-preview.9: JSON context checks
+
+#### Added
+
+* JSON context checks (owner decision J-1 (b)): TPRM035 (warning) reports a type Tarol serializes (events and JSON state members
+  of codec-registered aggregates, endpoint inputs with a body, views, list and row query rows, webhook payloads) that no
+  `JsonSerializerContext` of the assembly generates; TPRM036 (info) reports an entry the context generates anyway through
+  another entry. Code fixes in the new `Tarol.Primitives.CodeFixes` assembly (packed into `Tarol.Primitives`) add and remove
+  the entries.
 
 ### In 0.1.0-preview.8: Tatalu feedback, round 3 after preview.7
 
