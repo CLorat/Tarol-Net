@@ -1,5 +1,18 @@
 #nullable enable
 Tarol.Changes.AspNetCore.CacheHeaders
+Tarol.Changes.AspNetCore.CapabilityRequest
+Tarol.Changes.AspNetCore.CapabilityRequest.<Clone>$() -> Tarol.Changes.AspNetCore.CapabilityRequest!
+Tarol.Changes.AspNetCore.CapabilityRequest.CapabilityRequest(string! Entry, System.Type! Input, Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!> Tenant, string! Token) -> void
+Tarol.Changes.AspNetCore.CapabilityRequest.Deconstruct(out string! Entry, out System.Type! Input, out Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!> Tenant, out string! Token) -> void
+Tarol.Changes.AspNetCore.CapabilityRequest.Entry.get -> string!
+Tarol.Changes.AspNetCore.CapabilityRequest.Entry.init -> void
+Tarol.Changes.AspNetCore.CapabilityRequest.Equals(Tarol.Changes.AspNetCore.CapabilityRequest? other) -> bool
+Tarol.Changes.AspNetCore.CapabilityRequest.Input.get -> System.Type!
+Tarol.Changes.AspNetCore.CapabilityRequest.Input.init -> void
+Tarol.Changes.AspNetCore.CapabilityRequest.Tenant.get -> Tarol.StronglyTypedId.Id<Tarol.Kernel.ITenant!>
+Tarol.Changes.AspNetCore.CapabilityRequest.Tenant.init -> void
+Tarol.Changes.AspNetCore.CapabilityRequest.Token.get -> string!
+Tarol.Changes.AspNetCore.CapabilityRequest.Token.init -> void
 Tarol.Changes.AspNetCore.ChangeEndpointOptions
 Tarol.Changes.AspNetCore.ChangeEndpointOptions.Actor.get -> System.Func<System.Security.Claims.ClaimsPrincipal!, Tarol.Kernel.Actor!>?
 Tarol.Changes.AspNetCore.ChangeEndpointOptions.Actor.set -> void
@@ -24,6 +37,7 @@ Tarol.Changes.AspNetCore.ChangeEndpointOptions.TenantClaim.set -> void
 Tarol.Changes.AspNetCore.ChangeEndpointOptions.UseProblemDetailsService.get -> bool
 Tarol.Changes.AspNetCore.ChangeEndpointOptions.UseProblemDetailsService.set -> void
 Tarol.Changes.AspNetCore.ChangeEndpoints
+Tarol.Changes.AspNetCore.ChangeEndpoints.CapabilityEdge(Microsoft.AspNetCore.Http.HttpContext! http, string! entry, System.Type! input, System.ReadOnlyMemory<byte> body = default(System.ReadOnlyMemory<byte>)) -> System.Threading.Tasks.ValueTask<(Tarol.Kernel.OperationContext! Context, Tarol.Changes.ChangeOptions Options, Tarol.Results.Violation? Refused)>
 Tarol.Changes.AspNetCore.ChangeEndpoints.ChangeEndpoints(Tarol.Changes.AspNetCore.ChangeEndpointOptions! options, Tarol.Changes.ChangePipeline! pipeline, Tarol.Persistence.IAggregateReader! reader, System.TimeProvider! time, Tarol.Changes.IChangeAuthorization? authorization) -> void
 Tarol.Changes.AspNetCore.ChangeEndpoints.Edge(Microsoft.AspNetCore.Http.HttpContext! http, System.ReadOnlySpan<byte> body = default(System.ReadOnlySpan<byte>)) -> (Tarol.Kernel.OperationContext! Context, Tarol.Changes.ChangeOptions Options, Tarol.Results.Violation? Refused)
 Tarol.Changes.AspNetCore.ChangeEndpoints.Is(ref System.Text.Json.Utf8JsonReader reader, string! name) -> bool
@@ -65,6 +79,8 @@ Tarol.Changes.AspNetCore.DeviceGateOptions.RequireDevice.set -> void
 Tarol.Changes.AspNetCore.EndpointAttribute
 Tarol.Changes.AspNetCore.EndpointAttribute.Anonymous.get -> bool
 Tarol.Changes.AspNetCore.EndpointAttribute.Anonymous.init -> void
+Tarol.Changes.AspNetCore.EndpointAttribute.Capability.get -> bool
+Tarol.Changes.AspNetCore.EndpointAttribute.Capability.init -> void
 Tarol.Changes.AspNetCore.EndpointAttribute.EndpointAttribute(string! route) -> void
 Tarol.Changes.AspNetCore.EndpointAttribute.Policy.get -> string?
 Tarol.Changes.AspNetCore.EndpointAttribute.Policy.init -> void
@@ -86,6 +102,8 @@ Tarol.Changes.AspNetCore.EndpointsTarolBuilderExtensions
 Tarol.Changes.AspNetCore.FromClaimAttribute
 Tarol.Changes.AspNetCore.FromClaimAttribute.FromClaimAttribute(string! type) -> void
 Tarol.Changes.AspNetCore.FromClaimAttribute.Type.get -> string!
+Tarol.Changes.AspNetCore.ICapabilityCheck
+Tarol.Changes.AspNetCore.ICapabilityCheck.Check(Tarol.Changes.AspNetCore.CapabilityRequest! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Results.Result<Tarol.Kernel.Actor!>>
 Tarol.Changes.AspNetCore.IDeviceGate
 Tarol.Changes.AspNetCore.IDeviceGate.IsActive(string! device, System.Security.Claims.ClaimsPrincipal! user, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
 Tarol.Changes.AspNetCore.IListScope<TQuery>
@@ -237,6 +255,7 @@ Tarol.Changes.AspNetCore.Webhooks.Webhooks(Microsoft.Extensions.Options.IOptions
 const Tarol.Changes.AspNetCore.CacheHeaders.CacheControl = "private, no-cache" -> string!
 const Tarol.Changes.AspNetCore.CacheHeaders.Vary = "Authorization" -> string!
 const Tarol.Changes.AspNetCore.ChangeEndpoints.BuildingCode = "Projection.Building" -> string!
+const Tarol.Changes.AspNetCore.ChangeEndpoints.CapabilityInvalidCode = "Capability.Invalid" -> string!
 const Tarol.Changes.AspNetCore.ChangeEndpoints.UnknownKeyCode = "Unknown" -> string!
 const Tarol.Changes.AspNetCore.DeviceGateExtensions.EndedCode = "Device.Ended" -> string!
 const Tarol.Changes.AspNetCore.DeviceGateExtensions.MismatchCode = "Device.Mismatch" -> string!
@@ -251,6 +270,9 @@ const Tarol.Changes.AspNetCore.TarolHeaders.Device = "Tarol-Device" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.IdempotencyKey = "Idempotency-Key" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.IdempotentReplayed = "Idempotent-Replayed" -> string!
 const Tarol.Changes.AspNetCore.TarolHeaders.RequestId = "Tarol-Request-Id" -> string!
+override Tarol.Changes.AspNetCore.CapabilityRequest.Equals(object? obj) -> bool
+override Tarol.Changes.AspNetCore.CapabilityRequest.GetHashCode() -> int
+override Tarol.Changes.AspNetCore.CapabilityRequest.ToString() -> string!
 override Tarol.Changes.AspNetCore.EndpointModule.Equals(object? obj) -> bool
 override Tarol.Changes.AspNetCore.EndpointModule.GetHashCode() -> int
 override Tarol.Changes.AspNetCore.EndpointModule.ToString() -> string!
@@ -276,6 +298,8 @@ override Tarol.Changes.AspNetCore.ViewContext.GetHashCode() -> int
 override Tarol.Changes.AspNetCore.WebhookDelivery.GetHashCode() -> int
 ~override Tarol.Changes.AspNetCore.WebhookDelivery.ToString() -> string
 static Tarol.Changes.AspNetCore.CacheHeaders.Apply(Microsoft.AspNetCore.Http.HttpContext! http) -> void
+static Tarol.Changes.AspNetCore.CapabilityRequest.operator !=(Tarol.Changes.AspNetCore.CapabilityRequest? left, Tarol.Changes.AspNetCore.CapabilityRequest? right) -> bool
+static Tarol.Changes.AspNetCore.CapabilityRequest.operator ==(Tarol.Changes.AspNetCore.CapabilityRequest? left, Tarol.Changes.AspNetCore.CapabilityRequest? right) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.Claim(Microsoft.AspNetCore.Http.HttpContext! http, string! type) -> string?
 static Tarol.Changes.AspNetCore.ChangeEndpoints.Granted(System.IServiceProvider! services, System.Type! intent, Tarol.Changes.ReadScope? scope, string! entry) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.HasScope<TQuery>(System.IServiceProvider! services, bool required) -> bool
@@ -284,6 +308,7 @@ static Tarol.Changes.AspNetCore.ChangeEndpoints.JsonPath(string! path, System.Te
 static Tarol.Changes.AspNetCore.ChangeEndpoints.Of(Microsoft.AspNetCore.Http.HttpContext! http) -> Tarol.Changes.AspNetCore.ChangeEndpoints!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.One(Microsoft.AspNetCore.Http.HttpContext! http, string! key, out string? value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.RequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
+static Tarol.Changes.AspNetCore.ChangeEndpoints.RequireCapabilityCheck(System.IServiceProvider! services, string! entry) -> void
 static Tarol.Changes.AspNetCore.ChangeEndpoints.StampRequestId(Microsoft.AspNetCore.Http.HttpContext! http) -> string!
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryDate(string! text, out System.DateOnly value) -> bool
 static Tarol.Changes.AspNetCore.ChangeEndpoints.TryEnum<TEnum>(string! text, out TEnum value) -> bool

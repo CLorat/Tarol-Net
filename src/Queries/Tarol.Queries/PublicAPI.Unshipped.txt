@@ -1,7 +1,1 @@
 #nullable enable
-Tarol.Queries.IProjection<TRow>.Sql.get -> bool
-Tarol.Queries.ISqlProjection<TRow>
-Tarol.Queries.ProjectionAttribute.Aggregate.get -> System.Type?
-Tarol.Queries.ProjectionAttribute.Aggregate.set -> void
-Tarol.Queries.ProjectionAttribute.Sql.get -> bool
-Tarol.Queries.ProjectionAttribute.Sql.set -> void

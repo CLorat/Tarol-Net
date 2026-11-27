@@ -6,21 +6,6 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
-### Added
-
-* Capability links (TN-50, owner decision S-1): `[Endpoint("POST /…/{tenant}/{token}/…", Capability = true)]` on a change or
-  a creation is anonymous, takes the tenant from the route and asks the registered `ICapabilityCheck` (`CapabilityRequest`) for
-  the actor; no principal reaches the pipeline. `ChangeEndpoints.CapabilityInvalidCode` (`Capability.Invalid`, 404). TWEB002 and
-  TWEB003 report a capability entry on a read, with a `Policy`, or without `{tenant}` and `{token}`; a host that maps one without
-  a check does not start.
-
-### Added
-
-* Rows of an SQL projection that list and row queries read (TN-54, owner decision P-2): `[Projection(…, Sql = true, Aggregate =
-  typeof(X))]` (columns only, no `When`; `X` is the aggregate whose `Read<X>` grant the endpoints need), `IProjection<TRow>.Sql`, `ISqlProjection<TRow>` (name and version from the row), `NpgsqlRows<TRow>` (`Prepare`,
-  `Write`, `Remove`, `Table` in the batch transaction); `ProjectionsBuilder.Add<TRow>()` refuses such a row, and a module does not
-  host it.
-
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
@@ -31,7 +16,24 @@ ships 31 packages (30 and the meta-package) and 93 diagnostics: it adds `Tarol.A
 and 3 of the Tatalu feedback (upgrade: PostgreSQL store schema
 version 5, additive; see [docs/migration/tatalu-round-3.md](docs/migration/tatalu-round-3.md#release-notes-010-preview6-round-3-for-tatalu)). `0.1.0-preview.7`
 adds rows per entity, one topic for several events, and reaction fan-out and skip (upgrade: additive; a per-entity
-projection's table gets a `stream_id` column when it is created).
+projection's table gets a `stream_id` column when it is created). `0.1.0-preview.8` adds the read endpoints over
+an SQL projection's rows and capability links (upgrade: additive; `0.1.0-preview.7` was tagged but not published, its
+integration job failed on a test fixed here).
+
+### In 0.1.0-preview.8: Tatalu feedback, round 3 after preview.7
+
+#### Added
+
+* Capability links (TN-50, owner decision S-1): `[Endpoint("POST /…/{tenant}/{token}/…", Capability = true)]` on a change or
+  a creation is anonymous, takes the tenant from the route and asks the registered `ICapabilityCheck` (`CapabilityRequest`) for
+  the actor; no principal reaches the pipeline. `ChangeEndpoints.CapabilityInvalidCode` (`Capability.Invalid`, 404). TWEB002 and
+  TWEB003 report a capability entry on a read, with a `Policy`, or without `{tenant}` and `{token}`; a host that maps one without
+  a check does not start.
+* Rows of an SQL projection that list and row queries read (TN-54, owner decision P-2): `[Projection(…, Sql = true, Aggregate =
+  typeof(X))]` (columns only, no `When`; `X` is the aggregate whose `Read<X>` grant the endpoints need), `IProjection<TRow>.Sql`, `ISqlProjection<TRow>` (name and version from the row), `NpgsqlRows<TRow>` (`Prepare`,
+  `Write`, `Remove`, `Table` in the batch transaction); `ProjectionsBuilder.Add<TRow>()` refuses such a row, and a module does not
+  host it.
+
 
 ### In 0.1.0-preview.7: Tatalu feedback, round 3 after preview.6
 

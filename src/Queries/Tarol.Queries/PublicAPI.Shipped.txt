@@ -37,6 +37,7 @@ Tarol.Queries.IProjection<TRow>.Apply(TRow? row, Tarol.Primitives.RecordedEvent!
 Tarol.Queries.IProjection<TRow>.Columns.get -> System.Collections.Generic.IReadOnlyList<Tarol.Queries.ProjectionColumn<TRow!>!>!
 Tarol.Queries.IProjection<TRow>.Name.get -> string!
 Tarol.Queries.IProjection<TRow>.PerEntity.get -> bool
+Tarol.Queries.IProjection<TRow>.Sql.get -> bool
 Tarol.Queries.IProjection<TRow>.StreamType.get -> string!
 Tarol.Queries.IProjection<TRow>.Version.get -> int
 Tarol.Queries.IProjectionGate
@@ -67,6 +68,7 @@ Tarol.Queries.ISqlProjection.Name.get -> string!
 Tarol.Queries.ISqlProjection.Prepare(System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 Tarol.Queries.ISqlProjection.StreamTypes.get -> System.Collections.Generic.IReadOnlyCollection<string!>?
 Tarol.Queries.ISqlProjection.Version.get -> int
+Tarol.Queries.ISqlProjection<TRow>
 Tarol.Queries.ISqlProjectionStore
 Tarol.Queries.ISqlProjectionStore.Checkpoint(Tarol.Queries.ISqlProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Tarol.Queries.ProjectionCheckpoint>
 Tarol.Queries.ISqlProjectionStore.Prepare(Tarol.Queries.ISqlProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
@@ -152,10 +154,14 @@ Tarol.Queries.Page<T>.Total.init -> void
 Tarol.Queries.ProjectionArrayColumn<TRow, TElement>
 Tarol.Queries.ProjectionArrayColumn<TRow, TElement>.ProjectionArrayColumn(string! name, string! member, Tarol.Queries.ColumnType type, bool nullable, System.Func<TRow, TElement[]?>! get) -> void
 Tarol.Queries.ProjectionAttribute
+Tarol.Queries.ProjectionAttribute.Aggregate.get -> System.Type?
+Tarol.Queries.ProjectionAttribute.Aggregate.set -> void
 Tarol.Queries.ProjectionAttribute.Name.get -> string!
 Tarol.Queries.ProjectionAttribute.PerEntity.get -> bool
 Tarol.Queries.ProjectionAttribute.PerEntity.set -> void
 Tarol.Queries.ProjectionAttribute.ProjectionAttribute(string! name) -> void
+Tarol.Queries.ProjectionAttribute.Sql.get -> bool
+Tarol.Queries.ProjectionAttribute.Sql.set -> void
 Tarol.Queries.ProjectionAttribute.Version.get -> int
 Tarol.Queries.ProjectionAttribute.Version.set -> void
 Tarol.Queries.ProjectionBatch<TRow>

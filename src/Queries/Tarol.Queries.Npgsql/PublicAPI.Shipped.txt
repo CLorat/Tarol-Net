@@ -69,6 +69,12 @@ Tarol.Queries.Npgsql.NpgsqlReadModels.Store<TRow>() -> Tarol.Queries.IReadModelS
 Tarol.Queries.Npgsql.NpgsqlReadModels.Typed<TRow>() -> Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow!>!
 Tarol.Queries.Npgsql.NpgsqlReadModels.Versions(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Tarol.Persistence.ProjectionVersion!>!>!
 Tarol.Queries.Npgsql.NpgsqlReadModels.Write(Tarol.Queries.ISqlProjection! projection, System.Collections.Generic.IReadOnlyList<Tarol.Persistence.PositionedEvent!>! events, Tarol.Persistence.GlobalPosition from, Tarol.Persistence.GlobalPosition through, Tarol.Queries.ProjectionState state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<(bool Written, int Rows)>
+Tarol.Queries.Npgsql.NpgsqlRows<TRow>
+Tarol.Queries.Npgsql.NpgsqlRows<TRow>.NpgsqlRows(System.Text.Json.JsonSerializerOptions! json, string! schema = "tarol") -> void
+Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Prepare(System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Table.get -> string!
+Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Write(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
 const Tarol.Queries.Npgsql.NpgsqlProjectionPositions.ChannelSuffix = "_checkpoint" -> string!
 const Tarol.Queries.Npgsql.NpgsqlReadModelSchema.DefaultSchema = "tarol" -> string!
 const Tarol.Queries.Npgsql.NpgsqlReadModelStore<TRow>.NotPreparedCode = "Projection.NotPrepared" -> string!
