@@ -24,6 +24,7 @@ description: >-
 | ids, `Option<T>`, `Result<T>`, value objects with rules | Tarol.StronglyTypedId, Tarol.Options, Tarol.Results, Tarol.Validations | `tarol-strongly-typed-id`, `tarol-options`, `tarol-results`, `tarol-validations` |
 | who acts, tenant, correlation, the clock | Tarol.Kernel | `tarol-kernel` |
 | aggregates, events, entities, invariants, lifecycles | Tarol.Primitives | `tarol-primitives` |
+| where a file goes: one folder per aggregate, `Name.Role.cs`, safe and unsafe moves | Tarol (this package) | `tarol-application-layout` |
 | storing and loading aggregates, upcasters, `[PersonalData]` sealing | Tarol.Persistence, Tarol.Persistence.Npgsql | `tarol-persistence`, `tarol-persistence-npgsql` |
 | a change (command) and its pipeline; HTTP entries | Tarol.Changes, Tarol.Changes.AspNetCore | `tarol-changes`, `tarol-endpoints` |
 | projections, lists, the page cache | Tarol.Queries, Tarol.Queries.Npgsql, Tarol.Caching | `tarol-queries`, `tarol-queries-npgsql`, `tarol-caching` |

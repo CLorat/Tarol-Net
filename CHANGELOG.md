@@ -6,6 +6,13 @@ Generator diagnostics are tracked per generator in `AnalyzerReleases.Shipped.md`
 
 ## [Unreleased]
 
+### Added
+
+* Application layout (owner decisions AL-1 … AL-9, [docs/migration/application-layout.md](docs/migration/application-layout.md)): the
+  convention [docs/architecture/application-layout.md](docs/architecture/application-layout.md) (one folder per aggregate, file names
+  `Name.Role.cs`, the safe and unsafe moves with their sources) and the agent skill `tarol-application-layout` in the meta-package
+  `Tarol`; `tarol-overview` points to it. Documentation only: no API or behaviour change.
+
 ## [0.1.0]
 
 The first release of Tarol-Net: 29 packages (28 and the meta-package `Tarol`), the public API baseline
