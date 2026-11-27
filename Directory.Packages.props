@@ -25,7 +25,7 @@
 
   <ItemGroup Label="Messaging brokers (step 11D)">
     <!-- AOT-clean as used by Tarol.Messaging.Nats / .RabbitMq (published, 0 IL warnings; docs/migration/messaging.md §3.3). -->
-    <PackageVersion Include="NATS.Net" Version="3.4.0" />
+    <PackageVersion Include="NATS.Net" Version="3.4.1" />
     <PackageVersion Include="RabbitMQ.Client" Version="7.3.0" />
     <!-- the UI push's .NET client (the server side is the Microsoft.AspNetCore.App framework reference) -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
