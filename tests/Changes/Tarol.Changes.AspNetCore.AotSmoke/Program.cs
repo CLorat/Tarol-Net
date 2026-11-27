@@ -59,6 +59,7 @@ tarol.WithOutboxRows(GeneratedPublications.Set)
 builder.Services.AddSingleton<IAuthorizationHandler, CloseAuctionRule>();
 builder.Services.AddSingleton<IAuthorizationHandler, ReadOwnAuction>();
 builder.Services.AddSingleton<IListScope<FamilyAuctions>, FamilyScope>();                 // TN-6: the list requires its scope
+builder.Services.AddSingleton<ICapabilityCheck, LinkCheck>();                              // TN-50: the capability link's check
 builder.Services.AddProblemDetails();
 builder.Services.Configure<WebhookOptions>(o => o.Senders["payments"] = new WebhookSender { Secrets = { "whsec" } });
 builder.Services.AddAuthentication("smoke").AddScheme<AuthenticationSchemeOptions, SmokeScheme>("smoke", null);
@@ -182,6 +183,14 @@ Check("OpenAPI natively: x-tarol-topics with the contract's version, stream and 
     && ruled.GetProperty("BidPlacedV1").GetProperty("properties").GetProperty("auction").GetProperty("format").GetString() == "uuid",
     topic.ToString());
 
+// TN-50: a capability link, anonymous, in the route's tenant, as the check's actor; an unknown token runs nothing
+var forLink = await Send(HttpMethod.Post, "/auctions", auction.Replace("Sunflowers", "Lilies", StringComparison.Ordinal), "alice");
+var linkBody = $$"""{"auction":"{{JsonElement.Parse(forLink.Body).GetProperty("id").GetString()}}"}""";
+var unknownLink = await Send(HttpMethod.Post, "/links/0193a000-0000-7000-8000-00000000000a/used/close", linkBody, null);
+var openLink = await Send(HttpMethod.Post, "/links/0193a000-0000-7000-8000-00000000000a/open-sesame/close", linkBody, null);
+Check("capability link natively: unknown 404, open 204 without sign-in (TN-50)",
+    unknownLink.Status == HttpStatusCode.NotFound && unknownLink.Body.Contains("Link.NotFound", StringComparison.Ordinal) && openLink.Status == HttpStatusCode.NoContent,
+    $"{unknownLink.Status} {unknownLink.Body} / {openLink.Status} {openLink.Body}");
 await app.StopAsync();
 Console.WriteLine(failures == 0 ? $"Tarol.Changes.AspNetCore AOT smoke ({(pg is { Length: > 0 } ? "Npgsql" : "in-memory")}): all checks passed" : $"{failures} failed");
 return failures == 0 ? 0 : 1;
