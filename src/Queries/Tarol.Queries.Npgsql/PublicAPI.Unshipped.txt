@@ -1,7 +1,1 @@
 #nullable enable
-Tarol.Queries.Npgsql.NpgsqlRows<TRow>
-Tarol.Queries.Npgsql.NpgsqlRows<TRow>.NpgsqlRows(System.Text.Json.JsonSerializerOptions! json, string! schema = "tarol") -> void
-Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Prepare(System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
-Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Remove(System.Collections.Generic.IReadOnlyCollection<Tarol.Queries.RowKey>! keys, System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
-Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Table.get -> string!
-Tarol.Queries.Npgsql.NpgsqlRows<TRow>.Write(System.Collections.Generic.IReadOnlyList<Tarol.Queries.Versioned<TRow!>!>! rows, System.Data.Common.DbConnection! connection, System.Data.Common.DbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
