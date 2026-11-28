@@ -25,7 +25,10 @@ read in the code named, not run.
 | **OpenAPI schema names are type names** (the simple name ASP.NET proposes), unless `[OpenApiSchemaName("…")]` (Tarol.Kernel) pins one; two types with one name throw. The typed Svelte client takes its type names from these schemas. | `src/Changes/Tarol.Changes.AspNetCore/OpenApiSchemaNames.cs` | [verified]: OpenAPI byte diff (§6) |
 | **JSON contexts**: TPRM035 (warning) reports a type Tarol serializes that no `JsonSerializerContext` *of the assembly* generates; TPRM036 (info) an entry the context generates anyway. Both have code fixes. Moving entries between `partial` parts of one context changes nothing. | `src/Primitives/Tarol.Primitives.Generators/Diagnostics.cs` | [verified by reading] (from 0.1.0-preview.9) |
 
-So: **files and folders are free, namespaces are almost free, type names and nesting are not.**
+| **The order of the written state follows the declaration order**: the generator walks `type.GetMembers()`, which for a `partial` type lists the parts in compile order, and the SDK compiles the files sorted by path. The schema hash sorts the fields by name and reading matches by name, so another order only changes the generated writer and the byte order of newly written state, not the schema or the loading of stored state. | `src/Primitives/Tarol.Primitives.Generators/Discovery.cs` (`GetMembers`), `Emitter.State.cs` (`StateShape` sorts by name) | [verified]: renaming `AttendanceMonth.Corrections.cs` to `AttendanceMonth.Corrections.Aggregate.cs` reordered the generated writer (schema unchanged); `AttendanceMonth.Aggregate.Corrections.cs` kept it |
+
+So: **files and folders are free, namespaces are almost free, type names and nesting are not.** Keep the relative file order
+of an aggregate's `partial` parts as well (§4 rule 8), so that a move stays provably free of generated changes.
 
 ## 2. The layout
 
@@ -56,7 +59,8 @@ Tatalu.Dokumentation/                      one project = one bounded context = o
     InMemoryMediaStore.Adapter.cs          an implementation of a port, or of a Tarol extension point (ErasureParticipant)
     Caption.Value.cs                       a value object with its own rules (a validated record struct)
   Shared/                                  value objects and helpers that no single aggregate of the context owns
-  Contracts/                               what other contexts compile against: [Publishes<…>] records, published types
+  Contracts/                               what exists for other contexts: [Publishes<…>] topics and messages, ports they use
+  Projections/                             rows built only from other contexts' events
 ```
 
 ## 3. Role suffixes
@@ -71,10 +75,12 @@ File names are `Name.Role.cs`, PascalCase (AL-1). `Name` is the declared type fo
 | `.Security.cs` | role map classes (`Map(ChangeRoles)`), policies, sensitive-read lists | context / group | `Incident.Security.cs` |
 | `.Rules.cs` | row rules: authorization handlers of one aggregate | group | `Incident.Rules.cs` |
 | `.Aggregate.cs` | the root: attributes, state, factory, behaviour, invariants | single | `DailyLog.Aggregate.cs` |
+| `.Aggregate.<Topic>.cs` | a topic part of a large root (AL-10): its behaviour and state, the topic after the role | group | `ChildDayCare.Aggregate.Hours.cs` |
 | `.Events.cs` | the same `partial` root (or entity): nested events and `On` handlers (AL-2) | group | `DailyLog.Events.cs` |
 | `.Lifecycle.cs` | the state enum with `[Lifecycle]`/`[To]` | single | `Order.Lifecycle.cs` |
 | `.Entity.cs` | one child entity with its nested events | single | `MediaComment.Entity.cs` |
 | `.Values.cs` | plain enums, records and constants of the aggregate's state, events and method inputs | group | `Incident.Values.cs` |
+| `.Values.<Topic>.cs` | the values of one topic of a large root (AL-10) | group | `CareFile.Values.Termination.cs` |
 | `.Value.cs` | one value object with rules (`[NotEmpty]`, `[Length]`, `IValidatable`) | single | `LogText.Value.cs` |
 | `.Change.cs` | one change with its `[Endpoint]` (AL-3: always one per file) | single | `TagPhoto.Change.cs` |
 | `.Reaction.cs` | one change with `[OnEvent<…>]` | single | `RemindDose.Reaction.cs` |
@@ -87,7 +93,8 @@ File names are `Name.Role.cs`, PascalCase (AL-1). `Name` is the declared type fo
 | `.DomainService.cs` | stateless logic across aggregates (reads other aggregates, decides) | single | `PhotoConsents.DomainService.cs` |
 | `.Port.cs` | an interface to the outside and the records in its signature | single | `IMediaStore.Port.cs` |
 | `.Adapter.cs` | an implementation of a port or of a Tarol extension point | single | `MediaErasure.Adapter.cs` |
-| `.Contract.cs` | a type other contexts compile against, in `Contracts/` (AL-5) | single | `ChildRegistered.Contract.cs` |
+| `.Contract.cs` | a type that exists for other contexts, in `Contracts/` (AL-5, AL-12) | single | `ConversationTopics.Contract.cs` |
+| `<Context>.Rules.cs`, `<Context>.Support.cs` | rules and helpers for the whole context (a list rule, the lookups) | context | `Anwesenheit.Rules.cs` |
 
 A reaction is a change, so it could be `.Change.cs`; `.Reaction.cs` and `.Job.cs` say *who* starts it, which is what a reader
 looks for ("what happens when a photo is shared?").
@@ -103,11 +110,22 @@ looks for ("what happens when a photo is shared?").
    changes, view and rows are in `DailyLogs/`; the setting `SetReportRelease` changes `DocumentationSettings`, so it is there.
 4. **A type lives with the aggregate whose state or events define it**, even if another aggregate of the context uses it.
    Only a type no aggregate owns goes to `Shared/` (`LogText` is used by three aggregates and owned by none).
-5. **Everything another context relies on goes to `Contracts/`** (AL-5). A file there is a promise to other contexts.
+5. **What exists for other contexts goes to `Contracts/`** (AL-5, AL-12): `[Publishes<…>]` topics and their messages, ports other
+   contexts implement or call (`IConsentCheck`, `IMailSender`), and helpers no aggregate owns that other contexts call
+   (`Calendar`, `Holidays`, `Tenants`). An aggregate and its values stay in their folder even when other contexts read them. A
+   file in `Contracts/` is a promise to other contexts.
 6. **One JSON context per context**; its options and class declaration in `<Context>.Json.cs`, each aggregate's entries in a
    partial part `<Aggregate>.Json.cs` next to the types they list.
 7. **One namespace per context** (AL-4): folders are not namespaces. Everything in `Tatalu.Dokumentation/` stays in
-   `namespace Tatalu.Dokumentation;`.
+   `namespace Tatalu.Dokumentation;`. A context that already has sub-namespaces other contexts import keeps them (AL-11):
+   each file keeps the namespace of its declarations, only the folders follow the aggregates.
+8. **A large root is split by topic** (AL-10): `X.Aggregate.<Topic>.cs` and `X.Values.<Topic>.cs`, the topic *after* the role.
+   Parts that declare state must keep their relative file order (§1, the order of the written state): Tatalu's
+   `AttendanceMonth.Corrections.cs` sorted before `AttendanceMonth.cs`, `AttendanceMonth.Aggregate.Corrections.cs` sorts before
+   `AttendanceMonth.Aggregate.cs` again, `AttendanceMonth.Corrections.Aggregate.cs` does not. Check the generated code after
+   naming a part. Rows built only from other contexts' events go to
+   `Projections/`; a feature with neither an aggregate nor changes (registration against an identity provider) keeps a folder of
+   its own with its ports, adapters and service.
 
 Why one namespace (AL-4): it is safe for stored names either way (§1), but a namespace per folder changes every `using` in
 the host, the tests and the other contexts, and breaks code that writes a namespace out to tell a type from a member
@@ -153,9 +171,14 @@ One context per pull request, behaviour unchanged.
    * optional: a list of the assembly's types and members (System.Reflection.Metadata) is identical: no type was renamed.
 5. **Document** in the application where each kind of file lives, with a table old file → new files.
 
-Tatalu's pilot (`Tatalu.Dokumentation`, Tarol 0.1.0-preview.5): 151 declarations and the JSON context from 28 files into 97 files; all 2,394
-generated files of the 26 projects identical, 85 event aliases and stream types identical, OpenAPI document and client
-unchanged, 750 of 750 tests passed (25 integration tests against PostgreSQL in Docker) **[verified]**.
+Compare types and members by their decoded signatures and leave out compiler-generated names (`<>c__DisplayClass…`): their
+numbers follow member order, which moving `On` handlers to `X.Events.cs` changes, and signature *lengths* change with a type's
+row number in the metadata.
+
+Tatalu, all ten contexts (Tarol 0.1.0-preview.5): 197 files into 908, one context per pull request. After each context all
+2,394 generated files of the 26 projects were identical, the assembly's types and members (decoded signatures) identical,
+the OpenAPI document byte-identical and the client unchanged, and 750 of 750 tests passed (25 integration tests against
+PostgreSQL in Docker) **[verified]**.
 
 ## 7. Checks
 

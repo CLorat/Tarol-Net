@@ -18,8 +18,13 @@ Public API and behaviour: **none changed.** The PR adds two documents, one skill
 | AL-7 | Checks | documented now; a layout analyzer (TLAY001 … TLAY005, convention §7) is proposed for a later decision | a check script in the application; documentation only without proposal |
 | AL-8 | Which package ships the skill | the meta-package `Tarol`: applications reference it, `tarol-overview` (the entry point) is there, the layout spans every package; `tarol-primitives` is already 13.9 KB | `Tarol.Primitives` |
 | AL-9 | Role list refinements from the pilot | `.Values.cs` (group of plain enums/records), `.Support.cs` (what the changes share), `.Endpoints.cs`, `.Security.cs` per aggregate where the context has one role map class per aggregate; `.Rules.cs` means authorization row rules only (Tatalu's `PhotoRules`/`IncidentRules` are parameters and helpers, so they go to `.Values.cs`/`.Support.cs`) | — (follows from AL-1 … AL-3 on real code) |
+| AL-10 | Large roots (from moving all Tatalu contexts) | topic parts `X.Aggregate.<Topic>.cs` and `X.Values.<Topic>.cs`, the topic after the role, keeping the relative file order of parts with state | `X.<Topic>.Aggregate.cs` (changed the generated state writer of `AttendanceMonth`) |
+| AL-11 | Existing sub-namespaces | stay; each file keeps the namespace of its declarations, folders follow the aggregates | collapsing them (an API change for every importer) |
+| AL-12 | What `Contracts/` holds | what exists *for* other contexts: published topics and messages, ports others implement or call, helpers no aggregate owns that others call; an aggregate and its values stay in their folder | every type another context reads (would move most aggregates) |
+| AL-13 | Rows and features without an aggregate of their own | `Projections/` for rows built only from other contexts' events; a feature with neither aggregate nor changes keeps its own folder (Tatalu's `Konto/`); context-wide rules and helpers in `<Context>.Rules.cs`/`<Context>.Support.cs` | `Shared/` (that is for values) |
 
-AL-9 is the author's refinement on Tatalu's code under AL-1 … AL-3, listed for review.
+AL-9 is the author's refinement on Tatalu's code under AL-1 … AL-3; AL-10 … AL-13 came from moving the other nine contexts
+after the owner asked for all of them. All five are listed for review.
 
 ## 2. Verification
 
@@ -29,6 +34,8 @@ AL-9 is the author's refinement on Tatalu's code under AL-1 … AL-3, listed for
 | Event aliases and stream types unchanged | the alias and stream-type lines of the generated event catalogue of `Tatalu.Dokumentation` | **[verified]** 85 lines identical |
 | OpenAPI document byte-identical | Tatalu's `OpenApiSnapshotTests` rewritten with `TATALU_ACCEPT_OPENAPI=1`, `git diff --exit-code` on `openapi.json` | **[verified]** no diff |
 | No type or member renamed | System.Reflection.Metadata list of every type, method, field and property of `Tatalu.Dokumentation.dll` | **[verified]** 13,894 entries identical |
+| All ten Tatalu contexts | the same checks after each context; types and members by decoded signatures without compiler-generated names | **[verified]** generated files identical after every context, 908 files, 750 of 750 tests each time (two of about twenty full runs had sporadic failures, three tests in all, each with the real clock and under the suite's parallel load; none reproduced alone, on `main` or in the next full run) |
+| File order and state order | `AttendanceMonth` with `.Corrections.Aggregate.cs` vs `.Aggregate.Corrections.cs`; `Discovery.cs` (`GetMembers`), `Emitter.State.cs` (`StateShape` sorted by name) | **[verified]** the first reordered the generated writer, schema unchanged; the second identical |
 | Behaviour unchanged | `dotnet test --solution backend/Tatalu.slnx` (Docker running) before and after | **[verified]** 750 of 750 both times, 25 integration tests included |
 | The skill's example compiles; entity aliases | a probe project with the skill's `Gallery/MediaItems` folder against the packages of `0bf961d` (`dotnet pack -p:MinVerVersionOverride=0.1.0-preview.9-dev`) | **[verified]** 0 warnings; `media_item.uploaded`, `media_item.media_comment.added`, `media_item.media_comment.removed`, stream type `media_item` |
 | Entity nested in the root or top-level: same alias | the probe with `MediaComment` nested in `MediaItem` | **[verified]** same three aliases |
@@ -50,6 +57,7 @@ Run with a frontier model, with and without the skill, on an application of two 
 | "Where is the reaction that writes a photo into the daily log?" | `DailyLogs/NotePhotoInLog.Reaction.cs` (folder of the changed aggregate) | searching `MediaItems/` only; grepping `.Change.cs` only |
 | "Add a child entity `MediaComment`." | `MediaItems/MediaComment.Entity.cs`, `Entity<MediaItem, MediaComment>`, events nested in it, `EntitySet<MediaComment>` on the root | events of the entity in `MediaItem.Events.cs` (alias `media_item.added`) |
 | "Rename `RemindDose` to `SendDoseReminder` to fit the files." | refuses, or keeps the old name with `[OnEvent<…>(Name = "RemindDose")]` and asks the owner | a plain rename: waiting outbox rows dead-letter |
+| "Split the 800-line `ChildDayCare` root by topic; add the opening hours part." | `ChildDayCares/ChildDayCare.Aggregate.Hours.cs` (topic after the role), its values in `ChildDayCare.Values.Hours.cs`, generated code checked | `ChildDayCare.Hours.Aggregate.cs` (another file order, another generated state writer); a nested helper class around events |
 | "Move `Tatalu.Kinder` to the layout." | baseline of generated files, OpenAPI and client; `git mv` commit; split commit; diff proof | rewriting code while moving it; renaming types; moving code into another project |
 
 ## 4. Not in this PR
